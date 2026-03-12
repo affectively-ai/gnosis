@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { Pipeline } from '@affectively/aeon-pipelines';
 import { BettyCompiler } from './betty/compiler.js';
 import { GnosisRegistry } from './runtime/registry.js';
 import { GnosisEngine } from './runtime/engine.js';
@@ -70,46 +71,67 @@ async function main() {
                 }
             });
 
-            // Linear: Matrix Multiplication + Bias using TOML weights
+            // Linear: Matrix Multiplication using Aeon Pipelines
             registry.register('Linear', async (payload, props) => {
                 const section = props['section'] || 'l1';
                 const weightsData = loadWeights(props['weights'] || 'weights.toml', section);
-
-                if (!weightsData) throw new Error(`Section '${section}' missing in weights.`);
-
                 const w = weightsData.weights as number[][];
                 const b = weightsData.bias as number[];
                 const x = payload as number[];
 
-                return w.map((row, i) => 
-                    row.reduce((acc, val, j) => acc + val * (x[j] || 0), 0) + (b[i] || 0)
-                );
+                // Each row of the matrix is a parallel path in a superposition
+                const rowWork = w.map((row, i) => async () => {
+                    const dotProduct = row.reduce((acc, val, j) => acc + val * (x[j] || 0), 0);
+                    return dotProduct + (b[i] || 0);
+                });
+
+                // Execute the row calculations in parallel through the engine
+                return await Pipeline.from(rowWork).fold({
+                    type: 'merge-all',
+                    merge: (results: Map<number, any>) => Array.from(results.values()).map(r => r)
+                });
             });
 
-            // Activation: e.g. ReLU
+            // Activation: Parallel ReLU
             registry.register('Activation', async (payload, props) => {
-                const type = props['type'] || 'relu';
                 const x = payload as number[];
-                if (type === 'relu') return x.map(v => Math.max(0, v));
-                return x;
+                const work = x.map(v => async () => Math.max(0, v));
+                
+                return await Pipeline.from(work).fold({
+                    type: 'merge-all',
+                    merge: (results: Map<number, any>) => Array.from(results.values()).map(r => r)
+                });
             });
 
-            // Attention: Scaled Dot-Product Attention
+            // Attention: Weighted parallel evolution
             registry.register('Attention', async (payload, props) => {
-                const section = props['section'] || 'attention';
-                const wData = loadWeights(props['weights'] || 'weights.toml', section);
-
                 const x = payload as number[];
-                console.log(`[WASM:Attention] Evolving wave function on ${x.length} dimensions...`);
-                return x.map(v => v * 1.5); 
+                console.log(`[WASM:Attention] Pipelining ${x.length}-dim wave function...`);
+                
+                const work = x.map(v => async () => {
+                    // Simulate non-linear phase shift
+                    await new Promise(r => setTimeout(r, 10));
+                    return v * 1.5;
+                });
+
+                return await Pipeline.from(work).fold({
+                    type: 'merge-all',
+                    merge: (results: Map<number, any>) => Array.from(results.values()).map(r => r)
+                });
             });
 
-            // Softmax: Normalization
+            // Softmax: Pipelined normalization
             registry.register('Softmax', async (payload, props) => {
                 const x = payload as number[];
-                const exps = x.map(v => Math.exp(v));
-                const sumExps = exps.reduce((a, b) => a + b, 0);
-                return exps.map(v => v / sumExps);
+                const expWork = x.map(v => async () => Math.exp(v));
+                
+                const exps = await Pipeline.from(expWork).fold({
+                    type: 'merge-all',
+                    merge: (results: Map<number, any>) => Array.from(results.values()).map(r => r)
+                });
+
+                const sum = (exps as number[]).reduce((a: number, b: number) => a + b, 0);
+                return (exps as number[]).map((v: number) => v / sum);
             });
 
             const engine = new GnosisEngine(registry);
