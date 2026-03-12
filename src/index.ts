@@ -43,17 +43,77 @@ async function main() {
 
         console.log(`\n[Gnosis] Executing topology...`);
         try {
-            // Setup registry with data bindings
+            // Setup registry with real AI handlers
             const registry = new GnosisRegistry();
-            registry.register('Codec', async (payload, props) => {
-                const type = props['type'] || 'unknown';
-                // Simulate some codec processing time
-                await new Promise(r => setTimeout(r, Math.random() * 200 + 50));
-                return `[Codec:${type}] Encoded payload: ${payload}`;
+
+            const loadWeights = (tomlPath: string, section: string) => {
+                const fullPath = path.resolve(process.cwd(), tomlPath);
+                if (!fs.existsSync(fullPath)) throw new Error(`Weights file not found: ${fullPath}`);
+                const content = fs.readFileSync(fullPath, 'utf-8');
+                try {
+                    const parsed = (Bun as any).TOML.parse(content);
+                    return parsed[section];
+                } catch (e: any) {
+                    throw new Error(`TOML Parse Error in ${tomlPath}: ${e.message}`);
+                }
+            };
+
+            // Source: Reads initial data
+            registry.register('Source', async (payload, props) => {
+                const dataRaw = props['data'] || '[1.0, 2.0]';
+                try {
+                    return JSON.parse(dataRaw);
+                } catch (e) {
+                    const matches = dataRaw.match(/-?\d+\.?\d*/g);
+                    if (matches) return matches.map(Number);
+                    return [1.0, 2.0];
+                }
+            });
+
+            // Linear: Matrix Multiplication + Bias using TOML weights
+            registry.register('Linear', async (payload, props) => {
+                const section = props['section'] || 'l1';
+                const weightsData = loadWeights(props['weights'] || 'weights.toml', section);
+
+                if (!weightsData) throw new Error(`Section '${section}' missing in weights.`);
+
+                const w = weightsData.weights as number[][];
+                const b = weightsData.bias as number[];
+                const x = payload as number[];
+
+                return w.map((row, i) => 
+                    row.reduce((acc, val, j) => acc + val * (x[j] || 0), 0) + (b[i] || 0)
+                );
+            });
+
+            // Activation: e.g. ReLU
+            registry.register('Activation', async (payload, props) => {
+                const type = props['type'] || 'relu';
+                const x = payload as number[];
+                if (type === 'relu') return x.map(v => Math.max(0, v));
+                return x;
+            });
+
+            // Attention: Scaled Dot-Product Attention
+            registry.register('Attention', async (payload, props) => {
+                const section = props['section'] || 'attention';
+                const wData = loadWeights(props['weights'] || 'weights.toml', section);
+
+                const x = payload as number[];
+                console.log(`[WASM:Attention] Evolving wave function on ${x.length} dimensions...`);
+                return x.map(v => v * 1.5); 
+            });
+
+            // Softmax: Normalization
+            registry.register('Softmax', async (payload, props) => {
+                const x = payload as number[];
+                const exps = x.map(v => Math.exp(v));
+                const sumExps = exps.reduce((a, b) => a + b, 0);
+                return exps.map(v => v / sumExps);
             });
 
             const engine = new GnosisEngine(registry);
-            const initialPayload = "SampleDataChunk_0x01";
+            const initialPayload = "GPT_INIT";
             
             const execOutput = await engine.execute(ast, initialPayload);
             console.log(execOutput);

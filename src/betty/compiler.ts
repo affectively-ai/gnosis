@@ -105,19 +105,24 @@ export class BettyCompiler {
             }
         }
 
+        // Parse Edges e.g. (source)-[:TYPE { props }]->(target)
+        let edgeMatch;
+        let matched = false;
         const edgeRegex = /\(([^)]+)\)\s*-\[:([A-Z]+)(?:\s*{([^}]+)})?\]->\s*\(([^)]+)\)/g;
         
-        let match;
-        let matched = false;
-
-        while ((match = edgeRegex.exec(cleanedInput)) !== null) {
+        while ((edgeMatch = edgeRegex.exec(cleanedInput)) !== null) {
             matched = true;
-            const sourceRaw = (match[1] || '').trim();
-            const edgeType = match[2].trim();
-            const propertiesRaw = match[3] ? match[3].trim() : '';
-            const targetRaw = match[4].trim();
+            const sourceRaw = edgeMatch[1].trim();
+            const edgeType = edgeMatch[2].trim();
+            const propertiesRaw = edgeMatch[3] ? edgeMatch[3].trim() : '';
+            const targetRaw = edgeMatch[4].trim();
 
-            if (!sourceRaw) continue; // Skip edges with no source for now
+            // Handle chained edges: set lastIndex to the start of the target node
+            // so it can be re-parsed as the source of the next edge.
+            const matchString = edgeMatch[0];
+            const targetString = `(${edgeMatch[4]})`;
+            const offset = matchString.lastIndexOf(targetString);
+            edgeRegex.lastIndex = edgeMatch.index + offset;
 
             const sources = sourceRaw.split('|').map(s => s.trim());
             const targets = targetRaw.split('|').map(s => s.trim());

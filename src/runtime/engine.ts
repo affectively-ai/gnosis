@@ -16,97 +16,122 @@ export class GnosisEngine {
         if (ast.edges.length === 0) return "[Engine] No graph to execute.";
         
         let execLogs: string[] = ["\n[Gnosis Engine Execution]"];
-        
-        // Find the first FORK edge to use as our pipeline root
-        // In a full implementation, we would do a topological sort and trace from root nodes.
-        // For now, we find the first FORK as the entry point to Superposition.
-        const forkEdge = ast.edges.find(e => e.type === 'FORK');
-        if (!forkEdge) {
-            return execLogs.join('\n') + "\n[Engine] Cannot execute: Graph missing a starting FORK.";
-        }
-
-        execLogs.push(`Starting pipeline from root node(s): [${forkEdge.sourceIds.join(', ')}]`);
-        
-        // Compute input payload by running the source node(s) if they have handlers
         let currentPayload = initialPayload;
-        for (const sourceId of forkEdge.sourceIds) {
-            const sourceNode = ast.nodes.get(sourceId);
-            if (sourceNode) {
-                const handler = this.findHandler(sourceNode);
+
+        // 1. Find the Root nodes (no incoming edges)
+        const allTargetIds = new Set<string>();
+        ast.edges.forEach(e => e.targetIds.forEach(id => allTargetIds.add(id.trim())));
+        const roots = Array.from(ast.nodes.keys()).filter(id => !allTargetIds.has(id.trim()));
+
+        if (roots.length === 0 && ast.nodes.size > 0) {
+            roots.push(Array.from(ast.nodes.keys())[0]);
+        }
+
+        let currentNodeId: string | undefined = roots[0];
+        let visited = new Set<string>();
+
+        execLogs.push(`Tracing from root: ${currentNodeId}`);
+
+        // 2. Sequential Execution until we hit a FORK
+        while (currentNodeId) {
+            currentNodeId = currentNodeId.trim();
+            if (visited.has(currentNodeId)) {
+                execLogs.push(`Cycle detected at ${currentNodeId}. Breaking.`);
+                break;
+            }
+            visited.add(currentNodeId);
+
+            const node = ast.nodes.get(currentNodeId);
+            if (node) {
+                const handler = this.findHandler(node);
                 if (handler) {
-                    execLogs.push(`Executing source node: ${sourceId}`);
-                    currentPayload = await handler(currentPayload, sourceNode.properties);
+                    execLogs.push(`  -> Executing [${currentNodeId}] (${node.labels.join(',')})`);
+                    currentPayload = await handler(currentPayload, node.properties);
+                } else {
+                    execLogs.push(`  -> Skipping [${currentNodeId}] (No handler)`);
                 }
-            }
-        }
-
-        execLogs.push(`Forking into paths: [${forkEdge.targetIds.join(', ')}]`);
-
-        // Generate work functions based on target node IDs
-        const workFns = forkEdge.targetIds.map(id => {
-            return async () => {
-                const node = ast.nodes.get(id);
-                if (node) {
-                    const handler = this.findHandler(node);
-                    if (handler) {
-                        const start = Date.now();
-                        const result = await handler(currentPayload, node.properties);
-                        const time = Date.now() - start;
-                        return { path: id, value: result, time };
-                    }
-                }
-                // Fallback simulation if no handler is registered
-                const delay = Math.random() * 500 + 100;
-                await new Promise(r => setTimeout(r, delay));
-                return { path: id, value: `Simulated Result from ${id}`, time: delay };
-            };
-        });
-
-        const superposition = Pipeline.from(workFns);
-
-        // Find what happens to these paths next (RACE, FOLD, COLLAPSE)
-        const nextEdge = ast.edges.find(e => e.type === 'RACE' || e.type === 'FOLD' || e.type === 'COLLAPSE');
-        
-        if (nextEdge?.type === 'RACE') {
-            execLogs.push(`Racing paths: [${nextEdge.sourceIds.join(', ')}] -> (${nextEdge.targetIds.join(', ')})`);
-            const { result } = await superposition.race();
-            execLogs.push(`Race concluded! Winner is: ${result.path} (Time: ${result.time.toFixed(0)}ms)`);
-            execLogs.push(`Winner Value: ${JSON.stringify(result.value)}`);
-            
-        } else if (nextEdge?.type === 'FOLD' || nextEdge?.type === 'COLLAPSE') {
-            const strategyType = nextEdge.properties['strategy'] || 'merge-all';
-            execLogs.push(`Folding paths with strategy [${strategyType}]`);
-            
-            if (strategyType === 'quorum') {
-                 const threshold = parseInt(nextEdge.properties['threshold'] || '2');
-                 execLogs.push(`Requiring quorum of ${threshold}`);
-                 const result = await superposition.fold({
-                     type: 'winner-take-all',
-                     selector: (results: Map<number, any>) => Array.from(results.values())[0] 
-                 });
-                 execLogs.push(`Folded result: ${JSON.stringify(result.value)}`);
             } else {
-                 const result = await superposition.fold({
-                     type: 'merge-all',
-                     merge: (results: Map<number, any>) => {
-                         const merged: Record<string, any> = {};
-                         Array.from(results.values()).forEach((r: any) => {
-                             merged[r.path] = r.value;
-                         });
-                         return merged;
-                     }
-                 });
-                 execLogs.push(`Folded merged results: ${JSON.stringify(result)}`);
+                execLogs.push(`  -> Error: Node [${currentNodeId}] not found in AST.`);
             }
-        } else {
-             execLogs.push(`Pipeline suspended in superposition. Awaiting fold or race.`);
+
+            // Find the outgoing edge
+            const edge = ast.edges.find(e => e.sourceIds.map(s => s.trim()).includes(currentNodeId!));
+            if (!edge) {
+                execLogs.push(`No outgoing edge from ${currentNodeId}. Final node.`);
+                break;
+            }
+
+            if (edge.type === 'FORK') {
+                execLogs.push(`  !! Hit FORK edge: [${edge.sourceIds.join(',')}] -> [${edge.targetIds.join(',')}]`);
+                
+                const workFns = edge.targetIds.map(id => {
+                    const tid = id.trim();
+                    return async () => {
+                        const node = ast.nodes.get(tid);
+                        if (node) {
+                            const handler = this.findHandler(node);
+                            if (handler) {
+                                const start = Date.now();
+                                const result = await handler(currentPayload, node.properties);
+                                const time = Date.now() - start;
+                                return { path: tid, value: result, time };
+                            }
+                        }
+                        return { path: tid, value: `Simulated Result from ${tid}`, time: 0 };
+                    };
+                });
+
+                const superposition = Pipeline.from(workFns);
+
+                const collapseEdge = ast.edges.find(e => 
+                    (e.type === 'RACE' || e.type === 'FOLD' || e.type === 'COLLAPSE') &&
+                    e.sourceIds.some(sid => edge.targetIds.map(t => t.trim()).includes(sid.trim()))
+                );
+
+                if (!collapseEdge) {
+                    execLogs.push(`Pipeline suspended in superposition. No collapse found.`);
+                    break;
+                }
+
+                if (collapseEdge.type === 'RACE') {
+                    execLogs.push(`  🏎️ Racing paths: [${collapseEdge.sourceIds.join(', ')}]`);
+                    const { result } = await superposition.race();
+                    execLogs.push(`  🏆 Race concluded! Winner: ${result.path}`);
+                    currentPayload = result.value;
+                } else {
+                    execLogs.push(`  🗜️ Folding paths: [${collapseEdge.sourceIds.join(', ')}]`);
+                    currentPayload = await superposition.fold({
+                        type: 'merge-all',
+                        merge: (results: Map<number, any>) => {
+                            const values = Array.from(results.values()).map((r: any) => r.value);
+                            if (Array.isArray(values[0]) && typeof values[0][0] === 'number') {
+                                return (values[0] as number[]).map((_, i) => 
+                                    values.reduce((acc, v) => acc + (v[i] || 0), 0)
+                                );
+                            }
+                            const merged: Record<string, any> = {};
+                            Array.from(results.values()).forEach((r: any) => {
+                                merged[r.path] = r.value;
+                            });
+                            return merged;
+                        }
+                    });
+                    execLogs.push(`  📦 Folded result: ${JSON.stringify(currentPayload).substring(0, 50)}...`);
+                }
+
+                currentNodeId = collapseEdge.targetIds[0].trim();
+                continue;
+            }
+
+            // Normal sequential flow
+            currentNodeId = edge.targetIds[0].trim();
         }
 
+        execLogs.push(`Final System Result: ${JSON.stringify(currentPayload)}`);
         return execLogs.join('\n');
     }
 
     private findHandler(node: ASTNode): import('./registry.js').GnosisHandler | null {
-        // Find the first registered handler matching any of the node's labels
         for (const label of node.labels) {
             const handler = this.registry.getHandler(label);
             if (handler) return handler;
