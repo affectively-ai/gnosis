@@ -3,11 +3,26 @@ import path from 'path';
 import { BettyCompiler } from './betty/compiler.js';
 import { GnosisRegistry } from './runtime/registry.js';
 import { GnosisEngine } from './runtime/engine.js';
+import { ModManager } from './mod/manager.js';
 
 const args = process.argv.slice(2);
 
 async function main() {
-    if (args[0] === 'run' && args[1]) {
+    if (args[0] === 'mod') {
+        const modManager = new ModManager();
+        try {
+            if (args[1] === 'init' && args[2]) {
+                modManager.init(args[2]);
+            } else if (args[1] === 'tidy') {
+                modManager.tidy();
+            } else {
+                console.error(`[Gnosis] Usage: gnosis mod init <module-name> | gnosis mod tidy`);
+            }
+        } catch (e: any) {
+            console.error(`[Gnosis Error] ${e.message}`);
+        }
+        process.exit(0);
+    } else if (args[0] === 'run' && args[1]) {
         const filePath = path.resolve(process.cwd(), args[1]);
         if (!fs.existsSync(filePath)) {
             console.error(`[Gnosis Error] File not found: ${filePath}`);
