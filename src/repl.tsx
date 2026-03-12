@@ -72,7 +72,7 @@ export function startRepl() {
         return (
             <Box flexDirection="column" padding={1}>
                 <Box flexDirection="column" marginBottom={1}>
-                    <Text bold color="magenta">Gnosis REPL v0.7.0 — Powered by Betty & Engine</Text>
+                    <Text bold color="magenta">Gnosis REPL v0.7.0  Powered by Betty & Engine</Text>
                     <Text color="gray">Type graph topologies, then type 'EXECUTE' to run them in aeon-pipelines.</Text>
                     <Text color="gray">Type 'exit' to quit.</Text>
                 </Box>
@@ -80,14 +80,14 @@ export function startRepl() {
                 {history.map((entry, index) => (
                     <Box key={index} flexDirection="row">
                         <Text color={entry.type === 'input' ? 'green' : entry.type === 'error' ? 'red' : 'cyan'}>
-                            {entry.type === 'input' ? '❯ ' : entry.type === 'error' ? '✖ ' : '  '}
+                            {entry.type === 'input' ? ' ' : entry.type === 'error' ? ' ' : '  '}
                         </Text>
                         <Text>{entry.text}</Text>
                     </Box>
                 ))}
 
                 <Box flexDirection="row">
-                    <Text color="green">❯ </Text>
+                    <Text color="green"> </Text>
                     <TextInput 
                         value={query} 
                         onChange={setQuery} 

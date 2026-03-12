@@ -100,12 +100,12 @@ export class GnosisEngine {
                 }
 
                 if (collapseEdge.type === 'RACE') {
-                    execLogs.push(`  🏎️ Racing paths: [${collapseEdge.sourceIds.join(', ')}]`);
+                    execLogs.push(`   Racing paths: [${collapseEdge.sourceIds.join(', ')}]`);
                     const { result } = await superposition.race();
-                    execLogs.push(`  🏆 Race concluded! Winner: ${result.path}`);
+                    execLogs.push(`   Race concluded! Winner: ${result.path}`);
                     currentPayload = result.value;
                 } else {
-                    execLogs.push(`  🗜️ Folding paths: [${collapseEdge.sourceIds.join(', ')}]`);
+                    execLogs.push(`   Folding paths: [${collapseEdge.sourceIds.join(', ')}]`);
                     currentPayload = await superposition.fold({
                         type: 'merge-all',
                         merge: (results: Map<number, any>) => {
@@ -122,7 +122,7 @@ export class GnosisEngine {
                             return merged;
                         }
                     });
-                    execLogs.push(`  📦 Folded result: ${JSON.stringify(currentPayload).substring(0, 50)}...`);
+                    execLogs.push(`   Folded result: ${JSON.stringify(currentPayload).substring(0, 50)}...`);
                 }
 
                 currentNodeId = collapseEdge.targetIds[0].trim();

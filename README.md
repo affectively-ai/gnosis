@@ -1,4 +1,4 @@
-# Gnosis 🎀
+# Gnosis 
 
 > **The language is the topology. The AST is the graph.**
 
