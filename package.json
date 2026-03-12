@@ -1,0 +1,29 @@
+{
+  "name": "@affectively/gnosis",
+  "version": "1.0.0",
+  "description": "Ink-based TUI REPL for the gnosis functional logic-based programming language",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "gnosis": "./bin/gnosis.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc -w",
+    "start": "node ./bin/gnosis.js"
+  },
+  "dependencies": {
+    "@affectively/aeon-pipelines": "workspace:*",
+    "chalk": "^5.3.0",
+    "gnosis_runtime": "./runtime/pkg",
+    "ink": "^4.4.1",
+    "ink-text-input": "^5.0.1",
+    "react": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.45",
+    "@types/node": "^20.10.4",
+    "typescript": "^5.3.3"
+  }
+}
