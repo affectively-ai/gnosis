@@ -25,6 +25,7 @@ Gnosis provides a unified architecture for high-performance, verified computatio
 3.  **Vectorized Runtime**: A "hella-optimized" Rust-based WebAssembly engine that evaluates topologies using the Aeon Flow 10-byte wire format with zero overhead.
 4.  **Formal Verification**: Natively integrated with `aeon-logic` to prove topological invariants and quantum bounds ($\beta_1$) at compile time.
 5.  **Statistical Measurement**: Integrated with `twokeys` for Tukey-style Exploratory Data Analysis (EDA) inside the wave function.
+6.  **3D Compatibility Runtime**: `Renderer` nodes can route 3D scene workloads through the `aeon-3d` topology compat layer (`fork/race/fold/vent`) to reduce sequential render-loop pressure.
 
 ## Real-World Topologies
 
@@ -33,6 +34,10 @@ Gnosis is capable of expressing the most complex software architectures as pure 
 *   **Topological AI**: Full Transformer-style forward passes (Attention, Residuals, Softmax) implemented as fractal superpositions.
 *   **Reactive Kernels**: The core server loops and navigation engines of `aeon-flux` and `aeon-shell` redefined as continuous topological transitions.
 *   **Self-Hosted Logic**: The Gnosis compiler is itself a Gnosis topology, proving the system is closed under self-application.
+
+## Source Tree
+
+- [src](./src/README.md): Compiler, runtime, and module tooling internals.
 
 ## Getting Started
 
@@ -54,6 +59,15 @@ Execute `.gg` test files with the built-in test runner:
 bun ./bin/gnosis.js test path/to/topology.test.gg
 ```
 
+### Topology Renderer Compatibility
+Route a renderer node to 3D/topology mode by setting `type` and optional collapse controls:
+
+```gg
+(render:Renderer {type: "3d", collapse: "race", budgetMs: "8"})
+```
+
+`Renderer` resolves `@affectively/aeon-3d` when available and falls back to the local gnosis compat engine in development.
+
 ## Tooling: Real-Time Correctness + Complexity
 
 Use built-in topology tooling to run Aeon Logic checks and measure branch/file complexity:
@@ -64,6 +78,12 @@ gnosis analyze path/to/topology.gg
 
 # Lint-style gate (non-zero exit on formal violations)
 gnosis lint path/to/topology.gg
+
+# Verify + generate TLA+ bridge artifacts
+gnosis verify path/to/topology.gg --tla-out tla/generated
+
+# Print generated TLA+ spec and TLC config to stdout
+gnosis verify path/to/topology.gg --tla
 
 # Auto-format and fix structural style
 gnosis --fix path/to/topology.gg

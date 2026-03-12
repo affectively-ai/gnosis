@@ -12,13 +12,31 @@ import {
     parseTsSonarThresholds
 } from './ts-sonar.js';
 import { ggReportToSarif, tsReportToSarif } from './sarif.js';
+import { generateTlaFromGnosisSource } from './tla-bridge.js';
 
 import { GnosisNeo4jBridge } from './neo4j-bridge.js';
 import { GnosisFormatter } from './formatter.js';
+import { renderWithTopologyCompat } from './runtime/renderer-compat.js';
 
 export { GnosisNeo4jBridge, GnosisRegistry, GnosisEngine, BettyCompiler };
 export type { GnosisHandler } from './runtime/registry.js';
 export type { GraphAST, ASTNode, ASTEdge } from './betty/compiler.js';
+export { generateTlaFromGnosisSource };
+export type { GnosisTlaBridgeResult, GnosisTlaBridgeOptions } from './tla-bridge.js';
+
+// Quantum CRDT — the only state model
+export { QDoc, QMap, QArray, QText, QCounter } from './crdt/index.js';
+export type {
+  QDocOptions, QDocDelta, QDocDeltaNode, QDocDeltaEdge,
+  QDocUpdateHandler, QDocObserveHandler, QDocEvent,
+} from './crdt/index.js';
+
+// Test harness & runner
+export { ggTest, ggQuickCheck, ggAssert, GGTestBuilder } from './gg-test-harness.js';
+export {
+  runGGTestFile, runGGTestSuite, discoverTestFiles,
+  formatGGTestResults, formatGGTestDiscoveryResults,
+} from './gg-test-runner.js';
 
 const args = process.argv.slice(2);
 
@@ -38,6 +56,19 @@ function parseMaxBuley(rawArgs: string[]): number | null {
     if (!rawValue) return null;
     const parsed = Number.parseFloat(rawValue);
     return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseFlagValue(rawArgs: string[], flagName: string): string | null {
+    const flagIndex = rawArgs.indexOf(flagName);
+    if (flagIndex < 0) return null;
+    const rawValue = rawArgs[flagIndex + 1];
+    if (!rawValue || rawValue.startsWith('--')) return null;
+    return rawValue;
+}
+
+interface TlaWritePaths {
+    tlaFilePath: string;
+    cfgFilePath: string;
 }
 
 async function main() {
@@ -121,12 +152,35 @@ async function main() {
             const violations = formatGnosisViolations(report.correctness);
             const buleyExceeded = maxBuley !== null && report.buleyNumber > maxBuley;
             const ok = report.correctness.ok && !buleyExceeded;
+            const shouldGenerateTla = args[0] === 'verify';
+            const shouldPrintTla = shouldGenerateTla && args.includes('--tla');
+            const tlaOutputDir = shouldGenerateTla ? parseFlagValue(args, '--tla-out') : null;
+            const tlaModuleOverride = shouldGenerateTla ? parseFlagValue(args, '--tla-module') : null;
+            const tlaBridge = shouldGenerateTla
+                ? generateTlaFromGnosisSource(source, {
+                    moduleName: tlaModuleOverride ?? undefined,
+                    sourceFilePath: filePath,
+                })
+                : null;
+            let tlaWritePaths: TlaWritePaths | null = null;
+
+            if (tlaBridge && tlaOutputDir) {
+                const resolvedOutputDir = path.resolve(process.cwd(), tlaOutputDir);
+                fs.mkdirSync(resolvedOutputDir, { recursive: true });
+
+                const tlaFilePath = path.join(resolvedOutputDir, `${tlaBridge.moduleName}.tla`);
+                const cfgFilePath = path.join(resolvedOutputDir, `${tlaBridge.moduleName}.cfg`);
+                fs.writeFileSync(tlaFilePath, tlaBridge.tla, 'utf-8');
+                fs.writeFileSync(cfgFilePath, tlaBridge.cfg, 'utf-8');
+
+                tlaWritePaths = { tlaFilePath, cfgFilePath };
+            }
 
             if (sarifOutput) {
                 const sarif = ggReportToSarif(filePath, report, violations, maxBuley);
                 console.log(JSON.stringify(sarif, null, 2));
             } else if (jsonOutput) {
-                console.log(JSON.stringify({
+                const basePayload: Record<string, unknown> = {
                     filePath,
                     mode: 'gg',
                     ok,
@@ -142,7 +196,19 @@ async function main() {
                         violationCount: report.correctness.violations.length,
                         violations
                     }
-                }, null, 2));
+                };
+
+                if (tlaBridge) {
+                    basePayload.tla = {
+                        moduleName: tlaBridge.moduleName,
+                        stats: tlaBridge.stats,
+                        outputPaths: tlaWritePaths,
+                        tla: shouldPrintTla ? tlaBridge.tla : undefined,
+                        cfg: shouldPrintTla ? tlaBridge.cfg : undefined,
+                    };
+                }
+
+                console.log(JSON.stringify(basePayload, null, 2));
             } else {
                 console.log(`[Gnosis ${args[0]}] ${filePath}`);
                 console.log(`  correctness: ${report.correctness.ok ? 'PASS' : 'FAIL'} (states=${report.correctness.stateCount}, beta1=${report.correctness.topology.beta1})`);
@@ -152,6 +218,20 @@ async function main() {
                 console.log(`  complexity: max-branch=${report.topology.maxBranchFactor} avg-branch=${report.topology.avgBranchFactor} cyclomatic≈${report.topology.cyclomaticApprox}`);
                 console.log(`  quantum: superposition=${report.quantum.superpositionEdgeCount} collapse=${report.quantum.collapseEdgeCount} coverage=${report.quantum.collapseCoverage} deficit=${report.quantum.collapseDeficit} interference-density=${report.quantum.interferenceDensity}`);
                 console.log(`  quantum-index: ${report.quantum.quantumIndex} beta-pressure=${report.quantum.betaPressure} beta-headroom=${report.quantum.betaHeadroom}`);
+                if (tlaBridge) {
+                    console.log(`  tla-module: ${tlaBridge.moduleName} (nodes=${tlaBridge.stats.nodeCount}, edges=${tlaBridge.stats.edgeCount}, roots=${tlaBridge.stats.rootCount}, terminals=${tlaBridge.stats.terminalCount})`);
+                    if (tlaWritePaths) {
+                        console.log(`  tla-files: ${tlaWritePaths.tlaFilePath}, ${tlaWritePaths.cfgFilePath}`);
+                    } else {
+                        console.log(`  tla-hint: pass --tla to print spec/cfg or --tla-out <dir> to write files`);
+                    }
+                    if (shouldPrintTla) {
+                        console.log('\n[TLA+ Spec]');
+                        console.log(tlaBridge.tla);
+                        console.log('[TLC Config]');
+                        console.log(tlaBridge.cfg);
+                    }
+                }
                 if (violations.length > 0) {
                     violations.forEach((line) => console.error(`  ${line}`));
                 }
@@ -191,7 +271,7 @@ async function main() {
 
         process.exit(tsReport.ok ? 0 : 1);
     } else if (args[0] === 'lint' || args[0] === 'verify' || args[0] === 'analyze') {
-        console.error(`[Gnosis] Usage: gnosis ${args[0]} <target> [--max-buley <number>] [--max-file-lines <number>] [--max-function-lines <number>] [--max-cyclomatic <number>] [--max-cognitive <number>] [--max-nesting <number>] [--json] [--sarif]`);
+        console.error(`[Gnosis] Usage: gnosis ${args[0]} <target> [--max-buley <number>] [--max-file-lines <number>] [--max-function-lines <number>] [--max-cyclomatic <number>] [--max-cognitive <number>] [--max-nesting <number>] [--json] [--sarif] [--tla] [--tla-out <dir>] [--tla-module <name>]`);
         process.exit(1);
     } else if (args[0] === 'run' && args[1]) {
         const filePath = resolveTopologyPath(args[1]);
@@ -476,7 +556,7 @@ async function main() {
             registry.register('Renderer', async (payload, props) => {
                 const type = props['type'] || 'html';
                 console.log(`[Aeon-Flux:Renderer] Rendering ${type}...`);
-                return `<html><body data-theme="${payload.theme}"><h1>Aeon Flux</h1></body></html>`;
+                return renderWithTopologyCompat(payload, props);
             });
 
             const engine = new GnosisEngine(registry);
