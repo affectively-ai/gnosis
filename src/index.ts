@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { Pipeline } from '@affectively/aeon-pipelines';
+import { ForkRaceFoldModelChecker, TemporalModel } from '@affectively/aeon-logic';
 import { BettyCompiler } from './betty/compiler.js';
 import { GnosisRegistry } from './runtime/registry.js';
 import { GnosisEngine } from './runtime/engine.js';
@@ -44,7 +45,6 @@ async function main() {
 
         console.log(`\n[Gnosis] Executing topology...`);
         try {
-            // Setup registry with real AI handlers
             const registry = new GnosisRegistry();
 
             const loadWeights = (tomlPath: string, section: string) => {
@@ -79,13 +79,11 @@ async function main() {
                 const b = weightsData.bias as number[];
                 const x = payload as number[];
 
-                // Each row of the matrix is a parallel path in a superposition
                 const rowWork = w.map((row, i) => async () => {
                     const dotProduct = row.reduce((acc, val, j) => acc + val * (x[j] || 0), 0);
                     return dotProduct + (b[i] || 0);
                 });
 
-                // Execute the row calculations in parallel through the engine
                 return await Pipeline.from(rowWork).fold({
                     type: 'merge-all',
                     merge: (results: Map<number, any>) => Array.from(results.values()).map(r => r)
@@ -109,7 +107,6 @@ async function main() {
                 console.log(`[WASM:Attention] Pipelining ${x.length}-dim wave function...`);
                 
                 const work = x.map(v => async () => {
-                    // Simulate non-linear phase shift
                     await new Promise(r => setTimeout(r, 10));
                     return v * 1.5;
                 });
@@ -124,11 +121,10 @@ async function main() {
             registry.register('Softmax', async (payload, props) => {
                 const x = payload as number[];
                 const threshold = parseFloat(props['threshold'] || '0.001');
-                
                 const expWork = x.map(v => async () => Math.exp(v));
                 
                 const exps = await Pipeline.from(expWork)
-                    .vent((val) => val < threshold) // Dissipate paths with negligible amplitude
+                    .vent((val) => val < threshold)
                     .fold({
                         type: 'merge-all',
                         merge: (results: Map<number, any>) => Array.from(results.values()).map(r => r)
@@ -199,15 +195,67 @@ async function main() {
                 const phase = props['phase'];
                 if (phase === 'assemble') {
                     console.log(`[Betti:Compiler] Assembling AST from fragmented tokens...`);
-                    // Payload here will be the FOLD result (Map of lexer results)
                     return { type: 'GraphAST', data: payload, timestamp: Date.now() };
                 }
                 return payload;
             });
 
             registry.register('Topology', async (payload, props) => {
-                console.log(`[Betti:Topology] Verifying quantum bounds (beta1)...`);
-                return { ...payload, verified: true, beta1: 0 };
+                const astData = payload.data as any;
+                console.log(`[Betti:Topology] Verifying quantum bounds with aeon-logic...`);
+
+                interface VerifyState {
+                    nodeId: string;
+                    beta1: number;
+                }
+
+                const edges = (astData.edge_lexer || []) as any[];
+                
+                // Find roots (nodes with no incoming edges)
+                const allTargets = new Set(edges.flatMap(e => e.target.split('|').map((t: string) => t.trim())));
+                const allSources = new Set(edges.map(e => e.src.trim()));
+                const roots = Array.from(allSources).filter(s => !allTargets.has(s));
+                
+                const initialNode = roots.length > 0 ? roots[0] : (edges.length > 0 ? edges[0].src.trim() : 'root');
+
+                const model: TemporalModel<VerifyState> = {
+                    initialStates: [{ nodeId: initialNode, beta1: 0 }],
+                    fingerprint: (s) => `${s.nodeId.trim()}:${s.beta1}`,
+                    actions: [{
+                        name: 'step',
+                        successors: (s) => {
+                            const outgoing = edges.filter(e => e.src.trim() === s.nodeId.trim());
+                            return outgoing.flatMap(e => {
+                                const targets = e.target.split('|').map((t: string) => t.trim());
+                                if (e.type === 'FORK') {
+                                    const nextBeta1 = s.beta1 + (targets.length - 1);
+                                    return targets.map((t: string) => ({ nodeId: t, beta1: nextBeta1 }));
+                                }
+                                if (e.type === 'FOLD' || e.type === 'COLLAPSE') {
+                                    return targets.map((t: string) => ({ nodeId: t, beta1: 0 }));
+                                }
+                                return targets.map((t: string) => ({ nodeId: t, beta1: s.beta1 }));
+                            });
+                        }
+                    }]
+                };
+
+                const checker = new ForkRaceFoldModelChecker<VerifyState>();
+                const result = await checker.check(model, {
+                    maxDepth: 20,
+                    invariants: [{
+                        name: 'Beta1 Bounds',
+                        test: (s) => s.beta1 >= 0 && s.beta1 < 10
+                    }]
+                });
+
+                if (!result.ok) {
+                    console.error(`[Betti:Topology] Verification Failed: ${result.violations[0].message}`);
+                    return { ...payload, verified: false, errors: result.violations };
+                }
+
+                console.log(`[Betti:Topology] Verified! States explored: ${result.stateCount}, Beta1: ${result.topology.beta1}`);
+                return { ...payload, verified: true, stats: result.topology };
             });
 
             registry.register('Runtime', async (payload, props) => {
@@ -227,7 +275,6 @@ async function main() {
             process.exit(1);
         }
     } else {
-        // Start the Ink REPL
         const { startRepl } = await import('./repl.js');
         startRepl();
     }
