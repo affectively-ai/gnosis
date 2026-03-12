@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { render, Text, Box, useApp } from 'ink';
 import TextInput from 'ink-text-input';
 import {
@@ -24,12 +24,44 @@ type HistoryEntry = {
 const MAX_HISTORY_ENTRIES = 80;
 const MAX_DISPLAYED_HISTORY = 12;
 const MAX_SOURCE_LINES = 8;
+const BREATH_INTERVAL_MS = 280;
 const STATUS_STYLE: Record<VisualNodeStatus, { glyph: string; color: string }> = {
   pending: { glyph: '[ ]', color: 'gray' },
   active: { glyph: '[*]', color: 'cyan' },
   completed: { glyph: '[x]', color: 'green' },
   cycled: { glyph: '[!]', color: 'red' }
 };
+const COLOR_SPECTRUM = [
+  'red',
+  'yellow',
+  'green',
+  'cyan',
+  'blue',
+  'magenta',
+  'redBright',
+  'yellowBright',
+  'greenBright',
+  'cyanBright',
+  'blueBright',
+  'magentaBright'
+] as const;
+const EDGE_TYPE_COLOR_INDEX: Record<string, number> = {
+  PROCESS: 2,
+  FORK: 5,
+  RACE: 0,
+  FOLD: 3,
+  COLLAPSE: 3,
+  SUPERPOSE: 7,
+  EVOLVE: 1,
+  ENTANGLE: 10,
+  OBSERVE: 4,
+  MEASURE: 9,
+  HALT: 8,
+  VENT: 6,
+  TUNNEL: 11
+};
+
+type SpectrumColor = (typeof COLOR_SPECTRUM)[number];
 
 function formatError(error: unknown): string {
   if (error instanceof Error) {
@@ -67,6 +99,25 @@ function formatCompilationMessage(output: string, diagnostics: Diagnostic[]): st
   return `${output}\n${diagnosticSummary}`;
 }
 
+function spectrumColor(index: number, phase: number): SpectrumColor {
+  const cursor = (index + Math.floor(phase / 2)) % COLOR_SPECTRUM.length;
+  const wrappedCursor = cursor < 0 ? cursor + COLOR_SPECTRUM.length : cursor;
+  return COLOR_SPECTRUM[wrappedCursor];
+}
+
+function breatheIntensity(phase: number): number {
+  return (Math.sin(phase / 8) + 1) / 2;
+}
+
+function isDimBreath(phase: number): boolean {
+  return breatheIntensity(phase) < 0.45;
+}
+
+function edgeColor(edge: ASTEdge, phase: number): SpectrumColor {
+  const offset = EDGE_TYPE_COLOR_INDEX[edge.type] ?? 0;
+  return spectrumColor(offset, phase);
+}
+
 function edgeTouchesWave(edge: ASTEdge, activeWave: Set<string>): boolean {
   return (
     edge.sourceIds.some((nodeId) => activeWave.has(nodeId.trim())) ||
@@ -74,11 +125,43 @@ function edgeTouchesWave(edge: ASTEdge, activeWave: Set<string>): boolean {
   );
 }
 
-const SourcePanel = ({ sourceLines }: { sourceLines: string[] }) => {
+const SpectrumHeading = ({ phase }: { phase: number }) => {
+  const title = 'Gnosis Visual Graph REPL v1.2.0';
+  const subtitle = 'Gentle full-spectrum breathing with smooth wave evolution.';
+
+  return (
+    <Box flexDirection="column" marginBottom={1}>
+      <Text bold={!isDimBreath(phase)} dimColor={isDimBreath(phase)}>
+        {title.split('').map((character, index) => (
+          <Text key={`title-${index}`} color={spectrumColor(index, phase)}>
+            {character}
+          </Text>
+        ))}
+      </Text>
+      <Text dimColor={isDimBreath(phase)}>
+        {subtitle.split('').map((character, index) => (
+          <Text key={`subtitle-${index}`} color={spectrumColor(index + 3, phase)}>
+            {character}
+          </Text>
+        ))}
+      </Text>
+    </Box>
+  );
+};
+
+const SourcePanel = ({
+  sourceLines,
+  phase
+}: {
+  sourceLines: string[];
+  phase: number;
+}) => {
   if (sourceLines.length === 0) {
     return (
-      <Box borderStyle="single" borderColor="gray" paddingX={1} marginY={1}>
-        <Text color="gray">Editor empty. Type GGL lines to build the topology.</Text>
+      <Box borderStyle="single" borderColor={spectrumColor(2, phase)} paddingX={1} marginY={1}>
+        <Text color={spectrumColor(3, phase)} dimColor={isDimBreath(phase)}>
+          Editor empty. Type GGL lines to build the topology.
+        </Text>
       </Box>
     );
   }
@@ -87,16 +170,25 @@ const SourcePanel = ({ sourceLines }: { sourceLines: string[] }) => {
   const visibleLines = sourceLines.slice(startLine);
 
   return (
-    <Box flexDirection="column" borderStyle="single" borderColor="blue" paddingX={1} marginY={1}>
-      <Text bold color="blue">
+    <Box
+      flexDirection="column"
+      borderStyle="single"
+      borderColor={spectrumColor(1, phase)}
+      paddingX={1}
+      marginY={1}
+    >
+      <Text bold color={spectrumColor(0, phase)} dimColor={isDimBreath(phase)}>
         TOPOLOGY SOURCE
       </Text>
       {visibleLines.map((line, index) => {
         const lineNumber = startLine + index + 1;
+        const lineColor = spectrumColor(index + 4, phase);
         return (
           <Box key={`source-${lineNumber}`} flexDirection="row">
-            <Text color="gray">{String(lineNumber).padStart(2, '0')} | </Text>
-            <Text color="white">{line}</Text>
+            <Text color={spectrumColor(index + 8, phase)}>{String(lineNumber).padStart(2, '0')} | </Text>
+            <Text color={lineColor} dimColor={isDimBreath(phase)}>
+              {line}
+            </Text>
           </Box>
         );
       })}
@@ -106,15 +198,19 @@ const SourcePanel = ({ sourceLines }: { sourceLines: string[] }) => {
 
 const GraphCanvas = ({
   ast,
-  visualization
+  visualization,
+  phase
 }: {
   ast: GraphAST | null;
   visualization: ReplVisualizationState;
+  phase: number;
 }) => {
   if (!ast || ast.edges.length === 0) {
     return (
-      <Box borderStyle="round" paddingX={1} marginY={1} borderColor="gray">
-        <Text color="gray">No topology defined. Start drawing: (a)-[:FORK]-{'>'}(b|c)</Text>
+      <Box borderStyle="round" paddingX={1} marginY={1} borderColor={spectrumColor(6, phase)}>
+        <Text color={spectrumColor(7, phase)} dimColor={isDimBreath(phase)}>
+          No topology defined. Start drawing: (a)-[:FORK]-{'>'}(b|c)
+        </Text>
       </Box>
     );
   }
@@ -123,35 +219,54 @@ const GraphCanvas = ({
   const activeWave = new Set(visualization.activeWaveFunction);
 
   return (
-    <Box flexDirection="column" borderStyle="double" borderColor="cyan" paddingX={1} marginY={1}>
-      <Text bold color="cyan">
+    <Box
+      flexDirection="column"
+      borderStyle="double"
+      borderColor={spectrumColor(5, phase)}
+      paddingX={1}
+      marginY={1}
+    >
+      <Text bold color={spectrumColor(4, phase)} dimColor={isDimBreath(phase)}>
         GNOSIS VISUAL GRAPH EDITOR
       </Text>
 
       <Box flexDirection="column" marginTop={1}>
-        <Text bold color="white">
+        <Text bold color={spectrumColor(9, phase)}>
           Nodes
         </Text>
-        {nodeIds.map((nodeId) => {
+        {nodeIds.map((nodeId, index) => {
           const style = STATUS_STYLE[visualization.nodeStates[nodeId] ?? 'pending'];
           const label = ast.nodes.get(nodeId)?.labels[0];
           return (
-            <Text key={nodeId} color={style.color}>
-              {style.glyph} {nodeId}
-              {label ? `:${label}` : ''}
-            </Text>
+            <Box key={nodeId} flexDirection="row">
+              <Text color={style.color}>{style.glyph} </Text>
+              <Text color={spectrumColor(index, phase)} dimColor={isDimBreath(phase)}>
+                {nodeId}
+              </Text>
+              {label ? (
+                <Text color={spectrumColor(index + 2, phase)} dimColor={isDimBreath(phase)}>
+                  :{label}
+                </Text>
+              ) : null}
+            </Box>
           );
         })}
       </Box>
 
       <Box flexDirection="column" marginTop={1}>
-        <Text bold color="white">
+        <Text bold color={spectrumColor(10, phase)}>
           Edges
         </Text>
         {ast.edges.map((edge, index) => {
-          const edgeColor = edgeTouchesWave(edge, activeWave) ? 'cyan' : 'gray';
+          const lineColor = edgeColor(edge, phase + index);
+          const isWaveEdge = edgeTouchesWave(edge, activeWave);
           return (
-            <Text key={`edge-${index}`} color={edgeColor}>
+            <Text
+              key={`edge-${index}`}
+              color={lineColor}
+              bold={isWaveEdge}
+              dimColor={isDimBreath(phase) && !isWaveEdge}
+            >
               ({edge.sourceIds.join('|')}) -[{edge.type}]-{'>'} ({edge.targetIds.join('|')})
             </Text>
           );
@@ -159,17 +274,23 @@ const GraphCanvas = ({
       </Box>
 
       <Box flexDirection="column" marginTop={1}>
-        <Text color="magenta">
+        <Text color={spectrumColor(11, phase)} bold={!isDimBreath(phase)}>
           psi(t):{' '}
           {visualization.activeWaveFunction.length > 0
             ? `[${visualization.activeWaveFunction.join(', ')}]`
             : '[collapsed]'}
         </Text>
         {visualization.quantumEvents.length === 0 ? (
-          <Text color="gray">No quantum events yet. Run EXECUTE to evolve the graph.</Text>
+          <Text color={spectrumColor(8, phase)} dimColor={isDimBreath(phase)}>
+            No quantum events yet. Run EXECUTE to evolve the graph.
+          </Text>
         ) : (
           visualization.quantumEvents.map((event, index) => (
-            <Text key={`event-${index}`} color="yellow">
+            <Text
+              key={`event-${index}`}
+              color={spectrumColor(index + 1, phase)}
+              dimColor={isDimBreath(phase)}
+            >
               {event}
             </Text>
           ))
@@ -182,26 +303,28 @@ const GraphCanvas = ({
 const MetricsPanel = ({
   beta1,
   paths,
-  activeWaveCount
+  activeWaveCount,
+  phase
 }: {
   beta1: number;
   paths: number;
   activeWaveCount: number;
+  phase: number;
 }) => (
   <Box flexDirection="row" justifyContent="space-between" paddingX={1} marginBottom={1}>
     <Box>
-      <Text color="white">Betti Number (</Text>
-      <Text color="yellow" bold>
+      <Text color={spectrumColor(3, phase)}>Betti Number (</Text>
+      <Text color={spectrumColor(1, phase)} bold={!isDimBreath(phase)}>
         beta1
       </Text>
-      <Text color="white">): </Text>
-      <Text color="cyan" bold>
+      <Text color={spectrumColor(3, phase)}>): </Text>
+      <Text color={spectrumColor(4, phase)} bold={!isDimBreath(phase)}>
         {beta1}
       </Text>
     </Box>
     <Box>
-      <Text color="white">Wave Amplitudes: </Text>
-      <Text color="magenta" bold>
+      <Text color={spectrumColor(7, phase)}>Wave Amplitudes: </Text>
+      <Text color={spectrumColor(9, phase)} bold={!isDimBreath(phase)}>
         {activeWaveCount > 0 ? activeWaveCount : paths}
       </Text>
     </Box>
@@ -221,6 +344,7 @@ export function startRepl() {
 
   const Repl = () => {
     const { exit } = useApp();
+    const [phase, setPhase] = useState(0);
     const [history, setHistory] = useState<HistoryEntry[]>([]);
     const [query, setQuery] = useState('');
     const [sourceLines, setSourceLines] = useState<string[]>([]);
@@ -236,13 +360,26 @@ export function startRepl() {
       );
     };
 
+    useEffect(() => {
+      const timer = setInterval(() => {
+        setPhase((previousPhase) => previousPhase + 1);
+      }, BREATH_INTERVAL_MS);
+
+      return () => {
+        clearInterval(timer);
+      };
+    }, []);
+
     const applyCompiledSource = (nextSourceLines: string[], inputLabel: string) => {
       if (nextSourceLines.length === 0) {
         setSourceLines([]);
         setAst(null);
         setMetrics({ b1: 0, paths: 1 });
         setVisualization(createInitialVisualization(null));
-        appendHistory({ type: 'input', text: inputLabel }, { type: 'output', text: '[Editor] Topology cleared.' });
+        appendHistory(
+          { type: 'input', text: inputLabel },
+          { type: 'output', text: '[Editor] Topology cleared.' }
+        );
         return;
       }
 
@@ -351,42 +488,58 @@ export function startRepl() {
 
     return (
       <Box flexDirection="column" padding={1} minHeight={20}>
-        <Box flexDirection="column" marginBottom={1}>
-          <Text bold color="magenta">
-            Gnosis Visual Graph REPL v1.1.0
-          </Text>
-          <Text color="gray">Edit topology lines, then EXECUTE to observe wave evolution.</Text>
-        </Box>
+        <SpectrumHeading phase={phase} />
 
         <MetricsPanel
           beta1={metrics.b1}
           paths={metrics.paths}
           activeWaveCount={visualization.activeWaveFunction.length}
+          phase={phase}
         />
 
-        <SourcePanel sourceLines={sourceLines} />
-        <GraphCanvas ast={ast} visualization={visualization} />
+        <SourcePanel sourceLines={sourceLines} phase={phase} />
+        <GraphCanvas ast={ast} visualization={visualization} phase={phase} />
 
         <Box flexDirection="column" marginTop={1}>
-          {history.slice(-MAX_DISPLAYED_HISTORY).map((entry, index) => (
-            <Box key={`history-${index}`} flexDirection="row">
-              <Text color={entry.type === 'input' ? 'green' : entry.type === 'error' ? 'red' : 'cyan'}>
-                {entry.type === 'input' ? '>> ' : '   '}
-              </Text>
-              <Text color={entry.type === 'error' ? 'red' : 'white'}>{entry.text}</Text>
-            </Box>
-          ))}
+          {history.slice(-MAX_DISPLAYED_HISTORY).map((entry, index) => {
+            const markerColor =
+              entry.type === 'input'
+                ? spectrumColor(index + 2, phase)
+                : entry.type === 'error'
+                  ? 'redBright'
+                  : spectrumColor(index + 6, phase);
+            const textColor =
+              entry.type === 'error' ? 'redBright' : spectrumColor(index + 1, phase);
+
+            return (
+              <Box key={`history-${index}`} flexDirection="row">
+                <Text color={markerColor} dimColor={isDimBreath(phase) && entry.type !== 'error'}>
+                  {entry.type === 'input' ? '>> ' : '   '}
+                </Text>
+                <Text color={textColor} dimColor={isDimBreath(phase) && entry.type !== 'error'}>
+                  {entry.text}
+                </Text>
+              </Box>
+            );
+          })}
         </Box>
 
         <Box flexDirection="row" marginTop={1}>
-          <Text color="green" bold>
+          <Text color={spectrumColor(0, phase)} bold={!isDimBreath(phase)}>
             {'>'}{' '}
           </Text>
           <TextInput value={query} onChange={setQuery} onSubmit={handleSubmit} />
         </Box>
 
-        <Box marginTop={1}>
-          <Text color="gray">Commands: EXECUTE | SOURCE | UNDO | CLEAR | EXIT</Text>
+        <Box marginTop={1} flexDirection="row">
+          <Text color={spectrumColor(3, phase)} dimColor={isDimBreath(phase)}>
+            Commands:
+          </Text>
+          <Text color={spectrumColor(0, phase)}> EXECUTE</Text>
+          <Text color={spectrumColor(2, phase)}> | SOURCE</Text>
+          <Text color={spectrumColor(4, phase)}> | UNDO</Text>
+          <Text color={spectrumColor(6, phase)}> | CLEAR</Text>
+          <Text color={spectrumColor(8, phase)}> | EXIT</Text>
         </Box>
       </Box>
     );

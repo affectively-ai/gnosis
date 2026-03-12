@@ -46,11 +46,6 @@ interface GnosisScenePayload {
     collapse?: unknown;
 }
 
-interface GnosisRenderPayload {
-    theme?: unknown;
-    scene?: unknown;
-}
-
 export interface GnosisTopologyRenderOutput {
     renderer: 'aeon-3d-compat';
     source: 'aeon-3d' | 'gnosis-fallback';
@@ -272,7 +267,7 @@ export async function renderWithTopologyCompat(
     payload: unknown,
     props: Record<string, string>
 ): Promise<string | GnosisTopologyRenderOutput> {
-    const scene = parseScenePayload(payload as GnosisRenderPayload);
+    const scene = parseScenePayload(payload);
     const requestedType = typeof props.type === 'string' ? props.type.toLowerCase() : null;
     const effectiveType = requestedType ?? (scene ? '3d' : 'html');
 
