@@ -51,8 +51,14 @@ export class BettyCompiler {
         // We will now rely on the WASM bridge for tracking topology state
         this.wasmBridge = new QuantumWasmBridge(); 
 
+        // Strip out comments and empty lines
+        const cleanedInput = input.split('\n')
+            .map(line => line.trim())
+            .filter(line => line && !line.startsWith('//'))
+            .join('\n');
+
         // Check for imperative code
-        if (input.includes('function') || input.includes('=>') || input.includes('return ')) {
+        if (cleanedInput.includes('function') || cleanedInput.includes('=>') || cleanedInput.includes('return ')) {
              this.logs.push(`[Betty]  Imperative code rejected. The system requires pure graph representation.`);
              return { ast: null, output: this.logs.join('\n'), b1: this.b1 };
         }
@@ -60,7 +66,7 @@ export class BettyCompiler {
         // Parse Node Declarations e.g. (name:Label { key: 'value' })
         const nodeRegex = /\(([^:)\s]+)(?:\s*:\s*([^{\s)]+))?(?:\s*{([^}]+)})?\)/g;
         let nodeMatch;
-        while ((nodeMatch = nodeRegex.exec(input)) !== null) {
+        while ((nodeMatch = nodeRegex.exec(cleanedInput)) !== null) {
             // Only process if it's not part of an edge string. We'll refine this but for the REPL it's a good start
             // Actually, we can just pre-register these nodes. If they are used in edges, they get updated.
             const id = nodeMatch[1].trim();
@@ -100,17 +106,18 @@ export class BettyCompiler {
         }
 
         const edgeRegex = /\(([^)]+)\)\s*-\[:([A-Z]+)(?:\s*{([^}]+)})?\]->\s*\(([^)]+)\)/g;
-
         
         let match;
         let matched = false;
 
-        while ((match = edgeRegex.exec(input)) !== null) {
+        while ((match = edgeRegex.exec(cleanedInput)) !== null) {
             matched = true;
-            const sourceRaw = match[1].trim();
+            const sourceRaw = (match[1] || '').trim();
             const edgeType = match[2].trim();
             const propertiesRaw = match[3] ? match[3].trim() : '';
             const targetRaw = match[4].trim();
+
+            if (!sourceRaw) continue; // Skip edges with no source for now
 
             const sources = sourceRaw.split('|').map(s => s.trim());
             const targets = targetRaw.split('|').map(s => s.trim());

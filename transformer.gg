@@ -1,0 +1,19 @@
+// Gnosis Transformer Architecture
+// Attention is just a Fold. Residual connections are Interference.
+
+// 1. Core Transformer Nodes
+(input_sequence: Tensor { type: 'embeddings' })
+(qkv_projection: Matrix { op: 'linear_projection' })
+(head_1: Attention { d_k: '64' })
+(head_2: Attention { d_k: '64' })
+(head_3: Attention { d_k: '64' })
+(head_4: Attention { d_k: '64' })
+(ffn: Network { hidden: '2048' })
+
+// 2. The Transformer Topology
+(input_sequence)-[:PROCESS]->(qkv_projection)
+(qkv_projection)-[:FORK]->(head_1 | head_2 | head_3 | head_4)
+(head_1 | head_2 | head_3 | head_4)-[:FOLD { strategy: 'concat' }]->(multi_head_out)
+(input_sequence | multi_head_out)-[:INTERFERE { mode: 'constructive' }]->(residual_1)
+(residual_1)-[:PROCESS]->(ffn)
+(residual_1 | ffn)-[:INTERFERE { mode: 'constructive' }]->(transformer_out)
