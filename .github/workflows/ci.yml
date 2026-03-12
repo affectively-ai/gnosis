@@ -1,0 +1,59 @@
+name: Gnosis CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build
+        run: bun run build
+
+      - name: Generate formal and complexity reports
+        run: |
+          set -euo pipefail
+          mkdir -p reports
+
+          for gg_file in betti.gg transformer.gg ai_hello.gg example.gg; do
+            base_name="${gg_file%.gg}"
+            bun ./bin/gnosis.js lint "${gg_file}" --json > "reports/${base_name}.gg.json"
+            bun ./bin/gnosis.js lint "${gg_file}" --sarif > "reports/${base_name}.gg.sarif"
+          done
+
+          bun ./bin/gnosis.js analyze src --json > reports/typescript.json
+          bun ./bin/gnosis.js analyze src --sarif > reports/typescript.sarif
+
+      - name: Upload SARIF to code scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: reports
+
+      - name: Upload JSON and SARIF artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gnosis-analysis-reports
+          path: reports/

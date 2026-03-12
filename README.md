@@ -58,9 +58,39 @@ gnosis analyze path/to/topology.gg
 
 # Lint-style gate (non-zero exit on formal violations)
 gnosis lint path/to/topology.gg
+
+# Machine-readable JSON output
+gnosis lint path/to/topology.gg --json
+
+# SARIF output for code-scanning systems
+gnosis lint path/to/topology.gg --sarif
 ```
 
 `Buley Number` is a composite complexity score based on branch structure (`FORK`/`RACE`/`INTERFERE`), graph shape, and source size. 
+
+For TypeScript/JavaScript Sonar-style analysis:
+
+```bash
+# Analyze a file or directory
+gnosis analyze src
+
+# Apply quality gates
+gnosis analyze src --max-cognitive 30 --max-cyclomatic 20 --max-function-lines 120
+
+# Export JSON or SARIF
+gnosis analyze src --json
+gnosis analyze src --sarif
+```
+
+## CI Integration
+
+This repository ships with GitHub Actions CI at `.github/workflows/ci.yml` that:
+
+- builds the compiler/CLI
+- lints core `.gg` topologies with Aeon Logic
+- runs TypeScript complexity analysis
+- uploads SARIF to GitHub code scanning
+- uploads `reports/*.json` and `reports/*.sarif` as build artifacts
 
 ## The Roadmap to Self-Hosting
 

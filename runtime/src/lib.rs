@@ -103,6 +103,7 @@ impl FlowFrame {
 pub struct QuantumRuntime {
     beta1: usize,
     paths: usize,
+    trace: Vec<String>,
 }
 
 #[wasm_bindgen]
@@ -111,7 +112,8 @@ impl QuantumRuntime {
     pub fn new() -> QuantumRuntime {
         QuantumRuntime {
             beta1: 0,
-            paths: 1, 
+            paths: 1,
+            trace: Vec::new(),
         }
     }
 
@@ -120,6 +122,8 @@ impl QuantumRuntime {
     pub fn process_frame(&mut self, encoded_bytes: &[u8]) -> Result<Vec<u8>, JsValue> {
         let mut frame = FlowFrame::decode(encoded_bytes, 0)?;
         
+        self.trace.push(format!("Seq: {}, Flags: {:02X}", frame.sequence, frame.flags));
+
         if (frame.flags & FORK) != 0 {
             // Simulated fork - we would read payload here to know how many paths
             self.beta1 += 1;
@@ -156,5 +160,9 @@ impl QuantumRuntime {
 
     pub fn metrics(&self) -> String {
         format!("Paths: {}, Beta1: {}", self.paths, self.beta1)
+    }
+
+    pub fn get_trace(&self) -> String {
+        self.trace.join("\n")
     }
 }

@@ -14,6 +14,13 @@ export interface ASTEdge {
     properties: Record<string, string>;
 }
 
+export interface Diagnostic {
+    line: number;
+    column: number;
+    message: string;
+    severity: 'error' | 'warning' | 'info';
+}
+
 export interface GraphAST {
     nodes: Map<string, ASTNode>;
     edges: ASTEdge[];
@@ -23,6 +30,7 @@ export class BettyCompiler {
     private b1: number = 0;
     private ast: GraphAST = { nodes: new Map(), edges: [] };
     private logs: string[] = [];
+    private diagnostics: Diagnostic[] = [];
     private wasmBridge: QuantumWasmBridge;
 
     constructor() {
@@ -41,158 +49,164 @@ export class BettyCompiler {
         return this.logs;
     }
 
-    public parse(input: string): { ast: GraphAST | null, output: string, b1: number } {
-        if (!input.trim()) return { ast: null, output: '', b1: this.b1 };
+    public getDiagnostics(): Diagnostic[] {
+        return this.diagnostics;
+    }
+
+    /**
+     * Buley Measurement: Topological Complexity Score
+     * Calculates the entropy of the covering space.
+     */
+    public getBuleyMeasurement(): number {
+        const pathComplexity = this.ast.edges.reduce((acc, edge) => {
+            return acc + (edge.sourceIds.length * edge.targetIds.length);
+        }, 0);
+        return (this.b1 * 1.5) + (pathComplexity * 0.5);
+    }
+
+    public getCompletions(line: string, column: number): string[] {
+        const keywords = ['FORK', 'RACE', 'FOLD', 'VENT', 'PROCESS', 'COLLAPSE', 'TUNNEL', 'INTERFERE'];
+        const nodeIds = Array.from(this.ast.nodes.keys());
+        
+        const prefix = line.slice(0, column).split(/[\s()\[\]\-:|>{}]+/).pop()?.toUpperCase() || '';
+        return [...keywords, ...nodeIds].filter(w => w.startsWith(prefix));
+    }
+
+    public parse(input: string): { 
+        ast: GraphAST | null, 
+        output: string, 
+        b1: number, 
+        diagnostics: Diagnostic[],
+        buleyMeasure: number 
+    } {
+        if (!input.trim()) return { ast: null, output: '', b1: 0, diagnostics: [], buleyMeasure: 0 };
 
         this.logs = [];
-
-        // Reset AST per line for simple REPL (In a real system, we'd append or mutate)
+        this.diagnostics = [];
+        this.b1 = 0;
         this.ast = { nodes: new Map(), edges: [] };
-        // We will now rely on the WASM bridge for tracking topology state
         this.wasmBridge = new QuantumWasmBridge(); 
 
-        // Strip out comments and empty lines
-        const cleanedInput = input.split('\n')
-            .map(line => line.trim())
-            .filter(line => line && !line.startsWith('//'))
-            .join('\n');
+        const lines = input.split('\n');
 
-        // Check for imperative code
-        if (cleanedInput.includes('function') || cleanedInput.includes('=>') || cleanedInput.includes('return ')) {
-             this.logs.push(`[Betty]  Imperative code rejected. The system requires pure graph representation.`);
-             return { ast: null, output: this.logs.join('\n'), b1: this.b1 };
-        }
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line || line.startsWith('//')) continue;
 
-        // Parse Node Declarations e.g. (name:Label { key: 'value' })
-        const nodeRegex = /\(([^:)\s]+)(?:\s*:\s*([^{\s)]+))?(?:\s*{([^}]+)})?\)/g;
-        let nodeMatch;
-        while ((nodeMatch = nodeRegex.exec(cleanedInput)) !== null) {
-            // Only process if it's not part of an edge string. We'll refine this but for the REPL it's a good start
-            // Actually, we can just pre-register these nodes. If they are used in edges, they get updated.
-            const id = nodeMatch[1].trim();
-            // Ignore if it's a multi-id from an edge like (a | b)
-            if (id.includes('|')) continue;
+            // 1. REJECT IMPERATIVE CODE
+            const imperativeMatch = line.match(/\b(function|return|if|while|for|var|let|const)\b/);
+            if (imperativeMatch) {
+                 this.diagnostics.push({
+                     line: i + 1,
+                     column: line.indexOf(imperativeMatch[0]) + 1,
+                     message: `Imperative keyword '${imperativeMatch[0]}' rejected. Gnosis requires pure topological declarations.`,
+                     severity: 'error'
+                 });
+                 continue;
+            }
 
-            const label = nodeMatch[2] ? nodeMatch[2].trim() : '';
-            const propertiesRaw = nodeMatch[3] ? nodeMatch[3].trim() : '';
+            // 2. PARSE NODES
+            const nodeRegex = /\(([^:)\s]+)(?:\s*:\s*([^{\s)]+))?(?:\s*{([^}]+)})?\)/g;
+            let nodeMatch;
+            while ((nodeMatch = nodeRegex.exec(line)) !== null) {
+                const id = nodeMatch[1].trim();
+                if (id.includes('|')) continue;
+
+                const label = nodeMatch[2] ? nodeMatch[2].trim() : '';
+                const propertiesRaw = nodeMatch[3] ? nodeMatch[3].trim() : '';
+                
+                const properties: Record<string, string> = {};
+                // Simple prop parser
+                if (propertiesRaw) {
+                    propertiesRaw.split(',').forEach(p => {
+                        const [k, v] = p.split(':').map(s => s.trim());
+                        if (k && v) properties[k] = v.replace(/^['"]|['"]$/g, '');
+                    });
+                }
+
+                if (!this.ast.nodes.has(id)) {
+                    this.ast.nodes.set(id, { id, labels: label ? [label] : [], properties });
+                }
+            }
+
+            // 3. PARSE EDGES
+            const edgeRegex = /\(([^)]+)\)\s*-\[:([A-Z]+)(?:\s*{([^}]+)})?\]->\s*\(([^)]+)\)/g;
+            let edgeMatch;
+            let lineMatched = false;
             
-            const properties: Record<string, string> = {};
-            if (propertiesRaw) {
-                const propPairs = propertiesRaw.match(/(\w+)\s*:\s*('[^']*'|"[^"]*"|\[[^\]]*\]|[^,]+)/g);
-                if (propPairs) {
-                    propPairs.forEach(pair => {
-                        const colonIndex = pair.indexOf(':');
-                        const key = pair.substring(0, colonIndex).trim();
-                        const val = pair.substring(colonIndex + 1).trim().replace(/^['"]|['"]$/g, '');
-                        if (key && val) properties[key] = val;
-                    });
+            while ((edgeMatch = edgeRegex.exec(line)) !== null) {
+                lineMatched = true;
+                const sourceRaw = edgeMatch[1].trim();
+                const edgeType = edgeMatch[2].trim();
+                const propertiesRaw = edgeMatch[3] ? edgeMatch[3].trim() : '';
+                const targetRaw = edgeMatch[4].trim();
+
+                const sources = sourceRaw.split('|').map(s => s.trim());
+                const targets = targetRaw.split('|').map(s => s.trim());
+
+                // Topological Validation
+                if (edgeType === 'FORK') {
+                    this.b1 += (targets.length - 1);
+                } else if (edgeType === 'FOLD' || edgeType === 'COLLAPSE') {
+                    this.b1 = Math.max(0, this.b1 - (sources.length - 1));
+                } else if (edgeType === 'VENT') {
+                    this.b1 = Math.max(0, this.b1 - 1);
                 }
+
+                this.wasmBridge.processAstEdge(edgeType, sources.length, targets.length);
+
+                this.ast.edges.push({
+                    sourceIds: sources,
+                    targetIds: targets,
+                    type: edgeType,
+                    properties: {}
+                });
+
+                sources.forEach(id => {
+                    if (!this.ast.nodes.has(id)) this.ast.nodes.set(id, { id, labels: [], properties: {} });
+                });
+                targets.forEach(id => {
+                    if (!this.ast.nodes.has(id)) this.ast.nodes.set(id, { id, labels: [], properties: {} });
+                });
             }
 
-            if (!this.ast.nodes.has(id)) {
-                this.ast.nodes.set(id, { id, labels: label ? [label] : [], properties });
-                // We only log it if it has a label or properties to avoid spamming the REPL on simple nodes
-                if (label || Object.keys(properties).length > 0) {
-                    this.logs.push(`[Betty] Registered Node: ${id} (Label: ${label || 'None'})`);
-                }
-            } else {
-                // Update existing node
-                const node = this.ast.nodes.get(id)!;
-                if (label && !node.labels.includes(label)) node.labels.push(label);
-                Object.assign(node.properties, properties);
-                if (label || Object.keys(properties).length > 0) {
-                    this.logs.push(`[Betty] Updated Node: ${id} (Label: ${label || 'None'})`);
-                }
+            if (!lineMatched && !line.startsWith('(')) {
+                this.diagnostics.push({
+                    line: i + 1,
+                    column: 1,
+                    message: `Invalid Gnosis syntax. Expected node or edge declaration.`,
+                    severity: 'info'
+                });
             }
         }
 
-        // Parse Edges e.g. (source)-[:TYPE { props }]->(target)
-        let edgeMatch;
-        let matched = false;
-        const edgeRegex = /\(([^)]+)\)\s*-\[:([A-Z]+)(?:\s*{([^}]+)})?\]->\s*\(([^)]+)\)/g;
+        // 4. TOPOLOGICAL INTEGRITY CHECKS
+        const referencedNodes = new Set<string>();
+        this.ast.edges.forEach(e => {
+            e.sourceIds.forEach(id => referencedNodes.add(id));
+            e.targetIds.forEach(id => referencedNodes.add(id));
+        });
+
+        this.ast.nodes.forEach(node => {
+            if (!referencedNodes.has(node.id)) {
+                this.diagnostics.push({
+                    line: 1,
+                    column: 1,
+                    message: `Disconnected node '${node.id}' detected. It will not participate in the covering space.`,
+                    severity: 'warning'
+                });
+            }
+        });
+
+        const buleyMeasure = this.getBuleyMeasurement();
+        const summary = `[Betty Professional Compiler]\nNodes: ${this.ast.nodes.size}, Edges: ${this.ast.edges.length}\nBetti: ${this.b1}, Buley Measure: ${buleyMeasure.toFixed(2)}`;
         
-        while ((edgeMatch = edgeRegex.exec(cleanedInput)) !== null) {
-            matched = true;
-            const sourceRaw = edgeMatch[1].trim();
-            const edgeType = edgeMatch[2].trim();
-            const propertiesRaw = edgeMatch[3] ? edgeMatch[3].trim() : '';
-            const targetRaw = edgeMatch[4].trim();
-
-            // Handle chained edges: set lastIndex to the start of the target node
-            // so it can be re-parsed as the source of the next edge.
-            const matchString = edgeMatch[0];
-            const targetString = `(${edgeMatch[4]})`;
-            const offset = matchString.lastIndexOf(targetString);
-            edgeRegex.lastIndex = edgeMatch.index + offset;
-
-            const sources = sourceRaw.split('|').map(s => s.trim());
-            const targets = targetRaw.split('|').map(s => s.trim());
-
-            const properties: Record<string, string> = {};
-            if (propertiesRaw) {
-                const propPairs = propertiesRaw.match(/(\w+)\s*:\s*('[^']*'|"[^"]*"|\[[^\]]*\]|[^,]+)/g);
-                if (propPairs) {
-                    propPairs.forEach(pair => {
-                        const colonIndex = pair.indexOf(':');
-                        const key = pair.substring(0, colonIndex).trim();
-                        const val = pair.substring(colonIndex + 1).trim().replace(/^['"]|['"]$/g, '');
-                        if (key && val) properties[key] = val;
-                    });
-                }
-            }
-
-            // Sync local AST calculation for Betty logs, while passing through the WASM engine
-            if (edgeType === 'FORK') {
-                this.b1 += (targets.length - 1);
-                this.logs.push(`[Betty] Forked ${targets.length} paths. (WASM: ${this.wasmBridge.processAstEdge(edgeType, sources.length, targets.length)})`);
-            } else if (edgeType === 'FOLD' || edgeType === 'COLLAPSE') {
-                this.b1 = Math.max(0, this.b1 - (sources.length - 1));
-                const strategy = properties['strategy'] ? `[${properties['strategy']}]` : '';
-                this.logs.push(`[Betty] Folded ${sources.length} paths ${strategy}. (WASM: ${this.wasmBridge.processAstEdge(edgeType, sources.length, targets.length)})`);
-            } else if (edgeType === 'VENT' || edgeType === 'TUNNEL') {
-                this.b1 = Math.max(0, this.b1 - 1);
-                this.logs.push(`[Betty] Vented path. Waste heat dissipated. (WASM: ${this.wasmBridge.processAstEdge(edgeType, sources.length, targets.length)})`);
-            } else if (edgeType === 'RACE') {
-                this.b1 = Math.max(0, this.b1 - (sources.length - 1));
-                this.logs.push(`[Betty] Racing ${sources.length} paths. Homotopy equivalence maintained. (WASM: ${this.wasmBridge.processAstEdge(edgeType, sources.length, targets.length)})`);
-            } else if (edgeType === 'PROCESS') {
-                this.logs.push(`[Betty] Processed path sequentially. (WASM: ${this.wasmBridge.processAstEdge(edgeType, sources.length, targets.length)})`);
-            } else if (edgeType === 'INTERFERE') {
-                const mode = properties['mode'] || 'unknown';
-                this.logs.push(`[Betty] Quantum Interference applied [${mode}]. (WASM: ${this.wasmBridge.processAstEdge(edgeType, sources.length, targets.length)})`);
-            } else {
-                 this.logs.push(`[Betty] Unknown topology operation: ${edgeType}`);
-            }
-
-            this.ast.edges.push({
-                sourceIds: sources,
-                targetIds: targets,
-                type: edgeType,
-                properties
-            });
-
-            sources.forEach(id => {
-                if (!this.ast.nodes.has(id)) this.ast.nodes.set(id, { id, labels: [], properties: {} });
-            });
-            targets.forEach(id => {
-                if (!this.ast.nodes.has(id)) this.ast.nodes.set(id, { id, labels: [], properties: {} });
-            });
-        }
-
-        if (!matched) {
-            // Execution command check
-            if (input.trim().toUpperCase() === 'EXECUTE') {
-                return { ast: this.ast, output: "[Betty] Queuing execution...", b1: this.b1 };
-            }
-            this.logs.push(`[Betty]  Awaiting valid topology graph. Example: (data)-[:FORK]->(a | b)`);
-            return { ast: null, output: this.logs.join('\n'), b1: this.b1 };
-        }
-
-        const summary = `[Betty AST Compiler]\n` + this.logs.join('\n') + `\nNodes tracked: ${Array.from(this.ast.nodes.keys()).join(', ')}`;
         return { 
             ast: this.ast, 
             output: summary,
-            b1: this.b1
+            b1: this.b1,
+            diagnostics: this.diagnostics,
+            buleyMeasure
         };
     }
 }

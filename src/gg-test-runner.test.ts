@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test';
-import { runGGTestFile, formatGGTestResults } from './gg-test-runner';
+import { runGGTestFile, formatGGTestResults } from './gg-test-runner.js';
 import { resolve } from 'path';
 
 const EXAMPLES_DIR = resolve(__dirname, '../examples');

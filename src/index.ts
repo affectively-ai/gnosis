@@ -11,6 +11,13 @@ import {
     analyzeTypeScriptTargets,
     parseTsSonarThresholds
 } from './ts-sonar.js';
+import { ggReportToSarif, tsReportToSarif } from './sarif.js';
+
+import { GnosisNeo4jBridge } from './neo4j-bridge.js';
+
+export { GnosisNeo4jBridge, GnosisRegistry, GnosisEngine };
+export type { GnosisHandler } from './runtime/registry.js';
+export type { GraphAST, ASTNode, ASTEdge } from './betty/compiler.js';
 
 const args = process.argv.slice(2);
 
@@ -33,7 +40,24 @@ function parseMaxBuley(rawArgs: string[]): number | null {
 }
 
 async function main() {
-    // ... rest of main ...
+    if (args[0] === 'neo4j' && args[1]) {
+        const filePath = resolveTopologyPath(args[1]);
+        if (!fs.existsSync(filePath)) {
+            console.error(`[Gnosis Error] File not found: ${filePath}`);
+            process.exit(1);
+        }
+        const source = fs.readFileSync(filePath, 'utf-8');
+        const nodeLabelFlag = args.indexOf('--node-label');
+        const nodeLabel = nodeLabelFlag >= 0 ? args[nodeLabelFlag + 1] : undefined;
+        const idPrefixFlag = args.indexOf('--id-prefix');
+        const idPrefix = idPrefixFlag >= 0 ? args[idPrefixFlag + 1] : undefined;
+
+        const bridge = new GnosisNeo4jBridge();
+        const cypher = bridge.gglToCypher(source, { nodeLabel, idPrefix });
+        console.log(cypher);
+        process.exit(0);
+    }
+
     if (args[0] === 'mod') {
         const modManager = new ModManager();
         try {
@@ -70,7 +94,8 @@ async function main() {
             process.exit(1);
         }
 
-        const jsonOutput = args.includes('--json');
+        const sarifOutput = args.includes('--sarif');
+        const jsonOutput = !sarifOutput && args.includes('--json');
         if (isGgTarget(filePath)) {
             const maxBuley = parseMaxBuley(args);
             const source = fs.readFileSync(filePath, 'utf-8');
@@ -79,7 +104,10 @@ async function main() {
             const buleyExceeded = maxBuley !== null && report.buleyNumber > maxBuley;
             const ok = report.correctness.ok && !buleyExceeded;
 
-            if (jsonOutput) {
+            if (sarifOutput) {
+                const sarif = ggReportToSarif(filePath, report, violations, maxBuley);
+                console.log(JSON.stringify(sarif, null, 2));
+            } else if (jsonOutput) {
                 console.log(JSON.stringify({
                     filePath,
                     mode: 'gg',
@@ -118,7 +146,10 @@ async function main() {
         }
 
         const tsReport = analyzeTypeScriptTargets([filePath], parseTsSonarThresholds(args));
-        if (jsonOutput) {
+        if (sarifOutput) {
+            const sarif = tsReportToSarif(filePath, tsReport);
+            console.log(JSON.stringify(sarif, null, 2));
+        } else if (jsonOutput) {
             console.log(JSON.stringify({
                 mode: 'typescript',
                 target: filePath,
@@ -142,7 +173,7 @@ async function main() {
 
         process.exit(tsReport.ok ? 0 : 1);
     } else if (args[0] === 'lint' || args[0] === 'verify' || args[0] === 'analyze') {
-        console.error(`[Gnosis] Usage: gnosis ${args[0]} <target> [--max-buley <number>] [--max-file-lines <number>] [--max-function-lines <number>] [--max-cyclomatic <number>] [--max-cognitive <number>] [--max-nesting <number>] [--json]`);
+        console.error(`[Gnosis] Usage: gnosis ${args[0]} <target> [--max-buley <number>] [--max-file-lines <number>] [--max-function-lines <number>] [--max-cyclomatic <number>] [--max-cognitive <number>] [--max-nesting <number>] [--json] [--sarif]`);
         process.exit(1);
     } else if (args[0] === 'run' && args[1]) {
         const filePath = resolveTopologyPath(args[1]);

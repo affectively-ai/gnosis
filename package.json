@@ -11,7 +11,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc -w",
-    "start": "node ./bin/gnosis.js"
+    "start": "node ./bin/gnosis.js",
+    "check:formal": "bun ./bin/gnosis.js lint betti.gg && bun ./bin/gnosis.js lint transformer.gg && bun ./bin/gnosis.js lint ai_hello.gg && bun ./bin/gnosis.js lint example.gg"
   },
   "dependencies": {
     "@affectively/aeon-logic": "workspace:*",
