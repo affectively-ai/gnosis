@@ -159,6 +159,26 @@ export class QDoc {
     return counter;
   }
 
+  /**
+   * Execute a function in a transaction scope.
+   * In QDoc, every operation is atomic (append-only topology), so this
+   * is a compatibility shim for Y.Doc.transact() migration.
+   * The function runs immediately and notifications fire after.
+   */
+  transact(fn: () => void, origin = 'local'): void {
+    fn();
+  }
+
+  /**
+   * Destroy the document (compatibility with Y.Doc.destroy()).
+   * Clears handlers. The topology itself is immutable/append-only.
+   */
+  destroy(): void {
+    this._updateHandlers.clear();
+    this._observeHandlers.clear();
+    this._presenceHandlers.clear();
+  }
+
   // ── Topology Mutation (internal — called by typed accessors) ────────────
 
   /** @internal Append a node to the topology */
