@@ -9,6 +9,8 @@ Native UCAN/ZK/custodial integration helpers for Gnosis runtime authorization.
 - [core.ts](./core.ts): UCAN issuance/verification/delegation and edge authorization helpers.
 - [handlers.ts](./handlers.ts): Built-in runtime handlers (`UCAN*`, `ZK*`, `CustodialSigner`, sync/materialization ZK envelopes).
 - [auto-zk.ts](./auto-zk.ts): automatic AST injection for sensitive sync/materialization ZK envelope nodes.
+- [tee-attestation.ts](./tee-attestation.ts): HALT attestation signing/verification, execution-envelope checks, and nonce replay protection.
+- [zk-onchain-verifier.ts](./zk-onchain-verifier.ts): EVM `eth_call` proof-verifier adapter used by `ZKExecutionGate`.
 - [index.ts](./index.ts): Public exports.
 
 ## Edge Capability Contract
@@ -48,6 +50,13 @@ Additional runtime labels:
 
 - `ZKSyncEnvelope`
 - `ZKMaterializeEnvelope`
+- `HALTAttestationVerify`
+- `ZKExecutionGate`
+
+`ZKExecutionGate` proof verification sources:
+
+- Explicit callback: `payload.proofVerifier(input) => boolean`
+- EVM JSON-RPC adapter: set `verifierRpcUrl` and `verifierAddress` (optional `verifierMethodSelector`, `verifierBlockTag`, `verifierTimeoutMs`, `verifierProofEncoding`).
 
 Compiler/runtime auto-injection:
 

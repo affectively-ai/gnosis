@@ -16,7 +16,32 @@ export * from './capabilities/index.js';
 export * from './auth/index.js';
 
 // Quantum CRDT — the only state model
-export { QDoc, QMap, QArray, QText, QCounter, QDocRelay } from './crdt/index.js';
+export {
+  QDoc,
+  QMap,
+  QArray,
+  QText,
+  QCounter,
+  QDocRelay,
+} from './crdt/index.js';
+export {
+  Doc,
+  Map,
+  Array,
+  Text,
+  Map as YMap,
+  Array as YArray,
+  Text as YText,
+  XmlFragment,
+  XmlElement,
+  UndoManager,
+  applyUpdate,
+  encodeStateAsUpdate,
+  transact,
+  encodeStateVector,
+  diffUpdate,
+  mergeUpdates,
+} from './crdt/index.js';
 export type {
   QDocOptions,
   QDocDelta,
@@ -30,7 +55,12 @@ export type {
 } from './crdt/index.js';
 
 // Test harness & runner
-export { ggTest, ggQuickCheck, ggAssert, GGTestBuilder } from './gg-test-harness.js';
+export {
+  ggTest,
+  ggQuickCheck,
+  ggAssert,
+  GGTestBuilder,
+} from './gg-test-harness.js';
 export {
   runGGTestFile,
   runGGTestSuite,

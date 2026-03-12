@@ -2,6 +2,7 @@ export {
   authorizeTopologyEdge,
   buildEdgeResource,
   topologyActionForEdge,
+  generateUcanIdentity,
   issueGranularUcan,
   verifyGranularUcan,
   delegateGranularUcan,
@@ -27,3 +28,35 @@ export type {
   GnosisZkMode,
   GnosisZkPolicyReport,
 } from './handlers.js';
+
+export {
+  InMemoryNonceReplayStore,
+  asHaltAttestationEnvelope,
+  asHaltExecutionEnvelope,
+  createHaltAttestation,
+  hashPublicSignals,
+  verifyHaltAttestation,
+  verifyZkExecutionEnvelope,
+} from './tee-attestation.js';
+export type {
+  HaltAttestationClaims,
+  HaltAttestationEnvelope,
+  HaltAttestationVerificationOptions,
+  HaltAttestationVerificationResult,
+  HaltExecutionEnvelope,
+  NonceReplayStore,
+  ZkExecutionVerificationOptions,
+  ZkExecutionVerificationResult,
+  ZkProofVerifier,
+  ZkProofVerifierInput,
+} from './tee-attestation.js';
+
+export {
+  buildVerifyExecutionCalldata,
+  createEvmProofVerifier,
+  verifyProofViaEvmRpc,
+} from './zk-onchain-verifier.js';
+export type {
+  EvmProofVerifierConfig,
+  ZkProofEncoding,
+} from './zk-onchain-verifier.js';

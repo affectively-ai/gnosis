@@ -30,8 +30,9 @@ import type {
   GgNode,
   GgEdge,
   GgTopologyState,
-  GgCollapseStrategy,
 } from '@affectively/aeon-logic';
+
+type GgCollapseStrategy = string;
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -100,14 +101,17 @@ export class QDoc {
   private _observeHandlers: Map<string, Set<QDocObserveHandler>> = new Map();
 
   // Typed accessors (lazy, cached)
-  private _maps: Map<string, QMap> = new Map();
+  private _maps: Map<string, QMap<unknown>> = new Map();
   private _arrays: Map<string, QArray> = new Map();
   private _texts: Map<string, QText> = new Map();
+  private _xmlFragments: Map<string, QXmlFragment> = new Map();
   private _counters: Map<string, QCounter> = new Map();
 
   // Presence (INTERFERE — never collapses)
   private _presence: Map<string, Record<string, unknown>> = new Map();
-  private _presenceHandlers: Set<(states: Map<string, Record<string, unknown>>) => void> = new Set();
+  private _presenceHandlers: Set<
+    (states: Map<string, Record<string, unknown>>) => void
+  > = new Set();
 
   private readonly _mapStrategy: GgCollapseStrategy;
   private readonly _sequenceStrategy: GgCollapseStrategy;
@@ -119,18 +123,22 @@ export class QDoc {
     this._sequenceStrategy = options.sequenceStrategy ?? 'ot-transform';
 
     // Root node — every topology has one
-    this._appendNode({ id: 'root', labels: ['QDoc'], properties: { guid: this.guid } });
+    this._appendNode({
+      id: 'root',
+      labels: ['QDoc'],
+      properties: { guid: this.guid },
+    });
   }
 
   // ── Typed Accessors (replaces Y.Doc.getMap, getArray, getText) ──────────
 
-  getMap(name: string): QMap {
+  getMap<T = unknown>(name: string): QMap<T> {
     let map = this._maps.get(name);
     if (!map) {
       map = new QMap(this, name, this._mapStrategy);
       this._maps.set(name, map);
     }
-    return map;
+    return map as QMap<T>;
   }
 
   getArray<T = unknown>(name: string): QArray<T> {
@@ -149,6 +157,15 @@ export class QDoc {
       this._texts.set(name, text);
     }
     return text;
+  }
+
+  getXmlFragment(name: string): QXmlFragment {
+    let fragment = this._xmlFragments.get(name);
+    if (!fragment) {
+      fragment = new QXmlFragment(this, name);
+      this._xmlFragments.set(name, fragment);
+    }
+    return fragment;
   }
 
   getCounter(name: string): QCounter {
@@ -196,7 +213,11 @@ export class QDoc {
     // Update beta1
     if (edge.type === 'FORK') {
       this._beta1 += edge.targetIds.length - 1;
-    } else if (edge.type === 'FOLD' || edge.type === 'COLLAPSE' || edge.type === 'OBSERVE') {
+    } else if (
+      edge.type === 'FOLD' ||
+      edge.type === 'COLLAPSE' ||
+      edge.type === 'OBSERVE'
+    ) {
       this._beta1 = 0;
     } else if (edge.type === 'RACE') {
       this._beta1 = Math.max(0, this._beta1 - (edge.sourceIds.length - 1));
@@ -227,7 +248,11 @@ export class QDoc {
     const handlers = this._observeHandlers.get(path);
     if (handlers) {
       for (const handler of handlers) {
-        try { handler(event); } catch { /* handlers must not break the doc */ }
+        try {
+          handler(event);
+        } catch {
+          /* handlers must not break the doc */
+        }
       }
     }
   }
@@ -239,7 +264,11 @@ export class QDoc {
     }
     const delta = this.encodePendingDelta();
     for (const handler of this._updateHandlers) {
-      try { handler(delta, origin); } catch { /* handlers must not break the doc */ }
+      try {
+        handler(delta, origin);
+      } catch {
+        /* handlers must not break the doc */
+      }
     }
   }
 
@@ -249,7 +278,7 @@ export class QDoc {
    * Encode the full topology state as a Uint8Array.
    * Replaces Y.encodeStateAsUpdate(doc).
    */
-  encodeStateAsUpdate(): Uint8Array {
+  encodeStateAsUpdate(_stateVector?: Uint8Array): Uint8Array {
     const state: QDocDelta = {
       nodes: [...this._nodes.values()],
       edges: this._edges,
@@ -257,6 +286,10 @@ export class QDoc {
       replicaId: this._replicaId,
     };
     return new TextEncoder().encode(JSON.stringify(state));
+  }
+
+  encodeStateVector(): Uint8Array {
+    return new Uint8Array(0);
   }
 
   /**
@@ -304,7 +337,11 @@ export class QDoc {
       // Update beta1 for remote edges
       if (edge.type === 'FORK') {
         this._beta1 += edge.targetIds.length - 1;
-      } else if (edge.type === 'FOLD' || edge.type === 'COLLAPSE' || edge.type === 'OBSERVE') {
+      } else if (
+        edge.type === 'FOLD' ||
+        edge.type === 'COLLAPSE' ||
+        edge.type === 'OBSERVE'
+      ) {
         this._beta1 = 0;
       }
     }
@@ -334,14 +371,20 @@ export class QDoc {
    * Listen for document updates (replaces Y.Doc.on('update')).
    */
   on(event: 'update', handler: QDocUpdateHandler): void;
-  on(event: string, handler: (...args: unknown[]) => void): void {
+  on(
+    event: string,
+    handler: QDocUpdateHandler | ((...args: unknown[]) => void)
+  ): void {
     if (event === 'update') {
       this._updateHandlers.add(handler as QDocUpdateHandler);
     }
   }
 
   off(event: 'update', handler: QDocUpdateHandler): void;
-  off(event: string, handler: (...args: unknown[]) => void): void {
+  off(
+    event: string,
+    handler: QDocUpdateHandler | ((...args: unknown[]) => void)
+  ): void {
     if (event === 'update') {
       this._updateHandlers.delete(handler as QDocUpdateHandler);
     }
@@ -394,24 +437,36 @@ export class QDoc {
     this._notifyPresence();
   }
 
-  onPresenceChange(handler: (states: Map<string, Record<string, unknown>>) => void): void {
+  onPresenceChange(
+    handler: (states: Map<string, Record<string, unknown>>) => void
+  ): void {
     this._presenceHandlers.add(handler);
   }
 
-  offPresenceChange(handler: (states: Map<string, Record<string, unknown>>) => void): void {
+  offPresenceChange(
+    handler: (states: Map<string, Record<string, unknown>>) => void
+  ): void {
     this._presenceHandlers.delete(handler);
   }
 
   private _notifyPresence(): void {
     for (const handler of this._presenceHandlers) {
-      try { handler(this.getPresenceStates()); } catch { /* */ }
+      try {
+        handler(this.getPresenceStates());
+      } catch {
+        /* */
+      }
     }
   }
 
   // ── Topology Metrics ──────────────────────────────────────────────────
 
-  get nodeCount(): number { return this._nodes.size; }
-  get edgeCount(): number { return this._edges.length; }
+  get nodeCount(): number {
+    return this._nodes.size;
+  }
+  get edgeCount(): number {
+    return this._edges.length;
+  }
 
   /**
    * Get the full topology as a GG source string (for model checking).
@@ -421,18 +476,20 @@ export class QDoc {
     for (const node of this._nodes.values()) {
       const label = node.labels.length > 0 ? `: ${node.labels[0]}` : '';
       const props = Object.entries(node.properties);
-      const propsStr = props.length > 0
-        ? ` { ${props.map(([k, v]) => `${k}: '${v}'`).join(', ')} }`
-        : '';
+      const propsStr =
+        props.length > 0
+          ? ` { ${props.map(([k, v]) => `${k}: '${v}'`).join(', ')} }`
+          : '';
       lines.push(`(${node.id}${label}${propsStr})`);
     }
     for (const edge of this._edges) {
       const sources = edge.sourceIds.join(' | ');
       const targets = edge.targetIds.join(' | ');
       const props = Object.entries(edge.properties);
-      const propsStr = props.length > 0
-        ? ` { ${props.map(([k, v]) => `${k}: '${v}'`).join(', ')} }`
-        : '';
+      const propsStr =
+        props.length > 0
+          ? ` { ${props.map(([k, v]) => `${k}: '${v}'`).join(', ')} }`
+          : '';
       lines.push(`(${sources})-[:${edge.type}${propsStr}]->(${targets})`);
     }
     return lines.join('\n');
@@ -441,16 +498,19 @@ export class QDoc {
 
 // ── QMap — Replaces Y.Map ───────────────────────────────────────────────
 
-export class QMap {
+export class QMap<T = unknown> {
   private readonly _doc: QDoc;
   private readonly _name: string;
   private readonly _strategy: GgCollapseStrategy;
-  private readonly _data: Map<string, unknown> = new Map();
+  private readonly _data: Map<string, T> = new Map();
   private readonly _observeHandlers: Map<
     (event: {
       keysChanged: Set<string>;
       changes: {
-        keys: Map<string, { action: 'add' | 'update' | 'delete'; oldValue?: unknown }>;
+        keys: Map<
+          string,
+          { action: 'add' | 'update' | 'delete'; oldValue?: T }
+        >;
       };
     }) => void,
     QDocObserveHandler
@@ -462,7 +522,11 @@ export class QMap {
     this._name = name;
     this._strategy = strategy;
     // Create the map root node
-    doc._appendNode({ id: `map_${name}`, labels: ['QMap'], properties: { name, strategy } });
+    doc._appendNode({
+      id: `map_${name}`,
+      labels: ['QMap'],
+      properties: { name, strategy },
+    });
     doc._appendEdge({
       sourceIds: ['root'],
       targetIds: [`map_${name}`],
@@ -471,7 +535,7 @@ export class QMap {
     });
   }
 
-  set(key: string, value: unknown): void {
+  set(key: string, value: T): void {
     const hadPreviousValue = this._data.has(key);
     const previousValue = this._data.get(key);
     const branchId = `map_${this._name}_${key}_${this._branchCounter++}`;
@@ -501,30 +565,38 @@ export class QMap {
       sourceIds: [branchId],
       targetIds: [observeId],
       type: 'OBSERVE',
-      properties: { strategy: this._strategy, path: this._name, key, value: valueStr },
+      properties: {
+        strategy: this._strategy,
+        path: this._name,
+        key,
+        value: valueStr,
+      },
     });
 
     this._data.set(key, value);
-    this._doc._emitObserve(this._name, hadPreviousValue
-      ? {
-          type: 'set',
-          path: this._name,
-          key,
-          value,
-          previousValue,
-          origin: 'local',
-        }
-      : {
-          type: 'set',
-          path: this._name,
-          key,
-          value,
-          origin: 'local',
-        });
+    this._doc._emitObserve(
+      this._name,
+      hadPreviousValue
+        ? {
+            type: 'set',
+            path: this._name,
+            key,
+            value,
+            previousValue,
+            origin: 'local',
+          }
+        : {
+            type: 'set',
+            path: this._name,
+            key,
+            value,
+            origin: 'local',
+          }
+    );
     this._doc._notifyUpdate('local');
   }
 
-  get(key: string): unknown {
+  get(key: string): T | undefined {
     return this._data.get(key);
   }
 
@@ -550,25 +622,28 @@ export class QMap {
       type: 'FORK',
       properties: { path: this._name, key, op: 'delete' },
     });
-    this._doc._emitObserve(this._name, hadPreviousValue
-      ? {
-          type: 'delete',
-          path: this._name,
-          key,
-          previousValue,
-          origin: 'local',
-        }
-      : {
-          type: 'delete',
-          path: this._name,
-          key,
-          origin: 'local',
-        });
+    this._doc._emitObserve(
+      this._name,
+      hadPreviousValue
+        ? {
+            type: 'delete',
+            path: this._name,
+            key,
+            previousValue,
+            origin: 'local',
+          }
+        : {
+            type: 'delete',
+            path: this._name,
+            key,
+            origin: 'local',
+          }
+    );
     this._doc._notifyUpdate('local');
   }
 
-  toJSON(): Record<string, unknown> {
-    const result: Record<string, unknown> = {};
+  toJSON(): Record<string, T> {
+    const result: Record<string, T> = {} as Record<string, T>;
     for (const [key, value] of this._data) {
       result[key] = value;
     }
@@ -579,11 +654,11 @@ export class QMap {
     return this._data.size;
   }
 
-  forEach(fn: (value: unknown, key: string) => void): void {
+  forEach(fn: (value: T, key: string) => void): void {
     this._data.forEach(fn);
   }
 
-  entries(): IterableIterator<[string, unknown]> {
+  entries(): IterableIterator<[string, T]> {
     return this._data.entries();
   }
 
@@ -591,7 +666,7 @@ export class QMap {
     return this._data.keys();
   }
 
-  values(): IterableIterator<unknown> {
+  values(): IterableIterator<T> {
     return this._data.values();
   }
 
@@ -604,7 +679,10 @@ export class QMap {
     handler: (event: {
       keysChanged: Set<string>;
       changes: {
-        keys: Map<string, { action: 'add' | 'update' | 'delete'; oldValue?: unknown }>;
+        keys: Map<
+          string,
+          { action: 'add' | 'update' | 'delete'; oldValue?: T }
+        >;
       };
     }) => void
   ): void {
@@ -623,12 +701,14 @@ export class QMap {
         event.type === 'delete'
           ? 'delete'
           : hasPreviousValue
-            ? 'update'
-            : 'add';
-      const change =
+          ? 'update'
+          : 'add';
+      const change:
+        | { action: 'add' }
+        | { action: 'update' | 'delete'; oldValue?: T } =
         action === 'add'
           ? { action }
-          : { action, oldValue: event.previousValue };
+          : { action, oldValue: event.previousValue as T | undefined };
       handler({
         keysChanged: new Set([event.key]),
         changes: {
@@ -644,7 +724,10 @@ export class QMap {
     handler: (event: {
       keysChanged: Set<string>;
       changes: {
-        keys: Map<string, { action: 'add' | 'update' | 'delete'; oldValue?: unknown }>;
+        keys: Map<
+          string,
+          { action: 'add' | 'update' | 'delete'; oldValue?: T }
+        >;
       };
     }) => void
   ): void {
@@ -654,6 +737,55 @@ export class QMap {
     }
     this._doc.unobserve(this._name, wrapped);
     this._observeHandlers.delete(handler);
+  }
+}
+
+export class QXmlFragment {
+  private readonly _doc: QDoc;
+  private readonly _name: string;
+  private readonly _children: unknown[] = [];
+
+  constructor(doc: QDoc, name: string) {
+    this._doc = doc;
+    this._name = name;
+  }
+
+  insert(index: number, content: unknown[]): void {
+    this._children.splice(index, 0, ...content);
+    this._doc._notifyUpdate('local');
+  }
+
+  delete(index: number, length: number): void {
+    this._children.splice(index, length);
+    this._doc._notifyUpdate('local');
+  }
+
+  get(index: number): unknown {
+    return this._children[index];
+  }
+
+  get length(): number {
+    return this._children.length;
+  }
+
+  toArray(): unknown[] {
+    return [...this._children];
+  }
+
+  toString(): string {
+    return this._children.map((child) => String(child)).join('');
+  }
+
+  toJSON(): unknown[] {
+    return [...this._children];
+  }
+
+  observe(handler: QDocObserveHandler): void {
+    this._doc.observe(this._name, handler);
+  }
+
+  unobserve(handler: QDocObserveHandler): void {
+    this._doc.unobserve(this._name, handler);
   }
 }
 
@@ -670,7 +802,11 @@ export class QArray<T = unknown> {
     this._doc = doc;
     this._name = name;
     this._strategy = strategy;
-    doc._appendNode({ id: `arr_${name}`, labels: ['QArray'], properties: { name, strategy } });
+    doc._appendNode({
+      id: `arr_${name}`,
+      labels: ['QArray'],
+      properties: { name, strategy },
+    });
     doc._appendEdge({
       sourceIds: ['root'],
       targetIds: [`arr_${name}`],
@@ -713,7 +849,12 @@ export class QArray<T = unknown> {
       sourceIds: [`arr_${this._name}`],
       targetIds: [branchId],
       type: 'FORK',
-      properties: { path: this._name, op: 'delete', pos: String(index), len: String(length) },
+      properties: {
+        path: this._name,
+        op: 'delete',
+        pos: String(index),
+        len: String(length),
+      },
     });
     this._doc._notifyUpdate('local');
   }
@@ -738,7 +879,9 @@ export class QArray<T = unknown> {
     this._data.forEach(fn);
   }
 
-  observe(handler: (event: { changes: { delta: Array<{ insert?: T[] }> } }) => void): void {
+  observe(
+    handler: (event: { changes: { delta: Array<{ insert?: T[] }> } }) => void
+  ): void {
     this._doc.observe(this._name, (event) => {
       if (event.value !== undefined) {
         handler({
@@ -766,7 +909,11 @@ export class QText {
   constructor(doc: QDoc, name: string) {
     this._doc = doc;
     this._name = name;
-    doc._appendNode({ id: `text_${name}`, labels: ['QText'], properties: { name } });
+    doc._appendNode({
+      id: `text_${name}`,
+      labels: ['QText'],
+      properties: { name },
+    });
     doc._appendEdge({
       sourceIds: ['root'],
       targetIds: [`text_${name}`],
@@ -776,7 +923,8 @@ export class QText {
   }
 
   insert(index: number, text: string): void {
-    this._content = this._content.slice(0, index) + text + this._content.slice(index);
+    this._content =
+      this._content.slice(0, index) + text + this._content.slice(index);
     const branchId = `text_${this._name}_ins_${this._branchCounter++}`;
     this._doc._appendNode({
       id: branchId,
@@ -793,7 +941,8 @@ export class QText {
   }
 
   delete(index: number, length: number): void {
-    this._content = this._content.slice(0, index) + this._content.slice(index + length);
+    this._content =
+      this._content.slice(0, index) + this._content.slice(index + length);
     const branchId = `text_${this._name}_del_${this._branchCounter++}`;
     this._doc._appendNode({
       id: branchId,
@@ -804,7 +953,12 @@ export class QText {
       sourceIds: [`text_${this._name}`],
       targetIds: [branchId],
       type: 'FORK',
-      properties: { path: this._name, op: 'delete', pos: String(index), len: String(length) },
+      properties: {
+        path: this._name,
+        op: 'delete',
+        pos: String(index),
+        len: String(length),
+      },
     });
     this._doc._notifyUpdate('local');
   }
@@ -833,7 +987,11 @@ export class QCounter {
   constructor(doc: QDoc, name: string) {
     this._doc = doc;
     this._name = name;
-    doc._appendNode({ id: `ctr_${name}`, labels: ['QCounter'], properties: { name, initial: '0' } });
+    doc._appendNode({
+      id: `ctr_${name}`,
+      labels: ['QCounter'],
+      properties: { name, initial: '0' },
+    });
     doc._appendEdge({
       sourceIds: ['root'],
       targetIds: [`ctr_${name}`],
@@ -855,7 +1013,11 @@ export class QCounter {
       sourceIds: [`ctr_${this._name}`],
       targetIds: [branchId],
       type: 'FOLD',
-      properties: { strategy: 'fold-sum', path: this._name, delta: String(delta) },
+      properties: {
+        strategy: 'fold-sum',
+        path: this._name,
+        delta: String(delta),
+      },
     });
     this._doc._notifyUpdate('local');
   }

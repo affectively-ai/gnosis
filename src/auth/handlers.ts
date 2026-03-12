@@ -12,6 +12,21 @@ import {
   zkDecryptUtf8,
   zkEncryptUtf8,
 } from './core.js';
+import {
+  asHaltAttestationEnvelope,
+  asHaltExecutionEnvelope,
+  InMemoryNonceReplayStore,
+  verifyHaltAttestation,
+  verifyZkExecutionEnvelope,
+  type HaltAttestationVerificationOptions,
+  type ZkProofVerifier,
+  type ZkProofVerifierInput,
+} from './tee-attestation.js';
+import {
+  createEvmProofVerifier,
+  type EvmProofVerifierConfig,
+  type ZkProofEncoding,
+} from './zk-onchain-verifier.js';
 
 export type GnosisZkMode = 'required' | 'preferred' | 'off';
 export type GnosisZkDomain =
@@ -50,6 +65,8 @@ interface ZkProtectionResult {
   report: GnosisZkPolicyReport;
 }
 
+const haltNonceReplayStore = new InMemoryNonceReplayStore();
+
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null
     ? (value as Record<string, unknown>)
@@ -72,6 +89,80 @@ function readBoolean(value: unknown, fallback = false): boolean {
     if (normalized === 'false') return false;
   }
   return fallback;
+}
+
+function parseFiniteNumber(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return undefined;
+}
+
+function parseStringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .filter((entry): entry is string => typeof entry === 'string')
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+  }
+
+  if (typeof value === 'string') {
+    const raw = value.trim();
+    if (raw.length === 0) {
+      return [];
+    }
+
+    if (raw.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(raw);
+        return parseStringList(parsed);
+      } catch {
+        // Fall through to CSV parsing.
+      }
+    }
+
+    return raw
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+  }
+
+  return [];
+}
+
+function dedupeStrings(values: readonly string[]): string[] {
+  return Array.from(new Set(values.map((value) => value.trim()))).filter(
+    (value) => value.length > 0
+  );
+}
+
+function parseRecordFromUnknown(
+  value: unknown
+): Record<string, unknown> | null {
+  if (typeof value === 'string' && value.trim().length > 0) {
+    try {
+      const parsed = JSON.parse(value);
+      return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+
+  return null;
 }
 
 function parseZkMode(
@@ -212,6 +303,208 @@ function parseJsonWebKey(value: unknown): JsonWebKey | undefined {
     } catch {
       return undefined;
     }
+  }
+
+  return undefined;
+}
+
+function parseJsonWebKeyList(value: unknown): JsonWebKey[] {
+  if (Array.isArray(value)) {
+    const keys: JsonWebKey[] = [];
+    for (const candidate of value) {
+      const key = parseJsonWebKey(candidate);
+      if (key) {
+        keys.push(key);
+      }
+    }
+    return keys;
+  }
+
+  const key = parseJsonWebKey(value);
+  return key ? [key] : [];
+}
+
+function parseTrustedKeyById(value: unknown): Record<string, JsonWebKey> {
+  const record = parseRecordFromUnknown(value);
+  if (!record) {
+    return {};
+  }
+
+  const trustedKeys: Record<string, JsonWebKey> = {};
+  for (const [keyId, candidate] of Object.entries(record)) {
+    const parsed = parseJsonWebKey(candidate);
+    if (parsed) {
+      trustedKeys[keyId] = parsed;
+    }
+  }
+
+  return trustedKeys;
+}
+
+function parseHaltVerificationOptions(
+  input: Record<string, unknown>,
+  props: Record<string, string>
+): HaltAttestationVerificationOptions {
+  const trustedMeasurements = dedupeStrings([
+    ...parseStringList(input.trustedMeasurements),
+    ...parseStringList(input.allowedMeasurements),
+    ...parseStringList(props.trustedMeasurements),
+    ...parseStringList(props.allowedMeasurements),
+  ]);
+
+  const trustedProgramHashes = dedupeStrings([
+    ...parseStringList(input.trustedProgramHashes),
+    ...parseStringList(input.allowedProgramHashes),
+    ...parseStringList(props.trustedProgramHashes),
+    ...parseStringList(props.allowedProgramHashes),
+  ]);
+
+  const trustedVkHashes = dedupeStrings([
+    ...parseStringList(input.trustedVkHashes),
+    ...parseStringList(input.allowedVkHashes),
+    ...parseStringList(props.trustedVkHashes),
+    ...parseStringList(props.allowedVkHashes),
+  ]);
+
+  const trustedPublicKeys = [
+    ...parseJsonWebKeyList(input.trustedPublicKeys),
+    ...parseJsonWebKeyList(input.trustedPublicKey),
+    ...parseJsonWebKeyList(props.trustedPublicKeys),
+    ...parseJsonWebKeyList(props.trustedPublicKey),
+  ];
+
+  const trustedKeyById = {
+    ...parseTrustedKeyById(props.trustedKeyById),
+    ...parseTrustedKeyById(input.trustedKeyById),
+  };
+
+  const maxAttestationAgeMs =
+    parseFiniteNumber(input.maxAttestationAgeMs) ??
+    parseFiniteNumber(props.maxAttestationAgeMs);
+
+  const minTcbVersion =
+    typeof input.minTcbVersion === 'string'
+      ? input.minTcbVersion
+      : props.minTcbVersion;
+
+  const allowInlinePublicKey = readBoolean(
+    input.allowInlinePublicKey,
+    parseBoolean(props.allowInlinePublicKey, false)
+  );
+
+  const disableReplayProtection = readBoolean(
+    input.disableReplayProtection,
+    parseBoolean(props.disableReplayProtection, false)
+  );
+
+  return {
+    trustedMeasurements:
+      trustedMeasurements.length > 0 ? trustedMeasurements : undefined,
+    trustedProgramHashes:
+      trustedProgramHashes.length > 0 ? trustedProgramHashes : undefined,
+    trustedVkHashes: trustedVkHashes.length > 0 ? trustedVkHashes : undefined,
+    trustedPublicKeys:
+      trustedPublicKeys.length > 0 ? trustedPublicKeys : undefined,
+    trustedKeyById:
+      Object.keys(trustedKeyById).length > 0 ? trustedKeyById : undefined,
+    maxAttestationAgeMs,
+    minTcbVersion,
+    allowInlinePublicKey,
+    nonceStore: disableReplayProtection ? undefined : haltNonceReplayStore,
+  };
+}
+
+function parseProofVerifier(value: unknown): ZkProofVerifier | undefined {
+  if (typeof value !== 'function') {
+    return undefined;
+  }
+
+  const verifier = value as (
+    input: ZkProofVerifierInput
+  ) => Promise<unknown> | unknown;
+
+  return async (input: ZkProofVerifierInput) => {
+    const result = await verifier(input);
+    return result === true;
+  };
+}
+
+function parseProofEncoding(value: unknown): ZkProofEncoding | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'auto') return 'auto';
+  if (normalized === 'hex') return 'hex';
+  if (normalized === 'base64') return 'base64';
+  if (normalized === 'utf8') return 'utf8';
+  return undefined;
+}
+
+function parseEvmProofVerifierConfig(
+  input: Record<string, unknown>,
+  props: Record<string, string>
+): EvmProofVerifierConfig | null {
+  const rpcUrl =
+    typeof input.verifierRpcUrl === 'string'
+      ? input.verifierRpcUrl
+      : typeof input.rpcUrl === 'string'
+        ? input.rpcUrl
+        : props.verifierRpcUrl ?? props.rpcUrl;
+
+  const verifierAddress =
+    typeof input.verifierAddress === 'string'
+      ? input.verifierAddress
+      : props.verifierAddress;
+
+  if (!rpcUrl || !verifierAddress) {
+    return null;
+  }
+
+  const methodSelector =
+    typeof input.verifierMethodSelector === 'string'
+      ? input.verifierMethodSelector
+      : props.verifierMethodSelector;
+
+  const blockTag =
+    typeof input.verifierBlockTag === 'string'
+      ? input.verifierBlockTag
+      : props.verifierBlockTag;
+
+  const timeoutMs =
+    parseFiniteNumber(input.verifierTimeoutMs) ??
+    parseFiniteNumber(props.verifierTimeoutMs);
+
+  const proofEncoding =
+    parseProofEncoding(input.verifierProofEncoding) ??
+    parseProofEncoding(props.verifierProofEncoding);
+
+  return {
+    rpcUrl,
+    verifierAddress,
+    methodSelector,
+    blockTag:
+      typeof blockTag === 'string' && blockTag.length > 0
+        ? (blockTag as EvmProofVerifierConfig['blockTag'])
+        : undefined,
+    timeoutMs,
+    proofEncoding,
+  };
+}
+
+function resolveProofVerifier(
+  input: Record<string, unknown>,
+  props: Record<string, string>
+): ZkProofVerifier | undefined {
+  const explicitVerifier = parseProofVerifier(input.proofVerifier);
+  if (explicitVerifier) {
+    return explicitVerifier;
+  }
+
+  const evmConfig = parseEvmProofVerifierConfig(input, props);
+  if (evmConfig) {
+    return createEvmProofVerifier(evmConfig);
   }
 
   return undefined;
@@ -465,6 +758,8 @@ export const GNOSIS_CORE_AUTH_LABELS = {
   CUSTODIAL_SIGNER: 'CustodialSigner',
   ZK_SYNC_ENVELOPE: 'ZKSyncEnvelope',
   ZK_MATERIALIZE_ENVELOPE: 'ZKMaterializeEnvelope',
+  HALT_ATTESTATION_VERIFY: 'HALTAttestationVerify',
+  ZK_EXECUTION_GATE: 'ZKExecutionGate',
 } as const;
 
 export function registerCoreAuthHandlers(registry: GnosisRegistry): void {
@@ -858,6 +1153,95 @@ export function registerCoreAuthHandlers(registry: GnosisRegistry): void {
         materializationEnvelope: {
           private: privateMaterialization,
           encrypted: materializeProtection.report.applied,
+        },
+      };
+    },
+    { override: false }
+  );
+
+  registry.register(
+    GNOSIS_CORE_AUTH_LABELS.HALT_ATTESTATION_VERIFY,
+    async (payload, props) => {
+      const input = asRecord(payload);
+      const attestation = asHaltAttestationEnvelope(input.attestation);
+      if (!attestation) {
+        throw new Error(
+          'HALTAttestationVerify requires payload.attestation (HaltAttestationEnvelope).'
+        );
+      }
+
+      const verification = await verifyHaltAttestation(
+        attestation,
+        parseHaltVerificationOptions(input, props)
+      );
+      const failClosed = readBoolean(
+        input.failClosed,
+        parseBoolean(props.failClosed, true)
+      );
+
+      if (!verification.valid && failClosed) {
+        throw new Error(
+          `HALTAttestationVerify failed: ${verification.reason ?? 'unknown failure'}`
+        );
+      }
+
+      return {
+        ...input,
+        haltAttestation: verification,
+      };
+    },
+    { override: false }
+  );
+
+  registry.register(
+    GNOSIS_CORE_AUTH_LABELS.ZK_EXECUTION_GATE,
+    async (payload, props) => {
+      const input = asRecord(payload);
+      const envelopeSource = Object.prototype.hasOwnProperty.call(
+        input,
+        'executionEnvelope'
+      )
+        ? input.executionEnvelope
+        : input;
+      const executionEnvelope = asHaltExecutionEnvelope(envelopeSource);
+      if (!executionEnvelope) {
+        throw new Error(
+          'ZKExecutionGate requires payload.executionEnvelope with attestation/proof fields.'
+        );
+      }
+
+      const proofVerifier = resolveProofVerifier(input, props);
+      const proofVerifiedHint = readBoolean(input.proofVerified, false);
+      const requireProofVerification = readBoolean(
+        input.requireProofVerification,
+        parseBoolean(props.requireProofVerification, true)
+      );
+
+      const gateResult = await verifyZkExecutionEnvelope(executionEnvelope, {
+        ...parseHaltVerificationOptions(input, props),
+        proofVerifier,
+        proofVerifiedHint,
+        requireProofVerification,
+      });
+      const failClosed = readBoolean(
+        input.failClosed,
+        parseBoolean(props.failClosed, true)
+      );
+
+      if (!gateResult.valid && failClosed) {
+        throw new Error(
+          `ZKExecutionGate denied: ${gateResult.reason ?? 'unknown reason'}`
+        );
+      }
+
+      return {
+        ...input,
+        executionEnvelope,
+        executionGate: {
+          allowed: gateResult.valid,
+          reason: gateResult.reason,
+          proofVerified: gateResult.proofVerified,
+          attestation: gateResult.attestation,
         },
       };
     },

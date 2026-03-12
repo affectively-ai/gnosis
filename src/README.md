@@ -6,7 +6,7 @@ This directory contains the Gnosis compiler, runtime, and execution tooling.
 
 ## Top-Level Modules
 
-- `index.ts`: CLI/runtime orchestration entrypoint (kept for CLI workflows).
+- `index.ts`: CLI/runtime orchestration entrypoint (kept for CLI workflows), including `--verbose` REPL banner mode.
 - `lib.ts`: Package main entry used by `@affectively/gnosis` imports.
 - `cli.ts`: CLI entrypoint used by `bin/gnosis.js`.
 - `neural-compat.ts`: `.gg`-native neural runtime exposing `NeuralEngine`,
@@ -14,7 +14,7 @@ This directory contains the Gnosis compiler, runtime, and execution tooling.
 
 ## Subdirectories
 
-- [auth](./auth): Native UCAN/ZK/custodial runtime integration and edge authorization helpers.
+- [auth](./auth): Native UCAN/ZK/custodial runtime integration, HALT attestation verification, and execution-envelope authorization helpers.
 - [betty](./betty): Betty bootstrap compiler, parser, and quantum bridge.
 - [capabilities](./capabilities): Runtime capability profiles and target validation (`workers`, `node`, `bun`).
 - [mod](./mod): `gnosis mod` package manager commands.

@@ -131,7 +131,9 @@ class MockYMap {
 
 class MockYArray {
   _arr: unknown[] = [];
-  _observers: Array<(event: { changes: { delta: Array<{ insert?: unknown[] }> } }) => void> = [];
+  _observers: Array<
+    (event: { changes: { delta: Array<{ insert?: unknown[] }> } }) => void
+  > = [];
 
   push(items: unknown[]): void {
     this._arr.push(...items);
@@ -350,7 +352,10 @@ export class Doc {
   }
 }
 
-export function encodeStateAsUpdate(doc: Doc): Uint8Array {
+export function encodeStateAsUpdate(
+  doc: Doc,
+  _stateVector?: Uint8Array
+): Uint8Array {
   const snapshot: Record<string, Record<string, unknown>> = {
     texts: {},
     maps: {},

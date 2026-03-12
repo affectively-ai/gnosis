@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'bun:test';
 import type { GnosisIdentity } from './core.js';
 import { GNOSIS_CORE_AUTH_LABELS, registerCoreAuthHandlers } from './handlers.js';
+import {
+  createHaltAttestation,
+  hashPublicSignals,
+  type HaltExecutionEnvelope,
+} from './tee-attestation.js';
 import { GnosisRegistry } from '../runtime/registry.js';
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -21,6 +26,25 @@ async function generateRecipientPublicKey(): Promise<JsonWebKey> {
   return crypto.subtle.exportKey('jwk', keyPair.publicKey);
 }
 
+async function generateAttestationSigningMaterial(): Promise<{
+  privateKey: JsonWebKey;
+  publicKey: JsonWebKey;
+}> {
+  const keyPair = await crypto.subtle.generateKey(
+    {
+      name: 'ECDSA',
+      namedCurve: 'P-256',
+    },
+    true,
+    ['sign', 'verify']
+  );
+
+  return {
+    privateKey: await crypto.subtle.exportKey('jwk', keyPair.privateKey),
+    publicKey: await crypto.subtle.exportKey('jwk', keyPair.publicKey),
+  };
+}
+
 function getRegisteredHandler(label: string) {
   const registry = new GnosisRegistry();
   registerCoreAuthHandlers(registry);
@@ -29,6 +53,67 @@ function getRegisteredHandler(label: string) {
     throw new Error(`Expected handler "${label}" to be registered.`);
   }
   return handler;
+}
+
+async function withMockedFetch(
+  impl: typeof fetch,
+  run: () => Promise<void>
+): Promise<void> {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = impl;
+  try {
+    await run();
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+async function createExecutionEnvelopeForTests(): Promise<{
+  envelope: HaltExecutionEnvelope;
+  trustedPublicKey: JsonWebKey;
+  trustedMeasurement: string;
+}> {
+  const signingMaterial = await generateAttestationSigningMaterial();
+  const nowMs = Date.now();
+  const measurement = 'HALT-MRENCLAVE-HANDLER';
+  const publicSignals = {
+    outputCommitment: '0xhandler',
+    ok: true,
+  };
+  const publicSignalsHash = await hashPublicSignals(publicSignals);
+  const nonce = `nonce-${crypto.randomUUID()}`;
+  const expiresAt = nowMs + 30_000;
+
+  const envelope: HaltExecutionEnvelope = {
+    proof: 'zk-proof-handler',
+    publicSignals,
+    publicSignalsHash,
+    programHash: 'program-handler',
+    vkHash: 'vk-handler',
+    nonce,
+    expiresAt,
+    attestation: await createHaltAttestation({
+      claims: {
+        measurement,
+        programHash: 'program-handler',
+        vkHash: 'vk-handler',
+        publicSignalsHash,
+        nonce,
+        issuedAt: nowMs - 500,
+        expiresAt,
+        tcbVersion: '1.0.0',
+      },
+      privateKey: signingMaterial.privateKey,
+      publicKey: signingMaterial.publicKey,
+      keyId: 'halt-handler',
+    }),
+  };
+
+  return {
+    envelope,
+    trustedPublicKey: signingMaterial.publicKey,
+    trustedMeasurement: measurement,
+  };
 }
 
 describe('core auth handlers', () => {
@@ -128,5 +213,118 @@ describe('core auth handlers', () => {
     expect(materialization.encrypted).toBe(true);
     expect(zkPolicy.mode).toBe('required');
     expect(result.encrypted).toBeDefined();
+  });
+
+  it('verifies HALT attestation envelope with allowlisted measurement and key', async () => {
+    const handler = getRegisteredHandler(
+      GNOSIS_CORE_AUTH_LABELS.HALT_ATTESTATION_VERIFY
+    );
+    const signingMaterial = await generateAttestationSigningMaterial();
+    const nowMs = Date.now();
+
+    const attestation = await createHaltAttestation({
+      claims: {
+        measurement: 'HALT-MRENCLAVE-HANDLER-ATTEST',
+        programHash: 'program-handler-attest',
+        vkHash: 'vk-handler-attest',
+        publicSignalsHash: 'public-signals-handler-attest',
+        nonce: `nonce-${crypto.randomUUID()}`,
+        issuedAt: nowMs - 500,
+        expiresAt: nowMs + 30_000,
+      },
+      privateKey: signingMaterial.privateKey,
+      publicKey: signingMaterial.publicKey,
+      keyId: 'halt-handler-attest',
+    });
+
+    const output = await handler(
+      {
+        attestation,
+        trustedMeasurements: ['HALT-MRENCLAVE-HANDLER-ATTEST'],
+        trustedKeyById: {
+          'halt-handler-attest': signingMaterial.publicKey,
+        },
+      },
+      {}
+    );
+
+    const result = asRecord(output);
+    const verification = asRecord(result.haltAttestation);
+    expect(verification.valid).toBe(true);
+  });
+
+  it('enforces ZK execution gate and blocks replayed nonce', async () => {
+    const handler = getRegisteredHandler(
+      GNOSIS_CORE_AUTH_LABELS.ZK_EXECUTION_GATE
+    );
+    const { envelope, trustedPublicKey, trustedMeasurement } =
+      await createExecutionEnvelopeForTests();
+
+    const first = await handler(
+      {
+        executionEnvelope: envelope,
+        trustedMeasurements: [trustedMeasurement],
+        trustedPublicKeys: [trustedPublicKey],
+        proofVerifier: async ({ proof }: { proof: string }) =>
+          proof === 'zk-proof-handler',
+      },
+      {}
+    );
+    const firstResult = asRecord(first);
+    const gate = asRecord(firstResult.executionGate);
+    expect(gate.allowed).toBe(true);
+
+    await expect(
+      handler(
+        {
+          executionEnvelope: envelope,
+          trustedMeasurements: [trustedMeasurement],
+          trustedPublicKeys: [trustedPublicKey],
+          proofVerified: true,
+        },
+        {}
+      )
+    ).rejects.toThrow('Nonce replay');
+  });
+
+  it('supports EVM JSON-RPC proof verification in ZKExecutionGate', async () => {
+    const handler = getRegisteredHandler(
+      GNOSIS_CORE_AUTH_LABELS.ZK_EXECUTION_GATE
+    );
+    const { envelope, trustedPublicKey, trustedMeasurement } =
+      await createExecutionEnvelopeForTests();
+
+    await withMockedFetch(
+      async () =>
+        new Response(
+          JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            result:
+              '0x0000000000000000000000000000000000000000000000000000000000000001',
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }
+        ),
+      async () => {
+        const output = await handler(
+          {
+            executionEnvelope: envelope,
+            trustedMeasurements: [trustedMeasurement],
+            trustedPublicKeys: [trustedPublicKey],
+            verifierRpcUrl: 'https://example-rpc.test',
+            verifierAddress: '0x1111111111111111111111111111111111111111',
+          },
+          {}
+        );
+
+        const result = asRecord(output);
+        const gate = asRecord(result.executionGate);
+        expect(gate.allowed).toBe(true);
+        expect(gate.proofVerified).toBe(true);
+      }
+    );
   });
 });

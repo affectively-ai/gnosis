@@ -108,6 +108,7 @@ export {
 } from './gg-test-runner.js';
 
 const args = process.argv.slice(2);
+const verboseMode = args.includes('--verbose');
 
 function resolveTopologyPath(rawPath: string): string {
     return path.resolve(process.cwd(), rawPath);
@@ -700,7 +701,7 @@ async function main() {
         process.exit(1);
     } else {
         const { startRepl } = await import('./repl.js');
-        startRepl();
+        startRepl({ verbose: verboseMode });
     }
 }
 

@@ -21,10 +21,16 @@ type HistoryEntry = {
   text: string;
 };
 
+type ReplOptions = {
+  verbose?: boolean;
+};
+
 const MAX_HISTORY_ENTRIES = 80;
 const MAX_DISPLAYED_HISTORY = 12;
 const MAX_SOURCE_LINES = 8;
 const BREATH_INTERVAL_MS = 420;
+const ERROR_MOTTO = "Baby's Got Stack";
+const VERBOSE_MOTTO = "Look at the size of that topology... let's see what you've done here.";
 const STATUS_STYLE: Record<VisualNodeStatus, { glyph: string; color: string }> = {
   pending: { glyph: '[ ]', color: 'gray' },
   active: { glyph: '[*]', color: 'cyan' },
@@ -68,6 +74,10 @@ function formatError(error: unknown): string {
     return error.message;
   }
   return String(error);
+}
+
+function formatMottoError(error: unknown): string {
+  return `${ERROR_MOTTO}: ${formatError(error)}`;
 }
 
 function formatDiagnostics(diagnostics: Diagnostic[]): string {
@@ -132,12 +142,16 @@ function edgeTouchesWave(edge: ASTEdge, activeWave: Set<string>): boolean {
 }
 
 const SpectrumHeading = React.memo(function SpectrumHeading({
-  phase
+  phase,
+  verbose
 }: {
   phase: number;
+  verbose: boolean;
 }) {
   const title = 'Gnosis Visual Graph REPL v1.3.0';
-  const subtitle = 'Luxury spectrum styling with smooth, gentle breathing.';
+  const subtitle = verbose
+    ? VERBOSE_MOTTO
+    : "Baby's Got Stack. Draw topology, execute flow, collapse with style.";
 
   return (
     <Box flexDirection="column" marginBottom={1}>
@@ -330,7 +344,8 @@ const HistoryPanel = React.memo(function HistoryPanel({
   );
 });
 
-export function startRepl() {
+export function startRepl(options: ReplOptions = {}) {
+  const { verbose = false } = options;
   const betty = new BettyCompiler();
   const registry = new GnosisRegistry();
   const engine = new GnosisEngine(registry);
@@ -403,7 +418,7 @@ export function startRepl() {
       } catch (error: unknown) {
         appendHistory(
           { type: 'input', text: inputLabel },
-          { type: 'error', text: `[Compiler Crash] ${formatError(error)}` }
+          { type: 'error', text: `[Compiler Crash] ${formatMottoError(error)}` }
         );
       }
     };
@@ -445,7 +460,7 @@ export function startRepl() {
         if (sourceLines.length === 0) {
           appendHistory(
             { type: 'input', text: 'UNDO' },
-            { type: 'error', text: '[Editor] Nothing to undo.' }
+            { type: 'error', text: `[Editor] ${ERROR_MOTTO}: Nothing to undo.` }
           );
         } else {
           const nextSourceLines = sourceLines.slice(0, -1);
@@ -459,7 +474,10 @@ export function startRepl() {
         if (!ast || ast.edges.length === 0) {
           appendHistory(
             { type: 'input', text: 'EXECUTE' },
-            { type: 'error', text: '[Engine] No topology to execute. Add graph lines first.' }
+            {
+              type: 'error',
+              text: `[Engine] ${ERROR_MOTTO}: No topology to execute. Add graph lines first.`
+            }
           );
           setQuery('');
           return;
@@ -476,7 +494,7 @@ export function startRepl() {
         } catch (error: unknown) {
           appendHistory(
             { type: 'input', text: 'EXECUTE' },
-            { type: 'error', text: `[Engine Crash] ${formatError(error)}` }
+            { type: 'error', text: `[Engine Crash] ${formatMottoError(error)}` }
           );
         }
 
@@ -491,7 +509,7 @@ export function startRepl() {
 
     return (
       <Box flexDirection="column" padding={1} minHeight={20}>
-        <SpectrumHeading phase={phase} />
+        <SpectrumHeading phase={phase} verbose={verbose} />
 
         <MetricsPanel
           beta1={metrics.b1}

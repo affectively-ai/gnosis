@@ -4,7 +4,15 @@
 
 Gnosis is a functional, logic-based quantum programming language and compiler built on the **Wallington Rotation** and topological pipeline primitives (`FORK`, `RACE`, `FOLD`, `VENT`). It eliminates traditional imperative control flow in favor of pure computational topology.
 
-The language IS the topology. The AST IS the graph.
+The language is the topology. The AST is the graph.
+
+# Motto
+
+"Oh my God, Betti! Look at the size of her Bule."
+
+## Why Gnosis?
+
+Gnosis is not just another programming language. It is a paradigm shift towards a future where computation is expressed as pure data flow, where the structure of the program is its own execution model, and where the boundaries between logic, data, and control are dissolved.
 
 ## The Core Primitives
 
@@ -47,6 +55,19 @@ Gnosis is capable of expressing the most complex software architectures as pure 
 Test your quantum topologies in real-time with linting, validation, and typeahead:
 ```bash
 bun run start
+```
+
+Run REPL in verbose mascot mode:
+```bash
+bun run start -- --verbose
+```
+
+## Troubleshooting: Baby's Got Stack
+
+Crash/panic output in the REPL now leads with the Betti mascot motto:
+
+```text
+[Engine Crash] Baby's Got Stack: <error details>
 ```
 
 ### The CLI Runner
@@ -138,12 +159,16 @@ Built-in labels for first-class auth workflows:
 - `CustodialSigner`
 - `ZKSyncEnvelope`
 - `ZKMaterializeEnvelope`
+- `HALTAttestationVerify`
+- `ZKExecutionGate`
 
 `UCANVerify` can emit `executionAuth` into the payload. When `executionAuth.enforce=true`, runtime edge execution is capability-checked at primitive level (`fork`, `race`, `fold`, `vent`, etc.) using resource-scoped UCAN capabilities.
 
 `zkMode` (`required|preferred|off`) provides selective default-on ZK behavior for sensitive domains (delegation context, custodial payloads, cross-boundary sync, and private materialization) without forcing encryption on all runtime edges.
 
 For sensitive sync/materialization `PROCESS` flows, compiler/runtime auto-injection can insert `ZKSyncEnvelope` and `ZKMaterializeEnvelope` wrapper nodes implicitly from topology properties.
+
+For HALT-backed confidential execution, `HALTAttestationVerify` checks attestation signature/policy gates (measurement, hashes, age, TCB), and `ZKExecutionGate` validates a full execution envelope (attestation + public signal hash + replay nonce + proof verifier hook). `ZKExecutionGate` can verify proofs through a callback or via EVM JSON-RPC (`verifierRpcUrl` + `verifierAddress`).
 
 For TypeScript/JavaScript Sonar-style analysis:
 
