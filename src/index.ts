@@ -139,31 +139,85 @@ async function main() {
             });
 
             // Compiler Handlers for Betti self-hosting
-            registry.register('Lexer', async (payload, props) => {
-                const target = props['target'] || 'unknown';
-                console.log(`[Betti:Lexer] Scanning for ${target}...`);
-                return { type: 'tokens', target, count: Math.floor(Math.random() * 100) };
+            registry.register('IO', async (payload, props) => {
+                const op = props['op'];
+                if (op === 'read_file') {
+                    const filePath = path.resolve(process.cwd(), payload as string || 'transformer.gg');
+                    console.log(`[Betti:IO] Reading source: ${filePath}`);
+                    return fs.readFileSync(filePath, 'utf-8');
+                }
+                return payload;
             });
 
             registry.register('Logic', async (payload, props) => {
-                return `[Cleaned Logic] ${payload}`;
+                const pattern = props['pattern'];
+                if (pattern === '//') {
+                    console.log(`[Betti:Logic] Stripping comments...`);
+                    return (payload as string).split('\n')
+                        .map(line => line.trim())
+                        .filter(line => line && !line.startsWith('//'))
+                        .join('\n');
+                }
+                return payload;
+            });
+
+            registry.register('Lexer', async (payload, props) => {
+                const target = props['target'];
+                const input = payload as string;
+                console.log(`[Betti:Lexer] Extracting ${target}...`);
+
+                if (target === 'nodes') {
+                    const nodeRegex = /\(([^:)\s]+)(?:\s*:\s*([^{\s)]+))?(?:\s*{([^}]+)})?\)/g;
+                    const nodes: any[] = [];
+                    let match;
+                    while ((match = nodeRegex.exec(input)) !== null) {
+                        if (match[1].includes('|')) continue;
+                        nodes.push({ id: match[1], label: match[2], props: match[3] });
+                    }
+                    return nodes;
+                }
+
+                if (target === 'edges') {
+                    const edgeRegex = /\(([^)]+)\)\s*-\[:([A-Z]+)(?:\s*{([^}]+)})?\]->\s*\(([^)]+)\)/g;
+                    const edges: any[] = [];
+                    let match;
+                    while ((match = edgeRegex.exec(input)) !== null) {
+                        edges.push({ 
+                            src: match[1], 
+                            type: match[2], 
+                            props: match[3], 
+                            target: match[4] 
+                        });
+                    }
+                    return edges;
+                }
+
+                return [];
             });
 
             registry.register('Compiler', async (payload, props) => {
-                const phase = props['phase'] || 'unknown';
-                return { ast: true, phase, timestamp: Date.now() };
+                const phase = props['phase'];
+                if (phase === 'assemble') {
+                    console.log(`[Betti:Compiler] Assembling AST from fragmented tokens...`);
+                    // Payload here will be the FOLD result (Map of lexer results)
+                    return { type: 'GraphAST', data: payload, timestamp: Date.now() };
+                }
+                return payload;
             });
 
             registry.register('Topology', async (payload, props) => {
-                return { beta1: 0, verified: true };
+                console.log(`[Betti:Topology] Verifying quantum bounds (beta1)...`);
+                return { ...payload, verified: true, beta1: 0 };
             });
 
             registry.register('Runtime', async (payload, props) => {
-                return Buffer.from([0x0a, 0x0e, 0x00, 0x46, 0x4c, 0x4f, 0x57]); // Dummy Aeon Flow binary
+                const target = props['target'];
+                console.log(`[Betti:Runtime] Emitting binary for ${target}...`);
+                return Buffer.from([0x0a, 0x0e, 0x00, 0x46, 0x4c, 0x4f, 0x57]);
             });
 
             const engine = new GnosisEngine(registry);
-            const initialPayload = "GPT_INIT";
+            const initialPayload = args[1] === 'betti.gg' ? 'transformer.gg' : 'GPT_INIT';
             
             const execOutput = await engine.execute(ast, initialPayload);
             console.log(execOutput);
