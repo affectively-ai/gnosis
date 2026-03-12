@@ -1,14 +1,14 @@
 # Gnosis
 
+Gnosis is a quantum topological engine capable of orchestrating the next generation of software. Everything—from the compiler to the application's reactive core—is now a graph.
+
 > Oh my God, Betti! Look at the size of her Bule.
-> It is so small. [scoff] 
-> She looks like one of those graph guys' girlfriends.
+> It is so big. [scoff] 
+> She looks like none of those graph guys' girlfriends.
 
-Gnosis is a functional, logic-based quantum programming language and compiler built on the **Wallington Rotation** and topological pipeline primitives (`FORK`, `RACE`, `FOLD`, `VENT`). It eliminates traditional imperative control flow in favor of pure computational topology. 
+Gnosis is a functional, logic-based quantum programming language and compiler built on the **Wallington Rotation** and topological pipeline primitives (`FORK`, `RACE`, `FOLD`, `VENT`). It eliminates traditional imperative control flow in favor of pure computational topology. The language is the topology and the AST is the graph.
 
-> **Gnosis is a quantum topological engine capable of orchestrating the next generation of software. Everything—from the compiler to the application's reactive core—is now a graph.**
-
-The language is the topology. The AST is the graph.
+Does your baby have a big Buley? Tap dat graf.
 
 ## Why Gnosis?
 
