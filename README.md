@@ -1,58 +1,72 @@
-# Gnosis 
+# Gnosis
 
-> **The language is the topology. The AST is the graph.**
+> **Gnosis is no longer just a prototype; it's a quantum topological engine capable of orchestrating the next generation of software. Everything—from the compiler to the application's reactive core—is now a graph.**
 
-Gnosis is a quantum programming language and compiler built on top of the **Wallington Rotation** and topological pipeline primitives (`FORK`, `RACE`, `FOLD`, `VENT`). It dispenses with traditional imperative control flow (`if`/`else`, `for`, `try`/`catch`) in favor of pure computational topology.
+Gnosis is a functional, logic-based quantum programming language and compiler built on the **Wallington Rotation** and topological pipeline primitives (`FORK`, `RACE`, `FOLD`, `VENT`). It eliminates traditional imperative control flow in favor of pure computational topology.
 
-In Gnosis, your source code is literally a graph. You define nodes (data and compute) and edges (topological transitions). 
-
-Under the hood, Gnosis uses a zero-overhead, vectorized WebAssembly (WASM) runtime built in Rust to instantly evaluate superposition states ($\beta_1 > 0$) using Aeon Flow's 10-byte binary wire format.
+The language IS the topology. The AST IS the graph.
 
 ## The Core Primitives
 
-Gnosis operates on the covering space of execution paths. The state of the system is tracked by its first Betti number ($\beta_1$).
+Gnosis operates on the covering space of execution paths, tracking the system's state via its first Betti number ($\beta_1$).
 
-*   **`FORK`**: Branch execution into multiple parallel paths. Increases $\beta_1$. (Creates a superposition).
-*   **`RACE`**: Selects the fastest path that meets a constraint. Maintains homotopy equivalence. Collapses $\beta_1 \to 0$.
-*   **`FOLD` / `COLLAPSE`**: Deterministically merges independent paths back into a scalar state. Collapses $\beta_1 \to 0$.
-*   **`VENT` / `TUNNEL`**: Dissipates waste heat by shedding unproductive paths. Decreases $\beta_1$.
+*   **`FORK`**: Branch execution into parallel superpositions. Increases $\beta_1$.
+*   **`RACE`**: Collapse to the fastest valid path. Maintains homotopy equivalence.
+*   **`FOLD` / `COLLAPSE`**: Deterministically merge independent paths back into a scalar state.
+*   **`VENT` / `TUNNEL`**: Dissipate waste heat by shedding unproductive paths.
+*   **`INTERFERE`**: Apply constructive or destructive interference between wave function amplitudes.
 
-## Gnosis Graph Language (GGL)
+## A Complete System
 
-Gnosis code looks like Cypher. There are no functions, only subgraphs.
+Gnosis provides a unified architecture for high-performance, verified computation:
 
-```cypher
-// 1. Defining Compute Nodes
-(raw_codec: Codec { type: 'raw' })
-(brotli_codec: Codec { type: 'brotli' })
+1.  **Gnosis Graph Language (GGL)**: A Cypher-inspired ASCII-art syntax for drawing execution graphs.
+2.  **Betty/Betti Compiler**: A self-hosting compilation pipeline that translates graphs into binary flows.
+3.  **Vectorized Runtime**: A "hella-optimized" Rust-based WebAssembly engine that evaluates topologies using the Aeon Flow 10-byte wire format with zero overhead.
+4.  **Formal Verification**: Natively integrated with `aeon-logic` to prove topological invariants and quantum bounds ($\beta_1$) at compile time.
+5.  **Statistical Measurement**: Integrated with `twokeys` for Tukey-style Exploratory Data Analysis (EDA) inside the wave function.
 
-// 2. The Topology
-(input) 
-  -[:FORK]-> (raw_codec | brotli_codec)
-  -[:RACE]-> (winner)
-```
+## Real-World Topologies
 
-## The "Betty" Compiler
+Gnosis is capable of expressing the most complex software architectures as pure data flow:
 
-Gnosis includes a built-in compiler affectionately named **Betty** (after the Betti number). 
-Betty statically analyzes your GGL topology to ensure that:
-1. $\beta_1$ is properly managed (no unbounded superpositions).
-2. All paths eventually FOLD, RACE, or VENT.
+*   **Topological AI**: Full Transformer-style forward passes (Attention, Residuals, Softmax) implemented as fractal superpositions.
+*   **Reactive Kernels**: The core server loops and navigation engines of `aeon-flux` and `aeon-shell` redefined as continuous topological transitions.
+*   **Self-Hosted Logic**: The Gnosis compiler is itself a Gnosis topology, proving the system is closed under self-application.
 
-Betty natively translates the AST into `FlowFrame` binary buffers and streams them through the Rust WASM execution engine.
+## Getting Started
 
-### Try the REPL
-
+### The REPL
+Test your quantum topologies in real-time with linting, validation, and typeahead:
 ```bash
 bun run start
 ```
 
-Type your topological graph into the REPL, watch Betty calculate the Betti numbers, and then type `EXECUTE` to run the topology through the bare-metal WASM runtime.
+### The CLI Runner
+Execute `.gg` files directly through the bare-metal runtime:
+```bash
+bun ./bin/gnosis.js run your_app.gg
+```
+
+## Tooling: Real-Time Correctness + Complexity
+
+Use built-in topology tooling to run Aeon Logic checks and measure branch/file complexity:
+
+```bash
+# Formal correctness + complexity summary
+gnosis analyze path/to/topology.gg
+
+# Lint-style gate (non-zero exit on formal violations)
+gnosis lint path/to/topology.gg
+```
+
+`Buley Number` is a composite complexity score based on branch structure (`FORK`/`RACE`/`INTERFERE`), graph shape, and source size. 
 
 ## The Roadmap to Self-Hosting
 
-The ultimate goal of Gnosis is to be closed under self-application. Because a compiler is simply a pipeline (`(source) -[:FORK]-> (lexers) -[:FOLD]-> (AST)`), the TypeScript-based **Betty** compiler will eventually be rewritten entirely in pure GGL. 
+The TypeScript-based **Betty** compiler is the bootstrap. The Gnosis-based **Betti** is the future. We keep both in the repository to maintain the chain of topological verification.
 
-When the compiler is natively written in Gnosis, her name will change to **Betti** (the true topological spelling). 
+---
 
-We will keep both **Betty** (TypeScript) and **Betti** (Gnosis) in the repository forever for **bootstrapping reasons**. You use Betty to compile Betti, who then compiles the rest of your quantum topologies.
+**Copyright (c) 2026 Taylor Buley.** All rights reserved. 
+*Non-commercial use only.*
