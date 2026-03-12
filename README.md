@@ -51,4 +51,8 @@ Type your topological graph into the REPL, watch Betty calculate the Betti numbe
 
 ## The Roadmap to Self-Hosting
 
-The ultimate goal of Gnosis is to be closed under self-application. Because a compiler is simply a pipeline (`(source) -[:FORK]-> (lexers) -[:FOLD]-> (AST)`), the Betty compiler will eventually be rewritten entirely in GGL. 
+The ultimate goal of Gnosis is to be closed under self-application. Because a compiler is simply a pipeline (`(source) -[:FORK]-> (lexers) -[:FOLD]-> (AST)`), the TypeScript-based **Betty** compiler will eventually be rewritten entirely in pure GGL. 
+
+When the compiler is natively written in Gnosis, her name will change to **Betti** (the true topological spelling). 
+
+We will keep both **Betty** (TypeScript) and **Betti** (Gnosis) in the repository forever for **bootstrapping reasons**. You use Betty to compile Betti, who then compiles the rest of your quantum topologies.

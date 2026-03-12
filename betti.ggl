@@ -1,0 +1,23 @@
+// -----------------------------------------------------------------------------
+// Betti - The self-hosted Gnosis Compiler
+// 
+// This file will eventually contain the complete AST parsing and WASM frame 
+// construction logic, written entirely in Gnosis Graph Language (GGL).
+// 
+// Bootstrapping:
+// TypeScript (Betty) -> Compiles (Betti) -> Compiles (Everything else)
+// -----------------------------------------------------------------------------
+
+// 1. Defining Compiler Nodes (The Lexer & Parser stages)
+(read_source: IO { op: 'read' })
+(parse_nodes: Compiler { phase: 'nodes' })
+(parse_edges: Compiler { phase: 'edges' })
+(build_wasm_frames: Compiler { phase: 'emit_binary' })
+
+// 2. The Compilation Topology
+(source_code)
+  -[:PROCESS]-> (read_source)
+  -[:FORK]-> (parse_nodes | parse_edges)
+  -[:FOLD { strategy: 'merge-ast' }]-> (ast)
+  -[:PROCESS]-> (build_wasm_frames)
+  -[:PROCESS]-> (executable_binary)
