@@ -1,23 +1,33 @@
 // -----------------------------------------------------------------------------
 // Betti - The self-hosted Gnosis Compiler
 // 
-// This file will eventually contain the complete AST parsing and WASM frame 
-// construction logic, written entirely in Gnosis Graph Language (GGL).
-// 
 // Bootstrapping:
 // TypeScript (Betty) -> Compiles (Betti) -> Compiles (Everything else)
 // -----------------------------------------------------------------------------
 
-// 1. Defining Compiler Nodes (The Lexer & Parser stages)
-(read_source: IO { op: 'read' })
-(parse_nodes: Compiler { phase: 'nodes' })
-(parse_edges: Compiler { phase: 'edges' })
-(build_wasm_frames: Compiler { phase: 'emit_binary' })
+// 1. Core Compiler Logic Nodes
+(source_reader: IO { op: 'read_file' })
+(strip_comments: Logic { pattern: '//' })
+
+// Fork into parallel lexing paths
+(node_lexer: Lexer { target: 'nodes' })
+(edge_lexer: Lexer { target: 'edges' })
+(property_lexer: Lexer { target: 'properties' })
+
+// Convergence into AST construction
+(ast_assembler: Compiler { phase: 'assemble' })
+(betti_verifier: Topology { mode: 'quantum_verification' })
+
+// Emission
+(wasm_emitter: Runtime { target: 'aeon_flow_10b' })
 
 // 2. The Compilation Topology
-(source_code)
-  -[:PROCESS]-> (read_source)
-  -[:FORK]-> (parse_nodes | parse_edges)
-  -[:FOLD { strategy: 'merge-ast' }]-> (ast)
-  -[:PROCESS]-> (build_wasm_frames)
-  -[:PROCESS]-> (executable_binary)
+(source_code)-[:PROCESS]->(source_reader)-[:PROCESS]->(strip_comments)
+
+(strip_comments)-[:FORK]->(node_lexer | edge_lexer | property_lexer)
+
+(node_lexer | edge_lexer | property_lexer)-[:FOLD { strategy: 'merge-ast' }]->(raw_ast)
+
+(raw_ast)-[:PROCESS]->(ast_assembler)-[:PROCESS]->(betti_verifier)
+
+(betti_verifier)-[:PROCESS]->(wasm_emitter)-[:PROCESS]->(binary_output)

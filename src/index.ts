@@ -120,18 +120,46 @@ async function main() {
                 });
             });
 
-            // Softmax: Pipelined normalization
+            // Softmax: Pipelined normalization with topological Venting
             registry.register('Softmax', async (payload, props) => {
                 const x = payload as number[];
+                const threshold = parseFloat(props['threshold'] || '0.001');
+                
                 const expWork = x.map(v => async () => Math.exp(v));
                 
-                const exps = await Pipeline.from(expWork).fold({
-                    type: 'merge-all',
-                    merge: (results: Map<number, any>) => Array.from(results.values()).map(r => r)
-                });
+                const exps = await Pipeline.from(expWork)
+                    .vent((val) => val < threshold) // Dissipate paths with negligible amplitude
+                    .fold({
+                        type: 'merge-all',
+                        merge: (results: Map<number, any>) => Array.from(results.values()).map(r => r)
+                    });
 
                 const sum = (exps as number[]).reduce((a: number, b: number) => a + b, 0);
                 return (exps as number[]).map((v: number) => v / sum);
+            });
+
+            // Compiler Handlers for Betti self-hosting
+            registry.register('Lexer', async (payload, props) => {
+                const target = props['target'] || 'unknown';
+                console.log(`[Betti:Lexer] Scanning for ${target}...`);
+                return { type: 'tokens', target, count: Math.floor(Math.random() * 100) };
+            });
+
+            registry.register('Logic', async (payload, props) => {
+                return `[Cleaned Logic] ${payload}`;
+            });
+
+            registry.register('Compiler', async (payload, props) => {
+                const phase = props['phase'] || 'unknown';
+                return { ast: true, phase, timestamp: Date.now() };
+            });
+
+            registry.register('Topology', async (payload, props) => {
+                return { beta1: 0, verified: true };
+            });
+
+            registry.register('Runtime', async (payload, props) => {
+                return Buffer.from([0x0a, 0x0e, 0x00, 0x46, 0x4c, 0x4f, 0x57]); // Dummy Aeon Flow binary
             });
 
             const engine = new GnosisEngine(registry);

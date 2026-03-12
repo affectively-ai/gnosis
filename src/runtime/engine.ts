@@ -83,6 +83,12 @@ export class GnosisEngine {
 
                 const superposition = Pipeline.from(workFns);
 
+                // Handle TUNNEL edges (early exits from superposition)
+                const tunnelEdge = ast.edges.find(e => e.type === 'TUNNEL' && e.sourceIds.some(sid => edge.targetIds.map(t => t.trim()).includes(sid.trim())));
+                if (tunnelEdge) {
+                    execLogs.push(`  -> Found TUNNEL path: ${tunnelEdge.sourceIds.join('|')} -> ${tunnelEdge.targetIds[0]}`);
+                }
+
                 const collapseEdge = ast.edges.find(e => 
                     (e.type === 'RACE' || e.type === 'FOLD' || e.type === 'COLLAPSE') &&
                     e.sourceIds.some(sid => edge.targetIds.map(t => t.trim()).includes(sid.trim()))
@@ -121,6 +127,10 @@ export class GnosisEngine {
 
                 currentNodeId = collapseEdge.targetIds[0].trim();
                 continue;
+            }
+
+            if (edge.type === 'VENT') {
+                execLogs.push(`  -> VENTING path: ${edge.sourceIds[0]}`);
             }
 
             // Normal sequential flow
