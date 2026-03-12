@@ -150,6 +150,18 @@ describe('transformer formal proofs', () => {
     expect(result.ok).toBe(true);
     expect(result.program.terminalNodes).toContain('residual_out');
   });
+
+  test('torture.gg — complex high-entropy verification', async () => {
+    const tortureGg = readFileSync(resolve(__dirname, '../examples/torture.gg'), 'utf-8');
+    const result = await ggTest(tortureGg)
+      .beta1Bounded(50)
+      .reachable('sink')
+      .run();
+
+    expect(result.ok).toBe(true);
+    expect(result.topology.forkCount).toBe(3);
+    expect(result.topology.beta1).toBeGreaterThan(0);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════

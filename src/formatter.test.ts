@@ -1,0 +1,36 @@
+import { describe, it, expect } from 'bun:test';
+import { GnosisFormatter } from './formatter.js';
+
+describe('GnosisFormatter', () => {
+    const formatter = new GnosisFormatter();
+
+    it('should format simple nodes', () => {
+        const input = '(a:Start{key: "val"})';
+        const expected = "(a : Start { key: 'val' })";
+        expect(formatter.format(input)).toBe(expected);
+    });
+
+    it('should format edges with multiple sources/targets', () => {
+        const input = '(a|b)-[:FORK]->(c|d)';
+        const expected = '(a | b) -[:FORK]-> (c | d)';
+        expect(formatter.format(input)).toBe(expected);
+    });
+
+    it('should sort properties alphabetically', () => {
+        const input = '(n {z: 1, a: 2, m: 3})';
+        const expected = "(n { a: '2', m: '3', z: '1' })";
+        expect(formatter.format(input)).toBe(expected);
+    });
+
+    it('should preserve comments', () => {
+        const input = '// This is a comment\n(a)-[:PROCESS]->(b)';
+        const expected = '// This is a comment\n(a) -[:PROCESS]-> (b)';
+        expect(formatter.format(input)).toBe(expected);
+    });
+
+    it('should handle messy spacing', () => {
+        const input = ' (  a  )   -[:TYPE]-> ( b ) ';
+        const expected = '(a) -[:TYPE]-> (b)';
+        expect(formatter.format(input)).toBe(expected);
+    });
+});

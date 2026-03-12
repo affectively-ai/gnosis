@@ -65,7 +65,7 @@ export class BettyCompiler {
     }
 
     public getCompletions(line: string, column: number): string[] {
-        const keywords = ['FORK', 'RACE', 'FOLD', 'VENT', 'PROCESS', 'COLLAPSE', 'TUNNEL', 'INTERFERE'];
+        const keywords = ['FORK', 'RACE', 'FOLD', 'VENT', 'PROCESS', 'COLLAPSE', 'TUNNEL', 'INTERFERE', 'MEASURE', 'HALT', 'EVOLVE', 'ENTANGLE', 'SUPERPOSE'];
         const nodeIds = Array.from(this.ast.nodes.keys());
         
         const prefix = line.slice(0, column).split(/[\s()\[\]\-:|>{}]+/).pop()?.toUpperCase() || '';
@@ -106,21 +106,29 @@ export class BettyCompiler {
             }
 
             // 2. PARSE NODES
-            const nodeRegex = /\(([^:)\s]+)(?:\s*:\s*([^{\s)]+))?(?:\s*{([^}]+)})?\)/g;
+            // Only match nodes that are NOT part of an edge definition (followed by -[: or preceded by ]->)
+            const nodeRegex = /(?<!->)\(([^:)\s|]+)(?:\s*:\s*([^){\s]+))?(?:\s*{([^}]+)})?\)(?!-\[:)/g;
             let nodeMatch;
             while ((nodeMatch = nodeRegex.exec(line)) !== null) {
                 const id = nodeMatch[1].trim();
-                if (id.includes('|')) continue;
+                if (!id) continue;
 
                 const label = nodeMatch[2] ? nodeMatch[2].trim() : '';
                 const propertiesRaw = nodeMatch[3] ? nodeMatch[3].trim() : '';
                 
                 const properties: Record<string, string> = {};
-                // Simple prop parser
+                // Improved prop parser for k: v pairs
                 if (propertiesRaw) {
-                    propertiesRaw.split(',').forEach(p => {
-                        const [k, v] = p.split(':').map(s => s.trim());
-                        if (k && v) properties[k] = v.replace(/^['"]|['"]$/g, '');
+                    const pairs = propertiesRaw.split(/,(?![^{]*})/);
+                    pairs.forEach(p => {
+                        const colonIndex = p.indexOf(':');
+                        if (colonIndex > 0) {
+                            const k = p.substring(0, colonIndex).trim();
+                            const v = p.substring(colonIndex + 1).trim();
+                            if (k && v !== undefined) {
+                                properties[k] = v.replace(/^['"]|['"]$/g, '');
+                            }
+                        }
                     });
                 }
 
@@ -141,8 +149,69 @@ export class BettyCompiler {
                 const propertiesRaw = edgeMatch[3] ? edgeMatch[3].trim() : '';
                 const targetRaw = edgeMatch[4].trim();
 
-                const sources = sourceRaw.split('|').map(s => s.trim());
-                const targets = targetRaw.split('|').map(s => s.trim());
+                const sources = sourceRaw.split('|').map(s => s.split(':')[0].trim());
+                const targets = targetRaw.split('|').map(s => s.split(':')[0].trim());
+
+                // Create nodes if they don't exist
+                sourceRaw.split('|').forEach(s => {
+                    const nodeRegexInEdge = /([^:)\s|{]+)(?:\s*:\s*([^){\s]+))?(?:\s*{([^}]+)})?/g;
+                    const nm = nodeRegexInEdge.exec(s.trim());
+                    if (nm) {
+                        const id = nm[1].trim();
+                        const label = nm[2] ? nm[2].trim().replace(/[)\s{}]+$/, '') : '';
+                        const propertiesRaw = nm[3] ? nm[3].trim() : '';
+                        const properties: Record<string, string> = {};
+                        if (propertiesRaw) {
+                            const pairs = propertiesRaw.split(/,(?![^{]*})/);
+                            pairs.forEach(p => {
+                                const colonIndex = p.indexOf(':');
+                                if (colonIndex > 0) {
+                                    const k = p.substring(0, colonIndex).trim();
+                                    const v = p.substring(colonIndex + 1).trim();
+                                    if (k && v !== undefined) {
+                                        properties[k] = v.replace(/^['"]|['"]$/g, '');
+                                    }
+                                }
+                            });
+                        }
+                        if (!this.ast.nodes.has(id)) {
+                            this.ast.nodes.set(id, { id, labels: label ? [label] : [], properties });
+                        } else if (Object.keys(properties).length > 0) {
+                             // Merge properties if they were provided in the edge but not before
+                             const existing = this.ast.nodes.get(id)!;
+                             existing.properties = { ...existing.properties, ...properties };
+                        }
+                    }
+                });
+                targetRaw.split('|').forEach(s => {
+                    const nodeRegexInEdge = /([^:)\s|{]+)(?:\s*:\s*([^){\s]+))?(?:\s*{([^}]+)})?/g;
+                    const nm = nodeRegexInEdge.exec(s.trim());
+                    if (nm) {
+                        const id = nm[1].trim();
+                        const label = nm[2] ? nm[2].trim().replace(/[)\s{}]+$/, '') : '';
+                        const propertiesRaw = nm[3] ? nm[3].trim() : '';
+                        const properties: Record<string, string> = {};
+                        if (propertiesRaw) {
+                            const pairs = propertiesRaw.split(/,(?![^{]*})/);
+                            pairs.forEach(p => {
+                                const colonIndex = p.indexOf(':');
+                                if (colonIndex > 0) {
+                                    const k = p.substring(0, colonIndex).trim();
+                                    const v = p.substring(colonIndex + 1).trim();
+                                    if (k && v !== undefined) {
+                                        properties[k] = v.replace(/^['"]|['"]$/g, '');
+                                    }
+                                }
+                            });
+                        }
+                        if (!this.ast.nodes.has(id)) {
+                            this.ast.nodes.set(id, { id, labels: label ? [label] : [], properties });
+                        } else if (Object.keys(properties).length > 0) {
+                             const existing = this.ast.nodes.get(id)!;
+                             existing.properties = { ...existing.properties, ...properties };
+                        }
+                    }
+                });
 
                 // Topological Validation
                 if (edgeType === 'FORK') {
@@ -155,11 +224,26 @@ export class BettyCompiler {
 
                 this.wasmBridge.processAstEdge(edgeType, sources.length, targets.length);
 
+                const edgeProperties: Record<string, string> = {};
+                if (propertiesRaw) {
+                    const pairs = propertiesRaw.split(/,(?![^{]*})/);
+                    pairs.forEach(p => {
+                        const colonIndex = p.indexOf(':');
+                        if (colonIndex > 0) {
+                            const k = p.substring(0, colonIndex).trim();
+                            const v = p.substring(colonIndex + 1).trim();
+                            if (k && v !== undefined) {
+                                edgeProperties[k] = v.replace(/^['"]|['"]$/g, '');
+                            }
+                        }
+                    });
+                }
+
                 this.ast.edges.push({
                     sourceIds: sources,
                     targetIds: targets,
                     type: edgeType,
-                    properties: {}
+                    properties: edgeProperties
                 });
 
                 sources.forEach(id => {

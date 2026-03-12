@@ -14,8 +14,9 @@ import {
 import { ggReportToSarif, tsReportToSarif } from './sarif.js';
 
 import { GnosisNeo4jBridge } from './neo4j-bridge.js';
+import { GnosisFormatter } from './formatter.js';
 
-export { GnosisNeo4jBridge, GnosisRegistry, GnosisEngine };
+export { GnosisNeo4jBridge, GnosisRegistry, GnosisEngine, BettyCompiler };
 export type { GnosisHandler } from './runtime/registry.js';
 export type { GraphAST, ASTNode, ASTEdge } from './betty/compiler.js';
 
@@ -40,6 +41,23 @@ function parseMaxBuley(rawArgs: string[]): number | null {
 }
 
 async function main() {
+    // --fix flag: Global auto-format
+    if (args.includes('--fix')) {
+        const fileArg = args.find(a => isGgTarget(a));
+        if (fileArg) {
+            const filePath = resolveTopologyPath(fileArg);
+            if (fs.existsSync(filePath)) {
+                console.log(`[Gnosis] Fixing topology: ${filePath}`);
+                const source = fs.readFileSync(filePath, 'utf-8');
+                const formatter = new GnosisFormatter();
+                const fixed = formatter.format(source);
+                fs.writeFileSync(filePath, fixed, 'utf-8');
+                console.log(`[Gnosis] Successfully formatted and fixed topological structure.`);
+                process.exit(0);
+            }
+        }
+    }
+
     if (args[0] === 'neo4j' && args[1]) {
         const filePath = resolveTopologyPath(args[1]);
         if (!fs.existsSync(filePath)) {

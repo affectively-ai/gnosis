@@ -1,4 +1,4 @@
-import { Pipeline } from '@affectively/aeon-pipelines';
+import { Pipeline, ReynoldsTracker } from '@affectively/aeon-pipelines';
 import { GraphAST, ASTNode } from '../betty/compiler.js';
 import { GnosisRegistry } from './registry.js';
 import { QuantumWasmBridge } from '../betty/quantum/bridge.js';
@@ -6,37 +6,51 @@ import { QuantumWasmBridge } from '../betty/quantum/bridge.js';
 export class GnosisEngine {
     private registry: GnosisRegistry;
     private bridge: QuantumWasmBridge;
+    private tracker: ReynoldsTracker;
 
     constructor(registry?: GnosisRegistry) {
         this.registry = registry || new GnosisRegistry();
         this.bridge = new QuantumWasmBridge();
+        this.tracker = new ReynoldsTracker(128); // Default capacity
     }
 
     public async execute(ast: GraphAST, initialPayload: any = null): Promise<string> {
         if (ast.edges.length === 0) return "[Engine] No graph to execute.";
         
+        this.tracker = new ReynoldsTracker(ast.nodes.size || 128);
         let execLogs: string[] = ["\n[Gnosis Engine Execution]"];
         let currentPayload = initialPayload;
 
-        // 1. Find the Root nodes (no incoming edges)
+        // ... root finding ...
         const allTargetIds = new Set<string>();
         ast.edges.forEach(e => e.targetIds.forEach(id => allTargetIds.add(id.trim())));
         const roots = Array.from(ast.nodes.keys()).filter(id => !allTargetIds.has(id.trim()));
 
         if (roots.length === 0 && ast.nodes.size > 0) {
-            roots.push(Array.from(ast.nodes.keys())[0]);
+            // If no roots (cycle?), pick the first node mentioned in edges as a fallback
+            const firstEdge = ast.edges[0];
+            if (firstEdge) {
+                roots.push(firstEdge.sourceIds[0].trim());
+            } else {
+                roots.push(Array.from(ast.nodes.keys())[0]);
+            }
         }
 
         let currentNodeId: string | undefined = roots[0];
         let visited = new Set<string>();
+        let streamCounter = 0;
 
         execLogs.push(`Tracing from root: ${currentNodeId}`);
 
         // 2. Sequential Execution until we hit a FORK
         while (currentNodeId) {
             currentNodeId = currentNodeId.trim();
+            const sid = streamCounter++;
+            this.tracker.updateStream(sid, 'active');
+
             if (visited.has(currentNodeId)) {
                 execLogs.push(`Cycle detected at ${currentNodeId}. Breaking.`);
+                this.tracker.updateStream(sid, 'vented');
                 break;
             }
             visited.add(currentNodeId);
@@ -47,36 +61,98 @@ export class GnosisEngine {
                 if (handler) {
                     execLogs.push(`  -> Executing [${currentNodeId}] (${node.labels.join(',')})`);
                     currentPayload = await handler(currentPayload, node.properties);
+                    this.tracker.updateStream(sid, 'completed');
                 } else {
                     execLogs.push(`  -> Skipping [${currentNodeId}] (No handler)`);
+                    this.tracker.updateStream(sid, 'vented');
                 }
             } else {
                 execLogs.push(`  -> Error: Node [${currentNodeId}] not found in AST.`);
+                this.tracker.updateStream(sid, 'vented');
             }
 
-            // Find the outgoing edge
-            const edge = ast.edges.find(e => e.sourceIds.map(s => s.trim()).includes(currentNodeId!));
-            if (!edge) {
+            // Find all outgoing edges from this node
+            const edges = ast.edges.filter(e => e.sourceIds.map(s => s.trim()).includes(currentNodeId!));
+            if (edges.length === 0) {
                 execLogs.push(`No outgoing edge from ${currentNodeId}. Final node.`);
                 break;
             }
 
-            if (edge.type === 'FORK') {
-                execLogs.push(`  !! Hit FORK edge: [${edge.sourceIds.join(',')}] -> [${edge.targetIds.join(',')}]`);
+            // Prioritize HALT/MEASURE over control flow
+            const specialEdge = edges.find(e => e.type === 'HALT' || e.type === 'MEASURE');
+            if (specialEdge) {
+                if (specialEdge.type === 'MEASURE') {
+                    const metrics = this.tracker.metrics();
+                    execLogs.push(`  [MEASURE] Re: ${metrics.reynoldsNumber.toFixed(2)}, B1: ${metrics.bettiNumber}, Laminar: ${(metrics.laminarFraction * 100).toFixed(1)}%`);
+                } else if (specialEdge.type === 'HALT') {
+                    execLogs.push(`  [HALT] Breakpoint reached at ${currentNodeId}. (Press any key to continue simulation)`);
+                    // In a real TUI/REPL we'd wait for input here. 
+                    // For CLI, we'll log the snapshot and continue.
+                    execLogs.push(`    Snapshot: Payload=${JSON.stringify(currentPayload).substring(0, 30)}...`);
+                }
+            }
+
+            // Prioritize FORK/RACE/FOLD/EVOLVE/SUPERPOSE/ENTANGLE over PROCESS
+            const edge = edges.find(e => ['FORK', 'RACE', 'FOLD', 'EVOLVE', 'SUPERPOSE', 'ENTANGLE'].includes(e.type || '')) || edges[0];
+
+            if (edge.type === 'FORK' || edge.type === 'EVOLVE' || edge.type === 'SUPERPOSE' || edge.type === 'ENTANGLE') {
+                execLogs.push(`  !! Hit ${edge.type} edge: [${edge.sourceIds.join(',')}] -> [${edge.targetIds.join(',')}]`);
                 
-                const workFns = edge.targetIds.map(id => {
+                let activeTargets = [...edge.targetIds];
+
+                // 1. EVOLVE corollary: Dynamic Scaling based on Reynolds Number
+                if (edge.type === 'EVOLVE') {
+                    const re = this.tracker.metrics().reynoldsNumber;
+                    const maxRe = parseFloat(edge.properties.max_re || '0.7');
+                    if (re > maxRe) {
+                        const targetCount = Math.max(1, Math.floor(activeTargets.length * (maxRe / re)));
+                        execLogs.push(`    [EVOLVE] High Pressure (Re=${re.toFixed(2)}). Constricting flow from ${activeTargets.length} to ${targetCount} paths.`);
+                        activeTargets = activeTargets.slice(0, targetCount);
+                    } else {
+                        execLogs.push(`    [EVOLVE] Laminar Flow (Re=${re.toFixed(2)}). Maintaining full superposition.`);
+                    }
+                }
+
+                // 2. SUPERPOSE corollary: Probabilistic Amplitude selection
+                if (edge.type === 'SUPERPOSE') {
+                    const threshold = parseFloat(edge.properties.p || '1.0');
+                    activeTargets = activeTargets.filter(() => Math.random() <= threshold);
+                    if (activeTargets.length === 0) activeTargets = [edge.targetIds[0]]; // Always keep at least one
+                    execLogs.push(`    [SUPERPOSE] Amplitude p=${threshold}. Active wave-function: [${activeTargets.join(', ')}]`);
+                }
+
+                // Distribution logic
+                const payloads = Array.isArray(currentPayload) && currentPayload.length === activeTargets.length 
+                    ? currentPayload 
+                    : activeTargets.map(() => currentPayload);
+
+                // 3. ENTANGLE corollary: Shared Mutable State across parallel paths
+                let sharedState: any = null;
+                if (edge.type === 'ENTANGLE' || edge.properties.entangled === 'true') {
+                    sharedState = { value: currentPayload, timestamp: Date.now(), metadata: {} };
+                    execLogs.push(`    [ENTANGLE] Creating shared confluence state for parallel branches.`);
+                }
+
+                const workFns = activeTargets.map((id, index) => {
                     const tid = id.trim();
+                    const branchPayload = payloads[index];
+                    const branchSid = streamCounter++;
+                    this.tracker.updateStream(branchSid, 'active');
+
                     return async () => {
                         const node = ast.nodes.get(tid);
                         if (node) {
                             const handler = this.findHandler(node);
                             if (handler) {
                                 const start = Date.now();
-                                const result = await handler(currentPayload, node.properties);
+                                // We pass sharedState as the third argument if it exists
+                                const result = await (handler as any)(branchPayload, node.properties, sharedState);
                                 const time = Date.now() - start;
+                                this.tracker.updateStream(branchSid, 'completed');
                                 return { path: tid, value: result, time };
                             }
                         }
+                        this.tracker.updateStream(branchSid, 'vented');
                         return { path: tid, value: `Simulated Result from ${tid}`, time: 0 };
                     };
                 });
@@ -84,14 +160,14 @@ export class GnosisEngine {
                 const superposition = Pipeline.from(workFns);
 
                 // Handle TUNNEL edges (early exits from superposition)
-                const tunnelEdge = ast.edges.find(e => e.type === 'TUNNEL' && e.sourceIds.some(sid => edge.targetIds.map(t => t.trim()).includes(sid.trim())));
+                const tunnelEdge = ast.edges.find(e => e.type === 'TUNNEL' && e.sourceIds.some(sid => activeTargets.map(t => t.trim()).includes(sid.trim())));
                 if (tunnelEdge) {
                     execLogs.push(`  -> Found TUNNEL path: ${tunnelEdge.sourceIds.join('|')} -> ${tunnelEdge.targetIds[0]}`);
                 }
 
                 const collapseEdge = ast.edges.find(e => 
                     (e.type === 'RACE' || e.type === 'FOLD' || e.type === 'COLLAPSE') &&
-                    e.sourceIds.some(sid => edge.targetIds.map(t => t.trim()).includes(sid.trim()))
+                    e.sourceIds.some(sid => activeTargets.map(t => t.trim()).includes(sid.trim()))
                 );
 
                 if (!collapseEdge) {

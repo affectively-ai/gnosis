@@ -1,6 +1,6 @@
 # Gnosis
 
-> **Gnosis is no longer just a prototype; it's a quantum topological engine capable of orchestrating the next generation of software. Everything—from the compiler to the application's reactive core—is now a graph.**
+> **Gnosis is a quantum topological engine capable of orchestrating the next generation of software. Everything—from the compiler to the application's reactive core—is now a graph.**
 
 Gnosis is a functional, logic-based quantum programming language and compiler built on the **Wallington Rotation** and topological pipeline primitives (`FORK`, `RACE`, `FOLD`, `VENT`). It eliminates traditional imperative control flow in favor of pure computational topology.
 
@@ -48,6 +48,12 @@ Execute `.gg` files directly through the bare-metal runtime:
 bun ./bin/gnosis.js run your_app.gg
 ```
 
+### Testing Topologies
+Execute `.gg` test files with the built-in test runner:
+```bash
+bun ./bin/gnosis.js test path/to/topology.test.gg
+```
+
 ## Tooling: Real-Time Correctness + Complexity
 
 Use built-in topology tooling to run Aeon Logic checks and measure branch/file complexity:
@@ -58,6 +64,9 @@ gnosis analyze path/to/topology.gg
 
 # Lint-style gate (non-zero exit on formal violations)
 gnosis lint path/to/topology.gg
+
+# Auto-format and fix structural style
+gnosis --fix path/to/topology.gg
 
 # Machine-readable JSON output
 gnosis lint path/to/topology.gg --json
