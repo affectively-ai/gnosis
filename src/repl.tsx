@@ -2,10 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { render, Text, Box, useApp } from 'ink';
 import TextInput from 'ink-text-input';
 import { BettyCompiler } from './betty/compiler.js';
+import { GnosisEngine } from './runtime/engine.js';
+import { GnosisRegistry } from './runtime/registry.js';
 
 export function startRepl() {
     // Global Betty instance for the REPL session
     const betty = new BettyCompiler();
+    const registry = new GnosisRegistry();
+    const engine = new GnosisEngine(registry);
+
+    // Register a dummy Codec for REPL testing
+    registry.register('Codec', async (payload, props) => {
+        const type = props['type'] || 'unknown';
+        await new Promise(r => setTimeout(r, Math.random() * 200 + 50));
+        return `[Codec:${type}] Encoded payload: ${payload}`;
+    });
 
     const Repl = () => {
         const { exit } = useApp();
@@ -41,8 +52,11 @@ export function startRepl() {
             
             try {
                 if (query.trim().toUpperCase() === 'EXECUTE') {
-                    const execOutput = await betty.execute();
-                    setHistory(prev => [...prev, { type: 'output' as const, text: execOutput }]);
+                    const { ast } = betty.parse(''); // Get current AST
+                    if (ast) {
+                        const execOutput = await engine.execute(ast, "REPL_Data_01");
+                        setHistory(prev => [...prev, { type: 'output' as const, text: execOutput }]);
+                    }
                     return;
                 }
 
@@ -58,7 +72,7 @@ export function startRepl() {
         return (
             <Box flexDirection="column" padding={1}>
                 <Box flexDirection="column" marginBottom={1}>
-                    <Text bold color="magenta">Gnosis REPL v0.6.0 — Powered by Betty</Text>
+                    <Text bold color="magenta">Gnosis REPL v0.7.0 — Powered by Betty & Engine</Text>
                     <Text color="gray">Type graph topologies, then type 'EXECUTE' to run them in aeon-pipelines.</Text>
                     <Text color="gray">Type 'exit' to quit.</Text>
                 </Box>

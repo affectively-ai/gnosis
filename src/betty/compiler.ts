@@ -41,67 +41,6 @@ export class BettyCompiler {
         return this.logs;
     }
 
-    public async execute(): Promise<string> {
-        if (this.ast.edges.length === 0) return "[Betty Execution] No graph to execute.";
-        
-        let execLogs: string[] = ["\n[Betty Runtime Execution]"];
-        
-        // Find the first FORK edge to use as our pipeline root
-        const forkEdge = this.ast.edges.find(e => e.type === 'FORK');
-        if (!forkEdge) {
-            return execLogs.join('\n') + "\n[Betty] Cannot execute: Graph missing a starting FORK.";
-        }
-
-        execLogs.push(` Starting pipeline from root node(s): [${forkEdge.sourceIds.join(', ')}]`);
-        execLogs.push(` Forking into paths: [${forkEdge.targetIds.join(', ')}]`);
-
-        // Mock work functions based on target node IDs
-        const workFns = forkEdge.targetIds.map(id => {
-            return async () => {
-                // Simulate some work with a random delay
-                const delay = Math.random() * 500 + 100;
-                await new Promise(r => setTimeout(r, delay));
-                return { path: id, value: `Result from ${id}`, time: delay };
-            };
-        });
-
-        const superposition = Pipeline.from(workFns);
-
-        // Find what happens to these paths next (RACE or FOLD or COLLAPSE)
-        const nextEdge = this.ast.edges.find(e => e.type === 'RACE' || e.type === 'FOLD' || e.type === 'COLLAPSE');
-        
-        if (nextEdge?.type === 'RACE') {
-            execLogs.push(`  Racing paths: [${nextEdge.sourceIds.join(', ')}] -> (${nextEdge.targetIds.join(', ')})`);
-            const { result } = await superposition.race();
-            execLogs.push(` Race concluded! Winner is: ${result.path} (Time: ${result.time.toFixed(0)}ms)`);
-            
-        } else if (nextEdge?.type === 'FOLD' || nextEdge?.type === 'COLLAPSE') {
-            const strategyType = nextEdge.properties['strategy'] || 'merge-all';
-            execLogs.push(`  Folding paths with strategy [${strategyType}]`);
-            
-            if (strategyType === 'quorum') {
-                 const threshold = parseInt(nextEdge.properties['threshold'] || '2');
-                 execLogs.push(`  Requiring quorum of ${threshold}`);
-                 // Note: we'd ideally map this to actual quorum strategy, using winnerTakeAll as mock for REPL simplicity if quorum unsupported in basic generic
-                 const result = await superposition.fold({
-                     type: 'winner-take-all',
-                     selector: (results: Map<number, any>) => Array.from(results.values())[0] 
-                 });
-                 execLogs.push(` Folded result: ${JSON.stringify(result)}`);
-            } else {
-                 const result = await superposition.fold({
-                     type: 'merge-all',
-                     merge: (results: Map<number, any>) => ({ paths: Array.from(results.values()).map((r: any) => r.path) })
-                 });
-                 execLogs.push(` Folded merged results: ${JSON.stringify(result)}`);
-            }
-        } else {
-             execLogs.push(`  Pipeline suspended in superposition (WASM ${this.wasmBridge.getMetrics()}). Awaiting fold or race.`);
-        }
-
-        return execLogs.join('\n');
-    }
-
     public parse(input: string): { ast: GraphAST | null, output: string, b1: number } {
         if (!input.trim()) return { ast: null, output: '', b1: this.b1 };
 
