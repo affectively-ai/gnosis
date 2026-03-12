@@ -14,6 +14,7 @@ pub const RACE: u8  = 0b00000010;
 pub const FOLD: u8  = 0b00000100;
 pub const VENT: u8  = 0b00001000;
 pub const FIN: u8   = 0b00010000;
+pub const INTERFERE: u8 = 0b00100000;
 pub const COLLAPSE: u8 = FOLD; // Synonym
 
 #[wasm_bindgen]
@@ -142,6 +143,12 @@ impl QuantumRuntime {
             self.beta1 = self.beta1.saturating_sub(1);
             self.paths = self.paths.saturating_sub(1);
             frame.flags &= !VENT;
+        }
+        
+        if (frame.flags & INTERFERE) != 0 {
+            // In a real quantum circuit, this calculates constructive/destructive 
+            // interference between amplitudes. Here we just track it passed.
+            frame.flags &= !INTERFERE;
         }
 
         Ok(frame.encode())

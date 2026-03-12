@@ -10,7 +10,7 @@ export interface ASTNode {
 export interface ASTEdge {
     sourceIds: string[];
     targetIds: string[];
-    type: string; // FORK, RACE, FOLD, VENT, PROCESS, COLLAPSE, TUNNEL
+    type: string; // FORK, RACE, FOLD, VENT, PROCESS, COLLAPSE, TUNNEL, INTERFERE
     properties: Record<string, string>;
 }
 
@@ -118,7 +118,50 @@ export class BettyCompiler {
              return { ast: null, output: this.logs.join('\n'), b1: this.b1 };
         }
 
+        // Parse Node Declarations e.g. (name:Label { key: 'value' })
+        const nodeRegex = /\(([^:)\s]+)(?:\s*:\s*([^{\s)]+))?(?:\s*{([^}]+)})?\)/g;
+        let nodeMatch;
+        while ((nodeMatch = nodeRegex.exec(input)) !== null) {
+            // Only process if it's not part of an edge string. We'll refine this but for the REPL it's a good start
+            // Actually, we can just pre-register these nodes. If they are used in edges, they get updated.
+            const id = nodeMatch[1].trim();
+            // Ignore if it's a multi-id from an edge like (a | b)
+            if (id.includes('|')) continue;
+
+            const label = nodeMatch[2] ? nodeMatch[2].trim() : '';
+            const propertiesRaw = nodeMatch[3] ? nodeMatch[3].trim() : '';
+            
+            const properties: Record<string, string> = {};
+            if (propertiesRaw) {
+                propertiesRaw.split(',').forEach(prop => {
+                    const parts = prop.split(':');
+                    if (parts.length >= 2) {
+                        const key = parts[0].trim();
+                        const val = parts.slice(1).join(':').trim().replace(/['"]/g, '');
+                        if (key && val) properties[key] = val;
+                    }
+                });
+            }
+
+            if (!this.ast.nodes.has(id)) {
+                this.ast.nodes.set(id, { id, labels: label ? [label] : [], properties });
+                // We only log it if it has a label or properties to avoid spamming the REPL on simple nodes
+                if (label || Object.keys(properties).length > 0) {
+                    this.logs.push(`[Betty] Registered Node: ${id} (Label: ${label || 'None'})`);
+                }
+            } else {
+                // Update existing node
+                const node = this.ast.nodes.get(id)!;
+                if (label && !node.labels.includes(label)) node.labels.push(label);
+                Object.assign(node.properties, properties);
+                if (label || Object.keys(properties).length > 0) {
+                    this.logs.push(`[Betty] Updated Node: ${id} (Label: ${label || 'None'})`);
+                }
+            }
+        }
+
         const edgeRegex = /\(([^)]+)\)\s*-\[:([A-Z]+)(?:\s*{([^}]+)})?\]->\s*\(([^)]+)\)/g;
+
         
         let match;
         let matched = false;
@@ -156,6 +199,9 @@ export class BettyCompiler {
                 this.logs.push(`[Betty] Racing ${sources.length} paths. Homotopy equivalence maintained. (WASM: ${this.wasmBridge.processAstEdge(edgeType, sources.length, targets.length)})`);
             } else if (edgeType === 'PROCESS') {
                 this.logs.push(`[Betty] Processed path sequentially. (WASM: ${this.wasmBridge.processAstEdge(edgeType, sources.length, targets.length)})`);
+            } else if (edgeType === 'INTERFERE') {
+                const mode = properties['mode'] || 'unknown';
+                this.logs.push(`[Betty] Quantum Interference applied [${mode}]. (WASM: ${this.wasmBridge.processAstEdge(edgeType, sources.length, targets.length)})`);
             } else {
                  this.logs.push(`[Betty] Unknown topology operation: ${edgeType}`);
             }
