@@ -1,7 +1,10 @@
 import { Pipeline, ReynoldsTracker } from '@affectively/aeon-pipelines';
-import { GraphAST, ASTNode } from '../betty/compiler.js';
+import { GraphAST, ASTEdge, ASTNode } from '../betty/compiler.js';
 import { GnosisRegistry } from './registry.js';
 import { QuantumWasmBridge } from '../betty/quantum/bridge.js';
+import type { GnosisExecutionAuthContext } from '../auth/core.js';
+import { authorizeTopologyEdge } from '../auth/core.js';
+import { registerCoreAuthHandlers } from '../auth/handlers.js';
 
 export class GnosisEngine {
     private registry: GnosisRegistry;
@@ -10,6 +13,7 @@ export class GnosisEngine {
 
     constructor(registry?: GnosisRegistry) {
         this.registry = registry || new GnosisRegistry();
+        registerCoreAuthHandlers(this.registry);
         this.bridge = new QuantumWasmBridge();
         this.tracker = new ReynoldsTracker(128); // Default capacity
     }
@@ -94,6 +98,12 @@ export class GnosisEngine {
 
             // Prioritize FORK/RACE/FOLD/EVOLVE/SUPERPOSE/ENTANGLE/OBSERVE over PROCESS
             const edge = edges.find(e => ['FORK', 'RACE', 'FOLD', 'EVOLVE', 'SUPERPOSE', 'ENTANGLE', 'OBSERVE'].includes(e.type || '')) || edges[0];
+            const edgeAuthorization = this.authorizeEdge(edge, currentNodeId, currentPayload);
+            if (!edgeAuthorization.allowed) {
+                execLogs.push(`  [AUTH] Denied ${edge.type}: ${edgeAuthorization.reason}`);
+                this.tracker.updateStream(sid, 'vented');
+                break;
+            }
 
             // OBSERVE: reading forces collapse — the measurement operator
             // CRDT is the only state model. Observation IS the merge.
@@ -190,6 +200,12 @@ export class GnosisEngine {
                     execLogs.push(`Pipeline suspended in superposition. No collapse found.`);
                     break;
                 }
+                const collapseAuthorization = this.authorizeEdge(collapseEdge, currentNodeId, currentPayload);
+                if (!collapseAuthorization.allowed) {
+                    execLogs.push(`  [AUTH] Denied ${collapseEdge.type}: ${collapseAuthorization.reason}`);
+                    this.tracker.updateStream(sid, 'vented');
+                    break;
+                }
 
                 if (collapseEdge.type === 'RACE') {
                     execLogs.push(`   Racing paths: [${collapseEdge.sourceIds.join(', ')}]`);
@@ -239,5 +255,55 @@ export class GnosisEngine {
             if (handler) return handler;
         }
         return null;
+    }
+
+    private extractExecutionAuth(payload: unknown): GnosisExecutionAuthContext | null {
+        if (typeof payload !== 'object' || payload === null) {
+            return null;
+        }
+
+        const record = payload as Record<string, unknown>;
+        if (typeof record.executionAuth !== 'object' || record.executionAuth === null) {
+            return null;
+        }
+
+        const executionAuth = record.executionAuth as Record<string, unknown>;
+        const capabilities = Array.isArray(executionAuth.capabilities)
+            ? (executionAuth.capabilities as GnosisExecutionAuthContext['capabilities'])
+            : [];
+
+        return {
+            enforce: executionAuth.enforce === true,
+            principal:
+                typeof executionAuth.principal === 'string'
+                    ? executionAuth.principal
+                    : undefined,
+            token:
+                typeof executionAuth.token === 'string'
+                    ? executionAuth.token
+                    : undefined,
+            capabilities,
+        };
+    }
+
+    private authorizeEdge(
+        edge: ASTEdge,
+        currentNodeId: string,
+        payload: unknown
+    ): { allowed: boolean; reason?: string } {
+        const executionAuth = this.extractExecutionAuth(payload);
+        if (!executionAuth || executionAuth.enforce !== true) {
+            return { allowed: true };
+        }
+
+        const sourceId = edge.sourceIds[0]?.trim() || currentNodeId;
+        const targetIds = edge.targetIds.map((targetId) => targetId.trim());
+
+        return authorizeTopologyEdge({
+            edgeType: edge.type,
+            sourceId,
+            targetIds,
+            auth: executionAuth,
+        });
     }
 }

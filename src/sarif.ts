@@ -129,6 +129,23 @@ export function ggReportToSarif(
     });
   }
 
+  for (const issue of report.capabilities.issues) {
+    results.push({
+      ruleId: `gnosis.gg.capability.${issue.capability}`,
+      level: issue.severity === 'error' ? 'error' : 'warning',
+      message: {
+        text: `${issue.message} (target=${issue.target})`,
+      },
+      locations: [
+        {
+          physicalLocation: {
+            artifactLocation: { uri: toUri(filePath) },
+          },
+        },
+      ],
+    });
+  }
+
   if (results.length === 0) {
     results.push({
       ruleId: 'gnosis.gg.pass',

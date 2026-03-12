@@ -34,6 +34,7 @@ Gnosis is capable of expressing the most complex software architectures as pure 
 *   **Topological AI**: Full Transformer-style forward passes (Attention, Residuals, Softmax) implemented as fractal superpositions.
 *   **Reactive Kernels**: The core server loops and navigation engines of `aeon-flux` and `aeon-shell` redefined as continuous topological transitions.
 *   **Self-Hosted Logic**: The Gnosis compiler is itself a Gnosis topology, proving the system is closed under self-application.
+*   **Native Auth Topologies**: UCAN issuance/verification/delegation, ZK encryption/decryption, and custodial action checks are available as native runtime labels.
 
 ## Source Tree
 
@@ -93,9 +94,29 @@ gnosis lint path/to/topology.gg --json
 
 # SARIF output for code-scanning systems
 gnosis lint path/to/topology.gg --sarif
+
+# Runtime capability gating (Cloudflare Workers, Node, Bun)
+gnosis lint path/to/topology.gg --target workers
 ```
 
 `Buley Number` is a composite complexity score based on branch structure (`FORK`/`RACE`/`INTERFERE`), graph shape, and source size. 
+
+When `--target` is set, Gnosis enforces host capability compatibility (for example, `net.udp` and `net.tcp.server` are rejected for `workers`).
+
+## Native Auth Labels
+
+Built-in labels for first-class auth workflows:
+
+- `UCANIdentity`
+- `UCANIssue`
+- `UCANVerify`
+- `UCANDelegate`
+- `UCANRequire`
+- `ZKEncrypt`
+- `ZKDecrypt`
+- `CustodialSigner`
+
+`UCANVerify` can emit `executionAuth` into the payload. When `executionAuth.enforce=true`, runtime edge execution is capability-checked at primitive level (`fork`, `race`, `fold`, `vent`, etc.) using resource-scoped UCAN capabilities.
 
 For TypeScript/JavaScript Sonar-style analysis:
 

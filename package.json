@@ -15,6 +15,7 @@
     "check:formal": "bun ./bin/gnosis.js lint betti.gg && bun ./bin/gnosis.js lint transformer.gg && bun ./bin/gnosis.js lint ai_hello.gg && bun ./bin/gnosis.js lint example.gg"
   },
   "dependencies": {
+    "@affectively/auth": "workspace:*",
     "@affectively/aeon-logic": "workspace:*",
     "@affectively/aeon-pipelines": "workspace:*",
     "chalk": "^5.3.0",

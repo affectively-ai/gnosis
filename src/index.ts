@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { Pipeline } from '@affectively/aeon-pipelines';
 import * as twokeys from 'twokeys';
 import { BettyCompiler } from './betty/compiler.js';
@@ -7,6 +8,7 @@ import { GnosisRegistry } from './runtime/registry.js';
 import { GnosisEngine } from './runtime/engine.js';
 import { ModManager } from './mod/manager.js';
 import { analyzeGnosisSource, formatGnosisViolations } from './analysis.js';
+import type { RuntimeTarget } from './capabilities/index.js';
 import {
     analyzeTypeScriptTargets,
     parseTsSonarThresholds
@@ -17,12 +19,46 @@ import { generateTlaFromGnosisSource } from './tla-bridge.js';
 import { GnosisNeo4jBridge } from './neo4j-bridge.js';
 import { GnosisFormatter } from './formatter.js';
 import { renderWithTopologyCompat } from './runtime/renderer-compat.js';
+import { registerCoreAuthHandlers } from './auth/index.js';
+import {
+  NeuralEngine,
+  GPUEngine,
+  WebNNEngine,
+  Translator,
+  NeuronRepository,
+  SynapseRepository,
+  init as initNeuralEngine,
+} from './neural-compat.js';
+import type {
+  Neuron,
+  Synapse,
+  AdapterTrainingConfig,
+  NeuralGraphData,
+} from './neural-compat.js';
 
 export { GnosisNeo4jBridge, GnosisRegistry, GnosisEngine, BettyCompiler };
+export {
+  NeuralEngine,
+  GPUEngine,
+  WebNNEngine,
+  Translator,
+  NeuronRepository,
+  SynapseRepository,
+  initNeuralEngine as init,
+  initNeuralEngine,
+};
+export type {
+  Neuron,
+  Synapse,
+  AdapterTrainingConfig,
+  NeuralGraphData,
+};
 export type { GnosisHandler } from './runtime/registry.js';
 export type { GraphAST, ASTNode, ASTEdge } from './betty/compiler.js';
 export { generateTlaFromGnosisSource };
 export type { GnosisTlaBridgeResult, GnosisTlaBridgeOptions } from './tla-bridge.js';
+export * from './capabilities/index.js';
+export * from './auth/index.js';
 
 // Quantum CRDT — the only state model
 export { QDoc, QMap, QArray, QText, QCounter } from './crdt/index.js';
@@ -69,6 +105,21 @@ function parseFlagValue(rawArgs: string[], flagName: string): string | null {
 interface TlaWritePaths {
     tlaFilePath: string;
     cfgFilePath: string;
+}
+
+const VALID_RUNTIME_TARGETS: RuntimeTarget[] = ['agnostic', 'workers', 'node', 'bun'];
+
+function parseRuntimeTarget(rawArgs: string[]): RuntimeTarget | null {
+    const targetRaw = parseFlagValue(rawArgs, '--target');
+    if (!targetRaw) {
+        return 'agnostic';
+    }
+
+    const normalized = targetRaw.trim().toLowerCase() as RuntimeTarget;
+    if (!VALID_RUNTIME_TARGETS.includes(normalized)) {
+        return null;
+    }
+    return normalized;
 }
 
 async function main() {
@@ -142,16 +193,26 @@ async function main() {
             console.error(`[Gnosis Error] File not found: ${filePath}`);
             process.exit(1);
         }
+        const runtimeTarget = parseRuntimeTarget(args);
+        if (!runtimeTarget) {
+            console.error(
+                `[Gnosis Error] Invalid --target value. Use one of: ${VALID_RUNTIME_TARGETS.join(', ')}`
+            );
+            process.exit(1);
+        }
 
         const sarifOutput = args.includes('--sarif');
         const jsonOutput = !sarifOutput && args.includes('--json');
         if (isGgTarget(filePath)) {
             const maxBuley = parseMaxBuley(args);
             const source = fs.readFileSync(filePath, 'utf-8');
-            const report = await analyzeGnosisSource(source);
+            const report = await analyzeGnosisSource(source, { target: runtimeTarget });
             const violations = formatGnosisViolations(report.correctness);
             const buleyExceeded = maxBuley !== null && report.buleyNumber > maxBuley;
-            const ok = report.correctness.ok && !buleyExceeded;
+            const capabilityErrors = report.capabilities.issues.filter(
+                (issue) => issue.severity === 'error'
+            );
+            const ok = report.correctness.ok && !buleyExceeded && capabilityErrors.length === 0;
             const shouldGenerateTla = args[0] === 'verify';
             const shouldPrintTla = shouldGenerateTla && args.includes('--tla');
             const tlaOutputDir = shouldGenerateTla ? parseFlagValue(args, '--tla-out') : null;
@@ -189,6 +250,7 @@ async function main() {
                     line: report.line,
                     topology: report.topology,
                     quantum: report.quantum,
+                    capabilities: report.capabilities,
                     correctness: {
                         ok: report.correctness.ok,
                         stateCount: report.correctness.stateCount,
@@ -213,11 +275,15 @@ async function main() {
                 console.log(`[Gnosis ${args[0]}] ${filePath}`);
                 console.log(`  correctness: ${report.correctness.ok ? 'PASS' : 'FAIL'} (states=${report.correctness.stateCount}, beta1=${report.correctness.topology.beta1})`);
                 console.log(`  buley-number: ${report.buleyNumber}${maxBuley !== null ? ` (max=${maxBuley})` : ''}`);
+                console.log(`  runtime-target: ${report.capabilities.target}`);
                 console.log(`  lines: total=${report.line.totalLines} non-empty=${report.line.nonEmptyLines} comments=${report.line.commentLines} topology=${report.line.topologyLines}`);
                 console.log(`  topology: nodes=${report.topology.nodeCount} functions=${report.topology.functionNodeCount} edges=${report.topology.edgeCount} forks=${report.topology.forkEdgeCount} races=${report.topology.raceEdgeCount} folds=${report.topology.foldEdgeCount} vents=${report.topology.ventEdgeCount} interfere=${report.topology.interfereEdgeCount}`);
                 console.log(`  complexity: max-branch=${report.topology.maxBranchFactor} avg-branch=${report.topology.avgBranchFactor} cyclomatic≈${report.topology.cyclomaticApprox}`);
                 console.log(`  quantum: superposition=${report.quantum.superpositionEdgeCount} collapse=${report.quantum.collapseEdgeCount} coverage=${report.quantum.collapseCoverage} deficit=${report.quantum.collapseDeficit} interference-density=${report.quantum.interferenceDensity}`);
                 console.log(`  quantum-index: ${report.quantum.quantumIndex} beta-pressure=${report.quantum.betaPressure} beta-headroom=${report.quantum.betaHeadroom}`);
+                if (report.capabilities.requiredUnique.length > 0) {
+                    console.log(`  required-capabilities: ${report.capabilities.requiredUnique.join(', ')}`);
+                }
                 if (tlaBridge) {
                     console.log(`  tla-module: ${tlaBridge.moduleName} (nodes=${tlaBridge.stats.nodeCount}, edges=${tlaBridge.stats.edgeCount}, roots=${tlaBridge.stats.rootCount}, terminals=${tlaBridge.stats.terminalCount})`);
                     if (tlaWritePaths) {
@@ -237,6 +303,12 @@ async function main() {
                 }
                 if (buleyExceeded) {
                     console.error(`  buley-threshold-failed: ${report.buleyNumber} > ${maxBuley}`);
+                }
+                if (report.capabilities.issues.length > 0) {
+                    for (const issue of report.capabilities.issues) {
+                        const prefix = issue.severity === 'error' ? 'error' : 'warn';
+                        console.error(`  ${prefix}: [${issue.capability}] ${issue.message}`);
+                    }
                 }
             }
 
@@ -271,7 +343,7 @@ async function main() {
 
         process.exit(tsReport.ok ? 0 : 1);
     } else if (args[0] === 'lint' || args[0] === 'verify' || args[0] === 'analyze') {
-        console.error(`[Gnosis] Usage: gnosis ${args[0]} <target> [--max-buley <number>] [--max-file-lines <number>] [--max-function-lines <number>] [--max-cyclomatic <number>] [--max-cognitive <number>] [--max-nesting <number>] [--json] [--sarif] [--tla] [--tla-out <dir>] [--tla-module <name>]`);
+        console.error(`[Gnosis] Usage: gnosis ${args[0]} <target> [--target <agnostic|workers|node|bun>] [--max-buley <number>] [--max-file-lines <number>] [--max-function-lines <number>] [--max-cyclomatic <number>] [--max-cognitive <number>] [--max-nesting <number>] [--json] [--sarif] [--tla] [--tla-out <dir>] [--tla-module <name>]`);
         process.exit(1);
     } else if (args[0] === 'run' && args[1]) {
         const filePath = resolveTopologyPath(args[1]);
@@ -305,6 +377,7 @@ async function main() {
         console.log(`\n[Gnosis] Executing topology...`);
         try {
             const registry = new GnosisRegistry();
+            registerCoreAuthHandlers(registry);
 
             const loadWeights = (tomlPath: string, section: string) => {
                 const fullPath = path.resolve(process.cwd(), tomlPath);
@@ -575,4 +648,21 @@ async function main() {
     }
 }
 
-main();
+function isCliEntrypoint(): boolean {
+    const argvPath = process.argv[1];
+    if (!argvPath) {
+        return false;
+    }
+
+    try {
+        const entryPath = path.resolve(argvPath);
+        const currentPath = fileURLToPath(import.meta.url);
+        return entryPath === currentPath;
+    } catch {
+        return false;
+    }
+}
+
+if (isCliEntrypoint()) {
+    void main();
+}

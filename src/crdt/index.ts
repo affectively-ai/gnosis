@@ -16,3 +16,5 @@ export type {
   QDocObserveHandler,
   QDocEvent,
 } from './qdoc.js';
+export { QDocRelay } from './dashrelay-adapter.js';
+export type { QDocRelayConfig, QDocRelayStatus } from './dashrelay-adapter.js';
