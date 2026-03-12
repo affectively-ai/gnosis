@@ -1,0 +1,357 @@
+import { describe, test, expect } from 'bun:test';
+import { QDoc, QMap, QArray, QText, QCounter } from './qdoc.js';
+import { ggTest, ggQuickCheck } from '../gg-test-harness.js';
+
+describe('QDoc — topology-native CRDT', () => {
+  test('creates with root node and guid', () => {
+    const doc = new QDoc({ guid: 'test-doc' });
+    expect(doc.guid).toBe('test-doc');
+    expect(doc.nodeCount).toBe(1); // root
+    expect(doc.edgeCount).toBe(0);
+    expect(doc.beta1).toBe(0);
+  });
+
+  test('auto-generates guid if not provided', () => {
+    const doc = new QDoc();
+    expect(doc.guid).toBeTruthy();
+    expect(doc.guid.length).toBeGreaterThan(0);
+  });
+});
+
+describe('QMap — replaces Y.Map', () => {
+  test('set and get', () => {
+    const doc = new QDoc();
+    const map = doc.getMap('users');
+
+    map.set('alice', { name: 'Alice', age: 30 });
+    map.set('bob', { name: 'Bob', age: 25 });
+
+    expect(map.get('alice')).toEqual({ name: 'Alice', age: 30 });
+    expect(map.get('bob')).toEqual({ name: 'Bob', age: 25 });
+    expect(map.size).toBe(2);
+  });
+
+  test('has and delete', () => {
+    const doc = new QDoc();
+    const map = doc.getMap('data');
+
+    map.set('key', 'value');
+    expect(map.has('key')).toBe(true);
+
+    map.delete('key');
+    expect(map.has('key')).toBe(false);
+  });
+
+  test('toJSON', () => {
+    const doc = new QDoc();
+    const map = doc.getMap('config');
+
+    map.set('theme', 'dark');
+    map.set('lang', 'en');
+
+    expect(map.toJSON()).toEqual({ theme: 'dark', lang: 'en' });
+  });
+
+  test('set creates FORK + OBSERVE edges', () => {
+    const doc = new QDoc();
+    const map = doc.getMap('test');
+
+    map.set('key', 'value');
+
+    // root + map_test + Write node + Observed node
+    expect(doc.nodeCount).toBeGreaterThanOrEqual(4);
+    // PROCESS (root→map) + FORK (map→write) + OBSERVE (write→observed)
+    expect(doc.edgeCount).toBeGreaterThanOrEqual(3);
+    // OBSERVE collapses beta1 back to 0
+    expect(doc.beta1).toBe(0);
+  });
+
+  test('same accessor returned on repeated getMap calls', () => {
+    const doc = new QDoc();
+    const map1 = doc.getMap('shared');
+    const map2 = doc.getMap('shared');
+    expect(map1).toBe(map2);
+  });
+
+  test('observe/unobserve is Y.Map compatible', () => {
+    const doc = new QDoc();
+    const map = doc.getMap('shared');
+    const actions: Array<'add' | 'update' | 'delete'> = [];
+
+    const handler = (event: {
+      keysChanged: Set<string>;
+      changes: {
+        keys: Map<string, { action: 'add' | 'update' | 'delete'; oldValue?: unknown }>;
+      };
+    }) => {
+      expect(event.keysChanged.has('k')).toBe(true);
+      const change = event.changes.keys.get('k');
+      if (change) {
+        actions.push(change.action);
+      }
+    };
+
+    map.observe(handler);
+    map.set('k', 1);
+    map.set('k', 2);
+    map.delete('k');
+    map.unobserve(handler);
+    map.set('k', 3);
+
+    expect(actions).toEqual(['add', 'update', 'delete']);
+  });
+});
+
+describe('QArray — replaces Y.Array', () => {
+  test('push and get', () => {
+    const doc = new QDoc();
+    const arr = doc.getArray<string>('items');
+
+    arr.push(['hello', 'world']);
+
+    expect(arr.length).toBe(2);
+    expect(arr.get(0)).toBe('hello');
+    expect(arr.get(1)).toBe('world');
+  });
+
+  test('delete', () => {
+    const doc = new QDoc();
+    const arr = doc.getArray<number>('nums');
+
+    arr.push([1, 2, 3, 4, 5]);
+    arr.delete(1, 2); // Remove index 1-2
+
+    expect(arr.length).toBe(3);
+    expect(arr.toArray()).toEqual([1, 4, 5]);
+  });
+
+  test('toJSON', () => {
+    const doc = new QDoc();
+    const arr = doc.getArray<string>('tags');
+
+    arr.push(['a', 'b', 'c']);
+    expect(arr.toJSON()).toEqual(['a', 'b', 'c']);
+  });
+
+  test('push creates FORK edges', () => {
+    const doc = new QDoc();
+    const arr = doc.getArray<string>('log');
+
+    arr.push(['entry1', 'entry2']);
+
+    // Each push creates a FORK branch
+    expect(doc.edgeCount).toBeGreaterThanOrEqual(3); // PROCESS + 2 FORKs
+  });
+});
+
+describe('QText — replaces Y.Text', () => {
+  test('insert and toString', () => {
+    const doc = new QDoc();
+    const text = doc.getText('content');
+
+    text.insert(0, 'Hello');
+    text.insert(5, ' World');
+
+    expect(text.toString()).toBe('Hello World');
+    expect(text.length).toBe(11);
+  });
+
+  test('delete', () => {
+    const doc = new QDoc();
+    const text = doc.getText('editor');
+
+    text.insert(0, 'Hello World');
+    text.delete(5, 6); // Delete ' World'
+
+    expect(text.toString()).toBe('Hello');
+  });
+
+  test('concurrent inserts create FORK branches', () => {
+    const doc = new QDoc();
+    const text = doc.getText('doc');
+
+    text.insert(0, 'abc');
+    text.insert(1, 'X'); // Insert X between a and bc
+
+    expect(text.toString()).toBe('aXbc');
+    expect(doc.edgeCount).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('QCounter — commutative FOLD', () => {
+  test('increment and decrement', () => {
+    const doc = new QDoc();
+    const counter = doc.getCounter('clicks');
+
+    counter.increment();
+    counter.increment(5);
+    counter.decrement(2);
+
+    expect(counter.value).toBe(4); // 1 + 5 - 2
+  });
+
+  test('uses FOLD not OBSERVE (commutative)', () => {
+    const doc = new QDoc();
+    const counter = doc.getCounter('count');
+
+    counter.increment(3);
+
+    // FOLD edge, not OBSERVE — commutativity means order doesn't matter
+    const gg = doc.toGG();
+    expect(gg).toContain('FOLD');
+    expect(gg).toContain('fold-sum');
+  });
+});
+
+describe('QDoc sync protocol', () => {
+  test('encodeStateAsUpdate and applyUpdate roundtrip', () => {
+    const doc1 = new QDoc({ guid: 'shared' });
+    const map1 = doc1.getMap('data');
+    map1.set('name', 'Alice');
+
+    // Encode state
+    const update = doc1.encodeStateAsUpdate();
+    expect(update).toBeInstanceOf(Uint8Array);
+    expect(update.length).toBeGreaterThan(0);
+
+    // Apply to doc2
+    const doc2 = new QDoc({ guid: 'shared' });
+    doc2.applyUpdate(update);
+
+    // Topology was transferred
+    expect(doc2.nodeCount).toBeGreaterThan(1);
+    expect(doc2.edgeCount).toBeGreaterThan(0);
+  });
+
+  test('update handler fires on local changes', () => {
+    const doc = new QDoc();
+    const updates: Uint8Array[] = [];
+
+    doc.on('update', (delta) => {
+      updates.push(delta);
+    });
+
+    const map = doc.getMap('test');
+    map.set('key', 'value');
+
+    expect(updates.length).toBe(1);
+    expect(updates[0].length).toBeGreaterThan(0);
+  });
+
+  test('encodePendingDelta only sends new operations', () => {
+    const doc = new QDoc();
+    const map = doc.getMap('data');
+
+    map.set('a', 1);
+    const delta1 = doc.encodePendingDelta();
+
+    map.set('b', 2);
+    const delta2 = doc.encodePendingDelta();
+
+    // delta2 should be smaller — only the 'b' operation
+    // (both non-empty, delta2 doesn't include 'a')
+    expect(delta1.length).toBeGreaterThan(0);
+    expect(delta2.length).toBeGreaterThan(0);
+
+    // Parse and verify delta2 doesn't contain 'a'
+    const parsed = JSON.parse(new TextDecoder().decode(delta2));
+    const hasA = parsed.edges.some((e: any) => e.properties?.key === 'a');
+    expect(hasA).toBe(false);
+  });
+});
+
+describe('QDoc presence (INTERFERE)', () => {
+  test('set and get presence', () => {
+    const doc = new QDoc();
+
+    doc.setPresence({ cursor: { x: 10, y: 20 }, user: 'alice' });
+
+    const states = doc.getPresenceStates();
+    expect(states.size).toBe(1);
+    const myPresence = states.get(doc.replicaId);
+    expect(myPresence).toEqual({ cursor: { x: 10, y: 20 }, user: 'alice' });
+  });
+
+  test('apply remote presence', () => {
+    const doc = new QDoc();
+
+    doc.applyPresence('peer-bob', { cursor: { x: 5, y: 15 } });
+    doc.applyPresence('peer-charlie', { cursor: { x: 30, y: 40 } });
+
+    const states = doc.getPresenceStates();
+    expect(states.size).toBe(2);
+    expect(states.get('peer-bob')).toEqual({ cursor: { x: 5, y: 15 } });
+  });
+
+  test('presence change handler fires', () => {
+    const doc = new QDoc();
+    const events: Map<string, Record<string, unknown>>[] = [];
+
+    doc.onPresenceChange((states) => {
+      events.push(new Map(states));
+    });
+
+    doc.setPresence({ status: 'active' });
+    expect(events.length).toBe(1);
+
+    doc.applyPresence('peer-x', { status: 'idle' });
+    expect(events.length).toBe(2);
+  });
+
+  test('remove presence', () => {
+    const doc = new QDoc();
+
+    doc.applyPresence('peer-bob', { cursor: { x: 5 } });
+    expect(doc.getPresenceStates().size).toBe(1);
+
+    doc.removePresence('peer-bob');
+    expect(doc.getPresenceStates().size).toBe(0);
+  });
+});
+
+describe('QDoc topology verification', () => {
+  test('generated GG is valid and safe', async () => {
+    const doc = new QDoc();
+    const map = doc.getMap('users');
+    map.set('alice', 'admin');
+    map.set('bob', 'user');
+
+    const gg = doc.toGG();
+    expect(gg).toContain('FORK');
+    expect(gg).toContain('OBSERVE');
+
+    const result = await ggQuickCheck(gg);
+    expect(result.ok).toBe(true);
+  });
+
+  test('counter topology uses FOLD', async () => {
+    const doc = new QDoc();
+    const counter = doc.getCounter('hits');
+    counter.increment(1);
+    counter.increment(2);
+    counter.increment(3);
+
+    const gg = doc.toGG();
+    expect(gg).toContain('FOLD');
+
+    const result = await ggQuickCheck(gg);
+    expect(result.ok).toBe(true);
+  });
+
+  test('mixed topology (map + array + counter) is safe', async () => {
+    const doc = new QDoc();
+
+    const map = doc.getMap('settings');
+    map.set('theme', 'dark');
+
+    const arr = doc.getArray<string>('log');
+    arr.push(['event1', 'event2']);
+
+    const counter = doc.getCounter('views');
+    counter.increment(10);
+
+    const gg = doc.toGG();
+    const result = await ggQuickCheck(gg);
+    expect(result.ok).toBe(true);
+  });
+});

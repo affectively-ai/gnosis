@@ -4,6 +4,14 @@ import {
   type CheckerResult,
   type GgTopologyState,
 } from '@affectively/aeon-logic';
+import {
+  inferCapabilitiesFromGgSource,
+  validateCapabilitiesForTarget,
+  type CapabilityIssue,
+  type CapabilityRequirement,
+  type HostCapability,
+  type RuntimeTarget,
+} from './capabilities/index.js';
 
 export interface GnosisLineMetrics {
   totalLines: number;
@@ -46,6 +54,19 @@ export interface GnosisComplexityReport {
   quantum: GnosisQuantumMetrics;
   buleyNumber: number;
   correctness: CheckerResult<GgTopologyState>;
+  capabilities: GnosisCapabilityReport;
+}
+
+export interface GnosisCapabilityReport {
+  target: RuntimeTarget;
+  required: CapabilityRequirement[];
+  requiredUnique: HostCapability[];
+  issues: CapabilityIssue[];
+  ok: boolean;
+}
+
+export interface GnosisAnalyzeOptions {
+  target?: RuntimeTarget;
 }
 
 function round2(value: number): number {
@@ -188,9 +209,11 @@ export function formatGnosisViolations(
 
 export async function analyzeGnosisSource(
   source: string,
+  options: GnosisAnalyzeOptions = {},
 ): Promise<GnosisComplexityReport> {
   const line = buildLineMetrics(source);
   const topology = buildTopologyMetrics(source);
+  const target = options.target ?? 'agnostic';
   const correctness = await checkGgProgram(source, {
     defaults: {
       maxDepth: 64,
@@ -198,6 +221,11 @@ export async function analyzeGnosisSource(
     },
   });
   const quantum = buildQuantumMetrics(topology, correctness);
+  const capabilityRequirements = inferCapabilitiesFromGgSource(source);
+  const capabilityValidation = validateCapabilitiesForTarget(
+    capabilityRequirements,
+    target
+  );
 
   return {
     fileCount: 1,
@@ -206,5 +234,12 @@ export async function analyzeGnosisSource(
     quantum,
     buleyNumber: computeBuleyNumber(line, topology),
     correctness,
+    capabilities: {
+      target: capabilityValidation.target,
+      required: capabilityValidation.required,
+      requiredUnique: capabilityValidation.requiredUnique,
+      issues: capabilityValidation.issues,
+      ok: capabilityValidation.ok,
+    },
   };
 }

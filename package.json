@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "description": "Ink-based TUI REPL for the gnosis functional logic-based programming language",
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./src/lib.ts",
+  "types": "./src/lib.ts",
   "bin": {
     "gnosis": "./bin/gnosis.js"
   },
@@ -12,9 +12,10 @@
     "build": "tsc",
     "dev": "tsc -w",
     "start": "node ./bin/gnosis.js",
-    "check:formal": "bun ./bin/gnosis.js lint betti.gg && bun ./bin/gnosis.js lint transformer.gg && bun ./bin/gnosis.js lint ai_hello.gg && bun ./bin/gnosis.js lint example.gg"
+    "check:formal": "bun ./bin/gnosis.js lint betti.gg && bun ./bin/gnosis.js lint transformer.gg && bun ./bin/gnosis.js lint ai_hello.gg && bun ./bin/gnosis.js lint example.gg && bun ./bin/gnosis.js lint topic_domain_transformer.gg && bun ./bin/gnosis.js test topic_domain_transformer.test.gg"
   },
   "dependencies": {
+    "@affectively/auth": "workspace:*",
     "@affectively/aeon-logic": "workspace:*",
     "@affectively/aeon-pipelines": "workspace:*",
     "chalk": "^5.3.0",

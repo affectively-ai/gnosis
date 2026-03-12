@@ -1,26 +1,114 @@
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { Pipeline } from '@affectively/aeon-pipelines';
 import * as twokeys from 'twokeys';
 import { BettyCompiler } from './betty/compiler.js';
 import { GnosisRegistry } from './runtime/registry.js';
 import { GnosisEngine } from './runtime/engine.js';
+import { GnosisNativeRuntime } from './runtime/native-runtime.js';
 import { ModManager } from './mod/manager.js';
 import { analyzeGnosisSource, formatGnosisViolations } from './analysis.js';
+import type { RuntimeTarget } from './capabilities/index.js';
 import {
     analyzeTypeScriptTargets,
     parseTsSonarThresholds
 } from './ts-sonar.js';
 import { ggReportToSarif, tsReportToSarif } from './sarif.js';
+import { generateTlaFromGnosisSource } from './tla-bridge.js';
 
 import { GnosisNeo4jBridge } from './neo4j-bridge.js';
 import { GnosisFormatter } from './formatter.js';
+import { renderWithTopologyCompat } from './runtime/renderer-compat.js';
+import { registerCoreAuthHandlers } from './auth/index.js';
+import {
+  NeuralEngine,
+  GPUEngine,
+  WebNNEngine,
+  Translator,
+  NeuronRepository,
+  SynapseRepository,
+  TOPIC_DOMAIN_TRANSFORMER_TOPOLOGY_FILE,
+  TOPIC_DOMAIN_TRANSFORMER_TOPOLOGY,
+  TRANSFORMER_HELLO_WORLD_TOPOLOGY,
+  getTopicDomainTransformerTopologySource,
+  init as initNeuralEngine,
+} from './neural-compat.js';
+import type {
+  Neuron,
+  Synapse,
+  AdapterTrainingConfig,
+  NeuralGraphData,
+  LoadTopologyOptions,
+} from './neural-compat.js';
 
-export { GnosisNeo4jBridge, GnosisRegistry, GnosisEngine, BettyCompiler };
+export {
+    GnosisNeo4jBridge,
+    GnosisRegistry,
+    GnosisEngine,
+    GnosisNativeRuntime,
+    BettyCompiler
+};
+export {
+  NeuralEngine,
+  GPUEngine,
+  WebNNEngine,
+  Translator,
+  NeuronRepository,
+  SynapseRepository,
+  TOPIC_DOMAIN_TRANSFORMER_TOPOLOGY_FILE,
+  TOPIC_DOMAIN_TRANSFORMER_TOPOLOGY,
+  TRANSFORMER_HELLO_WORLD_TOPOLOGY,
+  getTopicDomainTransformerTopologySource,
+  initNeuralEngine as init,
+  initNeuralEngine,
+};
+export type {
+  Neuron,
+  Synapse,
+  AdapterTrainingConfig,
+  NeuralGraphData,
+  LoadTopologyOptions,
+};
 export type { GnosisHandler } from './runtime/registry.js';
 export type { GraphAST, ASTNode, ASTEdge } from './betty/compiler.js';
+export { generateTlaFromGnosisSource };
+export type { GnosisTlaBridgeResult, GnosisTlaBridgeOptions } from './tla-bridge.js';
+export * from './capabilities/index.js';
+export * from './auth/index.js';
+
+// Quantum CRDT — the only state model
+export { QDoc, QMap, QArray, QText, QCounter, QDocRelay } from './crdt/index.js';
+export {
+  Doc,
+  Map,
+  Array,
+  Text,
+  XmlFragment,
+  XmlElement,
+  UndoManager,
+  applyUpdate,
+  encodeStateAsUpdate,
+  transact,
+  encodeStateVector,
+  diffUpdate,
+  mergeUpdates,
+} from './crdt/index.js';
+export type {
+  QDocOptions, QDocDelta, QDocDeltaNode, QDocDeltaEdge,
+  QDocUpdateHandler, QDocObserveHandler, QDocEvent,
+  QDocRelayConfig, QDocRelayStatus,
+} from './crdt/index.js';
+
+// Test harness & runner
+export { ggTest, ggQuickCheck, ggAssert, GGTestBuilder } from './gg-test-harness.js';
+export {
+  runGGTestFile, runGGTestSuite, discoverTestFiles,
+  formatGGTestResults, formatGGTestDiscoveryResults,
+} from './gg-test-runner.js';
 
 const args = process.argv.slice(2);
+const verboseMode = args.includes('--verbose');
 
 function resolveTopologyPath(rawPath: string): string {
     return path.resolve(process.cwd(), rawPath);
@@ -38,6 +126,34 @@ function parseMaxBuley(rawArgs: string[]): number | null {
     if (!rawValue) return null;
     const parsed = Number.parseFloat(rawValue);
     return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseFlagValue(rawArgs: string[], flagName: string): string | null {
+    const flagIndex = rawArgs.indexOf(flagName);
+    if (flagIndex < 0) return null;
+    const rawValue = rawArgs[flagIndex + 1];
+    if (!rawValue || rawValue.startsWith('--')) return null;
+    return rawValue;
+}
+
+interface TlaWritePaths {
+    tlaFilePath: string;
+    cfgFilePath: string;
+}
+
+const VALID_RUNTIME_TARGETS: RuntimeTarget[] = ['agnostic', 'workers', 'node', 'bun'];
+
+function parseRuntimeTarget(rawArgs: string[]): RuntimeTarget | null {
+    const targetRaw = parseFlagValue(rawArgs, '--target');
+    if (!targetRaw) {
+        return 'agnostic';
+    }
+
+    const normalized = targetRaw.trim().toLowerCase() as RuntimeTarget;
+    if (!VALID_RUNTIME_TARGETS.includes(normalized)) {
+        return null;
+    }
+    return normalized;
 }
 
 async function main() {
@@ -111,22 +227,55 @@ async function main() {
             console.error(`[Gnosis Error] File not found: ${filePath}`);
             process.exit(1);
         }
+        const runtimeTarget = parseRuntimeTarget(args);
+        if (!runtimeTarget) {
+            console.error(
+                `[Gnosis Error] Invalid --target value. Use one of: ${VALID_RUNTIME_TARGETS.join(', ')}`
+            );
+            process.exit(1);
+        }
 
         const sarifOutput = args.includes('--sarif');
         const jsonOutput = !sarifOutput && args.includes('--json');
         if (isGgTarget(filePath)) {
             const maxBuley = parseMaxBuley(args);
             const source = fs.readFileSync(filePath, 'utf-8');
-            const report = await analyzeGnosisSource(source);
+            const report = await analyzeGnosisSource(source, { target: runtimeTarget });
             const violations = formatGnosisViolations(report.correctness);
             const buleyExceeded = maxBuley !== null && report.buleyNumber > maxBuley;
-            const ok = report.correctness.ok && !buleyExceeded;
+            const capabilityErrors = report.capabilities.issues.filter(
+                (issue) => issue.severity === 'error'
+            );
+            const ok = report.correctness.ok && !buleyExceeded && capabilityErrors.length === 0;
+            const shouldGenerateTla = args[0] === 'verify';
+            const shouldPrintTla = shouldGenerateTla && args.includes('--tla');
+            const tlaOutputDir = shouldGenerateTla ? parseFlagValue(args, '--tla-out') : null;
+            const tlaModuleOverride = shouldGenerateTla ? parseFlagValue(args, '--tla-module') : null;
+            const tlaBridge = shouldGenerateTla
+                ? generateTlaFromGnosisSource(source, {
+                    moduleName: tlaModuleOverride ?? undefined,
+                    sourceFilePath: filePath,
+                })
+                : null;
+            let tlaWritePaths: TlaWritePaths | null = null;
+
+            if (tlaBridge && tlaOutputDir) {
+                const resolvedOutputDir = path.resolve(process.cwd(), tlaOutputDir);
+                fs.mkdirSync(resolvedOutputDir, { recursive: true });
+
+                const tlaFilePath = path.join(resolvedOutputDir, `${tlaBridge.moduleName}.tla`);
+                const cfgFilePath = path.join(resolvedOutputDir, `${tlaBridge.moduleName}.cfg`);
+                fs.writeFileSync(tlaFilePath, tlaBridge.tla, 'utf-8');
+                fs.writeFileSync(cfgFilePath, tlaBridge.cfg, 'utf-8');
+
+                tlaWritePaths = { tlaFilePath, cfgFilePath };
+            }
 
             if (sarifOutput) {
                 const sarif = ggReportToSarif(filePath, report, violations, maxBuley);
                 console.log(JSON.stringify(sarif, null, 2));
             } else if (jsonOutput) {
-                console.log(JSON.stringify({
+                const basePayload: Record<string, unknown> = {
                     filePath,
                     mode: 'gg',
                     ok,
@@ -135,6 +284,7 @@ async function main() {
                     line: report.line,
                     topology: report.topology,
                     quantum: report.quantum,
+                    capabilities: report.capabilities,
                     correctness: {
                         ok: report.correctness.ok,
                         stateCount: report.correctness.stateCount,
@@ -142,21 +292,57 @@ async function main() {
                         violationCount: report.correctness.violations.length,
                         violations
                     }
-                }, null, 2));
+                };
+
+                if (tlaBridge) {
+                    basePayload.tla = {
+                        moduleName: tlaBridge.moduleName,
+                        stats: tlaBridge.stats,
+                        outputPaths: tlaWritePaths,
+                        tla: shouldPrintTla ? tlaBridge.tla : undefined,
+                        cfg: shouldPrintTla ? tlaBridge.cfg : undefined,
+                    };
+                }
+
+                console.log(JSON.stringify(basePayload, null, 2));
             } else {
                 console.log(`[Gnosis ${args[0]}] ${filePath}`);
                 console.log(`  correctness: ${report.correctness.ok ? 'PASS' : 'FAIL'} (states=${report.correctness.stateCount}, beta1=${report.correctness.topology.beta1})`);
                 console.log(`  buley-number: ${report.buleyNumber}${maxBuley !== null ? ` (max=${maxBuley})` : ''}`);
+                console.log(`  runtime-target: ${report.capabilities.target}`);
                 console.log(`  lines: total=${report.line.totalLines} non-empty=${report.line.nonEmptyLines} comments=${report.line.commentLines} topology=${report.line.topologyLines}`);
                 console.log(`  topology: nodes=${report.topology.nodeCount} functions=${report.topology.functionNodeCount} edges=${report.topology.edgeCount} forks=${report.topology.forkEdgeCount} races=${report.topology.raceEdgeCount} folds=${report.topology.foldEdgeCount} vents=${report.topology.ventEdgeCount} interfere=${report.topology.interfereEdgeCount}`);
                 console.log(`  complexity: max-branch=${report.topology.maxBranchFactor} avg-branch=${report.topology.avgBranchFactor} cyclomatic≈${report.topology.cyclomaticApprox}`);
                 console.log(`  quantum: superposition=${report.quantum.superpositionEdgeCount} collapse=${report.quantum.collapseEdgeCount} coverage=${report.quantum.collapseCoverage} deficit=${report.quantum.collapseDeficit} interference-density=${report.quantum.interferenceDensity}`);
                 console.log(`  quantum-index: ${report.quantum.quantumIndex} beta-pressure=${report.quantum.betaPressure} beta-headroom=${report.quantum.betaHeadroom}`);
+                if (report.capabilities.requiredUnique.length > 0) {
+                    console.log(`  required-capabilities: ${report.capabilities.requiredUnique.join(', ')}`);
+                }
+                if (tlaBridge) {
+                    console.log(`  tla-module: ${tlaBridge.moduleName} (nodes=${tlaBridge.stats.nodeCount}, edges=${tlaBridge.stats.edgeCount}, roots=${tlaBridge.stats.rootCount}, terminals=${tlaBridge.stats.terminalCount})`);
+                    if (tlaWritePaths) {
+                        console.log(`  tla-files: ${tlaWritePaths.tlaFilePath}, ${tlaWritePaths.cfgFilePath}`);
+                    } else {
+                        console.log(`  tla-hint: pass --tla to print spec/cfg or --tla-out <dir> to write files`);
+                    }
+                    if (shouldPrintTla) {
+                        console.log('\n[TLA+ Spec]');
+                        console.log(tlaBridge.tla);
+                        console.log('[TLC Config]');
+                        console.log(tlaBridge.cfg);
+                    }
+                }
                 if (violations.length > 0) {
                     violations.forEach((line) => console.error(`  ${line}`));
                 }
                 if (buleyExceeded) {
                     console.error(`  buley-threshold-failed: ${report.buleyNumber} > ${maxBuley}`);
+                }
+                if (report.capabilities.issues.length > 0) {
+                    for (const issue of report.capabilities.issues) {
+                        const prefix = issue.severity === 'error' ? 'error' : 'warn';
+                        console.error(`  ${prefix}: [${issue.capability}] ${issue.message}`);
+                    }
                 }
             }
 
@@ -191,14 +377,15 @@ async function main() {
 
         process.exit(tsReport.ok ? 0 : 1);
     } else if (args[0] === 'lint' || args[0] === 'verify' || args[0] === 'analyze') {
-        console.error(`[Gnosis] Usage: gnosis ${args[0]} <target> [--max-buley <number>] [--max-file-lines <number>] [--max-function-lines <number>] [--max-cyclomatic <number>] [--max-cognitive <number>] [--max-nesting <number>] [--json] [--sarif]`);
+        console.error(`[Gnosis] Usage: gnosis ${args[0]} <target> [--target <agnostic|workers|node|bun>] [--max-buley <number>] [--max-file-lines <number>] [--max-function-lines <number>] [--max-cyclomatic <number>] [--max-cognitive <number>] [--max-nesting <number>] [--json] [--sarif] [--tla] [--tla-out <dir>] [--tla-module <name>]`);
         process.exit(1);
-    } else if (args[0] === 'run' && args[1]) {
+    } else if ((args[0] === 'run' || args[0] === 'native') && args[1]) {
         const filePath = resolveTopologyPath(args[1]);
         if (!fs.existsSync(filePath)) {
             console.error(`[Gnosis Error] File not found: ${filePath}`);
             process.exit(1);
         }
+        const useNativeRuntime = args[0] === 'native' || args.includes('--native');
         
         console.log(`[Gnosis] Reading topology from ${filePath}...`);
         const content = fs.readFileSync(filePath, 'utf-8');
@@ -225,6 +412,7 @@ async function main() {
         console.log(`\n[Gnosis] Executing topology...`);
         try {
             const registry = new GnosisRegistry();
+            registerCoreAuthHandlers(registry);
 
             const loadWeights = (tomlPath: string, section: string) => {
                 const fullPath = path.resolve(process.cwd(), tomlPath);
@@ -476,23 +664,66 @@ async function main() {
             registry.register('Renderer', async (payload, props) => {
                 const type = props['type'] || 'html';
                 console.log(`[Aeon-Flux:Renderer] Rendering ${type}...`);
-                return `<html><body data-theme="${payload.theme}"><h1>Aeon Flux</h1></body></html>`;
+                return renderWithTopologyCompat(payload, props);
             });
 
-            const engine = new GnosisEngine(registry);
+            const nativeRuntime = useNativeRuntime ? new GnosisNativeRuntime() : null;
+            const engine = new GnosisEngine(registry, {
+                onEdgeEvaluated: nativeRuntime
+                    ? async (edge) => {
+                          await nativeRuntime.onEdge(edge);
+                      }
+                    : undefined,
+            });
             const initialPayload = args[1] === 'betti.gg' ? 'transformer.gg' : 'GPT_INIT';
             
             const execOutput = await engine.execute(ast, initialPayload);
             console.log(execOutput);
+            if (nativeRuntime) {
+                const runtimeSnapshot = nativeRuntime.snapshot();
+                console.log(
+                    `[Gnosis Native Runtime] wasm=${runtimeSnapshot.wasmEnabled} edges=${runtimeSnapshot.edgesProcessed}`
+                );
+                console.log(`[Gnosis Native Runtime] ${runtimeSnapshot.metrics}`);
+                if (runtimeSnapshot.trace.trim().length > 0) {
+                    console.log('[Gnosis Native Runtime] Trace:');
+                    console.log(runtimeSnapshot.trace);
+                }
+            }
             process.exit(0);
         } catch (err: any) {
             console.error(`[Execution Error] ${err.message}`);
             process.exit(1);
         }
+    } else if (args[0] === 'run' || args[0] === 'native') {
+        console.error('[Gnosis] Usage: gnosis run <topology.gg> [--native]');
+        console.error('[Gnosis] Usage: gnosis native <topology.gg>');
+        process.exit(1);
     } else {
         const { startRepl } = await import('./repl.js');
-        startRepl();
+        startRepl({ verbose: verboseMode });
     }
 }
 
-main();
+export async function runCli(): Promise<void> {
+    await main();
+}
+
+function isCliEntrypoint(): boolean {
+    const argvPath = process.argv[1];
+    if (!argvPath) {
+        return false;
+    }
+
+    try {
+        const entryPath = path.resolve(argvPath);
+        const currentPath = fileURLToPath(import.meta.url);
+        return entryPath === currentPath;
+    } catch {
+        return false;
+    }
+}
+
+if (isCliEntrypoint()) {
+    void runCli();
+}

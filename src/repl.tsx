@@ -1,147 +1,547 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { render, Text, Box, useApp } from 'ink';
 import TextInput from 'ink-text-input';
-import { BettyCompiler } from './betty/compiler.js';
+import {
+  BettyCompiler,
+  type ASTEdge,
+  type Diagnostic,
+  type GraphAST
+} from './betty/compiler.js';
 import { GnosisEngine } from './runtime/engine.js';
 import { GnosisRegistry } from './runtime/registry.js';
+import {
+  buildVisualizationFromExecution,
+  createInitialVisualization,
+  type ReplVisualizationState,
+  type VisualNodeStatus
+} from './repl-visualization.js';
 
-const GraphCanvas = ({ ast }: { ast: any }) => {
-    if (!ast || !ast.edges || ast.edges.length === 0) {
-        return (
-            <Box borderStyle="round" paddingX={1} marginY={1} borderColor="gray">
-                <Text color="gray">No topology defined. Start drawing: (a)-[:FORK]-{'>'}(b|c)</Text>
-            </Box>
-        );
-    }
-
-    return (
-        <Box flexDirection="column" borderStyle="double" borderColor="cyan" paddingX={1} marginY={1}>
-            <Text bold color="cyan">TOPOLOGICAL PREVIEW</Text>
-            <Box flexDirection="column" marginTop={1}>
-                {ast.edges.map((edge: any, i: number) => (
-                    <Box key={i} flexDirection="row">
-                        <Text color="green">({edge.sourceIds.join('|')})</Text>
-                        <Text color="yellow">  == {edge.type} =={'>'}  </Text>
-                        <Text color="magenta">({edge.targetIds.join('|')})</Text>
-                    </Box>
-                ))}
-            </Box>
-        </Box>
-    );
+type HistoryEntry = {
+  type: 'input' | 'output' | 'error';
+  text: string;
 };
 
-const MetricsPanel = ({ beta1, paths }: { beta1: number, paths: number }) => (
-    <Box flexDirection="row" justifyContent="space-between" paddingX={1} marginBottom={1}>
-        <Box>
-            <Text color="white">Betti Number (</Text>
-            <Text color="yellow" bold>beta1</Text>
-            <Text color="white">): </Text>
-            <Text color="cyan" bold>{beta1}</Text>
-        </Box>
-        <Box>
-            <Text color="white">Wave Amplitudes: </Text>
-            <Text color="magenta" bold>{paths}</Text>
-        </Box>
+type ReplOptions = {
+  verbose?: boolean;
+};
+
+const MAX_HISTORY_ENTRIES = 80;
+const MAX_DISPLAYED_HISTORY = 12;
+const MAX_SOURCE_LINES = 8;
+const BREATH_INTERVAL_MS = 420;
+const ERROR_MOTTO = "Baby's Got Stack";
+const VERBOSE_MOTTO = "Look at the size of that topology... let's see what you've done here.";
+const STATUS_STYLE: Record<VisualNodeStatus, { glyph: string; color: string }> = {
+  pending: { glyph: '[ ]', color: 'gray' },
+  active: { glyph: '[*]', color: 'cyan' },
+  completed: { glyph: '[x]', color: 'green' },
+  cycled: { glyph: '[!]', color: 'red' }
+};
+const COLOR_SPECTRUM = [
+  'red',
+  'yellow',
+  'green',
+  'cyan',
+  'blue',
+  'magenta',
+  'redBright',
+  'yellowBright',
+  'greenBright',
+  'cyanBright',
+  'blueBright',
+  'magentaBright'
+] as const;
+const EDGE_TYPE_COLOR_INDEX: Record<string, number> = {
+  PROCESS: 2,
+  FORK: 5,
+  RACE: 0,
+  FOLD: 3,
+  COLLAPSE: 3,
+  SUPERPOSE: 7,
+  EVOLVE: 1,
+  ENTANGLE: 10,
+  OBSERVE: 4,
+  MEASURE: 9,
+  HALT: 8,
+  VENT: 6,
+  TUNNEL: 11
+};
+
+type SpectrumColor = (typeof COLOR_SPECTRUM)[number];
+
+function formatError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
+function formatMottoError(error: unknown): string {
+  return `${ERROR_MOTTO}: ${formatError(error)}`;
+}
+
+function formatDiagnostics(diagnostics: Diagnostic[]): string {
+  const noteworthy = diagnostics.filter(
+    (diagnostic) => diagnostic.severity === 'error' || diagnostic.severity === 'warning'
+  );
+  if (noteworthy.length === 0) {
+    return '';
+  }
+
+  const rendered = noteworthy
+    .slice(0, 5)
+    .map(
+      (diagnostic) =>
+        `[${diagnostic.severity.toUpperCase()} L${diagnostic.line}:C${diagnostic.column}] ${diagnostic.message}`
+    );
+  if (noteworthy.length > rendered.length) {
+    rendered.push(`... ${noteworthy.length - rendered.length} more diagnostics`);
+  }
+
+  return rendered.join('\n');
+}
+
+function formatCompilationMessage(output: string, diagnostics: Diagnostic[]): string {
+  const diagnosticSummary = formatDiagnostics(diagnostics);
+  if (diagnosticSummary.length === 0) {
+    return output;
+  }
+  return `${output}\n${diagnosticSummary}`;
+}
+
+function spectrumColor(index: number, phase: number): SpectrumColor {
+  const cursor = (index + Math.floor(phase / 2)) % COLOR_SPECTRUM.length;
+  const wrappedCursor = cursor < 0 ? cursor + COLOR_SPECTRUM.length : cursor;
+  return COLOR_SPECTRUM[wrappedCursor];
+}
+
+function rainbowColor(index: number): SpectrumColor {
+  const cursor = index % COLOR_SPECTRUM.length;
+  const wrappedCursor = cursor < 0 ? cursor + COLOR_SPECTRUM.length : cursor;
+  return COLOR_SPECTRUM[wrappedCursor];
+}
+
+function breatheIntensity(phase: number): number {
+  return (Math.sin(phase / 8) + 1) / 2;
+}
+
+function isDimBreath(phase: number): boolean {
+  return breatheIntensity(phase) < 0.45;
+}
+
+function edgeColor(edge: ASTEdge): SpectrumColor {
+  const offset = EDGE_TYPE_COLOR_INDEX[edge.type] ?? 0;
+  return rainbowColor(offset);
+}
+
+function edgeTouchesWave(edge: ASTEdge, activeWave: Set<string>): boolean {
+  return (
+    edge.sourceIds.some((nodeId) => activeWave.has(nodeId.trim())) ||
+    edge.targetIds.some((nodeId) => activeWave.has(nodeId.trim()))
+  );
+}
+
+const SpectrumHeading = React.memo(function SpectrumHeading({
+  phase,
+  verbose
+}: {
+  phase: number;
+  verbose: boolean;
+}) {
+  const title = 'Gnosis Visual Graph REPL v1.3.0';
+  const subtitle = verbose
+    ? VERBOSE_MOTTO
+    : "Baby's Got Stack. Draw topology, execute flow, collapse with style.";
+
+  return (
+    <Box flexDirection="column" marginBottom={1}>
+      <Text bold={!isDimBreath(phase)} dimColor={isDimBreath(phase)}>
+        {title.split('').map((character, index) => (
+          <Text key={`title-${index}`} color={spectrumColor(index, phase)}>
+            {character}
+          </Text>
+        ))}
+      </Text>
+      <Text dimColor={isDimBreath(phase)}>
+        {subtitle.split('').map((character, index) => (
+          <Text key={`subtitle-${index}`} color={spectrumColor(index + 2, phase)}>
+            {character}
+          </Text>
+        ))}
+      </Text>
     </Box>
-);
+  );
+});
 
-export function startRepl() {
-    const betty = new BettyCompiler();
-    const registry = new GnosisRegistry();
-    const engine = new GnosisEngine(registry);
+const SourcePanel = React.memo(function SourcePanel({
+  sourceLines
+}: {
+  sourceLines: string[];
+}) {
+  if (sourceLines.length === 0) {
+    return (
+      <Box borderStyle="single" borderColor={rainbowColor(2)} paddingX={1} marginY={1}>
+        <Text color={rainbowColor(3)}>Editor empty. Type GGL lines to build the topology.</Text>
+      </Box>
+    );
+  }
 
-    // Register basic handlers for REPL testing
-    registry.register('Codec', async (payload, props) => {
-        const type = props['type'] || 'unknown';
-        return `[Codec:${type}] Encoded: ${payload}`;
-    });
+  const startLine = Math.max(0, sourceLines.length - MAX_SOURCE_LINES);
+  const visibleLines = sourceLines.slice(startLine);
 
-    const Repl = () => {
-        const { exit } = useApp();
-        const [history, setHistory] = useState<Array<{ type: 'input' | 'output' | 'error', text: string }>>([]);
-        const [query, setQuery] = useState('');
-        const [ast, setAst] = useState<any>(null);
-        const [metrics, setMetrics] = useState({ b1: 0, paths: 1 });
+  return (
+    <Box flexDirection="column" borderStyle="single" borderColor={rainbowColor(1)} paddingX={1} marginY={1}>
+      <Text bold color={rainbowColor(0)}>
+        TOPOLOGY SOURCE
+      </Text>
+      {visibleLines.map((line, index) => {
+        const lineNumber = startLine + index + 1;
+        return (
+          <Box key={`source-${lineNumber}`} flexDirection="row">
+            <Text color={rainbowColor(index + 8)}>{String(lineNumber).padStart(2, '0')} | </Text>
+            <Text color={rainbowColor(index + 4)}>{line}</Text>
+          </Box>
+        );
+      })}
+    </Box>
+  );
+});
 
-        const handleSubmit = async (query: string) => {
-            const trimmedQuery = query.trim();
-            if (trimmedQuery.toLowerCase() === 'exit') {
-                exit();
-                return;
-            }
+const GraphCanvas = React.memo(function GraphCanvas({
+  ast,
+  visualization
+}: {
+  ast: GraphAST | null;
+  visualization: ReplVisualizationState;
+}) {
+  if (!ast || ast.edges.length === 0) {
+    return (
+      <Box borderStyle="round" paddingX={1} marginY={1} borderColor={rainbowColor(6)}>
+        <Text color={rainbowColor(7)}>No topology defined. Start drawing: (a)-[:FORK]-{'>'}(b|c)</Text>
+      </Box>
+    );
+  }
 
-            if (trimmedQuery.toLowerCase() === 'clear') {
-                setHistory([]);
-                setAst(null);
-                setMetrics({ b1: 0, paths: 1 });
-                setQuery('');
-                return;
-            }
+  const nodeIds = Array.from(ast.nodes.keys());
+  const activeWave = new Set(visualization.activeWaveFunction);
 
-            if (trimmedQuery.toUpperCase() === 'EXECUTE') {
-                if (ast) {
-                    try {
-                        const execOutput = await engine.execute(ast, "REPL_INIT");
-                        setHistory(prev => [...prev, { type: 'input', text: 'EXECUTE' }, { type: 'output', text: execOutput }]);
-                    } catch (err: any) {
-                        setHistory(prev => [...prev, { type: 'input', text: 'EXECUTE' }, { type: 'error', text: err.message }]);
-                    }
-                }
-                setQuery('');
-                return;
-            }
+  return (
+    <Box flexDirection="column" borderStyle="double" borderColor={rainbowColor(5)} paddingX={1} marginY={1}>
+      <Text bold color={rainbowColor(4)}>
+        GNOSIS VISUAL GRAPH EDITOR
+      </Text>
 
-            const { ast: newAst, output, b1 } = betty.parse(query);
-            
-            if (newAst) {
-                setAst({ ...newAst }); 
-                setMetrics({ b1, paths: b1 + 1 });
-            }
+      <Box flexDirection="column" marginTop={1}>
+        <Text bold color={rainbowColor(9)}>
+          Nodes
+        </Text>
+        {nodeIds.map((nodeId, index) => {
+          const style = STATUS_STYLE[visualization.nodeStates[nodeId] ?? 'pending'];
+          const label = ast.nodes.get(nodeId)?.labels[0];
+          return (
+            <Box key={nodeId} flexDirection="row">
+              <Text color={style.color}>{style.glyph} </Text>
+              <Text color={rainbowColor(index)}>{nodeId}</Text>
+              {label ? <Text color={rainbowColor(index + 2)}>:{label}</Text> : null}
+            </Box>
+          );
+        })}
+      </Box>
 
-            if (output) {
-                setHistory(prev => [...prev, { type: 'input', text: query }, { type: 'output', text: output }]);
-            }
-            
-            setQuery('');
-        };
+      <Box flexDirection="column" marginTop={1}>
+        <Text bold color={rainbowColor(10)}>
+          Edges
+        </Text>
+        {ast.edges.map((edge, index) => {
+          const lineColor = edgeColor(edge);
+          const isWaveEdge = edgeTouchesWave(edge, activeWave);
+          return (
+            <Text key={`edge-${index}`} color={lineColor} bold={isWaveEdge}>
+              ({edge.sourceIds.join('|')}) -[{edge.type}]-{'>'} ({edge.targetIds.join('|')})
+            </Text>
+          );
+        })}
+      </Box>
+
+      <Box flexDirection="column" marginTop={1}>
+        <Text color={rainbowColor(11)}>
+          psi(t):{' '}
+          {visualization.activeWaveFunction.length > 0
+            ? `[${visualization.activeWaveFunction.join(', ')}]`
+            : '[collapsed]'}
+        </Text>
+        {visualization.quantumEvents.length === 0 ? (
+          <Text color={rainbowColor(8)}>No quantum events yet. Run EXECUTE to evolve the graph.</Text>
+        ) : (
+          visualization.quantumEvents.map((event, index) => (
+            <Text key={`event-${index}`} color={rainbowColor(index + 1)}>
+              {event}
+            </Text>
+          ))
+        )}
+      </Box>
+    </Box>
+  );
+});
+
+const MetricsPanel = React.memo(function MetricsPanel({
+  beta1,
+  paths,
+  activeWaveCount,
+  phase
+}: {
+  beta1: number;
+  paths: number;
+  activeWaveCount: number;
+  phase: number;
+}) {
+  return (
+    <Box flexDirection="row" justifyContent="space-between" paddingX={1} marginBottom={1}>
+      <Box>
+        <Text color={spectrumColor(3, phase)}>Betti Number (</Text>
+        <Text color={spectrumColor(1, phase)} bold={!isDimBreath(phase)}>
+          beta1
+        </Text>
+        <Text color={spectrumColor(3, phase)}>): </Text>
+        <Text color={spectrumColor(4, phase)} bold={!isDimBreath(phase)}>
+          {beta1}
+        </Text>
+      </Box>
+      <Box>
+        <Text color={spectrumColor(7, phase)}>Wave Amplitudes: </Text>
+        <Text color={spectrumColor(9, phase)} bold={!isDimBreath(phase)}>
+          {activeWaveCount > 0 ? activeWaveCount : paths}
+        </Text>
+      </Box>
+    </Box>
+  );
+});
+
+const HistoryPanel = React.memo(function HistoryPanel({
+  history
+}: {
+  history: HistoryEntry[];
+}) {
+  return (
+    <Box flexDirection="column" marginTop={1}>
+      {history.map((entry, index) => {
+        const markerColor =
+          entry.type === 'input'
+            ? rainbowColor(index + 2)
+            : entry.type === 'error'
+              ? 'redBright'
+              : rainbowColor(index + 6);
+        const textColor = entry.type === 'error' ? 'redBright' : rainbowColor(index + 1);
 
         return (
-            <Box flexDirection="column" padding={1} minHeight={20}>
-                <Box flexDirection="column" marginBottom={1}>
-                    <Text bold color="magenta">Gnosis Visual Graph REPL v1.0.0</Text>
-                    <Text color="gray">Drawing quantum topologies via Wallington Rotation.</Text>
-                </Box>
-
-                <MetricsPanel beta1={metrics.b1} paths={metrics.paths} />
-                
-                <GraphCanvas ast={ast} />
-
-                <Box flexDirection="column" marginTop={1}>
-                    {history.slice(-10).map((entry, index) => (
-                        <Box key={index} flexDirection="row">
-                            <Text color={entry.type === 'input' ? 'green' : entry.type === 'error' ? 'red' : 'cyan'}>
-                                {entry.type === 'input' ? '>> ' : '   '}
-                            </Text>
-                            <Text color={entry.type === 'error' ? 'red' : 'white'}>{entry.text}</Text>
-                        </Box>
-                    ))}
-                </Box>
-
-                <Box flexDirection="row" marginTop={1}>
-                    <Text color="green" bold>{'>'} </Text>
-                    <TextInput 
-                        value={query} 
-                        onChange={setQuery} 
-                        onSubmit={handleSubmit}
-                    />
-                </Box>
-                
-                <Box marginTop={1}>
-                    <Text color="gray">Commands: EXECUTE | CLEAR | EXIT</Text>
-                </Box>
-            </Box>
+          <Box key={`history-${index}`} flexDirection="row">
+            <Text color={markerColor}>{entry.type === 'input' ? '>> ' : '   '}</Text>
+            <Text color={textColor}>{entry.text}</Text>
+          </Box>
         );
+      })}
+    </Box>
+  );
+});
+
+export function startRepl(options: ReplOptions = {}) {
+  const { verbose = false } = options;
+  const betty = new BettyCompiler();
+  const registry = new GnosisRegistry();
+  const engine = new GnosisEngine(registry);
+
+  // Register basic handlers for REPL testing
+  registry.register('Codec', async (payload, props) => {
+    const type = props['type'] || 'unknown';
+    return `[Codec:${type}] Encoded: ${payload}`;
+  });
+
+  const Repl = () => {
+    const { exit } = useApp();
+    const [phase, setPhase] = useState(0);
+    const [history, setHistory] = useState<HistoryEntry[]>([]);
+    const [query, setQuery] = useState('');
+    const [sourceLines, setSourceLines] = useState<string[]>([]);
+    const [ast, setAst] = useState<GraphAST | null>(null);
+    const [metrics, setMetrics] = useState({ b1: 0, paths: 1 });
+    const [visualization, setVisualization] = useState<ReplVisualizationState>(
+      createInitialVisualization(null)
+    );
+
+    const appendHistory = (...entries: HistoryEntry[]) => {
+      setHistory((previousHistory) =>
+        [...previousHistory, ...entries].slice(-MAX_HISTORY_ENTRIES)
+      );
+    };
+    const visibleHistory = useMemo(
+      () => history.slice(-MAX_DISPLAYED_HISTORY),
+      [history]
+    );
+
+    useEffect(() => {
+      const timer = setInterval(() => {
+        setPhase((previousPhase) => previousPhase + 1);
+      }, BREATH_INTERVAL_MS);
+
+      return () => {
+        clearInterval(timer);
+      };
+    }, []);
+
+    const applyCompiledSource = (nextSourceLines: string[], inputLabel: string) => {
+      if (nextSourceLines.length === 0) {
+        setSourceLines([]);
+        setAst(null);
+        setMetrics({ b1: 0, paths: 1 });
+        setVisualization(createInitialVisualization(null));
+        appendHistory(
+          { type: 'input', text: inputLabel },
+          { type: 'output', text: '[Editor] Topology cleared.' }
+        );
+        return;
+      }
+
+      try {
+        const source = nextSourceLines.join('\n');
+        const { ast: compiledAst, output, b1, diagnostics } = betty.parse(source);
+        const parsedAst = compiledAst ?? null;
+
+        setSourceLines(nextSourceLines);
+        setAst(parsedAst);
+        setMetrics({ b1, paths: Math.max(1, b1 + 1) });
+        setVisualization(createInitialVisualization(parsedAst));
+
+        appendHistory(
+          { type: 'input', text: inputLabel },
+          { type: 'output', text: formatCompilationMessage(output, diagnostics) }
+        );
+      } catch (error: unknown) {
+        appendHistory(
+          { type: 'input', text: inputLabel },
+          { type: 'error', text: `[Compiler Crash] ${formatMottoError(error)}` }
+        );
+      }
     };
 
-    render(<Repl />);
+    const handleSubmit = async (submittedQuery: string) => {
+      const trimmedQuery = submittedQuery.trim();
+      if (trimmedQuery.length === 0) {
+        setQuery('');
+        return;
+      }
+
+      const upperQuery = trimmedQuery.toUpperCase();
+      if (upperQuery === 'EXIT') {
+        exit();
+        return;
+      }
+
+      if (upperQuery === 'CLEAR') {
+        setHistory([]);
+        setSourceLines([]);
+        setAst(null);
+        setMetrics({ b1: 0, paths: 1 });
+        setVisualization(createInitialVisualization(null));
+        setQuery('');
+        return;
+      }
+
+      if (upperQuery === 'SOURCE') {
+        const sourceDump =
+          sourceLines.length > 0
+            ? sourceLines.map((line, index) => `${index + 1}. ${line}`).join('\n')
+            : '[Editor] Topology source is empty.';
+        appendHistory({ type: 'input', text: 'SOURCE' }, { type: 'output', text: sourceDump });
+        setQuery('');
+        return;
+      }
+
+      if (upperQuery === 'UNDO') {
+        if (sourceLines.length === 0) {
+          appendHistory(
+            { type: 'input', text: 'UNDO' },
+            { type: 'error', text: `[Editor] ${ERROR_MOTTO}: Nothing to undo.` }
+          );
+        } else {
+          const nextSourceLines = sourceLines.slice(0, -1);
+          applyCompiledSource(nextSourceLines, `UNDO (${sourceLines[sourceLines.length - 1]})`);
+        }
+        setQuery('');
+        return;
+      }
+
+      if (upperQuery === 'EXECUTE') {
+        if (!ast || ast.edges.length === 0) {
+          appendHistory(
+            { type: 'input', text: 'EXECUTE' },
+            {
+              type: 'error',
+              text: `[Engine] ${ERROR_MOTTO}: No topology to execute. Add graph lines first.`
+            }
+          );
+          setQuery('');
+          return;
+        }
+
+        try {
+          const executionOutput = await engine.execute(ast, 'REPL_INIT');
+          const waveState = buildVisualizationFromExecution(ast, executionOutput);
+          setVisualization(waveState);
+          appendHistory(
+            { type: 'input', text: 'EXECUTE' },
+            { type: 'output', text: executionOutput }
+          );
+        } catch (error: unknown) {
+          appendHistory(
+            { type: 'input', text: 'EXECUTE' },
+            { type: 'error', text: `[Engine Crash] ${formatMottoError(error)}` }
+          );
+        }
+
+        setQuery('');
+        return;
+      }
+
+      const nextSourceLines = [...sourceLines, submittedQuery];
+      applyCompiledSource(nextSourceLines, submittedQuery);
+      setQuery('');
+    };
+
+    return (
+      <Box flexDirection="column" padding={1} minHeight={20}>
+        <SpectrumHeading phase={phase} verbose={verbose} />
+
+        <MetricsPanel
+          beta1={metrics.b1}
+          paths={metrics.paths}
+          activeWaveCount={visualization.activeWaveFunction.length}
+          phase={phase}
+        />
+
+        <SourcePanel sourceLines={sourceLines} />
+        <GraphCanvas ast={ast} visualization={visualization} />
+        <HistoryPanel history={visibleHistory} />
+
+        <Box flexDirection="row" marginTop={1}>
+          <Text color={spectrumColor(0, phase)} bold={!isDimBreath(phase)}>
+            {'>'}{' '}
+          </Text>
+          <TextInput value={query} onChange={setQuery} onSubmit={handleSubmit} />
+        </Box>
+
+        <Box marginTop={1} flexDirection="row">
+          <Text color={spectrumColor(3, phase)} dimColor={isDimBreath(phase)}>
+            Commands:
+          </Text>
+          <Text color={spectrumColor(0, phase)}> EXECUTE</Text>
+          <Text color={spectrumColor(2, phase)}> | SOURCE</Text>
+          <Text color={spectrumColor(4, phase)}> | UNDO</Text>
+          <Text color={spectrumColor(6, phase)}> | CLEAR</Text>
+          <Text color={spectrumColor(8, phase)}> | EXIT</Text>
+        </Box>
+      </Box>
+    );
+  };
+
+  render(<Repl />);
 }
