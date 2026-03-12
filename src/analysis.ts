@@ -22,6 +22,7 @@ export interface GnosisTopologyMetrics {
   ventEdgeCount: number;
   interfereEdgeCount: number;
   processEdgeCount: number;
+  observeEdgeCount: number;
   maxBranchFactor: number;
   avgBranchFactor: number;
   cyclomaticApprox: number;
@@ -75,6 +76,7 @@ function buildTopologyMetrics(source: string): GnosisTopologyMetrics {
   const ventEdgeCount = edgeTypes.filter((type) => type === 'VENT' || type === 'TUNNEL').length;
   const interfereEdgeCount = edgeTypes.filter((type) => type === 'INTERFERE').length;
   const processEdgeCount = edgeTypes.filter((type) => type === 'PROCESS').length;
+  const observeEdgeCount = edgeTypes.filter((type) => type === 'OBSERVE').length;
   const forkWidths = program.edges
     .filter((edge) => edge.type.toUpperCase() === 'FORK')
     .map((edge) => edge.targetIds.length);
@@ -97,6 +99,7 @@ function buildTopologyMetrics(source: string): GnosisTopologyMetrics {
     ventEdgeCount,
     interfereEdgeCount,
     processEdgeCount,
+    observeEdgeCount,
     maxBranchFactor,
     avgBranchFactor,
     // McCabe-style approximation for directed graph workflows.
@@ -109,7 +112,8 @@ function buildQuantumMetrics(
   correctness: CheckerResult<GgTopologyState>,
 ): GnosisQuantumMetrics {
   const superpositionEdgeCount = topology.forkEdgeCount + topology.interfereEdgeCount;
-  const collapseEdgeCount = topology.raceEdgeCount + topology.foldEdgeCount + topology.ventEdgeCount;
+  // OBSERVE is a collapse operation — reading forces superposition to resolve
+  const collapseEdgeCount = topology.raceEdgeCount + topology.foldEdgeCount + topology.ventEdgeCount + topology.observeEdgeCount;
   const collapseCoverage =
     topology.forkEdgeCount === 0 ? 1 : round2(collapseEdgeCount / topology.forkEdgeCount);
   const collapseDeficit = Math.max(0, topology.forkEdgeCount - collapseEdgeCount);

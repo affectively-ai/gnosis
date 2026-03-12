@@ -39,6 +39,7 @@ export class QuantumWasmBridge {
             case 'VENT':
             case 'TUNNEL': flags = 0b00001000; break;
             case 'INTERFERE': flags = 0b00100000; break;
+            case 'OBSERVE': flags = 0b01000000; break;
             default: return `[WASM] Ignored edge type: ${edgeType}`;
         }
 

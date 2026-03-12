@@ -10,7 +10,7 @@ export interface ASTNode {
 export interface ASTEdge {
     sourceIds: string[];
     targetIds: string[];
-    type: string; // FORK, RACE, FOLD, VENT, PROCESS, COLLAPSE, TUNNEL, INTERFERE
+    type: string; // FORK, RACE, FOLD, VENT, PROCESS, COLLAPSE, TUNNEL, INTERFERE, OBSERVE
     properties: Record<string, string>;
 }
 
@@ -65,7 +65,7 @@ export class BettyCompiler {
     }
 
     public getCompletions(line: string, column: number): string[] {
-        const keywords = ['FORK', 'RACE', 'FOLD', 'VENT', 'PROCESS', 'COLLAPSE', 'TUNNEL', 'INTERFERE', 'MEASURE', 'HALT', 'EVOLVE', 'ENTANGLE', 'SUPERPOSE'];
+        const keywords = ['FORK', 'RACE', 'FOLD', 'VENT', 'PROCESS', 'COLLAPSE', 'TUNNEL', 'INTERFERE', 'MEASURE', 'HALT', 'EVOLVE', 'ENTANGLE', 'SUPERPOSE', 'OBSERVE'];
         const nodeIds = Array.from(this.ast.nodes.keys());
         
         const prefix = line.slice(0, column).split(/[\s()\[\]\-:|>{}]+/).pop()?.toUpperCase() || '';
@@ -216,7 +216,9 @@ export class BettyCompiler {
                 // Topological Validation
                 if (edgeType === 'FORK') {
                     this.b1 += (targets.length - 1);
-                } else if (edgeType === 'FOLD' || edgeType === 'COLLAPSE') {
+                } else if (edgeType === 'FOLD' || edgeType === 'COLLAPSE' || edgeType === 'OBSERVE') {
+                    // OBSERVE triggers collapse — reading forces superposition to resolve
+                    // The topology is append-only (no GC). beta1=0 means converged, not deleted.
                     this.b1 = Math.max(0, this.b1 - (sources.length - 1));
                 } else if (edgeType === 'VENT') {
                     this.b1 = Math.max(0, this.b1 - 1);

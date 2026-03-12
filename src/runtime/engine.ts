@@ -92,8 +92,24 @@ export class GnosisEngine {
                 }
             }
 
-            // Prioritize FORK/RACE/FOLD/EVOLVE/SUPERPOSE/ENTANGLE over PROCESS
-            const edge = edges.find(e => ['FORK', 'RACE', 'FOLD', 'EVOLVE', 'SUPERPOSE', 'ENTANGLE'].includes(e.type || '')) || edges[0];
+            // Prioritize FORK/RACE/FOLD/EVOLVE/SUPERPOSE/ENTANGLE/OBSERVE over PROCESS
+            const edge = edges.find(e => ['FORK', 'RACE', 'FOLD', 'EVOLVE', 'SUPERPOSE', 'ENTANGLE', 'OBSERVE'].includes(e.type || '')) || edges[0];
+
+            // OBSERVE: reading forces collapse — the measurement operator
+            // CRDT is the only state model. Observation IS the merge.
+            if (edge.type === 'OBSERVE') {
+                const strategy = edge.properties.strategy || 'lww';
+                execLogs.push(`  [OBSERVE] Collapsing superposition with strategy: ${strategy}`);
+                // OBSERVE propagates through ENTANGLE edges — cascading collapse
+                const entangleEdges = ast.edges.filter(e =>
+                    e.type === 'ENTANGLE' && e.sourceIds.some(sid => edge.targetIds.map(t => t.trim()).includes(sid.trim()))
+                );
+                if (entangleEdges.length > 0) {
+                    execLogs.push(`    [ENTANGLE] Cascading observation to ${entangleEdges.length} entangled subgraphs`);
+                }
+                currentNodeId = edge.targetIds[0].trim();
+                continue;
+            }
 
             if (edge.type === 'FORK' || edge.type === 'EVOLVE' || edge.type === 'SUPERPOSE' || edge.type === 'ENTANGLE') {
                 execLogs.push(`  !! Hit ${edge.type} edge: [${edge.sourceIds.join(',')}] -> [${edge.targetIds.join(',')}]`);

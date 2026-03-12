@@ -13,8 +13,8 @@
  * The test IS the topology. Fork/race/fold all the way down.
  */
 
-import { readFileSync } from 'fs';
-import { resolve, dirname, extname } from 'path';
+import { readFileSync, readdirSync, statSync } from 'fs';
+import { resolve, dirname, extname, relative } from 'path';
 import {
   checkGgProgram,
   parseGgProgram,
@@ -42,6 +42,15 @@ export interface GGTestSuiteResult {
   ok: boolean;
   modules: GGTestModuleResult[];
   composition: GGTestModuleResult;
+  elapsed: number;
+}
+
+export interface GGTestDiscoveryResult {
+  ok: boolean;
+  suites: GGTestSuiteResult[];
+  totalModules: number;
+  totalPassed: number;
+  totalFailed: number;
   elapsed: number;
 }
 
@@ -198,6 +207,94 @@ export async function runGGTestFile(
     composition,
     elapsed: performance.now() - start,
   };
+}
+
+// ── Auto-discovery: find all .test.gg files ─────────────────────────────────
+
+function walkDir(dir: string, results: string[] = []): string[] {
+  for (const entry of readdirSync(dir)) {
+    const full = resolve(dir, entry);
+    try {
+      const stat = statSync(full);
+      if (stat.isDirectory()) {
+        walkDir(full, results);
+      } else if (entry.endsWith('.test.gg')) {
+        results.push(full);
+      }
+    } catch {
+      // skip unreadable entries
+    }
+  }
+  return results;
+}
+
+/**
+ * Discover all .test.gg files under a directory (recursive).
+ * No manual wiring — the runner finds them all.
+ */
+export function discoverTestFiles(rootDir: string): string[] {
+  return walkDir(resolve(rootDir)).sort();
+}
+
+/**
+ * Run all .test.gg files discovered under a directory.
+ * Auto-discovery, no manual wiring, unmaintainable lists eliminated.
+ */
+export async function runGGTestSuite(
+  rootDir: string,
+): Promise<GGTestDiscoveryResult> {
+  const start = performance.now();
+  const testFiles = discoverTestFiles(rootDir);
+  const suites: GGTestSuiteResult[] = [];
+
+  // Run all test files in parallel — FORK
+  const results = await Promise.all(
+    testFiles.map((f) => runGGTestFile(f)),
+  );
+  suites.push(...results);
+
+  let totalModules = 0;
+  let totalPassed = 0;
+  let totalFailed = 0;
+
+  for (const suite of suites) {
+    for (const mod of suite.modules) {
+      totalModules++;
+      if (mod.ok) totalPassed++;
+      else totalFailed++;
+    }
+    // Count the composition too
+    totalModules++;
+    if (suite.composition.ok) totalPassed++;
+    else totalFailed++;
+  }
+
+  return {
+    ok: suites.every((s) => s.ok),
+    suites,
+    totalModules,
+    totalPassed,
+    totalFailed,
+    elapsed: performance.now() - start,
+  };
+}
+
+/**
+ * Format a full discovery result for terminal output.
+ */
+export function formatGGTestDiscoveryResults(result: GGTestDiscoveryResult): string {
+  const lines: string[] = [];
+  lines.push(`[gnosis test] discovered ${result.suites.length} test suite(s)`);
+  lines.push('');
+
+  for (const suite of result.suites) {
+    lines.push(formatGGTestResults(suite));
+    lines.push('');
+  }
+
+  const status = result.ok ? 'ALL PASSED' : 'FAILURES';
+  lines.push(`${status}  ${result.totalPassed}/${result.totalModules} modules  ${result.elapsed.toFixed(0)}ms`);
+  return lines.join('\n');
 }
 
 // ── Format results for terminal ─────────────────────────────────────────────

@@ -5,6 +5,7 @@ import { resolve } from 'path';
 
 const SYNTH_DIR = resolve(__dirname, '../examples/synth');
 const TRANSFORMER_DIR = resolve(__dirname, '../examples/transformer');
+const CRDT_DIR = resolve(__dirname, '../examples/crdt');
 
 function readGG(dir: string, name: string): string {
   return readFileSync(resolve(dir, name), 'utf-8');
@@ -165,6 +166,92 @@ describe('transformer formal proofs', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Quantum CRDT Formal Proofs — CRDT is the only state model
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('quantum CRDT formal proofs', () => {
+  test('qregister.gg — OBSERVE collapses to beta1=0', async () => {
+    const result = await ggTest(readGG(CRDT_DIR, 'qregister.gg'))
+      .safe()
+      .beta1Bounded(10)
+      .run();
+
+    expect(result.ok).toBe(true);
+    expect(result.topology.forkCount).toBeGreaterThan(0);
+    expect(result.program.terminalNodes).toContain('observed');
+  });
+
+  test('qregister.gg — observed is reachable', async () => {
+    const result = await ggTest(readGG(CRDT_DIR, 'qregister.gg'))
+      .reachable('observed')
+      .run();
+
+    expect(result.ok).toBe(true);
+  });
+
+  test('qcounter.gg — commutative FOLD, safe', async () => {
+    const result = await ggTest(readGG(CRDT_DIR, 'qcounter.gg'))
+      .safe()
+      .beta1Bounded(10)
+      .run();
+
+    expect(result.ok).toBe(true);
+    expect(result.topology.forkCount).toBeGreaterThan(0);
+    expect(result.program.terminalNodes).toContain('total');
+  });
+
+  test('qset.gg — observe-remove safe', async () => {
+    const result = await ggTest(readGG(CRDT_DIR, 'qset.gg'))
+      .safe()
+      .beta1Bounded(10)
+      .run();
+
+    expect(result.ok).toBe(true);
+    expect(result.program.terminalNodes).toContain('resolved');
+  });
+
+  test('qsequence.gg — ot-transform safe', async () => {
+    const result = await ggTest(readGG(CRDT_DIR, 'qsequence.gg'))
+      .safe()
+      .beta1Bounded(10)
+      .run();
+
+    expect(result.ok).toBe(true);
+    expect(result.program.terminalNodes).toContain('merged');
+  });
+
+  test('qmap.gg — per-key OBSERVE safe', async () => {
+    const result = await ggTest(readGG(CRDT_DIR, 'qmap.gg'))
+      .safe()
+      .beta1Bounded(10)
+      .run();
+
+    expect(result.ok).toBe(true);
+    expect(result.program.terminalNodes).toContain('resolved');
+  });
+
+  test('entanglement.gg — entangled cursors safe', async () => {
+    const result = await ggTest(readGG(CRDT_DIR, 'entanglement.gg'))
+      .safe()
+      .beta1Bounded(10)
+      .run();
+
+    expect(result.ok).toBe(true);
+    expect(result.topology.forkCount).toBeGreaterThan(0);
+  });
+
+  test('sync.gg — pairwise OBSERVE converges', async () => {
+    const result = await ggTest(readGG(CRDT_DIR, 'sync.gg'))
+      .safe()
+      .beta1Bounded(10)
+      .run();
+
+    expect(result.ok).toBe(true);
+    expect(result.program.terminalNodes).toContain('synced_all');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Harness API Tests
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -223,6 +310,42 @@ describe('gg test harness API', () => {
     const result = await ggTest(FORK_GG)
       .reachesBeta1(1)
       .reachesBeta1(0)
+      .run();
+
+    expect(result.ok).toBe(true);
+  });
+
+  test('OBSERVE edge collapses beta1 to 0', async () => {
+    const OBSERVE_GG = `
+(doc: QDocument)
+(doc)-[:FORK]->(a | b)
+(a)-[:PROCESS]->(a1)
+(b)-[:PROCESS]->(b1)
+(a1 | b1)-[:OBSERVE { strategy: 'lww' }]->(observed)
+`;
+    const result = await ggTest(OBSERVE_GG)
+      .safe()
+      .reachable('observed')
+      .reachesBeta1(0)
+      .run();
+
+    expect(result.ok).toBe(true);
+    expect(result.topology.forkCount).toBeGreaterThan(0);
+  });
+
+  test('OBSERVE with ENTANGLE topology', async () => {
+    const ENTANGLE_GG = `
+(root: Root)
+(root)-[:FORK]->(content | cursor)
+(content)-[:PROCESS]->(c1)
+(cursor)-[:PROCESS]->(cur1)
+(c1)-[:OBSERVE { strategy: 'lww' }]->(merged)
+(merged)-[:ENTANGLE]->(cur1)
+`;
+    const result = await ggTest(ENTANGLE_GG)
+      .safe()
+      .reachable('merged')
+      .reachable('cur1')
       .run();
 
     expect(result.ok).toBe(true);

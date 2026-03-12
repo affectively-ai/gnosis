@@ -1,99 +1,143 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { render, Text, Box, useApp } from 'ink';
 import TextInput from 'ink-text-input';
 import { BettyCompiler } from './betty/compiler.js';
 import { GnosisEngine } from './runtime/engine.js';
 import { GnosisRegistry } from './runtime/registry.js';
 
+const GraphCanvas = ({ ast }: { ast: any }) => {
+    if (!ast || !ast.edges || ast.edges.length === 0) {
+        return (
+            <Box borderStyle="round" paddingX={1} marginY={1} borderColor="gray">
+                <Text color="gray">No topology defined. Start drawing: (a)-[:FORK]-{'>'}(b|c)</Text>
+            </Box>
+        );
+    }
+
+    return (
+        <Box flexDirection="column" borderStyle="double" borderColor="cyan" paddingX={1} marginY={1}>
+            <Text bold color="cyan">TOPOLOGICAL PREVIEW</Text>
+            <Box flexDirection="column" marginTop={1}>
+                {ast.edges.map((edge: any, i: number) => (
+                    <Box key={i} flexDirection="row">
+                        <Text color="green">({edge.sourceIds.join('|')})</Text>
+                        <Text color="yellow">  == {edge.type} =={'>'}  </Text>
+                        <Text color="magenta">({edge.targetIds.join('|')})</Text>
+                    </Box>
+                ))}
+            </Box>
+        </Box>
+    );
+};
+
+const MetricsPanel = ({ beta1, paths }: { beta1: number, paths: number }) => (
+    <Box flexDirection="row" justifyContent="space-between" paddingX={1} marginBottom={1}>
+        <Box>
+            <Text color="white">Betti Number (</Text>
+            <Text color="yellow" bold>beta1</Text>
+            <Text color="white">): </Text>
+            <Text color="cyan" bold>{beta1}</Text>
+        </Box>
+        <Box>
+            <Text color="white">Wave Amplitudes: </Text>
+            <Text color="magenta" bold>{paths}</Text>
+        </Box>
+    </Box>
+);
+
 export function startRepl() {
-    // Global Betty instance for the REPL session
     const betty = new BettyCompiler();
     const registry = new GnosisRegistry();
     const engine = new GnosisEngine(registry);
 
-    // Register a dummy Codec for REPL testing
+    // Register basic handlers for REPL testing
     registry.register('Codec', async (payload, props) => {
         const type = props['type'] || 'unknown';
-        await new Promise(r => setTimeout(r, Math.random() * 200 + 50));
-        return `[Codec:${type}] Encoded payload: ${payload}`;
+        return `[Codec:${type}] Encoded: ${payload}`;
     });
 
     const Repl = () => {
         const { exit } = useApp();
         const [history, setHistory] = useState<Array<{ type: 'input' | 'output' | 'error', text: string }>>([]);
         const [query, setQuery] = useState('');
-        const [suggestion, setSuggestion] = useState('');
-
-        useEffect(() => {
-            if (query.endsWith('-[')) {
-                setSuggestion(':FORK]->() | :RACE]->() | :FOLD { strategy: \'quorum\' }]->() | :VENT]->()');
-            } else if (query.endsWith('[:FO')) {
-                setSuggestion('RK]->');
-            } else if (query.endsWith('[:RA')) {
-                setSuggestion('CE]->');
-            } else if (query.endsWith('[:FOL')) {
-                setSuggestion('D]->');
-            } else if (query.endsWith('[:VE')) {
-                setSuggestion('NT]->');
-            } else {
-                setSuggestion('');
-            }
-        }, [query]);
+        const [ast, setAst] = useState<any>(null);
+        const [metrics, setMetrics] = useState({ b1: 0, paths: 1 });
 
         const handleSubmit = async (query: string) => {
-            if (query.trim().toLowerCase() === 'exit') {
+            const trimmedQuery = query.trim();
+            if (trimmedQuery.toLowerCase() === 'exit') {
                 exit();
                 return;
             }
 
-            const newHistory = [...history, { type: 'input' as const, text: query }];
-            setHistory(newHistory);
-            setQuery('');
-            
-            try {
-                if (query.trim().toUpperCase() === 'EXECUTE') {
-                    const { ast } = betty.parse(''); // Get current AST
-                    if (ast) {
-                        const execOutput = await engine.execute(ast, "REPL_Data_01");
-                        setHistory(prev => [...prev, { type: 'output' as const, text: execOutput }]);
-                    }
-                    return;
-                }
-
-                const { output } = betty.parse(query);
-                if (output) {
-                    setHistory(prev => [...prev, { type: 'output' as const, text: output }]);
-                }
-            } catch (err: any) {
-                setHistory(prev => [...prev, { type: 'error' as const, text: err.message }]);
+            if (trimmedQuery.toLowerCase() === 'clear') {
+                setHistory([]);
+                setAst(null);
+                setMetrics({ b1: 0, paths: 1 });
+                setQuery('');
+                return;
             }
+
+            if (trimmedQuery.toUpperCase() === 'EXECUTE') {
+                if (ast) {
+                    try {
+                        const execOutput = await engine.execute(ast, "REPL_INIT");
+                        setHistory(prev => [...prev, { type: 'input', text: 'EXECUTE' }, { type: 'output', text: execOutput }]);
+                    } catch (err: any) {
+                        setHistory(prev => [...prev, { type: 'input', text: 'EXECUTE' }, { type: 'error', text: err.message }]);
+                    }
+                }
+                setQuery('');
+                return;
+            }
+
+            const { ast: newAst, output, b1 } = betty.parse(query);
+            
+            if (newAst) {
+                setAst({ ...newAst }); 
+                setMetrics({ b1, paths: b1 + 1 });
+            }
+
+            if (output) {
+                setHistory(prev => [...prev, { type: 'input', text: query }, { type: 'output', text: output }]);
+            }
+            
+            setQuery('');
         };
 
         return (
-            <Box flexDirection="column" padding={1}>
+            <Box flexDirection="column" padding={1} minHeight={20}>
                 <Box flexDirection="column" marginBottom={1}>
-                    <Text bold color="magenta">Gnosis REPL v0.7.0  Powered by Betty & Engine</Text>
-                    <Text color="gray">Type graph topologies, then type 'EXECUTE' to run them in aeon-pipelines.</Text>
-                    <Text color="gray">Type 'exit' to quit.</Text>
+                    <Text bold color="magenta">Gnosis Visual Graph REPL v1.0.0</Text>
+                    <Text color="gray">Drawing quantum topologies via Wallington Rotation.</Text>
                 </Box>
 
-                {history.map((entry, index) => (
-                    <Box key={index} flexDirection="row">
-                        <Text color={entry.type === 'input' ? 'green' : entry.type === 'error' ? 'red' : 'cyan'}>
-                            {entry.type === 'input' ? ' ' : entry.type === 'error' ? ' ' : '  '}
-                        </Text>
-                        <Text>{entry.text}</Text>
-                    </Box>
-                ))}
+                <MetricsPanel beta1={metrics.b1} paths={metrics.paths} />
+                
+                <GraphCanvas ast={ast} />
 
-                <Box flexDirection="row">
-                    <Text color="green"> </Text>
+                <Box flexDirection="column" marginTop={1}>
+                    {history.slice(-10).map((entry, index) => (
+                        <Box key={index} flexDirection="row">
+                            <Text color={entry.type === 'input' ? 'green' : entry.type === 'error' ? 'red' : 'cyan'}>
+                                {entry.type === 'input' ? '>> ' : '   '}
+                            </Text>
+                            <Text color={entry.type === 'error' ? 'red' : 'white'}>{entry.text}</Text>
+                        </Box>
+                    ))}
+                </Box>
+
+                <Box flexDirection="row" marginTop={1}>
+                    <Text color="green" bold>{'>'} </Text>
                     <TextInput 
                         value={query} 
                         onChange={setQuery} 
                         onSubmit={handleSubmit}
                     />
-                    {suggestion && <Text color="gray">{suggestion}</Text>}
+                </Box>
+                
+                <Box marginTop={1}>
+                    <Text color="gray">Commands: EXECUTE | CLEAR | EXIT</Text>
                 </Box>
             </Box>
         );
