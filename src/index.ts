@@ -318,6 +318,35 @@ async function main() {
                 return payload;
             });
 
+            // Aeon-Flux Core Handlers
+            registry.register('Router', async (payload, props) => {
+                const path = payload.path || '/';
+                console.log(`[Aeon-Flux:Router] Matching route for: ${path}`);
+                return { route: 'ManuscriptPage', componentId: 'Ch17', sessionId: 'aeon-001' };
+            });
+
+            registry.register('UserContext', async (payload, props) => {
+                console.log(`[Aeon-Flux:UserContext] Extracting context...`);
+                return { userId: 'buley', device: 'darwin', preferences: { theme: 'dark' } };
+            });
+
+            registry.register('TreeBuilder', async (payload, props) => {
+                console.log(`[Aeon-Flux:TreeBuilder] Building component tree...`);
+                return { rootId: 'shell', nodes: [{ id: 'Ch17', type: 'page' }] };
+            });
+
+            registry.register('Decision', async (payload, props) => {
+                const { context, tree } = payload;
+                console.log(`[Aeon-Flux:Decision] Personalizing for ${context?.userId}...`);
+                return { prefetch: ['/next-chapter'], theme: context?.preferences?.theme || 'light' };
+            });
+
+            registry.register('Renderer', async (payload, props) => {
+                const type = props['type'] || 'html';
+                console.log(`[Aeon-Flux:Renderer] Rendering ${type}...`);
+                return `<html><body data-theme="${payload.theme}"><h1>Aeon Flux</h1></body></html>`;
+            });
+
             const engine = new GnosisEngine(registry);
             const initialPayload = args[1] === 'betti.gg' ? 'transformer.gg' : 'GPT_INIT';
             
