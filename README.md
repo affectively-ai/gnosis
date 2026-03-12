@@ -8,7 +8,9 @@ The language is the topology. The AST is the graph.
 
 # Motto
 
-"Oh my God, Betti! Look at the size of her Bule."
+Oh my God, Betti! Look at the size of her Bule.
+It is so small. [scoff] 
+She looks like one of those graph guys' girlfriends.
 
 ## Why Gnosis?
 
