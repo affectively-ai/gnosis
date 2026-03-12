@@ -126,4 +126,64 @@ describe('GnosisEngine', () => {
         expect(resEvolve).toContain('[EVOLVE]');
         expect(resEvolve).toContain('Laminar Flow');
     });
+
+    it('auto-injects and executes ZK sync envelopes for sensitive process edges', async () => {
+        const keyPair = await crypto.subtle.generateKey(
+            {
+                name: 'ECDH',
+                namedCurve: 'P-256',
+            },
+            true,
+            ['deriveKey']
+        );
+        const recipientPublicKey = await crypto.subtle.exportKey('jwk', keyPair.publicKey);
+
+        const registry = new GnosisRegistry();
+        registry.register('Source', async () => ({
+            data: { secret: 'sync-state' },
+            recipientPublicKey,
+        }));
+        registry.register('Sink', async (payload) => payload);
+
+        const engine = new GnosisEngine(registry);
+        const ast = {
+            nodes: new Map([
+                ['src', { id: 'src', labels: ['Source'], properties: {} }],
+                ['dst', { id: 'dst', labels: ['Sink'], properties: {} }],
+            ]),
+            edges: [
+                {
+                    sourceIds: ['src'],
+                    targetIds: ['dst'],
+                    type: 'PROCESS',
+                    properties: { crossTenant: 'true' },
+                },
+            ],
+        };
+
+        const result = await engine.execute(ast, null);
+        expect(result).toContain('Auto-injected 1 ZK envelope node');
+        expect(result).toContain('ZKSyncEnvelope');
+        expect(result).toContain('ECIES-P256');
+    });
+
+    it('emits evaluated edges to native runtime observers', async () => {
+        const registry = new GnosisRegistry();
+        registry.register('Step', async (payload) => payload);
+
+        const seenEdges: string[] = [];
+        const engine = new GnosisEngine(registry, {
+            onEdgeEvaluated: (edge) => {
+                seenEdges.push(edge.type);
+            },
+        });
+
+        const { ast } = compiler.parse(`
+            (s:Step)-[:FORK]->(a:Step|b:Step)
+            (a|b)-[:FOLD]->(join:Step)
+        `);
+
+        await engine.execute(ast!, 'input');
+        expect(seenEdges).toEqual(['FORK', 'FOLD']);
+    });
 });

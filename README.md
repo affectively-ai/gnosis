@@ -32,6 +32,7 @@ Gnosis provides a unified architecture for high-performance, verified computatio
 Gnosis is capable of expressing the most complex software architectures as pure data flow:
 
 *   **Topological AI**: Full Transformer-style forward passes (Attention, Residuals, Softmax) implemented as fractal superpositions.
+*   **`.gg`-Native Neural Runtime**: `NeuralEngine` / `GPUEngine` / `WebNNEngine` run directly on `.gg` topology source. The canonical first module is [`topic_domain_transformer.gg`](./topic_domain_transformer.gg) for topic-domain transformer flows.
 *   **Reactive Kernels**: The core server loops and navigation engines of `aeon-flux` and `aeon-shell` redefined as continuous topological transitions.
 *   **Self-Hosted Logic**: The Gnosis compiler is itself a Gnosis topology, proving the system is closed under self-application.
 *   **Native Auth Topologies**: UCAN issuance/verification/delegation, ZK encryption/decryption, and custodial action checks are available as native runtime labels.
@@ -54,10 +55,30 @@ Execute `.gg` files directly through the bare-metal runtime:
 bun ./bin/gnosis.js run your_app.gg
 ```
 
+Execute with the native frame runtime (`gnosis_runtime` WASM) enabled:
+```bash
+bun ./bin/gnosis.js native your_app.gg
+# or
+bun ./bin/gnosis.js run your_app.gg --native
+```
+
 ### Testing Topologies
 Execute `.gg` test files with the built-in test runner:
 ```bash
 bun ./bin/gnosis.js test path/to/topology.test.gg
+bun ./bin/gnosis.js test topic_domain_transformer.test.gg
+```
+
+### `.gg`-Native Neural Module Loading
+Use the canonical topic-domain module by default, or load a specific `.gg` file:
+
+```ts
+import { NeuralEngine } from '@affectively/gnosis';
+
+const engine = new NeuralEngine();
+await engine.init(); // loads canonical topic_domain_transformer.gg when available
+
+await engine.loadTopologyFile('./my_module.gg');
 ```
 
 ### Topology Renderer Compatibility
@@ -115,8 +136,14 @@ Built-in labels for first-class auth workflows:
 - `ZKEncrypt`
 - `ZKDecrypt`
 - `CustodialSigner`
+- `ZKSyncEnvelope`
+- `ZKMaterializeEnvelope`
 
 `UCANVerify` can emit `executionAuth` into the payload. When `executionAuth.enforce=true`, runtime edge execution is capability-checked at primitive level (`fork`, `race`, `fold`, `vent`, etc.) using resource-scoped UCAN capabilities.
+
+`zkMode` (`required|preferred|off`) provides selective default-on ZK behavior for sensitive domains (delegation context, custodial payloads, cross-boundary sync, and private materialization) without forcing encryption on all runtime edges.
+
+For sensitive sync/materialization `PROCESS` flows, compiler/runtime auto-injection can insert `ZKSyncEnvelope` and `ZKMaterializeEnvelope` wrapper nodes implicitly from topology properties.
 
 For TypeScript/JavaScript Sonar-style analysis:
 

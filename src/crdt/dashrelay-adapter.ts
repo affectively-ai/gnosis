@@ -3,8 +3,8 @@
 /**
  * DashRelay Adapter — connects QDoc to DashRelay for sync.
  *
- * Drop-in replacement for the Y.Doc sync path in dashrelay-client.
- * Uses topology deltas over FlowFrames instead of Y.encodeStateAsUpdate.
+ * Native gnosis sync path for dashrelay-client.
+ * Uses topology deltas over FlowFrames.
  *
  * Migration path:
  *   Before: relay.connect(yDoc)
@@ -36,11 +36,7 @@ export interface QDocRelayStatus {
  *
  * Wire protocol: topology deltas encoded as JSON over WebSocket.
  * Format is intentionally compatible with dashrelay-v1 envelope structure
- * so the same RelayRoomDO can serve both Y.Doc and QDoc clients during
- * the migration period.
- *
- * Phase 1 (now): QDoc deltas wrapped in dashrelay-v1 envelopes
- * Phase 2 (next): Native FlowFrame transport, bypass JSON entirely
+ * so the same RelayRoomDO can serve qdoc-authoritative clients.
  */
 export class QDocRelay {
   private readonly _doc: QDoc;
@@ -81,7 +77,7 @@ export class QDocRelay {
           protocol: 'dashrelay-v1',
           room: this._config.roomName,
           auth: this._config.apiKey,
-          mode: 'yjs-authoritative', // Compatible during migration
+          mode: 'qdoc-authoritative',
           clientId: this._peerId,
         }));
       };

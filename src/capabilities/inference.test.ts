@@ -10,8 +10,10 @@ describe('capability inference', () => {
       (gateway: TcpServer { transport: 'tcp', mode: 'server' })
       (relay: Socket { transport: 'udp' })
       (auth: UCANVerify)
+      (sync: ZKSyncEnvelope)
       (gateway)-[:PROCESS]->(relay)
       (relay)-[:PROCESS]->(auth)
+      (auth)-[:PROCESS]->(sync)
     `;
 
     const requirements = inferCapabilitiesFromGgSource(source);
@@ -20,6 +22,7 @@ describe('capability inference', () => {
     expect(caps).toContain('net.tcp.server');
     expect(caps).toContain('net.udp');
     expect(caps).toContain('auth.ucan');
+    expect(caps).toContain('auth.zk');
   });
 
   it('rejects workers-incompatible network capabilities', () => {

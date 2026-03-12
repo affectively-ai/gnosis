@@ -45,12 +45,17 @@ const UCAN_LABELS = new Set([
   'ucanrequire',
 ]);
 
-const ZK_LABELS = new Set(['zkencrypt', 'zkdecrypt']);
+const ZK_LABELS = new Set([
+  'zkencrypt',
+  'zkdecrypt',
+  'zksyncenvelope',
+  'zkmaterializeenvelope',
+]);
 
 const CUSTODIAL_LABELS = new Set(['custodialsigner']);
 
 function normalizeToken(value: string): string {
-  return value.trim().toLowerCase().replace(/^['\"]|['\"]$/g, '');
+  return value.trim().toLowerCase().replace(/^['"]|['"]$/g, '');
 }
 
 function parseCapabilityTokens(value: string): string[] {

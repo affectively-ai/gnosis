@@ -1,28 +1,44 @@
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
+declare const require:
+    | ((specifier: string) => unknown)
+    | undefined;
 
-let GnosisRuntime: any;
-try {
-    GnosisRuntime = require('gnosis_runtime');
-} catch (e) {
+function tryRequire(specifier: string): unknown {
+    if (typeof require !== 'function') return undefined;
     try {
-        GnosisRuntime = require('../../../node_modules/gnosis_runtime');
-    } catch (e2) {
-        // Ignored
+        return require(specifier);
+    } catch {
+        return undefined;
     }
 }
 
+const GnosisRuntime =
+    tryRequire('gnosis_runtime') ??
+    tryRequire('../../../node_modules/gnosis_runtime');
+
+interface QuantumRuntimeInstance {
+    process_frame?: (encodedBytes: Uint8Array) => Uint8Array | void;
+    processFrame?: (encodedBytes: Uint8Array) => Uint8Array | void;
+    metrics: () => string;
+}
+
+interface GnosisRuntimeModule {
+    QuantumRuntime?: new () => QuantumRuntimeInstance;
+}
+
 export class QuantumWasmBridge {
-    private runtime: any;
-    private initialized: boolean = false;
+    private runtime: QuantumRuntimeInstance | null = null;
+    private initialized = false;
 
     constructor() {
         try {
-            if (GnosisRuntime && GnosisRuntime.QuantumRuntime) {
-                this.runtime = new GnosisRuntime.QuantumRuntime();
-                this.initialized = typeof this.runtime.process_frame === 'function' || typeof this.runtime.processFrame === 'function';
+            const runtimeModule = GnosisRuntime as GnosisRuntimeModule | undefined;
+            if (runtimeModule?.QuantumRuntime) {
+                this.runtime = new runtimeModule.QuantumRuntime();
+                this.initialized =
+                    typeof this.runtime.process_frame === 'function' ||
+                    typeof this.runtime.processFrame === 'function';
             }
-        } catch (e) {
+        } catch {
             // Ignored
         }
     }
@@ -62,18 +78,25 @@ export class QuantumWasmBridge {
         buffer.set(payload, 10);
 
         try {
-            if (typeof this.runtime.process_frame === 'function') {
+            if (this.runtime && typeof this.runtime.process_frame === 'function') {
                 this.runtime.process_frame(buffer);
             } else {
-                this.runtime.processFrame(buffer);
+                this.runtime?.processFrame?.(buffer);
             }
-            return `[WASM] Processed ${edgeType}. Metrics: ${this.runtime.metrics()}`;
-        } catch (e: any) {
-            return `[WASM Error] ${e}`;
+            return `[WASM] Processed ${edgeType}. Metrics: ${this.runtime?.metrics() ?? 'unavailable'}`;
+        } catch (error: unknown) {
+            return `[WASM Error] ${this.errorMessage(error)}`;
         }
     }
 
     public getMetrics(): string {
-        return this.initialized ? this.runtime.metrics() : 'Not initialized';
+        return this.initialized && this.runtime ? this.runtime.metrics() : 'Not initialized';
+    }
+
+    private errorMessage(error: unknown): string {
+        if (error instanceof Error) {
+            return error.message;
+        }
+        return String(error);
     }
 }

@@ -1,5 +1,6 @@
 import { Pipeline } from '@affectively/aeon-pipelines';
 import { QuantumWasmBridge } from './quantum/bridge.js';
+import { injectSensitiveZkEnvelopes } from '../auth/auto-zk.js';
 
 export interface ASTNode {
     id: string;
@@ -27,7 +28,7 @@ export interface GraphAST {
 }
 
 export class BettyCompiler {
-    private b1: number = 0;
+    private b1 = 0;
     private ast: GraphAST = { nodes: new Map(), edges: [] };
     private logs: string[] = [];
     private diagnostics: Diagnostic[] = [];
@@ -68,7 +69,7 @@ export class BettyCompiler {
         const keywords = ['FORK', 'RACE', 'FOLD', 'VENT', 'PROCESS', 'COLLAPSE', 'TUNNEL', 'INTERFERE', 'MEASURE', 'HALT', 'EVOLVE', 'ENTANGLE', 'SUPERPOSE', 'OBSERVE'];
         const nodeIds = Array.from(this.ast.nodes.keys());
         
-        const prefix = line.slice(0, column).split(/[\s()\[\]\-:|>{}]+/).pop()?.toUpperCase() || '';
+        const prefix = line.slice(0, column).split(/[^A-Za-z0-9_]+/).pop()?.toUpperCase() || '';
         return [...keywords, ...nodeIds].filter(w => w.startsWith(prefix));
     }
 
@@ -283,6 +284,17 @@ export class BettyCompiler {
                 });
             }
         });
+
+        const injectionResult = injectSensitiveZkEnvelopes(this.ast);
+        this.ast = injectionResult.ast;
+        if (injectionResult.injected.length > 0) {
+            this.diagnostics.push({
+                line: 1,
+                column: 1,
+                message: `Auto-injected ${injectionResult.injected.length} ZK envelope node(s) for sensitive sync/materialization flows.`,
+                severity: 'info'
+            });
+        }
 
         const buleyMeasure = this.getBuleyMeasurement();
         const summary = `[Betty Professional Compiler]\nNodes: ${this.ast.nodes.size}, Edges: ${this.ast.edges.length}\nBetti: ${this.b1}, Buley Measure: ${buleyMeasure.toFixed(2)}`;

@@ -5,43 +5,55 @@ import { QuantumWasmBridge } from '../betty/quantum/bridge.js';
 import type { GnosisExecutionAuthContext } from '../auth/core.js';
 import { authorizeTopologyEdge } from '../auth/core.js';
 import { registerCoreAuthHandlers } from '../auth/handlers.js';
+import { injectSensitiveZkEnvelopes } from '../auth/auto-zk.js';
+
+export interface GnosisEngineOptions {
+    onEdgeEvaluated?: (edge: ASTEdge) => Promise<void> | void;
+}
 
 export class GnosisEngine {
     private registry: GnosisRegistry;
     private bridge: QuantumWasmBridge;
     private tracker: ReynoldsTracker;
+    private onEdgeEvaluated: ((edge: ASTEdge) => Promise<void> | void) | null;
 
-    constructor(registry?: GnosisRegistry) {
+    constructor(registry?: GnosisRegistry, options: GnosisEngineOptions = {}) {
         this.registry = registry || new GnosisRegistry();
         registerCoreAuthHandlers(this.registry);
         this.bridge = new QuantumWasmBridge();
         this.tracker = new ReynoldsTracker(128); // Default capacity
+        this.onEdgeEvaluated = options.onEdgeEvaluated ?? null;
     }
 
     public async execute(ast: GraphAST, initialPayload: any = null): Promise<string> {
         if (ast.edges.length === 0) return "[Engine] No graph to execute.";
-        
-        this.tracker = new ReynoldsTracker(ast.nodes.size || 128);
-        let execLogs: string[] = ["\n[Gnosis Engine Execution]"];
+
+        const autoInjected = injectSensitiveZkEnvelopes(ast);
+        const activeAst = autoInjected.ast;
+        this.tracker = new ReynoldsTracker(activeAst.nodes.size || 128);
+        const execLogs: string[] = ["\n[Gnosis Engine Execution]"];
+        if (autoInjected.injected.length > 0) {
+            execLogs.push(`Auto-injected ${autoInjected.injected.length} ZK envelope node(s) for sensitive flows.`);
+        }
         let currentPayload = initialPayload;
 
         // ... root finding ...
         const allTargetIds = new Set<string>();
-        ast.edges.forEach(e => e.targetIds.forEach(id => allTargetIds.add(id.trim())));
-        const roots = Array.from(ast.nodes.keys()).filter(id => !allTargetIds.has(id.trim()));
+        activeAst.edges.forEach(e => e.targetIds.forEach(id => allTargetIds.add(id.trim())));
+        const roots = Array.from(activeAst.nodes.keys()).filter(id => !allTargetIds.has(id.trim()));
 
-        if (roots.length === 0 && ast.nodes.size > 0) {
+        if (roots.length === 0 && activeAst.nodes.size > 0) {
             // If no roots (cycle?), pick the first node mentioned in edges as a fallback
-            const firstEdge = ast.edges[0];
+            const firstEdge = activeAst.edges[0];
             if (firstEdge) {
                 roots.push(firstEdge.sourceIds[0].trim());
             } else {
-                roots.push(Array.from(ast.nodes.keys())[0]);
+                roots.push(Array.from(activeAst.nodes.keys())[0]);
             }
         }
 
         let currentNodeId: string | undefined = roots[0];
-        let visited = new Set<string>();
+        const visited = new Set<string>();
         let streamCounter = 0;
 
         execLogs.push(`Tracing from root: ${currentNodeId}`);
@@ -59,7 +71,7 @@ export class GnosisEngine {
             }
             visited.add(currentNodeId);
 
-            const node = ast.nodes.get(currentNodeId);
+            const node = activeAst.nodes.get(currentNodeId);
             if (node) {
                 const handler = this.findHandler(node);
                 if (handler) {
@@ -76,7 +88,7 @@ export class GnosisEngine {
             }
 
             // Find all outgoing edges from this node
-            const edges = ast.edges.filter(e => e.sourceIds.map(s => s.trim()).includes(currentNodeId!));
+            const edges = activeAst.edges.filter(e => e.sourceIds.map(s => s.trim()).includes(currentNodeId!));
             if (edges.length === 0) {
                 execLogs.push(`No outgoing edge from ${currentNodeId}. Final node.`);
                 break;
@@ -104,6 +116,7 @@ export class GnosisEngine {
                 this.tracker.updateStream(sid, 'vented');
                 break;
             }
+            await this.notifyEdgeEvaluated(edge);
 
             // OBSERVE: reading forces collapse — the measurement operator
             // CRDT is the only state model. Observation IS the merge.
@@ -111,7 +124,7 @@ export class GnosisEngine {
                 const strategy = edge.properties.strategy || 'lww';
                 execLogs.push(`  [OBSERVE] Collapsing superposition with strategy: ${strategy}`);
                 // OBSERVE propagates through ENTANGLE edges — cascading collapse
-                const entangleEdges = ast.edges.filter(e =>
+                const entangleEdges = activeAst.edges.filter(e =>
                     e.type === 'ENTANGLE' && e.sourceIds.some(sid => edge.targetIds.map(t => t.trim()).includes(sid.trim()))
                 );
                 if (entangleEdges.length > 0) {
@@ -166,7 +179,7 @@ export class GnosisEngine {
                     this.tracker.updateStream(branchSid, 'active');
 
                     return async () => {
-                        const node = ast.nodes.get(tid);
+                        const node = activeAst.nodes.get(tid);
                         if (node) {
                             const handler = this.findHandler(node);
                             if (handler) {
@@ -186,12 +199,12 @@ export class GnosisEngine {
                 const superposition = Pipeline.from(workFns);
 
                 // Handle TUNNEL edges (early exits from superposition)
-                const tunnelEdge = ast.edges.find(e => e.type === 'TUNNEL' && e.sourceIds.some(sid => activeTargets.map(t => t.trim()).includes(sid.trim())));
+                const tunnelEdge = activeAst.edges.find(e => e.type === 'TUNNEL' && e.sourceIds.some(sid => activeTargets.map(t => t.trim()).includes(sid.trim())));
                 if (tunnelEdge) {
                     execLogs.push(`  -> Found TUNNEL path: ${tunnelEdge.sourceIds.join('|')} -> ${tunnelEdge.targetIds[0]}`);
                 }
 
-                const collapseEdge = ast.edges.find(e => 
+                const collapseEdge = activeAst.edges.find(e => 
                     (e.type === 'RACE' || e.type === 'FOLD' || e.type === 'COLLAPSE') &&
                     e.sourceIds.some(sid => activeTargets.map(t => t.trim()).includes(sid.trim()))
                 );
@@ -206,6 +219,7 @@ export class GnosisEngine {
                     this.tracker.updateStream(sid, 'vented');
                     break;
                 }
+                await this.notifyEdgeEvaluated(collapseEdge);
 
                 if (collapseEdge.type === 'RACE') {
                     execLogs.push(`   Racing paths: [${collapseEdge.sourceIds.join(', ')}]`);
@@ -305,5 +319,12 @@ export class GnosisEngine {
             targetIds,
             auth: executionAuth,
         });
+    }
+
+    private async notifyEdgeEvaluated(edge: ASTEdge): Promise<void> {
+        if (!this.onEdgeEvaluated) {
+            return;
+        }
+        await this.onEdgeEvaluated(edge);
     }
 }

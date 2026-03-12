@@ -1,4 +1,10 @@
-import { checkGgProgram } from '@affectively/aeon-logic';
+import {
+  checkGgProgram,
+  getGgRootNodeIds,
+  getGgTerminalNodeIds,
+  parseGgProgram,
+  type GgProgram,
+} from '@affectively/aeon-logic';
 import { Pipeline } from '@affectively/aeon-pipelines';
 
 export interface Neuron {
@@ -39,21 +45,60 @@ export interface NeuralGraphData {
 }
 
 const DEFAULT_TRAINING_IGNORE_TARGET = -999;
+const GG_FILE_EXTENSIONS = ['.gg', '.ggx'];
 
-export const TRANSFORMER_HELLO_WORLD_TOPOLOGY = `
-(input: Tensor)-[:FORK]->(query | key | value)
-(query)-[:FORK]->(head_0 | head_1 | head_2 | head_3)
-(key)-[:PROCESS]->(head_0)
-(key)-[:PROCESS]->(head_1)
-(key)-[:PROCESS]->(head_2)
-(key)-[:PROCESS]->(head_3)
-(value)-[:PROCESS]->(head_0)
-(value)-[:PROCESS]->(head_1)
-(value)-[:PROCESS]->(head_2)
-(value)-[:PROCESS]->(head_3)
-(head_0 | head_1 | head_2 | head_3)-[:FOLD { strategy: "concat" }]->(residual_mix)
-(residual_mix | input)-[:INTERFERE { mode: "constructive" }]->(output)
+export interface LoadTopologyOptions {
+  preserveWeights?: boolean;
+}
+
+export const TOPIC_DOMAIN_TRANSFORMER_TOPOLOGY_FILE =
+  'topic_domain_transformer.gg';
+
+const TOPIC_DOMAIN_TRANSFORMER_TOPOLOGY_ASSET_RELATIVE_PATH = `../${TOPIC_DOMAIN_TRANSFORMER_TOPOLOGY_FILE}`;
+
+// This inline source is the browser/runtime fallback for the canonical module
+// defined at open-source/gnosis/topic_domain_transformer.gg.
+export const TOPIC_DOMAIN_TRANSFORMER_TOPOLOGY = `
+(topic_tokens: Tensor { role: 'input', activation: 'identity', bias: '0.0' })
+(topic_embedding: Projection { role: 'embedding', activation: 'identity', bias: '0.0' })
+
+(query: Projection { role: 'query', activation: 'identity', bias: '0.0' })
+(key: Projection { role: 'key', activation: 'identity', bias: '0.0' })
+(value: Projection { role: 'value', activation: 'identity', bias: '0.0' })
+
+(head_a: AttentionHead { bias: '0.02' })
+(head_b: AttentionHead { bias: '0.02' })
+(head_c: AttentionHead { bias: '0.02' })
+(head_d: AttentionHead { bias: '0.02' })
+
+(attention_mix: Tensor { role: 'multi_head_mix', activation: 'tanh', bias: '0.03' })
+(topic_state: Tensor { role: 'residual_state', activation: 'tanh', bias: '0.01' })
+(topic_logits: Tensor { role: 'logits', activation: 'identity', bias: '0.0' })
+(topic_distribution: Tensor { role: 'distribution', activation: 'tanh', bias: '0.0' })
+
+(topic_tokens)-[:PROCESS]->(topic_embedding)
+(topic_embedding)-[:FORK]->(query | key | value)
+(query)-[:FORK]->(head_a | head_b | head_c | head_d)
+
+(key)-[:PROCESS]->(head_a)
+(key)-[:PROCESS]->(head_b)
+(key)-[:PROCESS]->(head_c)
+(key)-[:PROCESS]->(head_d)
+
+(value)-[:PROCESS]->(head_a)
+(value)-[:PROCESS]->(head_b)
+(value)-[:PROCESS]->(head_c)
+(value)-[:PROCESS]->(head_d)
+
+(head_a | head_b | head_c | head_d)-[:FOLD { strategy: 'concat', weight: '0.25' }]->(attention_mix)
+(attention_mix | topic_embedding)-[:INTERFERE { mode: 'constructive', weight: '0.5' }]->(topic_state)
+(topic_state)-[:PROCESS]->(topic_logits)
+(topic_logits)-[:PROCESS]->(topic_distribution)
 `.trim();
+
+// Backwards-compatible alias kept for existing imports.
+export const TRANSFORMER_HELLO_WORLD_TOPOLOGY =
+  TOPIC_DOMAIN_TRANSFORMER_TOPOLOGY;
 
 type TrainingEvent = { type: 'loss' | 'epoch'; value: number };
 
@@ -61,6 +106,198 @@ interface NeuralStore {
   neurons: Map<string, Neuron>;
   synapses: Map<string, Synapse>;
   semanticDescriptions: Map<string, string>;
+}
+
+const DEFAULT_NEURAL_STORE: NeuralStore = {
+  neurons: new Map(),
+  synapses: new Map(),
+  semanticDescriptions: new Map(),
+};
+
+interface BunRuntimeLike {
+  file(path: string | URL): {
+    text(): Promise<string>;
+  };
+}
+
+function getBunRuntime(): BunRuntimeLike | null {
+  const globalLike = globalThis as { Bun?: BunRuntimeLike };
+  return typeof globalLike.Bun?.file === 'function' ? globalLike.Bun : null;
+}
+
+function isGgFilePath(filePath: string): boolean {
+  const lower = filePath.toLowerCase();
+  return GG_FILE_EXTENSIONS.some((extension) => lower.endsWith(extension));
+}
+
+function formatUnknownError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function dynamicImport<ModuleShape>(specifier: string): Promise<ModuleShape> {
+  const importer = Function(
+    'moduleSpecifier',
+    'return import(moduleSpecifier);'
+  ) as (moduleSpecifier: string) => Promise<ModuleShape>;
+  return importer(specifier);
+}
+
+async function readTopologyFromPath(topologyFilePath: string): Promise<string> {
+  if (!isGgFilePath(topologyFilePath)) {
+    throw new Error(
+      `Topology file must end with ${GG_FILE_EXTENSIONS.join(' or ')}`
+    );
+  }
+
+  const bunRuntime = getBunRuntime();
+  if (bunRuntime) {
+    return bunRuntime.file(topologyFilePath).text();
+  }
+
+  try {
+    const fsPromises = await dynamicImport<{
+      readFile(path: string, encoding: string): Promise<string>;
+    }>('node:fs/promises');
+    return await fsPromises.readFile(topologyFilePath, 'utf-8');
+  } catch (error) {
+    throw new Error(
+      `Unable to load .gg topology file "${topologyFilePath}": ${formatUnknownError(
+        error
+      )}`
+    );
+  }
+}
+
+async function tryReadCanonicalTopicDomainTopology(): Promise<string | null> {
+  const sourceFileUrl = new URL(
+    TOPIC_DOMAIN_TRANSFORMER_TOPOLOGY_ASSET_RELATIVE_PATH,
+    import.meta.url
+  );
+
+  const bunRuntime = getBunRuntime();
+  if (bunRuntime) {
+    try {
+      return await bunRuntime.file(sourceFileUrl).text();
+    } catch {
+      return null;
+    }
+  }
+
+  try {
+    const fsPromises = await dynamicImport<{
+      readFile(path: string, encoding: string): Promise<string>;
+    }>('node:fs/promises');
+    const nodeUrl = await dynamicImport<{
+      fileURLToPath(url: URL): string;
+    }>('node:url');
+
+    return await fsPromises.readFile(nodeUrl.fileURLToPath(sourceFileUrl), 'utf-8');
+  } catch {
+    return null;
+  }
+}
+
+export async function getTopicDomainTransformerTopologySource(): Promise<string> {
+  const canonicalSource = await tryReadCanonicalTopicDomainTopology();
+  return canonicalSource ?? TOPIC_DOMAIN_TRANSFORMER_TOPOLOGY;
+}
+
+function parseNumericProperty(raw: string | undefined, fallback: number): number {
+  if (!raw) {
+    return fallback;
+  }
+  const parsed = Number.parseFloat(raw);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function normalizeActivation(raw: string | undefined): string {
+  if (!raw) {
+    return 'tanh';
+  }
+  const value = raw.trim().toLowerCase();
+  if (value === 'identity' || value === 'linear') {
+    return 'identity';
+  }
+  if (value === 'relu') {
+    return 'relu';
+  }
+  return 'tanh';
+}
+
+function inferEdgeWeight(
+  edgeType: string,
+  sourceCount: number,
+  targetCount: number
+): number {
+  const type = edgeType.toUpperCase();
+  if (type === 'FORK') {
+    return 1 / Math.max(1, targetCount);
+  }
+  if (type === 'FOLD' || type === 'COLLAPSE') {
+    return 1 / Math.max(1, sourceCount);
+  }
+  if (type === 'RACE') {
+    return 0.75;
+  }
+  if (type === 'INTERFERE') {
+    return 0.5;
+  }
+  if (type === 'VENT' || type === 'TUNNEL') {
+    return 0;
+  }
+  return 1;
+}
+
+function buildGraphFromGg(program: GgProgram): {
+  neurons: Neuron[];
+  synapses: Synapse[];
+} {
+  const rootIds = new Set(getGgRootNodeIds(program));
+  const terminalIds = new Set(getGgTerminalNodeIds(program));
+
+  const neurons: Neuron[] = program.nodes.map((node) => {
+    const isRoot = rootIds.has(node.id);
+    const isTerminal = terminalIds.has(node.id);
+    const type: Neuron['type'] = isRoot
+      ? 'input'
+      : isTerminal
+      ? 'output'
+      : 'hidden';
+
+    return {
+      id: node.id,
+      type,
+      bias: parseNumericProperty(node.properties.bias, 0),
+      activation: normalizeActivation(node.properties.activation),
+    };
+  });
+
+  const synapses: Synapse[] = [];
+  let edgeIndex = 0;
+  for (const edge of program.edges) {
+    const configuredWeight = parseNumericProperty(edge.properties.weight, NaN);
+    const edgeWeight = Number.isFinite(configuredWeight)
+      ? configuredWeight
+      : inferEdgeWeight(
+          edge.type,
+          edge.sourceIds.length,
+          edge.targetIds.length
+        );
+
+    for (const sourceId of edge.sourceIds) {
+      for (const targetId of edge.targetIds) {
+        synapses.push({
+          id: `syn-${edge.type.toLowerCase()}-${edgeIndex}`,
+          from_id: sourceId,
+          to_id: targetId,
+          weight: edgeWeight,
+        });
+        edgeIndex++;
+      }
+    }
+  }
+
+  return { neurons, synapses };
 }
 
 export class Translator {
@@ -104,7 +341,7 @@ export class Translator {
 }
 
 export class NeuronRepository {
-  constructor(private readonly store: NeuralStore) {}
+  constructor(private readonly store: NeuralStore = DEFAULT_NEURAL_STORE) {}
 
   async create(neuron: Neuron): Promise<void> {
     this.store.neurons.set(neuron.id, { ...neuron });
@@ -129,7 +366,7 @@ export class NeuronRepository {
 }
 
 export class SynapseRepository {
-  constructor(private readonly store: NeuralStore) {}
+  constructor(private readonly store: NeuralStore = DEFAULT_NEURAL_STORE) {}
 
   async create(synapse: Synapse): Promise<void> {
     this.store.synapses.set(synapse.id, { ...synapse });
@@ -151,6 +388,7 @@ export class GPUEngine {
   private initialized = false;
   private weights = new Float32Array();
   private biases = new Float32Array();
+  private activations: string[] = [];
   private targets = new Float32Array();
   private learningRate = 0.001;
   private latestInputs = new Float32Array();
@@ -203,6 +441,14 @@ export class GPUEngine {
         DEFAULT_TRAINING_IGNORE_TARGET
       );
     }
+
+    if (this.activations.length !== size) {
+      this.activations = new Array(size).fill('tanh');
+    }
+  }
+
+  setActivations(activations: string[]): void {
+    this.activations = [...activations];
   }
 
   prepareTrainingBuffers(targets: Float32Array, learningRate: number): void {
@@ -331,7 +577,7 @@ export class GPUEngine {
   }
 
   async uploadBuffer(_buffer: unknown, _data: Float32Array): Promise<void> {
-    // Compatibility no-op for browser adapters that expect this method.
+    // Compatibility no-op for adapters that expect this method.
   }
 
   async getWeights(): Promise<Float32Array[]> {
@@ -361,12 +607,29 @@ export class GPUEngine {
       flattened.biases,
       this.batchSize
     );
+
+    this.activations = neurons.map((neuron) => normalizeActivation(neuron.activation));
+  }
+
+  private activate(value: number, index: number): number {
+    const activation = this.activations[index] ?? 'tanh';
+    if (activation === 'identity') {
+      return value;
+    }
+    if (activation === 'relu') {
+      return Math.max(0, value);
+    }
+    return Math.tanh(value);
   }
 
   private forwardOneBatch(input: Float32Array): Float32Array {
     const output = new Float32Array(this.networkSize);
 
-    for (let targetNeuronIndex = 0; targetNeuronIndex < this.networkSize; targetNeuronIndex++) {
+    for (
+      let targetNeuronIndex = 0;
+      targetNeuronIndex < this.networkSize;
+      targetNeuronIndex++
+    ) {
       let sum = this.biases[targetNeuronIndex] ?? 0;
       const rowOffset = targetNeuronIndex * this.networkSize;
 
@@ -379,7 +642,7 @@ export class GPUEngine {
         sum += weight * (input[sourceNeuronIndex] ?? 0);
       }
 
-      output[targetNeuronIndex] = Math.tanh(sum);
+      output[targetNeuronIndex] = this.activate(sum, targetNeuronIndex);
     }
 
     return output;
@@ -430,7 +693,8 @@ export class GPUEngine {
             this.learningRate * gradient;
         }
 
-        this.biases[targetNeuronIndex] -= this.learningRate * (error / normalizer);
+        this.biases[targetNeuronIndex] -=
+          this.learningRate * (error / normalizer);
       }
     }
 
@@ -473,30 +737,38 @@ export class WebNNEngine extends GPUEngine {
   }
 }
 
-let topologyVerification: Promise<void> | null = null;
+const verifiedTopologies = new Map<string, Promise<void>>();
 
-async function verifyTransformerTopology(): Promise<void> {
-  if (!topologyVerification) {
-    topologyVerification = (async () => {
-      const result = await checkGgProgram(TRANSFORMER_HELLO_WORLD_TOPOLOGY, {
-        defaults: {
-          maxDepth: 64,
-          maxBeta1Exclusive: 24,
-        },
-      });
-
-      if (!result.ok) {
-        const message = result.violations
-          .map((violation) => violation.message)
-          .join('; ');
-        throw new Error(
-          `Transformer hello-world topology is invalid: ${message}`
-        );
-      }
-    })();
+async function verifyTopology(topologySource: string): Promise<void> {
+  const cached = verifiedTopologies.get(topologySource);
+  if (cached) {
+    await cached;
+    return;
   }
 
-  await topologyVerification;
+  const pending = (async () => {
+    const result = await checkGgProgram(topologySource, {
+      defaults: {
+        maxDepth: 64,
+        maxBeta1Exclusive: 24,
+      },
+    });
+
+    if (!result.ok) {
+      const message = result.violations
+        .map((violation) => violation.message)
+        .join('; ');
+      throw new Error(`Invalid .gg topology for neural engine: ${message}`);
+    }
+  })();
+
+  verifiedTopologies.set(topologySource, pending);
+  try {
+    await pending;
+  } catch (error) {
+    verifiedTopologies.delete(topologySource);
+    throw error;
+  }
 }
 
 export class NeuralEngine {
@@ -522,8 +794,14 @@ export class NeuralEngine {
 
   private neurons: Neuron[] = [];
   private synapses: Synapse[] = [];
+  private topologyProgram: GgProgram | null = null;
+  private topologySource: string;
+  private readonly customTopologyProvided: boolean;
 
-  constructor(private readonly topologySource = TRANSFORMER_HELLO_WORLD_TOPOLOGY) {
+  constructor(topologySource?: string) {
+    this.customTopologyProvided = topologySource !== undefined;
+    this.topologySource =
+      topologySource ?? TOPIC_DOMAIN_TRANSFORMER_TOPOLOGY;
     this.gpu = new GPUEngine();
     this.npu = new WebNNEngine();
     this.neuronRepo = new NeuronRepository(this.store);
@@ -532,7 +810,22 @@ export class NeuralEngine {
   }
 
   async init(): Promise<NeuralGraphData> {
-    await verifyTransformerTopology();
+    if (!this.customTopologyProvided) {
+      this.topologySource = await getTopicDomainTransformerTopologySource();
+    }
+
+    await this.loadTopology(this.topologySource, { preserveWeights: false });
+    return this.getGraphData();
+  }
+
+  async loadTopology(
+    topologySource: string,
+    options: LoadTopologyOptions = {}
+  ): Promise<NeuralGraphData> {
+    this.topologySource = topologySource;
+    await verifyTopology(this.topologySource);
+    this.topologyProgram = parseGgProgram(this.topologySource);
+
     await this.gpu.init();
     this.gpu.batchSize = Math.max(1, this.adapterTrainingConfig.microBatchSize);
 
@@ -541,9 +834,24 @@ export class NeuralEngine {
       this.activeBackend = 'npu';
     }
 
-    await this.seedGraphIfEmpty();
+    if (!options.preserveWeights) {
+      await this.seedGraphFromTopology();
+    }
+
     await this.compile();
     return this.getGraphData();
+  }
+
+  async loadTopologyFile(
+    topologyFilePath: string,
+    options: LoadTopologyOptions = {}
+  ): Promise<NeuralGraphData> {
+    const source = await readTopologyFromPath(topologyFilePath);
+    return this.loadTopology(source, options);
+  }
+
+  getTopologySource(): string {
+    return this.topologySource;
   }
 
   async compile(): Promise<{
@@ -562,6 +870,7 @@ export class NeuralEngine {
       flattened.biases,
       this.gpu.batchSize
     );
+    this.gpu.setActivations(this.neurons.map((neuron) => neuron.activation));
 
     const targetSize = flattened.size * this.gpu.batchSize;
     this.gpu.prepareTrainingBuffers(
@@ -667,7 +976,7 @@ export class NeuralEngine {
 
   exportGraph(): { version: string; neurons: Neuron[]; synapses: Synapse[] } {
     return {
-      version: 'gnosis-neural-1.0',
+      version: 'gnosis-neural-gg-1.0',
       neurons: [...this.neurons],
       synapses: [...this.synapses],
     };
@@ -698,78 +1007,23 @@ export class NeuralEngine {
     return this.getGraphData();
   }
 
-  private async seedGraphIfEmpty(): Promise<void> {
-    const existingNeurons = await this.neuronRepo.getAll();
-    if (existingNeurons.length > 0) {
-      this.neurons = existingNeurons;
-      this.synapses = await this.synapseRepo.getAll();
-      return;
-    }
+  private async seedGraphFromTopology(): Promise<void> {
+    this.store.neurons.clear();
+    this.store.synapses.clear();
 
-    const seededNeurons: Neuron[] = [
-      {
-        id: 'token_input',
-        type: 'input',
-        bias: 0,
-        activation: 'tanh',
-      },
-      {
-        id: 'attention_hidden',
-        type: 'hidden',
-        bias: 0.05,
-        activation: 'tanh',
-      },
-      {
-        id: 'residual_hidden',
-        type: 'hidden',
-        bias: 0.1,
-        activation: 'tanh',
-      },
-      {
-        id: 'token_output',
-        type: 'output',
-        bias: 0,
-        activation: 'tanh',
-      },
-    ];
+    const program = this.topologyProgram ?? parseGgProgram(this.topologySource);
+    const graph = buildGraphFromGg(program);
 
-    const seededSynapses: Synapse[] = [
-      {
-        id: 'synapse_input_attention',
-        from_id: 'token_input',
-        to_id: 'attention_hidden',
-        weight: 0.8,
-      },
-      {
-        id: 'synapse_attention_residual',
-        from_id: 'attention_hidden',
-        to_id: 'residual_hidden',
-        weight: 0.6,
-      },
-      {
-        id: 'synapse_residual_output',
-        from_id: 'residual_hidden',
-        to_id: 'token_output',
-        weight: 0.9,
-      },
-      {
-        id: 'synapse_skip',
-        from_id: 'token_input',
-        to_id: 'token_output',
-        weight: 0.25,
-      },
-    ];
-
-    for (const neuron of seededNeurons) {
+    for (const neuron of graph.neurons) {
       await this.neuronRepo.create(neuron);
     }
 
-    for (const synapse of seededSynapses) {
+    for (const synapse of graph.synapses) {
       await this.synapseRepo.create(synapse);
     }
 
-    this.neurons = seededNeurons;
-    this.synapses = seededSynapses;
+    this.neurons = graph.neurons;
+    this.synapses = graph.synapses;
   }
 }
 

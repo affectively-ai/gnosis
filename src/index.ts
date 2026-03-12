@@ -6,6 +6,7 @@ import * as twokeys from 'twokeys';
 import { BettyCompiler } from './betty/compiler.js';
 import { GnosisRegistry } from './runtime/registry.js';
 import { GnosisEngine } from './runtime/engine.js';
+import { GnosisNativeRuntime } from './runtime/native-runtime.js';
 import { ModManager } from './mod/manager.js';
 import { analyzeGnosisSource, formatGnosisViolations } from './analysis.js';
 import type { RuntimeTarget } from './capabilities/index.js';
@@ -27,6 +28,10 @@ import {
   Translator,
   NeuronRepository,
   SynapseRepository,
+  TOPIC_DOMAIN_TRANSFORMER_TOPOLOGY_FILE,
+  TOPIC_DOMAIN_TRANSFORMER_TOPOLOGY,
+  TRANSFORMER_HELLO_WORLD_TOPOLOGY,
+  getTopicDomainTransformerTopologySource,
   init as initNeuralEngine,
 } from './neural-compat.js';
 import type {
@@ -34,9 +39,16 @@ import type {
   Synapse,
   AdapterTrainingConfig,
   NeuralGraphData,
+  LoadTopologyOptions,
 } from './neural-compat.js';
 
-export { GnosisNeo4jBridge, GnosisRegistry, GnosisEngine, BettyCompiler };
+export {
+    GnosisNeo4jBridge,
+    GnosisRegistry,
+    GnosisEngine,
+    GnosisNativeRuntime,
+    BettyCompiler
+};
 export {
   NeuralEngine,
   GPUEngine,
@@ -44,6 +56,10 @@ export {
   Translator,
   NeuronRepository,
   SynapseRepository,
+  TOPIC_DOMAIN_TRANSFORMER_TOPOLOGY_FILE,
+  TOPIC_DOMAIN_TRANSFORMER_TOPOLOGY,
+  TRANSFORMER_HELLO_WORLD_TOPOLOGY,
+  getTopicDomainTransformerTopologySource,
   initNeuralEngine as init,
   initNeuralEngine,
 };
@@ -52,6 +68,7 @@ export type {
   Synapse,
   AdapterTrainingConfig,
   NeuralGraphData,
+  LoadTopologyOptions,
 };
 export type { GnosisHandler } from './runtime/registry.js';
 export type { GraphAST, ASTNode, ASTEdge } from './betty/compiler.js';
@@ -61,10 +78,26 @@ export * from './capabilities/index.js';
 export * from './auth/index.js';
 
 // Quantum CRDT — the only state model
-export { QDoc, QMap, QArray, QText, QCounter } from './crdt/index.js';
+export { QDoc, QMap, QArray, QText, QCounter, QDocRelay } from './crdt/index.js';
+export {
+  Doc,
+  Map,
+  Array,
+  Text,
+  XmlFragment,
+  XmlElement,
+  UndoManager,
+  applyUpdate,
+  encodeStateAsUpdate,
+  transact,
+  encodeStateVector,
+  diffUpdate,
+  mergeUpdates,
+} from './crdt/index.js';
 export type {
   QDocOptions, QDocDelta, QDocDeltaNode, QDocDeltaEdge,
   QDocUpdateHandler, QDocObserveHandler, QDocEvent,
+  QDocRelayConfig, QDocRelayStatus,
 } from './crdt/index.js';
 
 // Test harness & runner
@@ -345,12 +378,13 @@ async function main() {
     } else if (args[0] === 'lint' || args[0] === 'verify' || args[0] === 'analyze') {
         console.error(`[Gnosis] Usage: gnosis ${args[0]} <target> [--target <agnostic|workers|node|bun>] [--max-buley <number>] [--max-file-lines <number>] [--max-function-lines <number>] [--max-cyclomatic <number>] [--max-cognitive <number>] [--max-nesting <number>] [--json] [--sarif] [--tla] [--tla-out <dir>] [--tla-module <name>]`);
         process.exit(1);
-    } else if (args[0] === 'run' && args[1]) {
+    } else if ((args[0] === 'run' || args[0] === 'native') && args[1]) {
         const filePath = resolveTopologyPath(args[1]);
         if (!fs.existsSync(filePath)) {
             console.error(`[Gnosis Error] File not found: ${filePath}`);
             process.exit(1);
         }
+        const useNativeRuntime = args[0] === 'native' || args.includes('--native');
         
         console.log(`[Gnosis] Reading topology from ${filePath}...`);
         const content = fs.readFileSync(filePath, 'utf-8');
@@ -632,20 +666,46 @@ async function main() {
                 return renderWithTopologyCompat(payload, props);
             });
 
-            const engine = new GnosisEngine(registry);
+            const nativeRuntime = useNativeRuntime ? new GnosisNativeRuntime() : null;
+            const engine = new GnosisEngine(registry, {
+                onEdgeEvaluated: nativeRuntime
+                    ? async (edge) => {
+                          await nativeRuntime.onEdge(edge);
+                      }
+                    : undefined,
+            });
             const initialPayload = args[1] === 'betti.gg' ? 'transformer.gg' : 'GPT_INIT';
             
             const execOutput = await engine.execute(ast, initialPayload);
             console.log(execOutput);
+            if (nativeRuntime) {
+                const runtimeSnapshot = nativeRuntime.snapshot();
+                console.log(
+                    `[Gnosis Native Runtime] wasm=${runtimeSnapshot.wasmEnabled} edges=${runtimeSnapshot.edgesProcessed}`
+                );
+                console.log(`[Gnosis Native Runtime] ${runtimeSnapshot.metrics}`);
+                if (runtimeSnapshot.trace.trim().length > 0) {
+                    console.log('[Gnosis Native Runtime] Trace:');
+                    console.log(runtimeSnapshot.trace);
+                }
+            }
             process.exit(0);
         } catch (err: any) {
             console.error(`[Execution Error] ${err.message}`);
             process.exit(1);
         }
+    } else if (args[0] === 'run' || args[0] === 'native') {
+        console.error('[Gnosis] Usage: gnosis run <topology.gg> [--native]');
+        console.error('[Gnosis] Usage: gnosis native <topology.gg>');
+        process.exit(1);
     } else {
         const { startRepl } = await import('./repl.js');
         startRepl();
     }
+}
+
+export async function runCli(): Promise<void> {
+    await main();
 }
 
 function isCliEntrypoint(): boolean {
@@ -664,5 +724,5 @@ function isCliEntrypoint(): boolean {
 }
 
 if (isCliEntrypoint()) {
-    void main();
+    void runCli();
 }

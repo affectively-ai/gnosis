@@ -13,6 +13,43 @@ import {
   zkEncryptUtf8,
 } from './core.js';
 
+export type GnosisZkMode = 'required' | 'preferred' | 'off';
+export type GnosisZkDomain =
+  | 'delegation'
+  | 'custodial'
+  | 'sync'
+  | 'materialization';
+
+export interface GnosisZkPolicyReport {
+  domain: GnosisZkDomain;
+  mode: GnosisZkMode;
+  sensitive: boolean;
+  required: boolean;
+  applied: boolean;
+  status: 'applied' | 'already-encrypted' | 'skipped' | 'disabled';
+  reason: string;
+  sourceField?: string;
+}
+
+interface PayloadCandidate {
+  field: string;
+  plaintext: string;
+}
+
+interface ZkProtectionOptions {
+  domain: GnosisZkDomain;
+  mode: GnosisZkMode;
+  sensitive: boolean;
+  input: Record<string, unknown>;
+  props: Record<string, string>;
+  candidateFields: readonly string[];
+}
+
+interface ZkProtectionResult {
+  encrypted: GnosisEncryptedPayload | null;
+  report: GnosisZkPolicyReport;
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null
     ? (value as Record<string, unknown>)
@@ -25,6 +62,37 @@ function parseBoolean(value: string | undefined, fallback: boolean): boolean {
   if (normalized === 'true') return true;
   if (normalized === 'false') return false;
   return fallback;
+}
+
+function readBoolean(value: unknown, fallback = false): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true') return true;
+    if (normalized === 'false') return false;
+  }
+  return fallback;
+}
+
+function parseZkMode(
+  value: string | undefined,
+  fallback: GnosisZkMode
+): GnosisZkMode {
+  if (!value) return fallback;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'required') return 'required';
+  if (normalized === 'preferred') return 'preferred';
+  if (normalized === 'off' || normalized === 'disabled') return 'off';
+  return fallback;
+}
+
+function resolveZkMode(
+  input: Record<string, unknown>,
+  props: Record<string, string>,
+  fallback: GnosisZkMode
+): GnosisZkMode {
+  const fromInput = typeof input.zkMode === 'string' ? input.zkMode : undefined;
+  return parseZkMode(fromInput ?? props.zkMode, fallback);
 }
 
 function parseCapabilities(value: unknown): GnosisCapability[] {
@@ -122,6 +190,270 @@ function parseEncryptedPayload(value: unknown): GnosisEncryptedPayload | null {
   return record as unknown as GnosisEncryptedPayload;
 }
 
+function parseJsonWebKey(value: unknown): JsonWebKey | undefined {
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value)
+  ) {
+    return value as JsonWebKey;
+  }
+
+  if (typeof value === 'string' && value.trim().length > 0) {
+    try {
+      const parsed = JSON.parse(value);
+      if (
+        typeof parsed === 'object' &&
+        parsed !== null &&
+        !Array.isArray(parsed)
+      ) {
+        return parsed as JsonWebKey;
+      }
+    } catch {
+      return undefined;
+    }
+  }
+
+  return undefined;
+}
+
+function parseRecipientPublicKey(
+  input: Record<string, unknown>,
+  props: Record<string, string>
+): JsonWebKey | undefined {
+  const directCandidates = [
+    input.recipientPublicKey,
+    input.zkRecipientPublicKey,
+    input.publicKey,
+  ];
+  for (const candidate of directCandidates) {
+    const parsed = parseJsonWebKey(candidate);
+    if (parsed) return parsed;
+  }
+
+  const propCandidates = [
+    props.recipientPublicKey,
+    props.zkRecipientPublicKey,
+    props.publicKey,
+  ];
+  for (const candidate of propCandidates) {
+    const parsed = parseJsonWebKey(candidate);
+    if (parsed) return parsed;
+  }
+
+  return undefined;
+}
+
+function toPlaintext(value: unknown): string | null {
+  if (typeof value === 'string') {
+    return value.length > 0 ? value : null;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (typeof value === 'bigint') {
+    return value.toString(10);
+  }
+  if (typeof value === 'object' && value !== null) {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function findPayloadCandidate(
+  input: Record<string, unknown>,
+  fields: readonly string[]
+): PayloadCandidate | null {
+  for (const field of fields) {
+    if (!(field in input)) {
+      continue;
+    }
+    const plaintext = toPlaintext(input[field]);
+    if (plaintext !== null) {
+      return { field, plaintext };
+    }
+  }
+  return null;
+}
+
+function parseExistingEncryptedPayload(
+  input: Record<string, unknown>
+): GnosisEncryptedPayload | null {
+  const candidates = [
+    input.encrypted,
+    input.encryptedPayload,
+    input.zkEncrypted,
+    input.zkEncryptedPayload,
+  ];
+  for (const candidate of candidates) {
+    const parsed = parseEncryptedPayload(candidate);
+    if (parsed) return parsed;
+  }
+  return null;
+}
+
+function hasDelegationConfidentialContext(
+  input: Record<string, unknown>,
+  props: Record<string, string>
+): boolean {
+  if (
+    readBoolean(input.confidential, false) ||
+    readBoolean(input.private, false) ||
+    parseBoolean(props.confidential, false) ||
+    parseBoolean(props.private, false)
+  ) {
+    return true;
+  }
+
+  const contextFields = ['delegationContext', 'context', 'attenuationContext'];
+  return contextFields.some(
+    (field) =>
+      field in input &&
+      input[field] !== null &&
+      input[field] !== undefined &&
+      input[field] !== ''
+  );
+}
+
+function isCrossBoundarySync(
+  input: Record<string, unknown>,
+  props: Record<string, string>
+): boolean {
+  if (
+    readBoolean(input.crossDevice, false) ||
+    readBoolean(input.crossTenant, false) ||
+    parseBoolean(props.crossDevice, false) ||
+    parseBoolean(props.crossTenant, false)
+  ) {
+    return true;
+  }
+
+  const tenantScope =
+    typeof input.tenantScope === 'string'
+      ? input.tenantScope
+      : props.tenantScope;
+  return tenantScope === 'cross-tenant' || tenantScope === 'cross-device';
+}
+
+function isPrivateMaterialization(
+  input: Record<string, unknown>,
+  props: Record<string, string>
+): boolean {
+  if (
+    readBoolean(input.private, false) ||
+    readBoolean(input.userPrivate, false) ||
+    parseBoolean(props.private, false) ||
+    parseBoolean(props.userPrivate, false)
+  ) {
+    return true;
+  }
+
+  const visibility =
+    typeof input.visibility === 'string' ? input.visibility : props.visibility;
+  if (visibility === 'private') {
+    return true;
+  }
+
+  const persistence =
+    typeof input.persistence === 'string'
+      ? input.persistence
+      : props.persistence;
+  return persistence === 'fs.local' || persistence === 'fs.durable';
+}
+
+async function protectPayloadWithZk(
+  options: ZkProtectionOptions
+): Promise<ZkProtectionResult> {
+  const required = options.mode === 'required';
+  const baseReport = {
+    domain: options.domain,
+    mode: options.mode,
+    sensitive: options.sensitive,
+    required,
+  } as const;
+
+  if (options.mode === 'off') {
+    return {
+      encrypted: null,
+      report: {
+        ...baseReport,
+        applied: false,
+        status: 'disabled',
+        reason: 'ZK mode is disabled for this node.',
+      },
+    };
+  }
+
+  const existingEncrypted = parseExistingEncryptedPayload(options.input);
+  if (existingEncrypted) {
+    return {
+      encrypted: existingEncrypted,
+      report: {
+        ...baseReport,
+        applied: true,
+        status: 'already-encrypted',
+        reason: 'Encrypted payload already present.',
+      },
+    };
+  }
+
+  const candidate = findPayloadCandidate(options.input, options.candidateFields);
+  if (!candidate) {
+    return {
+      encrypted: null,
+      report: {
+        ...baseReport,
+        applied: false,
+        status: 'skipped',
+        reason: 'No payload field available for ZK protection.',
+      },
+    };
+  }
+
+  const recipientPublicKey = parseRecipientPublicKey(options.input, options.props);
+  if (!recipientPublicKey) {
+    if (required && options.sensitive) {
+      throw new Error(
+        `${options.domain} flow requires recipient public key when zkMode=required.`
+      );
+    }
+
+    return {
+      encrypted: null,
+      report: {
+        ...baseReport,
+        applied: false,
+        status: 'skipped',
+        reason: 'Recipient public key not provided; encryption skipped.',
+        sourceField: candidate.field,
+      },
+    };
+  }
+
+  const encrypted = await zkEncryptUtf8({
+    plaintext: candidate.plaintext,
+    recipientPublicKey,
+    encryptionOptions: {
+      category: options.domain,
+    },
+  });
+
+  return {
+    encrypted,
+    report: {
+      ...baseReport,
+      applied: true,
+      status: 'applied',
+      reason: 'Sensitive payload encrypted with ZK policy.',
+      sourceField: candidate.field,
+    },
+  };
+}
+
 export const GNOSIS_CORE_AUTH_LABELS = {
   UCAN_IDENTITY: 'UCANIdentity',
   UCAN_ISSUE: 'UCANIssue',
@@ -131,6 +463,8 @@ export const GNOSIS_CORE_AUTH_LABELS = {
   ZK_ENCRYPT: 'ZKEncrypt',
   ZK_DECRYPT: 'ZKDecrypt',
   CUSTODIAL_SIGNER: 'CustodialSigner',
+  ZK_SYNC_ENVELOPE: 'ZKSyncEnvelope',
+  ZK_MATERIALIZE_ENVELOPE: 'ZKMaterializeEnvelope',
 } as const;
 
 export function registerCoreAuthHandlers(registry: GnosisRegistry): void {
@@ -234,13 +568,16 @@ export function registerCoreAuthHandlers(registry: GnosisRegistry): void {
         issuerPublicKey,
         verifyOptions: {
           audience: audience as `did:${string}:${string}` | undefined,
-          requiredCapabilities: requiredCapabilities.length > 0 ? requiredCapabilities : undefined,
+          requiredCapabilities:
+            requiredCapabilities.length > 0 ? requiredCapabilities : undefined,
         },
       });
 
       const failClosed = parseBoolean(props.failClosed, true);
       if (!verification.valid && failClosed) {
-        throw new Error(`UCAN verification failed: ${verification.error ?? 'unknown error'}`);
+        throw new Error(
+          `UCAN verification failed: ${verification.error ?? 'unknown error'}`
+        );
       }
 
       const enforce = parseBoolean(props.enforce, true);
@@ -293,6 +630,21 @@ export function registerCoreAuthHandlers(registry: GnosisRegistry): void {
         throw new Error('UCANDelegate requires delegated capabilities.');
       }
 
+      const sensitiveDelegation = hasDelegationConfidentialContext(input, props);
+      const delegateZkMode = resolveZkMode(
+        input,
+        props,
+        sensitiveDelegation ? 'required' : 'preferred'
+      );
+      const delegationProtection = await protectPayloadWithZk({
+        domain: 'delegation',
+        mode: delegateZkMode,
+        sensitive: sensitiveDelegation,
+        input,
+        props,
+        candidateFields: ['delegationContext', 'context', 'attenuationContext'],
+      });
+
       const delegatedToken = await delegateGranularUcan({
         parentToken,
         issuer,
@@ -310,6 +662,8 @@ export function registerCoreAuthHandlers(registry: GnosisRegistry): void {
           capabilities: effectiveCapabilities,
           audience,
         },
+        delegationContextEncrypted: delegationProtection.encrypted ?? undefined,
+        zkPolicy: delegationProtection.report,
       };
     },
     { override: false }
@@ -415,11 +769,95 @@ export function registerCoreAuthHandlers(registry: GnosisRegistry): void {
         throw new Error(`CustodialSigner denied unknown action: ${action}`);
       }
 
+      const hasCustodialPayload =
+        findPayloadCandidate(input, ['payload', 'signerPayload', 'signature']) !==
+        null;
+      const custodialZkMode = resolveZkMode(
+        input,
+        props,
+        hasCustodialPayload ? 'required' : 'preferred'
+      );
+      const custodialProtection = await protectPayloadWithZk({
+        domain: 'custodial',
+        mode: custodialZkMode,
+        sensitive: hasCustodialPayload,
+        input,
+        props,
+        candidateFields: ['payload', 'signerPayload', 'signature', 'request'],
+      });
+
       return {
         ...input,
+        encrypted: custodialProtection.encrypted ?? undefined,
+        zkPolicy: custodialProtection.report,
         custodial: {
           action,
           allowed,
+          payloadEncrypted: custodialProtection.report.applied,
+        },
+      };
+    },
+    { override: false }
+  );
+
+  registry.register(
+    GNOSIS_CORE_AUTH_LABELS.ZK_SYNC_ENVELOPE,
+    async (payload, props) => {
+      const input = asRecord(payload);
+      const syncSensitive = isCrossBoundarySync(input, props);
+      const syncMode = resolveZkMode(
+        input,
+        props,
+        syncSensitive ? 'required' : 'preferred'
+      );
+      const syncProtection = await protectPayloadWithZk({
+        domain: 'sync',
+        mode: syncMode,
+        sensitive: syncSensitive,
+        input,
+        props,
+        candidateFields: ['delta', 'update', 'payload', 'state', 'snapshot', 'data'],
+      });
+
+      return {
+        ...input,
+        encrypted: syncProtection.encrypted ?? undefined,
+        zkPolicy: syncProtection.report,
+        syncEnvelope: {
+          sensitive: syncSensitive,
+          encrypted: syncProtection.report.applied,
+        },
+      };
+    },
+    { override: false }
+  );
+
+  registry.register(
+    GNOSIS_CORE_AUTH_LABELS.ZK_MATERIALIZE_ENVELOPE,
+    async (payload, props) => {
+      const input = asRecord(payload);
+      const privateMaterialization = isPrivateMaterialization(input, props);
+      const materializeMode = resolveZkMode(
+        input,
+        props,
+        privateMaterialization ? 'required' : 'preferred'
+      );
+      const materializeProtection = await protectPayloadWithZk({
+        domain: 'materialization',
+        mode: materializeMode,
+        sensitive: privateMaterialization,
+        input,
+        props,
+        candidateFields: ['payload', 'plaintext', 'value', 'state', 'snapshot', 'content'],
+      });
+
+      return {
+        ...input,
+        encrypted: materializeProtection.encrypted ?? undefined,
+        zkPolicy: materializeProtection.report,
+        materializationEnvelope: {
+          private: privateMaterialization,
+          encrypted: materializeProtection.report.applied,
         },
       };
     },

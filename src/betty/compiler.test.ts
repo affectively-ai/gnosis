@@ -48,4 +48,14 @@ describe('BettyCompiler', () => {
         expect(diagnostics.some(d => d.message.includes('Disconnected node'))).toBe(true);
         expect(diagnostics.find(d => d.message.includes('Disconnected node'))?.severity).toBe('warning');
     });
+
+    it('should auto-inject ZK sync envelope nodes for sensitive sync properties', () => {
+        const { ast, diagnostics } = compiler.parse(`
+            (src:Source)-[:PROCESS { crossTenant: "true" }]->(dst:Sink)
+        `);
+
+        const labels = Array.from(ast?.nodes.values() ?? []).flatMap(node => node.labels);
+        expect(labels).toContain('ZKSyncEnvelope');
+        expect(diagnostics.some(d => d.message.includes('Auto-injected'))).toBe(true);
+    });
 });
