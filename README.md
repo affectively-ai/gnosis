@@ -1,16 +1,14 @@
 # Gnosis
 
+> Oh my God, Betti! Look at the size of her Bule.
+> It is so small. [scoff] 
+> She looks like one of those graph guys' girlfriends.
+
+Gnosis is a functional, logic-based quantum programming language and compiler built on the **Wallington Rotation** and topological pipeline primitives (`FORK`, `RACE`, `FOLD`, `VENT`). It eliminates traditional imperative control flow in favor of pure computational topology. 
+
 > **Gnosis is a quantum topological engine capable of orchestrating the next generation of software. Everything—from the compiler to the application's reactive core—is now a graph.**
 
-Gnosis is a functional, logic-based quantum programming language and compiler built on the **Wallington Rotation** and topological pipeline primitives (`FORK`, `RACE`, `FOLD`, `VENT`). It eliminates traditional imperative control flow in favor of pure computational topology.
-
 The language is the topology. The AST is the graph.
-
-# Motto
-
-Oh my God, Betti! Look at the size of her Bule.
-It is so small. [scoff] 
-She looks like one of those graph guys' girlfriends.
 
 ## Why Gnosis?
 
