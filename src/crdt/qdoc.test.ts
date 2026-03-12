@@ -72,6 +72,34 @@ describe('QMap — replaces Y.Map', () => {
     const map2 = doc.getMap('shared');
     expect(map1).toBe(map2);
   });
+
+  test('observe/unobserve is Y.Map compatible', () => {
+    const doc = new QDoc();
+    const map = doc.getMap('shared');
+    const actions: Array<'add' | 'update' | 'delete'> = [];
+
+    const handler = (event: {
+      keysChanged: Set<string>;
+      changes: {
+        keys: Map<string, { action: 'add' | 'update' | 'delete'; oldValue?: unknown }>;
+      };
+    }) => {
+      expect(event.keysChanged.has('k')).toBe(true);
+      const change = event.changes.keys.get('k');
+      if (change) {
+        actions.push(change.action);
+      }
+    };
+
+    map.observe(handler);
+    map.set('k', 1);
+    map.set('k', 2);
+    map.delete('k');
+    map.unobserve(handler);
+    map.set('k', 3);
+
+    expect(actions).toEqual(['add', 'update', 'delete']);
+  });
 });
 
 describe('QArray — replaces Y.Array', () => {

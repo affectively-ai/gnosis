@@ -75,6 +75,7 @@ export interface QDocEvent {
   path: string;
   key?: string;
   value?: unknown;
+  previousValue?: unknown;
   origin: string;
 }
 
@@ -445,6 +446,15 @@ export class QMap {
   private readonly _name: string;
   private readonly _strategy: GgCollapseStrategy;
   private readonly _data: Map<string, unknown> = new Map();
+  private readonly _observeHandlers: Map<
+    (event: {
+      keysChanged: Set<string>;
+      changes: {
+        keys: Map<string, { action: 'add' | 'update' | 'delete'; oldValue?: unknown }>;
+      };
+    }) => void,
+    QDocObserveHandler
+  > = new Map();
   private _branchCounter = 0;
 
   constructor(doc: QDoc, name: string, strategy: GgCollapseStrategy) {
@@ -462,6 +472,8 @@ export class QMap {
   }
 
   set(key: string, value: unknown): void {
+    const hadPreviousValue = this._data.has(key);
+    const previousValue = this._data.get(key);
     const branchId = `map_${this._name}_${key}_${this._branchCounter++}`;
     const valueStr = typeof value === 'string' ? value : JSON.stringify(value);
 
@@ -493,9 +505,22 @@ export class QMap {
     });
 
     this._data.set(key, value);
-    this._doc._emitObserve(this._name, {
-      type: 'set', path: this._name, key, value, origin: 'local',
-    });
+    this._doc._emitObserve(this._name, hadPreviousValue
+      ? {
+          type: 'set',
+          path: this._name,
+          key,
+          value,
+          previousValue,
+          origin: 'local',
+        }
+      : {
+          type: 'set',
+          path: this._name,
+          key,
+          value,
+          origin: 'local',
+        });
     this._doc._notifyUpdate('local');
   }
 
@@ -508,7 +533,11 @@ export class QMap {
   }
 
   delete(key: string): void {
-    this._data.delete(key);
+    const hadPreviousValue = this._data.has(key);
+    const previousValue = this._data.get(key);
+    if (!this._data.delete(key)) {
+      return;
+    }
     const branchId = `map_${this._name}_${key}_del_${this._branchCounter++}`;
     this._doc._appendNode({
       id: branchId,
@@ -521,6 +550,20 @@ export class QMap {
       type: 'FORK',
       properties: { path: this._name, key, op: 'delete' },
     });
+    this._doc._emitObserve(this._name, hadPreviousValue
+      ? {
+          type: 'delete',
+          path: this._name,
+          key,
+          previousValue,
+          origin: 'local',
+        }
+      : {
+          type: 'delete',
+          path: this._name,
+          key,
+          origin: 'local',
+        });
     this._doc._notifyUpdate('local');
   }
 
@@ -550,6 +593,67 @@ export class QMap {
 
   values(): IterableIterator<unknown> {
     return this._data.values();
+  }
+
+  // Y.Map compat surface used by downstream apps.
+  get doc(): QDoc {
+    return this._doc;
+  }
+
+  observe(
+    handler: (event: {
+      keysChanged: Set<string>;
+      changes: {
+        keys: Map<string, { action: 'add' | 'update' | 'delete'; oldValue?: unknown }>;
+      };
+    }) => void
+  ): void {
+    if (this._observeHandlers.has(handler)) {
+      return;
+    }
+    const wrapped: QDocObserveHandler = (event) => {
+      if (!event.key) {
+        return;
+      }
+      const hasPreviousValue = Object.prototype.hasOwnProperty.call(
+        event,
+        'previousValue'
+      );
+      const action: 'add' | 'update' | 'delete' =
+        event.type === 'delete'
+          ? 'delete'
+          : hasPreviousValue
+            ? 'update'
+            : 'add';
+      const change =
+        action === 'add'
+          ? { action }
+          : { action, oldValue: event.previousValue };
+      handler({
+        keysChanged: new Set([event.key]),
+        changes: {
+          keys: new Map([[event.key, change]]),
+        },
+      });
+    };
+    this._observeHandlers.set(handler, wrapped);
+    this._doc.observe(this._name, wrapped);
+  }
+
+  unobserve(
+    handler: (event: {
+      keysChanged: Set<string>;
+      changes: {
+        keys: Map<string, { action: 'add' | 'update' | 'delete'; oldValue?: unknown }>;
+      };
+    }) => void
+  ): void {
+    const wrapped = this._observeHandlers.get(handler);
+    if (!wrapped) {
+      return;
+    }
+    this._doc.unobserve(this._name, wrapped);
+    this._observeHandlers.delete(handler);
   }
 }
 
