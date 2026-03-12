@@ -17,6 +17,7 @@
     "@affectively/aeon-logic": "workspace:*",
     "@affectively/aeon-pipelines": "workspace:*",
     "chalk": "^5.3.0",
+    "twokeys": "^3.0.1",
     "gnosis_runtime": "./runtime/pkg",
     "ink": "^4.4.1",
     "ink-text-input": "^5.0.1",

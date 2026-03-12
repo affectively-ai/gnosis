@@ -78,14 +78,15 @@ export class BettyCompiler {
             
             const properties: Record<string, string> = {};
             if (propertiesRaw) {
-                propertiesRaw.split(',').forEach(prop => {
-                    const parts = prop.split(':');
-                    if (parts.length >= 2) {
-                        const key = parts[0].trim();
-                        const val = parts.slice(1).join(':').trim().replace(/['"]/g, '');
+                const propPairs = propertiesRaw.match(/(\w+)\s*:\s*('[^']*'|"[^"]*"|\[[^\]]*\]|[^,]+)/g);
+                if (propPairs) {
+                    propPairs.forEach(pair => {
+                        const colonIndex = pair.indexOf(':');
+                        const key = pair.substring(0, colonIndex).trim();
+                        const val = pair.substring(colonIndex + 1).trim().replace(/^['"]|['"]$/g, '');
                         if (key && val) properties[key] = val;
-                    }
-                });
+                    });
+                }
             }
 
             if (!this.ast.nodes.has(id)) {
@@ -129,10 +130,15 @@ export class BettyCompiler {
 
             const properties: Record<string, string> = {};
             if (propertiesRaw) {
-                propertiesRaw.split(',').forEach(prop => {
-                    const [key, val] = prop.split(':').map(s => s.trim().replace(/['"]/g, ''));
-                    if (key && val) properties[key] = val;
-                });
+                const propPairs = propertiesRaw.match(/(\w+)\s*:\s*('[^']*'|"[^"]*"|\[[^\]]*\]|[^,]+)/g);
+                if (propPairs) {
+                    propPairs.forEach(pair => {
+                        const colonIndex = pair.indexOf(':');
+                        const key = pair.substring(0, colonIndex).trim();
+                        const val = pair.substring(colonIndex + 1).trim().replace(/^['"]|['"]$/g, '');
+                        if (key && val) properties[key] = val;
+                    });
+                }
             }
 
             // Sync local AST calculation for Betty logs, while passing through the WASM engine
@@ -147,6 +153,7 @@ export class BettyCompiler {
                 this.b1 = Math.max(0, this.b1 - 1);
                 this.logs.push(`[Betty] Vented path. Waste heat dissipated. (WASM: ${this.wasmBridge.processAstEdge(edgeType, sources.length, targets.length)})`);
             } else if (edgeType === 'RACE') {
+                this.b1 = Math.max(0, this.b1 - (sources.length - 1));
                 this.logs.push(`[Betty] Racing ${sources.length} paths. Homotopy equivalence maintained. (WASM: ${this.wasmBridge.processAstEdge(edgeType, sources.length, targets.length)})`);
             } else if (edgeType === 'PROCESS') {
                 this.logs.push(`[Betty] Processed path sequentially. (WASM: ${this.wasmBridge.processAstEdge(edgeType, sources.length, targets.length)})`);

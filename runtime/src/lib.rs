@@ -28,7 +28,7 @@ pub struct FlowFrame {
 
 #[wasm_bindgen]
 impl FlowFrame {
-    pub fn new(stream_id: u16, sequence: u32, flags: u8, payload: &[u8]) -> Result<FlowFrame, JsValue> {
+    pub fn create(stream_id: u16, sequence: u32, flags: u8, payload: &[u8]) -> Result<FlowFrame, JsValue> {
         if payload.len() > MAX_PAYLOAD_LENGTH {
             return Err(JsValue::from_str("Payload too large"));
         }

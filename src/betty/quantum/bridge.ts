@@ -1,3 +1,4 @@
+// @ts-ignore
 import { QuantumRuntime, FlowFrame } from 'gnosis_runtime';
 
 export class QuantumWasmBridge {
@@ -40,7 +41,7 @@ export class QuantumWasmBridge {
 
         try {
             // Encode the 10-byte FlowFrame format EXACTLY like aeon-pipelines
-            const frame = FlowFrame.new(1, 1, flags, dummyPayload);
+            const frame = (FlowFrame as any).create(1, 1, flags, dummyPayload);
             const encodedBytes = frame.encode();
 
             // Pass it directly through the Rust/WASM vectorized engine

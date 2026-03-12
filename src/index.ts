@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { Pipeline } from '@affectively/aeon-pipelines';
 import { ForkRaceFoldModelChecker, TemporalModel } from '@affectively/aeon-logic';
+import * as twokeys from 'twokeys';
 import { BettyCompiler } from './betty/compiler.js';
 import { GnosisRegistry } from './runtime/registry.js';
 import { GnosisEngine } from './runtime/engine.js';
@@ -10,6 +11,7 @@ import { ModManager } from './mod/manager.js';
 const args = process.argv.slice(2);
 
 async function main() {
+    // ... rest of main ...
     if (args[0] === 'mod') {
         const modManager = new ModManager();
         try {
@@ -124,7 +126,7 @@ async function main() {
                 const expWork = x.map(v => async () => Math.exp(v));
                 
                 const exps = await Pipeline.from(expWork)
-                    .vent((val) => val < threshold)
+                    .vent((val: number) => val < threshold)
                     .fold({
                         type: 'merge-all',
                         merge: (results: Map<number, any>) => Array.from(results.values()).map(r => r)
@@ -212,20 +214,32 @@ async function main() {
                 const edges = (astData.edge_lexer || []) as any[];
                 
                 // Find roots (nodes with no incoming edges)
-                const allTargets = new Set(edges.flatMap(e => e.target.split('|').map((t: string) => t.trim())));
-                const allSources = new Set(edges.map(e => e.src.trim()));
+                const allTargets = new Set(
+                    edges.flatMap((e: any) => e.target.split('|').map((t: string) => t.trim()))
+                );
+                const allSources = new Set(
+                    edges.flatMap((e: any) => e.src.split('|').map((src: string) => src.trim()))
+                );
                 const roots = Array.from(allSources).filter(s => !allTargets.has(s));
                 
-                const initialNode = roots.length > 0 ? roots[0] : (edges.length > 0 ? edges[0].src.trim() : 'root');
+                const initialNode = roots.length > 0
+                    ? roots[0]
+                    : (edges.length > 0 ? edges[0].src.split('|')[0].trim() : 'root');
 
                 const model: TemporalModel<VerifyState> = {
                     initialStates: [{ nodeId: initialNode, beta1: 0 }],
-                    fingerprint: (s) => `${s.nodeId.trim()}:${s.beta1}`,
+                    fingerprint: (s: VerifyState) => `${s.nodeId.trim()}:${s.beta1}`,
                     actions: [{
                         name: 'step',
-                        successors: (s) => {
-                            const outgoing = edges.filter(e => e.src.trim() === s.nodeId.trim());
-                            return outgoing.flatMap(e => {
+                        successors: (s: VerifyState) => {
+                            const outgoing = edges.filter((e: any) =>
+                                e.src
+                                    .split('|')
+                                    .map((src: string) => src.trim())
+                                    .includes(s.nodeId.trim())
+                            );
+                            return outgoing.flatMap((e: any) => {
+                                const sources = e.src.split('|').map((src: string) => src.trim());
                                 const targets = e.target.split('|').map((t: string) => t.trim());
                                 if (e.type === 'FORK') {
                                     const nextBeta1 = s.beta1 + (targets.length - 1);
@@ -233,6 +247,10 @@ async function main() {
                                 }
                                 if (e.type === 'FOLD' || e.type === 'COLLAPSE') {
                                     return targets.map((t: string) => ({ nodeId: t, beta1: 0 }));
+                                }
+                                if (e.type === 'RACE') {
+                                    const nextBeta1 = Math.max(0, s.beta1 - (sources.length - 1));
+                                    return targets.map((t: string) => ({ nodeId: t, beta1: nextBeta1 }));
                                 }
                                 return targets.map((t: string) => ({ nodeId: t, beta1: s.beta1 }));
                             });
@@ -245,7 +263,7 @@ async function main() {
                     maxDepth: 20,
                     invariants: [{
                         name: 'Beta1 Bounds',
-                        test: (s) => s.beta1 >= 0 && s.beta1 < 10
+                        test: (s: VerifyState) => s.beta1 >= 0 && s.beta1 < 10
                     }]
                 });
 
@@ -262,6 +280,42 @@ async function main() {
                 const target = props['target'];
                 console.log(`[Betti:Runtime] Emitting binary for ${target}...`);
                 return Buffer.from([0x0a, 0x0e, 0x00, 0x46, 0x4c, 0x4f, 0x57]);
+            });
+
+            // Twokeys Statistical Handlers
+            registry.register('Statistics', async (payload, props) => {
+                const op = props['op'] || 'describe';
+                console.log(`[Twokeys:Statistics] Running ${op}...`);
+
+                if (Array.isArray(payload) && typeof payload[0] === 'number') {
+                    const series = new (twokeys as any).Series({ data: payload });
+                    if (op === 'mean') return series.mean();
+                    if (op === 'median') return series.median().datum;
+                    if (op === 'outliers') return series.outliers();
+                    if (op === 'describe') return series.describe();
+                }
+
+                if (Array.isArray(payload) && Array.isArray(payload[0])) {
+                    const points = new (twokeys as any).Points({ data: payload });
+                    if (op === 'centroid') return points.centroid();
+                    if (op === 'describe') return points.describe();
+                }
+
+                return payload;
+            });
+
+            registry.register('Graph', async (payload, props) => {
+                const op = props['op'] || 'pageRank';
+                console.log(`[Twokeys:Graph] Running ${op}...`);
+
+                const nodes = payload.nodes || [];
+                const edges = payload.edges || [];
+
+                if (op === 'pageRank') return (twokeys as any).pageRank(nodes, edges);
+                if (op === 'louvain') return (twokeys as any).louvainCommunities(nodes, edges);
+                if (op === 'eda') return (twokeys as any).graphEda(nodes, edges);
+
+                return payload;
             });
 
             const engine = new GnosisEngine(registry);
