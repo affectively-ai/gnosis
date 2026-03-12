@@ -1,14 +1,36 @@
 import fs from 'fs';
 import path from 'path';
 import { Pipeline } from '@affectively/aeon-pipelines';
-import { ForkRaceFoldModelChecker, TemporalModel } from '@affectively/aeon-logic';
 import * as twokeys from 'twokeys';
 import { BettyCompiler } from './betty/compiler.js';
 import { GnosisRegistry } from './runtime/registry.js';
 import { GnosisEngine } from './runtime/engine.js';
 import { ModManager } from './mod/manager.js';
+import { analyzeGnosisSource, formatGnosisViolations } from './analysis.js';
+import {
+    analyzeTypeScriptTargets,
+    parseTsSonarThresholds
+} from './ts-sonar.js';
 
 const args = process.argv.slice(2);
+
+function resolveTopologyPath(rawPath: string): string {
+    return path.resolve(process.cwd(), rawPath);
+}
+
+function isGgTarget(filePath: string): boolean {
+    const extension = path.extname(filePath).toLowerCase();
+    return extension === '.gg' || extension === '.ggx';
+}
+
+function parseMaxBuley(rawArgs: string[]): number | null {
+    const flagIndex = rawArgs.indexOf('--max-buley');
+    if (flagIndex < 0) return null;
+    const rawValue = rawArgs[flagIndex + 1];
+    if (!rawValue) return null;
+    const parsed = Number.parseFloat(rawValue);
+    return Number.isFinite(parsed) ? parsed : null;
+}
 
 async function main() {
     // ... rest of main ...
@@ -26,8 +48,104 @@ async function main() {
             console.error(`[Gnosis Error] ${e.message}`);
         }
         process.exit(0);
+    } else if (args[0] === 'test' && args[1]) {
+        const testPath = resolveTopologyPath(args[1]);
+        if (!fs.existsSync(testPath)) {
+            console.error(`[Gnosis Error] File not found: ${testPath}`);
+            process.exit(1);
+        }
+        const { runGGTestFile, formatGGTestResults } = await import('./gg-test-runner.js');
+        const result = await runGGTestFile(testPath);
+        const jsonOutput = args.includes('--json');
+        if (jsonOutput) {
+            console.log(JSON.stringify(result, null, 2));
+        } else {
+            console.log(formatGGTestResults(result));
+        }
+        process.exit(result.ok ? 0 : 1);
+    } else if ((args[0] === 'lint' || args[0] === 'verify' || args[0] === 'analyze') && args[1]) {
+        const filePath = resolveTopologyPath(args[1]);
+        if (!fs.existsSync(filePath)) {
+            console.error(`[Gnosis Error] File not found: ${filePath}`);
+            process.exit(1);
+        }
+
+        const jsonOutput = args.includes('--json');
+        if (isGgTarget(filePath)) {
+            const maxBuley = parseMaxBuley(args);
+            const source = fs.readFileSync(filePath, 'utf-8');
+            const report = await analyzeGnosisSource(source);
+            const violations = formatGnosisViolations(report.correctness);
+            const buleyExceeded = maxBuley !== null && report.buleyNumber > maxBuley;
+            const ok = report.correctness.ok && !buleyExceeded;
+
+            if (jsonOutput) {
+                console.log(JSON.stringify({
+                    filePath,
+                    mode: 'gg',
+                    ok,
+                    buleyNumber: report.buleyNumber,
+                    maxBuley,
+                    line: report.line,
+                    topology: report.topology,
+                    quantum: report.quantum,
+                    correctness: {
+                        ok: report.correctness.ok,
+                        stateCount: report.correctness.stateCount,
+                        topology: report.correctness.topology,
+                        violationCount: report.correctness.violations.length,
+                        violations
+                    }
+                }, null, 2));
+            } else {
+                console.log(`[Gnosis ${args[0]}] ${filePath}`);
+                console.log(`  correctness: ${report.correctness.ok ? 'PASS' : 'FAIL'} (states=${report.correctness.stateCount}, beta1=${report.correctness.topology.beta1})`);
+                console.log(`  buley-number: ${report.buleyNumber}${maxBuley !== null ? ` (max=${maxBuley})` : ''}`);
+                console.log(`  lines: total=${report.line.totalLines} non-empty=${report.line.nonEmptyLines} comments=${report.line.commentLines} topology=${report.line.topologyLines}`);
+                console.log(`  topology: nodes=${report.topology.nodeCount} functions=${report.topology.functionNodeCount} edges=${report.topology.edgeCount} forks=${report.topology.forkEdgeCount} races=${report.topology.raceEdgeCount} folds=${report.topology.foldEdgeCount} vents=${report.topology.ventEdgeCount} interfere=${report.topology.interfereEdgeCount}`);
+                console.log(`  complexity: max-branch=${report.topology.maxBranchFactor} avg-branch=${report.topology.avgBranchFactor} cyclomatic≈${report.topology.cyclomaticApprox}`);
+                console.log(`  quantum: superposition=${report.quantum.superpositionEdgeCount} collapse=${report.quantum.collapseEdgeCount} coverage=${report.quantum.collapseCoverage} deficit=${report.quantum.collapseDeficit} interference-density=${report.quantum.interferenceDensity}`);
+                console.log(`  quantum-index: ${report.quantum.quantumIndex} beta-pressure=${report.quantum.betaPressure} beta-headroom=${report.quantum.betaHeadroom}`);
+                if (violations.length > 0) {
+                    violations.forEach((line) => console.error(`  ${line}`));
+                }
+                if (buleyExceeded) {
+                    console.error(`  buley-threshold-failed: ${report.buleyNumber} > ${maxBuley}`);
+                }
+            }
+
+            process.exit(ok ? 0 : 1);
+        }
+
+        const tsReport = analyzeTypeScriptTargets([filePath], parseTsSonarThresholds(args));
+        if (jsonOutput) {
+            console.log(JSON.stringify({
+                mode: 'typescript',
+                target: filePath,
+                ...tsReport
+            }, null, 2));
+        } else {
+            console.log(`[Gnosis ${args[0]}:ts] ${filePath}`);
+            console.log(`  status: ${tsReport.ok ? 'PASS' : 'FAIL'}`);
+            console.log(`  files=${tsReport.fileCount} lines=${tsReport.totals.totalLines} code=${tsReport.totals.codeLines} comments=${tsReport.totals.commentLines}`);
+            console.log(`  structures: functions=${tsReport.totals.functionCount} classes=${tsReport.totals.classCount} interfaces=${tsReport.totals.interfaceCount} types=${tsReport.totals.typeAliasCount}`);
+            console.log(`  complexity: max-cyclomatic=${tsReport.totals.maxCyclomatic} max-cognitive=${tsReport.totals.maxCognitive} max-nesting=${tsReport.totals.maxNesting} max-function-lines=${tsReport.totals.maxFunctionLines}`);
+            console.log(`  totals: cyclomatic=${tsReport.totals.totalCyclomatic} cognitive=${tsReport.totals.totalCognitive} branches=${tsReport.totals.branchCount} loops=${tsReport.totals.loopCount}`);
+            if (tsReport.hotspots.byCognitive.length > 0) {
+                const hotspot = tsReport.hotspots.byCognitive[0];
+                console.log(`  hotspot(cognitive): ${hotspot.filePath}:${hotspot.startLine} ${hotspot.name}=${hotspot.cognitive}`);
+            }
+            if (tsReport.violations.length > 0) {
+                tsReport.violations.forEach((line) => console.error(`  ${line}`));
+            }
+        }
+
+        process.exit(tsReport.ok ? 0 : 1);
+    } else if (args[0] === 'lint' || args[0] === 'verify' || args[0] === 'analyze') {
+        console.error(`[Gnosis] Usage: gnosis ${args[0]} <target> [--max-buley <number>] [--max-file-lines <number>] [--max-function-lines <number>] [--max-cyclomatic <number>] [--max-cognitive <number>] [--max-nesting <number>] [--json]`);
+        process.exit(1);
     } else if (args[0] === 'run' && args[1]) {
-        const filePath = path.resolve(process.cwd(), args[1]);
+        const filePath = resolveTopologyPath(args[1]);
         if (!fs.existsSync(filePath)) {
             console.error(`[Gnosis Error] File not found: ${filePath}`);
             process.exit(1);
@@ -35,6 +153,16 @@ async function main() {
         
         console.log(`[Gnosis] Reading topology from ${filePath}...`);
         const content = fs.readFileSync(filePath, 'utf-8');
+
+        const runtimeReport = await analyzeGnosisSource(content);
+        if (!runtimeReport.correctness.ok) {
+            console.error(`[Gnosis] Formal verification failed before execution.`);
+            formatGnosisViolations(runtimeReport.correctness).forEach((line) => {
+                console.error(`  ${line}`);
+            });
+            process.exit(1);
+        }
+        console.log(`[Gnosis] Formal check passed. Buley Number: ${runtimeReport.buleyNumber}, Quantum Index: ${runtimeReport.quantum.quantumIndex}`);
         
         const betty = new BettyCompiler();
         const { ast, output } = betty.parse(content);
@@ -205,75 +333,30 @@ async function main() {
             registry.register('Topology', async (payload, props) => {
                 const astData = payload.data as any;
                 console.log(`[Betti:Topology] Verifying quantum bounds with aeon-logic...`);
+                const edges = (astData.edge_lexer || []) as Array<{ src: string; type: string; props?: string; target: string }>;
+                const ggSource = edges
+                    .map((edge) => {
+                        const properties = edge.props ? ` { ${edge.props} }` : '';
+                        return `(${edge.src})-[:${edge.type}${properties}]->(${edge.target})`;
+                    })
+                    .join('\n');
 
-                interface VerifyState {
-                    nodeId: string;
-                    beta1: number;
+                const report = await analyzeGnosisSource(ggSource);
+                if (!report.correctness.ok) {
+                    const [firstViolation] = formatGnosisViolations(report.correctness);
+                    console.error(`[Betti:Topology] Verification Failed: ${firstViolation || 'Unknown violation'}`);
+                    return { ...payload, verified: false, errors: report.correctness.violations, buleyNumber: report.buleyNumber };
                 }
 
-                const edges = (astData.edge_lexer || []) as any[];
-                
-                // Find roots (nodes with no incoming edges)
-                const allTargets = new Set(
-                    edges.flatMap((e: any) => e.target.split('|').map((t: string) => t.trim()))
-                );
-                const allSources = new Set(
-                    edges.flatMap((e: any) => e.src.split('|').map((src: string) => src.trim()))
-                );
-                const roots = Array.from(allSources).filter(s => !allTargets.has(s));
-                
-                const initialNode = roots.length > 0
-                    ? roots[0]
-                    : (edges.length > 0 ? edges[0].src.split('|')[0].trim() : 'root');
-
-                const model: TemporalModel<VerifyState> = {
-                    initialStates: [{ nodeId: initialNode, beta1: 0 }],
-                    fingerprint: (s: VerifyState) => `${s.nodeId.trim()}:${s.beta1}`,
-                    actions: [{
-                        name: 'step',
-                        successors: (s: VerifyState) => {
-                            const outgoing = edges.filter((e: any) =>
-                                e.src
-                                    .split('|')
-                                    .map((src: string) => src.trim())
-                                    .includes(s.nodeId.trim())
-                            );
-                            return outgoing.flatMap((e: any) => {
-                                const sources = e.src.split('|').map((src: string) => src.trim());
-                                const targets = e.target.split('|').map((t: string) => t.trim());
-                                if (e.type === 'FORK') {
-                                    const nextBeta1 = s.beta1 + (targets.length - 1);
-                                    return targets.map((t: string) => ({ nodeId: t, beta1: nextBeta1 }));
-                                }
-                                if (e.type === 'FOLD' || e.type === 'COLLAPSE') {
-                                    return targets.map((t: string) => ({ nodeId: t, beta1: 0 }));
-                                }
-                                if (e.type === 'RACE') {
-                                    const nextBeta1 = Math.max(0, s.beta1 - (sources.length - 1));
-                                    return targets.map((t: string) => ({ nodeId: t, beta1: nextBeta1 }));
-                                }
-                                return targets.map((t: string) => ({ nodeId: t, beta1: s.beta1 }));
-                            });
-                        }
-                    }]
+                console.log(`[Betti:Topology] Verified! States explored: ${report.correctness.stateCount}, Beta1: ${report.correctness.topology.beta1}, Buley Number: ${report.buleyNumber}, Quantum Index: ${report.quantum.quantumIndex}`);
+                return {
+                    ...payload,
+                    verified: true,
+                    stats: report.correctness.topology,
+                    buleyNumber: report.buleyNumber,
+                    quantum: report.quantum,
+                    complexity: report.topology
                 };
-
-                const checker = new ForkRaceFoldModelChecker<VerifyState>();
-                const result = await checker.check(model, {
-                    maxDepth: 20,
-                    invariants: [{
-                        name: 'Beta1 Bounds',
-                        test: (s: VerifyState) => s.beta1 >= 0 && s.beta1 < 10
-                    }]
-                });
-
-                if (!result.ok) {
-                    console.error(`[Betti:Topology] Verification Failed: ${result.violations[0].message}`);
-                    return { ...payload, verified: false, errors: result.violations };
-                }
-
-                console.log(`[Betti:Topology] Verified! States explored: ${result.stateCount}, Beta1: ${result.topology.beta1}`);
-                return { ...payload, verified: true, stats: result.topology };
             });
 
             registry.register('Runtime', async (payload, props) => {
