@@ -11,6 +11,15 @@ interface DestructureBinding {
   targetKey: string;
 }
 
+interface GnosisQubitState {
+  type: 'qubit';
+  alpha: number;
+  beta: number;
+  basis: '0' | '1' | '+' | '-';
+}
+
+const SQRT1_2 = Math.SQRT1_2;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -58,6 +67,15 @@ function isTaggedValue(payload: unknown): payload is GnosisTaggedValue {
 
   const kind = normalizeToken(payload.kind);
   return kind === 'ok' || kind === 'err' || kind === 'some' || kind === 'none';
+}
+
+function isQubitState(payload: unknown): payload is GnosisQubitState {
+  return (
+    isRecord(payload) &&
+    payload.type === 'qubit' &&
+    typeof payload.alpha === 'number' &&
+    typeof payload.beta === 'number'
+  );
 }
 
 function parseBindings(raw: string | undefined): DestructureBinding[] {
@@ -205,6 +223,82 @@ function resolvePayloadField(
   return payload[fieldName];
 }
 
+function buildQubitStateFromBasis(
+  basisRaw: string | undefined
+): GnosisQubitState {
+  const basis = normalizeToken(basisRaw ?? '0');
+  switch (basis) {
+    case '1':
+      return { type: 'qubit', alpha: 0, beta: 1, basis: '1' };
+    case '+':
+      return { type: 'qubit', alpha: SQRT1_2, beta: SQRT1_2, basis: '+' };
+    case '-':
+      return { type: 'qubit', alpha: SQRT1_2, beta: -SQRT1_2, basis: '-' };
+    default:
+      return { type: 'qubit', alpha: 1, beta: 0, basis: '0' };
+  }
+}
+
+function normalizeQubitState(
+  payload: unknown,
+  basisRaw?: string
+): GnosisQubitState {
+  if (isQubitState(payload)) {
+    return payload;
+  }
+
+  return buildQubitStateFromBasis(basisRaw);
+}
+
+function classifyQubitBasis(
+  alpha: number,
+  beta: number
+): '0' | '1' | '+' | '-' {
+  const roundedAlpha = Math.round(alpha * 1000) / 1000;
+  const roundedBeta = Math.round(beta * 1000) / 1000;
+  const roundedHalf = Math.round(SQRT1_2 * 1000) / 1000;
+
+  if (roundedAlpha === 1 && roundedBeta === 0) {
+    return '0';
+  }
+  if (roundedAlpha === 0 && roundedBeta === 1) {
+    return '1';
+  }
+  if (roundedAlpha === roundedHalf && roundedBeta === roundedHalf) {
+    return '+';
+  }
+  if (roundedAlpha === roundedHalf && roundedBeta === -roundedHalf) {
+    return '-';
+  }
+
+  return Math.abs(beta) > Math.abs(alpha) ? '1' : '0';
+}
+
+function collapseMeasurement(
+  qubit: GnosisQubitState,
+  forcedOutcomeRaw: string | undefined
+): {
+  kind: 'zero' | 'one';
+  value: 0 | 1;
+  probabilities: { zero: number; one: number };
+} {
+  const probabilities = {
+    zero: Math.round(qubit.alpha ** 2 * 1000) / 1000,
+    one: Math.round(qubit.beta ** 2 * 1000) / 1000,
+  };
+  const forcedOutcome = normalizeToken(forcedOutcomeRaw ?? '');
+  if (forcedOutcome === '1' || forcedOutcome === 'one') {
+    return { kind: 'one', value: 1, probabilities };
+  }
+  if (forcedOutcome === '0' || forcedOutcome === 'zero') {
+    return { kind: 'zero', value: 0, probabilities };
+  }
+
+  return probabilities.one > probabilities.zero
+    ? { kind: 'one', value: 1, probabilities }
+    : { kind: 'zero', value: 0, probabilities };
+}
+
 export function registerCoreRuntimeHandlers(registry: GnosisRegistry): void {
   registry.register('Result', async (payload, props) => {
     const derivedKind = deriveTaggedKindFromField(
@@ -289,5 +383,40 @@ export function registerCoreRuntimeHandlers(registry: GnosisRegistry): void {
     }
 
     return extracted;
+  });
+
+  registry.register('Qubit', async (payload, props) => {
+    return normalizeQubitState(payload, props.state ?? props.basis);
+  });
+
+  registry.register('Hadamard', async (payload, props) => {
+    const qubit = normalizeQubitState(payload, props.state ?? props.basis);
+    const alpha = (qubit.alpha + qubit.beta) * SQRT1_2;
+    const beta = (qubit.alpha - qubit.beta) * SQRT1_2;
+
+    return {
+      type: 'qubit',
+      alpha,
+      beta,
+      basis: classifyQubitBasis(alpha, beta),
+    } satisfies GnosisQubitState;
+  });
+
+  registry.register('PauliX', async (payload, props) => {
+    const qubit = normalizeQubitState(payload, props.state ?? props.basis);
+    const alpha = qubit.beta;
+    const beta = qubit.alpha;
+
+    return {
+      type: 'qubit',
+      alpha,
+      beta,
+      basis: classifyQubitBasis(alpha, beta),
+    } satisfies GnosisQubitState;
+  });
+
+  registry.register('Measure', async (payload, props) => {
+    const qubit = normalizeQubitState(payload, props.state ?? props.basis);
+    return collapseMeasurement(qubit, props.force ?? props.outcome);
   });
 }

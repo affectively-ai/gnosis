@@ -1,3 +1,4 @@
+import { readFileSync } from 'fs';
 import { describe, it, expect, mock } from 'bun:test';
 import { GnosisEngine } from './engine.js';
 import { GnosisRegistry } from './registry.js';
@@ -131,6 +132,23 @@ describe('GnosisEngine', () => {
     expect(result).toContain('"beta1":0');
     expect(result).toContain('"buleyNumber":1.5');
     expect(result).not.toContain('Executing [fallback]');
+  });
+
+  it('executes native qubit measurement topologies from .gg files', async () => {
+    const registry = new GnosisRegistry();
+    registry.register('Sink', async (payload) => payload);
+
+    const engine = new GnosisEngine(registry);
+    const source = readFileSync(
+      new URL('../../qubit_measure.gg', import.meta.url),
+      'utf-8'
+    );
+    const { ast } = compiler.parse(source);
+
+    const result = await engine.execute(ast!);
+    expect(result).toContain('"kind":"one"');
+    expect(result).toContain('"zero":0.5');
+    expect(result).not.toContain('Executing [zero_path]');
   });
 
   it('should handle MEASURE and HALT edges', async () => {

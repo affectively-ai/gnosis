@@ -27,6 +27,13 @@ Outgoing edges can route on those tagged values with properties such as `case`, 
 
 `Result` and `Option` can also derive their case from a payload field via `kindFrom`, and can narrow the wrapped payload with `valueFrom` or `errorFrom`.
 
+Quantum value primitives are also built in:
+
+- `Qubit`: creates a qubit state from `state` / `basis`
+- `Hadamard`: rotates a qubit into or out of superposition
+- `PauliX`: flips `|0>` and `|1>`
+- `Measure`: collapses to `{ kind: "zero" | "one", value, probabilities }`
+
 ```gg
 (source:Source)-[:PROCESS]->(decision:Result { kind: 'ok' })
 (decision)-[:PROCESS { case: 'ok' }]->(extract:Destructure { from: 'value', fields: 'user,score' })
@@ -36,4 +43,10 @@ Outgoing edges can route on those tagged values with properties such as `case`, 
 ```gg
 (betti_verifier)-[:PROCESS]->(verify_result:Result { kindFrom: 'verified' })
 (verify_result)-[:PROCESS { case: 'ok' }]->(emit_ready:Destructure { from: 'value', fields: 'stats,buleyNumber' })
+```
+
+```gg
+(seed:Qubit { state: '0' })-[:PROCESS]->(superposed:Hadamard)-[:PROCESS]->(collapse:Measure { force: '1' })
+(collapse)-[:PROCESS { case: 'one' }]->(accept)
+(collapse)-[:PROCESS { case: 'zero' }]->(retry)
 ```
