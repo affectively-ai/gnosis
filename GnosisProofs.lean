@@ -324,7 +324,7 @@ theorem spectrallyStable_of_nilpotent
   dsimp [SpectrallyStable]
   have h_radius_zero :=
     spectralRadius_eq_zero_of_pow_eq_zero (a := kernel.transition) h_power h_nilpotent
-  simpa [h_radius_zero]
+  simp [h_radius_zero]
 
 theorem spectrallyStable_of_rowMass
     [NeZero nodeCount]
@@ -363,18 +363,18 @@ theorem spectrallyStable_of_rowMass
                     = ∑ target : Fin nodeCount, ‖kernel.transition source target‖ := by
                         simp [NNReal.coe_sum]
                   _ = ∑ target : Fin nodeCount, kernel.transition source target := by
-                        simp_rw [Real.norm_of_nonneg (h_nonnegative source ·)]
+                        refine Finset.sum_congr rfl ?_
+                        intro target _
+                        exact Real.norm_of_nonneg (h_nonnegative source target)
                   _ = rowBound source := h_row_eq source
               have h_sum_lt_real :
                   (((∑ target : Fin nodeCount, ‖kernel.transition source target‖₊) : NNReal) :
                     Real) < 1 := by
-                rwa [h_sum_eq]
+                simpa [h_sum_eq] using h_row_lt source
               exact NNReal.coe_lt_coe.mp h_sum_lt_real))
   have h_norm_lt_coe_real : ((‖kernel.transition‖₊ : NNReal) : Real) < 1 := by
     simpa using h_norm_lt_real
-  have h_norm_lt : ((‖kernel.transition‖₊ : NNReal) : ℝ≥0∞) < 1 := by
-    exact_mod_cast h_norm_lt_coe_real
-  exact h_norm_lt
+  exact_mod_cast h_norm_lt_coe_real
 
 theorem certifiedKernel_stable_of_supremum
     [NeZero nodeCount]

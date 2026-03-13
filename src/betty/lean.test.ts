@@ -24,8 +24,30 @@ describe('generateLeanFromGnosisAst', () => {
     expect(artifact?.lean).toContain('import GnosisProofs');
     expect(artifact?.lean).toContain('CertifiedKernel');
     expect(artifact?.lean).toContain('certifiedKernel_stable_of_drift_certificate');
+    expect(artifact?.lean).toContain('spectrallyStable_of_nilpotent');
+    expect(artifact?.lean).toContain('transitionRat ^ topologyNodeCount = 0');
     expect(artifact?.lean).toContain('topologyNodes');
     expect(artifact?.lean).toContain('proof-kind: symbolic-reneging');
     expect(artifact?.lean).not.toContain('GnosisKernel (_lam _mu : Real)');
+  });
+
+  it('emits a row-contractive proof for bounded supremum routing', () => {
+    const compiler = new BettyCompiler();
+    const { ast, stability } = compiler.parse(`
+      (inbound:Source { pressure: "1" })
+      (complete:Sink { beta1_target: "0", capacity: "64" })
+      (inbound)-[:RACE { weight: "0.4", supremum_bound: "0.95" }]->(inbound)
+      (inbound)-[:RACE { weight: "0.4", supremum_bound: "0.95" }]->(complete)
+    `);
+
+    const artifact = generateLeanFromGnosisAst(ast, stability, {
+      sourceFilePath: '/tmp/router.gg',
+    });
+
+    expect(artifact).not.toBeNull();
+    expect(artifact?.lean).toContain('proof-kind: bounded-supremum');
+    expect(artifact?.lean).toContain('HasNonnegativeTransitions');
+    expect(artifact?.lean).toContain('spectrallyStable_of_rowMass');
+    expect(artifact?.lean).toContain('rowBoundRat');
   });
 });

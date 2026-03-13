@@ -134,7 +134,7 @@ function buildTransitionDefinitions(
     match source.1, target.1 with
 ${clauses.length > 0 ? `${clauses}\n` : ''}    | _, _ => 0
 
-def transition : Matrix (Fin topologyNodeCount) (Fin topologyNodeCount) Real :=
+noncomputable def transition : Matrix (Fin topologyNodeCount) (Fin topologyNodeCount) Real :=
   (Rat.castHom Real).mapMatrix transitionRat`;
 }
 
@@ -276,10 +276,12 @@ function buildSpectralWitness(
     native_decide
   have h_nilpotent : transition ^ topologyNodeCount = 0 := by
     simpa [transition, Matrix.map_pow] using
-      congrArg (Matrix.map (Rat.castHom Real)) h_nilpotent_rat
-  apply spectrallyStable_of_nilpotent (kernel := ${kernelExpression}) (power := topologyNodeCount)
-  · decide
-  · exact h_nilpotent`,
+      congrArg ((Rat.castHom Real).mapMatrix) h_nilpotent_rat
+  exact spectrallyStable_of_nilpotent
+    (kernel := ${kernelExpression})
+    (power := topologyNodeCount)
+    (h_power := by simp [topologyNodeCount])
+    h_nilpotent`,
     };
   }
 
@@ -292,7 +294,7 @@ def rowBound : Fin topologyNodeCount -> Real :=
     proof: `have h_spectral : SpectrallyStable ${kernelExpression} := by
   have h_nonnegative : HasNonnegativeTransitions ${kernelExpression} := by
     intro source target
-    fin_cases source <;> fin_cases target <;> norm_num [transition, transitionRat]
+    fin_cases source <;> fin_cases target <;> norm_num [kernel, transition, transitionRat]
   apply spectrallyStable_of_rowMass
     (kernel := ${kernelExpression})
     (h_nonnegative := h_nonnegative)
@@ -301,7 +303,7 @@ def rowBound : Fin topologyNodeCount -> Real :=
   · intro source
     have h_row_rat : (∑ target : Fin topologyNodeCount, transitionRat source target) = rowBoundRat source := by
       fin_cases source <;> native_decide
-    simpa [rowMass, rowBound, transition] using
+    simpa [kernel, rowMass, rowBound, transition] using
       congrArg (fun value : Rat => (value : Real)) h_row_rat
   · intro source
     have h_bound_rat : rowBoundRat source < 1 := by
@@ -365,6 +367,9 @@ function buildKernelDefinitions(
   const sharedDefinitions = `abbrev NodeId := String
 
 def topologyNodeCount : Nat := ${topologyNodeCount}
+instance : NeZero topologyNodeCount := by
+  simp [topologyNodeCount]
+
 def topologyNodes : List NodeId := ${topologyNodes}
 def smallSetNodeIds : List NodeId := ${smallSetNodeIds}
 
@@ -378,7 +383,7 @@ ${transitionDefinitions}
       nodeIds,
       definitions: `${sharedDefinitions}
 ${spectralWitness.definitions}
-def kernel : CertifiedKernel topologyNodeCount := {
+noncomputable def kernel : CertifiedKernel topologyNodeCount := {
   transition := transition
   topologyNodes := topologyNodes
   smallSetNodeIds := smallSetNodeIds
@@ -420,7 +425,7 @@ def driftCertificate : DriftCertificate := {
   ventRate := alpha
 }
 
-def kernel : CertifiedKernel topologyNodeCount := {
+noncomputable def kernel : CertifiedKernel topologyNodeCount := {
   transition := transition
   topologyNodes := topologyNodes
   smallSetNodeIds := smallSetNodeIds
@@ -463,7 +468,7 @@ def driftCertificate (lam mu : Real) (alpha : Nat -> Real) : DriftCertificate :=
   ventRate := alpha
 }
 
-def kernel (lam mu : Real) (alpha : Nat -> Real) : CertifiedKernel topologyNodeCount := {
+noncomputable def kernel (lam mu : Real) (alpha : Nat -> Real) : CertifiedKernel topologyNodeCount := {
   transition := transition
   topologyNodes := topologyNodes
   smallSetNodeIds := smallSetNodeIds
