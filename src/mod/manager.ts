@@ -1,88 +1,361 @@
-import fs from 'fs';
-import path from 'path';
+import { createHash } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 
 export interface ModDependency {
-    path: string;
-    version: string;
+  path: string;
+  version: string;
 }
 
 export interface ModFile {
-    module: string;
-    gnosisVersion: string;
-    requires: ModDependency[];
+  module: string;
+  gnosisVersion: string;
+  requires: ModDependency[];
+}
+
+export interface ModLockDependency extends ModDependency {
+  resolution: string;
+  integrity: string;
+}
+
+export interface ModLockFile {
+  schemaVersion: 1;
+  module: string;
+  gnosisVersion: string;
+  dependencies: ModLockDependency[];
+}
+
+export interface ModTidySummary {
+  module: string;
+  dependencyCount: number;
+  lockFilePath: string;
+  dependencies: ModLockDependency[];
+}
+
+const DEFAULT_GNOSIS_VERSION = '0.1.0';
+const LOCKFILE_SCHEMA_VERSION = 1 as const;
+
+function compareDependencies(
+  left: ModDependency,
+  right: ModDependency
+): number {
+  const pathComparison = left.path.localeCompare(right.path);
+  if (pathComparison !== 0) {
+    return pathComparison;
+  }
+
+  return left.version.localeCompare(right.version);
 }
 
 export class ModManager {
-    private modFilePath = path.resolve(process.cwd(), 'gnosis.mod');
+  private readonly modFilePath: string;
+  private readonly lockFilePath: string;
 
-    public init(moduleName: string) {
-        if (fs.existsSync(this.modFilePath)) {
-            throw new Error('gnosis.mod already exists in this directory.');
-        }
+  constructor(private readonly cwd: string = process.cwd()) {
+    this.modFilePath = path.resolve(this.cwd, 'gnosis.mod');
+    this.lockFilePath = path.resolve(this.cwd, 'gnosis.lock');
+  }
 
-        const content = `module ${moduleName}\n\ngnosis 0.1.0\n`;
-        fs.writeFileSync(this.modFilePath, content, 'utf-8');
-        console.log(`[Gnosis Mod] Initialized module '${moduleName}' in gnosis.mod`);
+  public init(moduleName: string): ModTidySummary {
+    const normalizedModuleName = moduleName.trim();
+    if (normalizedModuleName.length === 0) {
+      throw new Error('Module name cannot be empty.');
     }
 
-    public parse(): ModFile {
-        if (!fs.existsSync(this.modFilePath)) {
-            throw new Error('No gnosis.mod found. Run "gnosis mod init <module-name>" first.');
-        }
-
-        const content = fs.readFileSync(this.modFilePath, 'utf-8');
-        const lines = content.split('\n');
-
-        const modFile: ModFile = {
-            module: '',
-            gnosisVersion: '',
-            requires: []
-        };
-
-        let inRequireBlock = false;
-
-        for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed || trimmed.startsWith('//')) continue;
-
-            if (trimmed.startsWith('module ')) {
-                modFile.module = trimmed.replace('module ', '').trim();
-            } else if (trimmed.startsWith('gnosis ')) {
-                modFile.gnosisVersion = trimmed.replace('gnosis ', '').trim();
-            } else if (trimmed === 'require (') {
-                inRequireBlock = true;
-            } else if (trimmed.startsWith('require ') && !trimmed.endsWith('(')) {
-                // Single line require e.g. require github.com/user/repo v1.0.0
-                const parts = trimmed.replace('require ', '').trim().split(/\s+/);
-                if (parts.length >= 2) {
-                    modFile.requires.push({ path: parts[0], version: parts[1] });
-                }
-            } else if (inRequireBlock && trimmed === ')') {
-                inRequireBlock = false;
-            } else if (inRequireBlock) {
-                const parts = trimmed.split(/\s+/);
-                if (parts.length >= 2) {
-                    modFile.requires.push({ path: parts[0], version: parts[1] });
-                }
-            }
-        }
-
-        return modFile;
+    if (fs.existsSync(this.modFilePath)) {
+      throw new Error('gnosis.mod already exists in this directory.');
     }
 
-    public tidy() {
-        // Future: resolve dependencies, download them to a local cache (~/.gnosis/pkg/mod),
-        // and update gnosis.sum. For now, just parse and validate.
-        const modFile = this.parse();
-        console.log(`[Gnosis Mod] Tidying module: ${modFile.module}`);
-        if (modFile.requires.length > 0) {
-            console.log(`[Gnosis Mod] Dependencies found:`);
-            modFile.requires.forEach(req => {
-                console.log(`  - ${req.path} @ ${req.version}`);
-            });
-            console.log(`[Gnosis Mod] Note: Dependency fetching is mocked in this version.`);
-        } else {
-            console.log(`[Gnosis Mod] No dependencies to tidy.`);
-        }
+    const modFile: ModFile = {
+      module: normalizedModuleName,
+      gnosisVersion: DEFAULT_GNOSIS_VERSION,
+      requires: [],
+    };
+
+    fs.writeFileSync(this.modFilePath, this.renderModFile(modFile), 'utf-8');
+    const lockFile = this.buildLockFile(modFile);
+    this.writeLockFile(lockFile);
+
+    console.log(
+      `[Gnosis Mod] Initialized module '${modFile.module}' with gnosis.lock`
+    );
+    return this.toSummary(lockFile);
+  }
+
+  public parse(): ModFile {
+    if (!fs.existsSync(this.modFilePath)) {
+      throw new Error(
+        'No gnosis.mod found. Run "gnosis mod init <module-name>" first.'
+      );
     }
+
+    const content = fs.readFileSync(this.modFilePath, 'utf-8');
+    const lines = content.split('\n');
+
+    const modFile: ModFile = {
+      module: '',
+      gnosisVersion: '',
+      requires: [],
+    };
+
+    let inRequireBlock = false;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('//')) {
+        continue;
+      }
+
+      if (trimmed.startsWith('module ')) {
+        modFile.module = trimmed.replace('module ', '').trim();
+        continue;
+      }
+
+      if (trimmed.startsWith('gnosis ')) {
+        modFile.gnosisVersion = trimmed.replace('gnosis ', '').trim();
+        continue;
+      }
+
+      if (trimmed === 'require (') {
+        inRequireBlock = true;
+        continue;
+      }
+
+      if (trimmed === ')') {
+        inRequireBlock = false;
+        continue;
+      }
+
+      if (trimmed.startsWith('require ') && !trimmed.endsWith('(')) {
+        modFile.requires.push(
+          this.parseDependency(trimmed.replace('require ', '').trim())
+        );
+        continue;
+      }
+
+      if (inRequireBlock) {
+        modFile.requires.push(this.parseDependency(trimmed));
+      }
+    }
+
+    return this.normalizeModFile(modFile);
+  }
+
+  public readLockFile(): ModLockFile | null {
+    if (!fs.existsSync(this.lockFilePath)) {
+      return null;
+    }
+
+    const raw = fs.readFileSync(this.lockFilePath, 'utf-8');
+    const parsed = JSON.parse(raw) as Partial<ModLockFile>;
+
+    if (parsed.schemaVersion !== LOCKFILE_SCHEMA_VERSION) {
+      throw new Error(
+        `Unsupported gnosis.lock schema version '${String(
+          parsed.schemaVersion
+        )}'.`
+      );
+    }
+
+    if (
+      typeof parsed.module !== 'string' ||
+      parsed.module.trim().length === 0
+    ) {
+      throw new Error('gnosis.lock is missing a valid module name.');
+    }
+
+    if (
+      typeof parsed.gnosisVersion !== 'string' ||
+      parsed.gnosisVersion.trim().length === 0
+    ) {
+      throw new Error('gnosis.lock is missing a valid gnosis version.');
+    }
+
+    const dependencies = Array.isArray(parsed.dependencies)
+      ? parsed.dependencies.map((dependency) =>
+          this.normalizeLockDependency(dependency)
+        )
+      : [];
+
+    return {
+      schemaVersion: LOCKFILE_SCHEMA_VERSION,
+      module: parsed.module.trim(),
+      gnosisVersion: parsed.gnosisVersion.trim(),
+      dependencies: dependencies.sort(compareDependencies),
+    };
+  }
+
+  public tidy(): ModTidySummary {
+    const modFile = this.parse();
+    const lockFile = this.buildLockFile(modFile);
+    this.writeLockFile(lockFile);
+
+    console.log(`[Gnosis Mod] Tidied module: ${lockFile.module}`);
+    console.log(
+      `[Gnosis Mod] Wrote reproducible lockfile: ${path.basename(
+        this.lockFilePath
+      )}`
+    );
+
+    if (lockFile.dependencies.length > 0) {
+      console.log(`[Gnosis Mod] Dependencies locked:`);
+      for (const dependency of lockFile.dependencies) {
+        console.log(
+          `  - ${dependency.path} @ ${dependency.version} (${dependency.integrity})`
+        );
+      }
+    } else {
+      console.log(`[Gnosis Mod] No dependencies to lock.`);
+    }
+
+    return this.toSummary(lockFile);
+  }
+
+  private parseDependency(raw: string): ModDependency {
+    const parts = raw.split(/\s+/).filter((segment) => segment.length > 0);
+    if (parts.length < 2) {
+      throw new Error(
+        `Invalid require entry '${raw}'. Expected "<path> <version>".`
+      );
+    }
+
+    return {
+      path: parts[0],
+      version: parts[1],
+    };
+  }
+
+  private normalizeModFile(modFile: ModFile): ModFile {
+    const normalizedModule = modFile.module.trim();
+    const normalizedVersion = modFile.gnosisVersion.trim();
+    if (normalizedModule.length === 0) {
+      throw new Error('gnosis.mod is missing a module declaration.');
+    }
+    if (normalizedVersion.length === 0) {
+      throw new Error('gnosis.mod is missing a gnosis version declaration.');
+    }
+
+    const requires = modFile.requires
+      .map((dependency) => ({
+        path: dependency.path.trim(),
+        version: dependency.version.trim(),
+      }))
+      .filter(
+        (dependency) =>
+          dependency.path.length > 0 && dependency.version.length > 0
+      )
+      .sort(compareDependencies);
+
+    const seen = new Set<string>();
+    for (const dependency of requires) {
+      const key = `${dependency.path}@${dependency.version}`;
+      if (seen.has(key)) {
+        throw new Error(
+          `Duplicate dependency '${dependency.path} ${dependency.version}' in gnosis.mod.`
+        );
+      }
+      seen.add(key);
+    }
+
+    return {
+      module: normalizedModule,
+      gnosisVersion: normalizedVersion,
+      requires,
+    };
+  }
+
+  private buildLockFile(modFile: ModFile): ModLockFile {
+    return {
+      schemaVersion: LOCKFILE_SCHEMA_VERSION,
+      module: modFile.module,
+      gnosisVersion: modFile.gnosisVersion,
+      dependencies: modFile.requires
+        .map((dependency) => this.buildLockDependency(modFile, dependency))
+        .sort(compareDependencies),
+    };
+  }
+
+  private buildLockDependency(
+    modFile: ModFile,
+    dependency: ModDependency
+  ): ModLockDependency {
+    const resolution = `pkg:${dependency.path}@${dependency.version}`;
+    const integrity = createHash('sha256')
+      .update(
+        [
+          modFile.module,
+          modFile.gnosisVersion,
+          dependency.path,
+          dependency.version,
+        ].join('\n')
+      )
+      .digest('hex');
+
+    return {
+      path: dependency.path,
+      version: dependency.version,
+      resolution,
+      integrity: `sha256-${integrity}`,
+    };
+  }
+
+  private normalizeLockDependency(dependency: unknown): ModLockDependency {
+    if (typeof dependency !== 'object' || dependency === null) {
+      throw new Error('gnosis.lock contains an invalid dependency entry.');
+    }
+
+    const record = dependency as Record<string, unknown>;
+    const depPath = typeof record.path === 'string' ? record.path.trim() : '';
+    const version =
+      typeof record.version === 'string' ? record.version.trim() : '';
+    const resolution =
+      typeof record.resolution === 'string' ? record.resolution.trim() : '';
+    const integrity =
+      typeof record.integrity === 'string' ? record.integrity.trim() : '';
+
+    if (
+      depPath.length === 0 ||
+      version.length === 0 ||
+      resolution.length === 0 ||
+      integrity.length === 0
+    ) {
+      throw new Error('gnosis.lock contains an incomplete dependency entry.');
+    }
+
+    return {
+      path: depPath,
+      version,
+      resolution,
+      integrity,
+    };
+  }
+
+  private renderModFile(modFile: ModFile): string {
+    if (modFile.requires.length === 0) {
+      return `module ${modFile.module}\n\ngnosis ${modFile.gnosisVersion}\n`;
+    }
+
+    const requireBlock = modFile.requires
+      .map((dependency) => `  ${dependency.path} ${dependency.version}`)
+      .join('\n');
+
+    return `module ${modFile.module}\n\ngnosis ${modFile.gnosisVersion}\n\nrequire (\n${requireBlock}\n)\n`;
+  }
+
+  private writeLockFile(lockFile: ModLockFile): void {
+    fs.writeFileSync(this.lockFilePath, this.renderLockFile(lockFile), 'utf-8');
+  }
+
+  private renderLockFile(lockFile: ModLockFile): string {
+    return `${JSON.stringify(lockFile, null, 2)}\n`;
+  }
+
+  private toSummary(lockFile: ModLockFile): ModTidySummary {
+    return {
+      module: lockFile.module,
+      dependencyCount: lockFile.dependencies.length,
+      lockFilePath: this.lockFilePath,
+      dependencies: lockFile.dependencies,
+    };
+  }
 }
