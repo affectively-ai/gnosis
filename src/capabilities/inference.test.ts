@@ -37,8 +37,12 @@ describe('capability inference', () => {
     const report = validateCapabilitiesForTarget(requirements, 'workers');
 
     expect(report.ok).toBe(false);
-    expect(report.issues.some((issue) => issue.capability === 'net.tcp.server')).toBe(true);
-    expect(report.issues.some((issue) => issue.capability === 'net.udp')).toBe(true);
+    expect(
+      report.issues.some((issue) => issue.capability === 'net.tcp.server')
+    ).toBe(true);
+    expect(report.issues.some((issue) => issue.capability === 'net.udp')).toBe(
+      true
+    );
   });
 
   it('enforces declared effect contracts against inferred usage', () => {

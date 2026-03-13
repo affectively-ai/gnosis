@@ -7,8 +7,12 @@ import type {
   RuntimeTarget,
 } from './types.js';
 
-function uniqueCapabilities(requirements: readonly CapabilityRequirement[]): HostCapability[] {
-  return [...new Set(requirements.map((requirement) => requirement.capability))].sort();
+function uniqueCapabilities(
+  requirements: readonly CapabilityRequirement[]
+): HostCapability[] {
+  return [
+    ...new Set(requirements.map((requirement) => requirement.capability)),
+  ].sort();
 }
 
 function appendDeclarationContractIssues(
