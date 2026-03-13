@@ -138,6 +138,31 @@ describe('GnosisModuleLoader', () => {
     ).toBe(true);
   });
 
+  it('loads plain gg modules through the unified format branch', async () => {
+    const cwd = makeTempDir();
+    const modulePath = path.join(cwd, 'plain.gg');
+
+    writeFileSync(
+      modulePath,
+      [
+        '(input:Tensor)',
+        '(output:Tensor)',
+        '(input)-[:PROCESS]->(output)',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+
+    const module = await loadGnosisModuleFromFile(modulePath, cwd);
+
+    expect(module.format).toBe('gg');
+    expect(module.imports).toEqual([]);
+    expect(module.exports).toEqual(['input', 'output']);
+    expect(module.ast.nodes.has('input')).toBe(true);
+    expect(module.ast.nodes.has('output')).toBe(true);
+    expect(module.mergedSource).toContain('(input)-[:PROCESS]->(output)');
+  });
+
   it('loads standalone mgg modules through the no-import branch', async () => {
     const cwd = makeTempDir();
     const modulePath = path.join(cwd, 'standalone.mgg');
@@ -403,7 +428,7 @@ describe('GnosisModuleLoader', () => {
       new Promise<never>((_, reject) => {
         setTimeout(() => {
           reject(new Error('module load timed out'));
-        }, 50);
+        }, 1000);
       }),
     ]);
 

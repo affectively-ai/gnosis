@@ -1,3 +1,5 @@
+(detect_format:ModuleDetectFormat)-[:PROCESS { case: 'mgg' }]->(parse:ModuleParse)
+(detect_format)-[:PROCESS { case: 'gg' }]->(compile:ModuleCompileTopology)
 (parse:ModuleParse)-[:PROCESS]->(imports_state:ModuleImportState)
 (imports_state)-[:PROCESS { case: 'imports' }]->(resolve_specs:ModuleResolveImportSpecifiers)
 (imports_state)-[:PROCESS { case: 'none' }]->(compile:ModuleCompileTopology)

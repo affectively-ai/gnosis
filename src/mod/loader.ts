@@ -75,6 +75,7 @@ interface WorkspaceDependencyResolution {
 interface ModuleLoaderState {
   modulePath: string;
   source: string;
+  format?: 'gg' | 'mgg';
   parsed?: ParsedGnosisModule;
   importResolutions?: PendingImportResolution[];
   resolvedImports?: GnosisResolvedImport[];
@@ -788,7 +789,7 @@ export class GnosisModuleLoader {
       return inFlight;
     }
 
-    const promise = this.loadByFormat(modulePath, source, importChain);
+    const promise = this.loadThroughTopology(modulePath, source, importChain);
     this.loading.set(modulePath, promise);
 
     try {
@@ -800,33 +801,7 @@ export class GnosisModuleLoader {
     }
   }
 
-  private async loadByFormat(
-    modulePath: string,
-    source: string,
-    importChain: readonly string[]
-  ): Promise<LoadedGnosisModule> {
-    const format = detectModuleFormat(modulePath, source);
-    if (format === 'mgg') {
-      return this.loadMGG(modulePath, source, importChain);
-    }
-
-    const compiled = compileTopology(source);
-    const exports = sortStrings(compiled.ast.nodes.keys());
-
-    return {
-      id: modulePath,
-      format: 'gg',
-      source,
-      topologySource: source,
-      mergedSource: source,
-      ast: compiled.ast,
-      b1: compiled.b1,
-      exports,
-      imports: [],
-    };
-  }
-
-  private async loadMGG(
+  private async loadThroughTopology(
     modulePath: string,
     source: string,
     importChain: readonly string[]
@@ -866,6 +841,22 @@ export class GnosisModuleLoader {
         ...state,
         parsed: parseMGG(state.source),
       } satisfies ModuleLoaderState;
+    });
+
+    registry.register('ModuleDetectFormat', async (payload) => {
+      const state = requireModuleLoaderState(payload);
+      const format =
+        state.format ?? detectModuleFormat(state.modulePath, state.source);
+
+      return {
+        adt: 'ModuleFormat',
+        kind: format,
+        case: format,
+        value: {
+          ...state,
+          format,
+        } satisfies ModuleLoaderState,
+      };
     });
 
     registry.register('ModuleImportState', async (payload) => {
@@ -1039,6 +1030,8 @@ export class GnosisModuleLoader {
 
     registry.register('ModuleAssembleModule', async (payload) => {
       const state = requireModuleLoaderState(payload);
+      const format =
+        state.format ?? detectModuleFormat(state.modulePath, state.source);
       const parsed = state.parsed ?? parseMGG(state.source);
       const localTopology =
         state.localTopology ?? compileTopology(parsed.topologySource);
@@ -1048,7 +1041,7 @@ export class GnosisModuleLoader {
 
       return {
         id: state.modulePath,
-        format: 'mgg',
+        format,
         source: state.source,
         topologySource: parsed.topologySource,
         mergedSource: renderGraphAst(mergedTopology.ast),
