@@ -49,7 +49,7 @@ describe('Gnosis analysis steering', () => {
     expect(report.steering.regime).toBe('transitional');
     expect(report.steering.recommendedAction).toBe('hold');
     expect(report.steering.eda.frontierWidths.summary.median.datum).toBe(1);
-    expect(report.steering.eda.graph.edgeCount).toBe(3);
+    expect(report.steering.eda.graph.edgeCount).toBe(4);
     expect(Array.isArray(report.steering.eda.graphOutliers)).toBe(true);
   });
 
