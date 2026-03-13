@@ -27,7 +27,7 @@ export interface GraphAST {
   edges: ASTEdge[];
 }
 
-const TAGGED_NODE_CASES: Record<string, readonly string[]> = {
+const NATIVE_TAGGED_NODE_CASES: Record<string, readonly string[]> = {
   Result: ['ok', 'err'],
   Option: ['some', 'none'],
 };
@@ -352,12 +352,12 @@ export class BettyCompiler {
 
   private checkTaggedNodeExhaustiveness(): void {
     for (const node of this.ast.nodes.values()) {
-      const taggedLabel = node.labels.find((label) => TAGGED_NODE_CASES[label]);
-      if (!taggedLabel) {
+      const taggedDefinition = this.resolveTaggedNodeDefinition(node);
+      if (!taggedDefinition) {
         continue;
       }
 
-      const expectedCases = TAGGED_NODE_CASES[taggedLabel];
+      const { label: taggedLabel, expectedCases } = taggedDefinition;
       const outgoingEdges = this.ast.edges.filter((edge) =>
         edge.sourceIds.some((sourceId) => sourceId.trim() === node.id)
       );
@@ -373,6 +373,16 @@ export class BettyCompiler {
         .filter((entry) => entry.cases.length > 0);
 
       if (caseEdges.length === 0) {
+        continue;
+      }
+
+      if (expectedCases.length === 0) {
+        this.diagnostics.push({
+          line: 1,
+          column: 1,
+          message: `${taggedLabel} node '${node.id}' declares tagged exits but no closed cases. Add a cases property to enable exhaustiveness checks.`,
+          severity: 'warning',
+        });
         continue;
       }
 
@@ -448,6 +458,48 @@ export class BettyCompiler {
       .split(/[\s,|]+/)
       .map((entry) => entry.trim().toLowerCase())
       .filter((entry) => entry.length > 0);
+  }
+
+  private resolveTaggedNodeDefinition(
+    node: ASTNode
+  ): { label: string; expectedCases: string[] } | null {
+    const nativeTaggedLabel = node.labels.find(
+      (label) => NATIVE_TAGGED_NODE_CASES[label]
+    );
+    if (nativeTaggedLabel) {
+      return {
+        label: nativeTaggedLabel,
+        expectedCases: [...NATIVE_TAGGED_NODE_CASES[nativeTaggedLabel]],
+      };
+    }
+
+    if (node.labels.includes('Variant')) {
+      return {
+        label: 'Variant',
+        expectedCases: this.parseClosedCases(
+          node.properties.cases ??
+            node.properties.variants ??
+            node.properties.options
+        ),
+      };
+    }
+
+    return null;
+  }
+
+  private parseClosedCases(rawCases: string | undefined): string[] {
+    if (!rawCases) {
+      return [];
+    }
+
+    return [
+      ...new Set(
+        rawCases
+          .split(/[\s,|]+/)
+          .map((entry) => entry.trim().toLowerCase())
+          .filter((entry) => entry.length > 0)
+      ),
+    ];
   }
 
   private checkStructuredConcurrencyProperties(): void {

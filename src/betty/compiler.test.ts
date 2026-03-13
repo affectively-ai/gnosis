@@ -125,6 +125,36 @@ describe('BettyCompiler', () => {
     );
   });
 
+  it('reports missing tagged routes for closed Variant nodes', () => {
+    const { diagnostics } = compiler.parse(`
+            (state:Variant { cases: "ready,retry,timeout", case: "ready" })-[:PROCESS { case: "ready" }]->(done)
+            (state)-[:PROCESS { case: "retry" }]->(again)
+        `);
+
+    expect(
+      diagnostics.some((d) =>
+        d.message.includes(
+          "Variant node 'state' is missing tagged routes for: timeout."
+        )
+      )
+    ).toBe(true);
+  });
+
+  it('warns when Variant routing has no declared closed cases', () => {
+    const { diagnostics } = compiler.parse(`
+            (state:Variant { case: "ready" })-[:PROCESS { case: "ready" }]->(done)
+            (state)-[:PROCESS { case: "retry" }]->(again)
+        `);
+
+    expect(
+      diagnostics.some((d) =>
+        d.message.includes(
+          "Variant node 'state' declares tagged exits but no closed cases."
+        )
+      )
+    ).toBe(true);
+  });
+
   it('reports invalid structured concurrency failure policies', () => {
     const { diagnostics } = compiler.parse(`
             (src)-[:FORK]->(fast|slow)

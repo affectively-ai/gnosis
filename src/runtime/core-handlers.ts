@@ -6,6 +6,14 @@ type GnosisTaggedValue =
   | { kind: 'some'; value: unknown }
   | { kind: 'none' };
 
+interface GnosisVariantValue {
+  adt: string;
+  kind: string;
+  case: string;
+  value: unknown;
+  cases?: string[];
+}
+
 interface DestructureBinding {
   sourceKey: string;
   targetKey: string;
@@ -152,6 +160,21 @@ function parseBindings(raw: string | undefined): DestructureBinding[] {
     });
 }
 
+function parseCaseList(raw: string | undefined): string[] {
+  if (!raw) {
+    return [];
+  }
+
+  return [
+    ...new Set(
+      raw
+        .split(/[\s,|]+/)
+        .map((entry) => normalizeToken(entry))
+        .filter((entry) => entry.length > 0)
+    ),
+  ];
+}
+
 function resolveTaggedPayloadSource(
   payload: unknown,
   from: string | undefined
@@ -160,16 +183,22 @@ function resolveTaggedPayloadSource(
     return payload[from];
   }
 
-  if (!isTaggedValue(payload)) {
-    return payload;
+  if (isTaggedValue(payload)) {
+    if (payload.kind === 'ok' || payload.kind === 'some') {
+      return payload.value;
+    }
+
+    if (payload.kind === 'err') {
+      return payload.error;
+    }
   }
 
-  if (payload.kind === 'ok' || payload.kind === 'some') {
+  if (
+    isRecord(payload) &&
+    'value' in payload &&
+    (typeof payload.kind === 'string' || typeof payload.case === 'string')
+  ) {
     return payload.value;
-  }
-
-  if (payload.kind === 'err') {
-    return payload.error;
   }
 
   return payload;
@@ -206,6 +235,58 @@ function normalizeOptionKind(
   }
 
   return payload === null || payload === undefined ? 'none' : 'some';
+}
+
+function resolveVariantCaseCandidate(
+  payload: unknown,
+  props: Record<string, string>,
+  allowedCases: string[]
+): string {
+  const explicitCase =
+    props.case ?? props.kind ?? props.status ?? props.variant;
+  if (explicitCase) {
+    return normalizeToken(explicitCase);
+  }
+
+  if (props.caseFrom && isRecord(payload)) {
+    const derivedValue = payload[props.caseFrom];
+    if (
+      typeof derivedValue === 'string' ||
+      typeof derivedValue === 'number' ||
+      typeof derivedValue === 'boolean'
+    ) {
+      return normalizeToken(String(derivedValue));
+    }
+  }
+
+  if (isRecord(payload)) {
+    for (const field of ['case', 'kind', 'status'] as const) {
+      const derivedValue = payload[field];
+      if (
+        typeof derivedValue === 'string' ||
+        typeof derivedValue === 'number' ||
+        typeof derivedValue === 'boolean'
+      ) {
+        return normalizeToken(String(derivedValue));
+      }
+    }
+  }
+
+  if (
+    typeof payload === 'string' ||
+    typeof payload === 'number' ||
+    typeof payload === 'boolean'
+  ) {
+    return normalizeToken(String(payload));
+  }
+
+  if (allowedCases.length === 1) {
+    return allowedCases[0];
+  }
+
+  throw new Error(
+    'Variant requires a closed case via case, caseFrom, or payload case data.'
+  );
 }
 
 function deriveTaggedKindFromField(
@@ -446,6 +527,34 @@ export function registerCoreRuntimeHandlers(registry: GnosisRegistry): void {
         ? parseLiteral(props.value)
         : resolvePayloadField(payload, props.valueFrom),
     } satisfies GnosisTaggedValue;
+  });
+
+  registry.register('Variant', async (payload, props) => {
+    const allowedCases = parseCaseList(
+      props.cases ?? props.variants ?? props.options
+    );
+    const variantCase = resolveVariantCaseCandidate(
+      payload,
+      props,
+      allowedCases
+    );
+    if (allowedCases.length > 0 && !allowedCases.includes(variantCase)) {
+      throw new Error(
+        `Variant case '${variantCase}' is not declared in [${allowedCases.join(
+          ', '
+        )}].`
+      );
+    }
+
+    return {
+      adt: props.adt ?? props.typeName ?? props.space ?? 'Variant',
+      kind: variantCase,
+      case: variantCase,
+      value: props.value
+        ? parseLiteral(props.value)
+        : resolvePayloadField(payload, props.valueFrom),
+      ...(allowedCases.length > 0 ? { cases: allowedCases } : {}),
+    } satisfies GnosisVariantValue;
   });
 
   registry.register('Destructure', async (payload, props) => {

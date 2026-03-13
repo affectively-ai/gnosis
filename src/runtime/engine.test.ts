@@ -134,6 +134,30 @@ describe('GnosisEngine', () => {
     expect(result).not.toContain('Executing [fallback]');
   });
 
+  it('routes closed Variant cases from .gg files', async () => {
+    const registry = new GnosisRegistry();
+    registry.register('Source', async () => ({
+      status: 'retry',
+      attempts: 2,
+      message: 'warm cache and try again',
+      score: 11,
+    }));
+    registry.register('Sink', async (payload) => payload);
+
+    const engine = new GnosisEngine(registry);
+    const source = readFileSync(
+      new URL('../../closed_variant.gg', import.meta.url),
+      'utf-8'
+    );
+    const { ast } = compiler.parse(source);
+
+    const result = await engine.execute(ast!);
+    expect(result).toContain('"attempts":2');
+    expect(result).toContain('"message":"warm cache and try again"');
+    expect(result).not.toContain('Executing [ready_payload]');
+    expect(result).not.toContain('Executing [timeout_payload]');
+  });
+
   it('executes native qubit measurement topologies from .gg files', async () => {
     const registry = new GnosisRegistry();
     registry.register('Sink', async (payload) => payload);
