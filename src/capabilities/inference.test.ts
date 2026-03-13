@@ -1,3 +1,4 @@
+import { readFileSync } from 'fs';
 import { describe, expect, it } from 'bun:test';
 import {
   inferCapabilitiesFromGgSource,
@@ -38,5 +39,40 @@ describe('capability inference', () => {
     expect(report.ok).toBe(false);
     expect(report.issues.some((issue) => issue.capability === 'net.tcp.server')).toBe(true);
     expect(report.issues.some((issue) => issue.capability === 'net.udp')).toBe(true);
+  });
+
+  it('enforces declared effect contracts against inferred usage', () => {
+    const source = `
+      (sync: ZKSyncEnvelope { effects: 'fs.local' })
+      (sync)-[:PROCESS]->(done)
+    `;
+
+    const requirements = inferCapabilitiesFromGgSource(source);
+    const report = validateCapabilitiesForTarget(requirements, 'agnostic');
+
+    expect(report.ok).toBe(false);
+    expect(
+      report.issues.some((issue) =>
+        issue.message.includes(
+          'Node sync inferred auth.zk without declaring it in effects/requires.'
+        )
+      )
+    ).toBe(true);
+  });
+
+  it('accepts GG files whose declared effects match inferred usage', () => {
+    const source = readFileSync(
+      new URL('../../effect_contract.gg', import.meta.url),
+      'utf-8'
+    );
+
+    const requirements = inferCapabilitiesFromGgSource(source);
+    const report = validateCapabilitiesForTarget(requirements, 'agnostic');
+
+    expect(
+      report.issues.some((issue) =>
+        issue.message.includes('without declaring it in effects/requires')
+      )
+    ).toBe(false);
   });
 });

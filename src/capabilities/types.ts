@@ -23,6 +23,7 @@ export interface CapabilityIssue {
   severity: 'error' | 'warning';
   message: string;
   target: RuntimeTarget;
+  nodeId?: string;
 }
 
 export interface CapabilityProfile {

@@ -11,6 +11,61 @@ function uniqueCapabilities(requirements: readonly CapabilityRequirement[]): Hos
   return [...new Set(requirements.map((requirement) => requirement.capability))].sort();
 }
 
+function appendDeclarationContractIssues(
+  requirements: readonly CapabilityRequirement[],
+  issues: CapabilityIssue[],
+  target: RuntimeTarget
+): void {
+  const requirementsByNode = new Map<string, CapabilityRequirement[]>();
+
+  for (const requirement of requirements) {
+    const existing = requirementsByNode.get(requirement.nodeId) ?? [];
+    existing.push(requirement);
+    requirementsByNode.set(requirement.nodeId, existing);
+  }
+
+  for (const [nodeId, nodeRequirements] of requirementsByNode.entries()) {
+    const declared = new Set(
+      nodeRequirements
+        .filter((requirement) => requirement.source === 'declaration')
+        .map((requirement) => requirement.capability)
+    );
+    if (declared.size === 0) {
+      continue;
+    }
+
+    const inferred = new Set(
+      nodeRequirements
+        .filter((requirement) => requirement.source === 'inference')
+        .map((requirement) => requirement.capability)
+    );
+
+    for (const capability of inferred) {
+      if (!declared.has(capability)) {
+        issues.push({
+          capability,
+          severity: 'error',
+          target,
+          nodeId,
+          message: `Node ${nodeId} inferred ${capability} without declaring it in effects/requires.`,
+        });
+      }
+    }
+
+    for (const capability of declared) {
+      if (!inferred.has(capability)) {
+        issues.push({
+          capability,
+          severity: 'warning',
+          target,
+          nodeId,
+          message: `Node ${nodeId} declares ${capability} but no matching usage was inferred.`,
+        });
+      }
+    }
+  }
+}
+
 export function validateCapabilitiesForTarget(
   requirements: readonly CapabilityRequirement[],
   target: RuntimeTarget
@@ -51,6 +106,8 @@ export function validateCapabilitiesForTarget(
       });
     }
   }
+
+  appendDeclarationContractIssues(requirements, issues, target);
 
   return {
     target,
