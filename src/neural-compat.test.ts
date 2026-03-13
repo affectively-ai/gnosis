@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   NeuralEngine,
@@ -8,6 +7,7 @@ import {
 } from './neural-compat.js';
 
 const temporaryDirectories = new Set<string>();
+const tempRoot = join(process.cwd(), '.tmp-test-workspaces');
 
 afterEach(async () => {
   await Promise.all(
@@ -25,7 +25,9 @@ describe('NeuralEngine (.gg-native)', () => {
 
     expect(graph.nodeCount).toBeGreaterThanOrEqual(10);
     expect(
-      graph.nodes.some((node) => node.id === 'topic_tokens' && node.type === 'input')
+      graph.nodes.some(
+        (node) => node.id === 'topic_tokens' && node.type === 'input'
+      )
     ).toBe(true);
     expect(
       graph.nodes.some(
@@ -36,7 +38,8 @@ describe('NeuralEngine (.gg-native)', () => {
   });
 
   test('loads custom topology from .gg file path', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'gnosis-neural-'));
+    await mkdir(tempRoot, { recursive: true });
+    const dir = await mkdtemp(join(tempRoot, 'gnosis-neural-'));
     temporaryDirectories.add(dir);
     const topologyPath = join(dir, 'mini-topic.gg');
     await writeFile(
@@ -56,10 +59,43 @@ describe('NeuralEngine (.gg-native)', () => {
     expect(graph.edges).toHaveLength(1);
   });
 
+  test('loads custom topology from .mgg module path', async () => {
+    await mkdir(tempRoot, { recursive: true });
+    const dir = await mkdtemp(join(tempRoot, 'gnosis-neural-'));
+    temporaryDirectories.add(dir);
+    const basePath = join(dir, 'base.gg');
+    const topologyPath = join(dir, 'mini-topic.mgg');
+
+    await writeFile(
+      basePath,
+      "(input: Tensor { activation: 'identity', bias: '0.0' })\n",
+      'utf-8'
+    );
+    await writeFile(
+      topologyPath,
+      [
+        "import { input } from './base.gg'",
+        '',
+        "(input)-[:PROCESS]->(output: Tensor { activation: 'tanh', bias: '0.1' })",
+        '',
+        'export { output }',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+
+    const engine = new NeuralEngine(TOPIC_DOMAIN_TRANSFORMER_TOPOLOGY);
+    const graph = await engine.loadTopologyFile(topologyPath);
+
+    expect(graph.nodes.some((node) => node.id === 'input')).toBe(true);
+    expect(graph.nodes.some((node) => node.id === 'output')).toBe(true);
+    expect(graph.edges).toHaveLength(1);
+  });
+
   test('rejects non-.gg topology files', async () => {
     const engine = new NeuralEngine();
     await expect(engine.loadTopologyFile('topology.txt')).rejects.toThrow(
-      'Topology file must end with .gg or .ggx'
+      'Topology file must end with .gg or .ggx or .mgg'
     );
   });
 });

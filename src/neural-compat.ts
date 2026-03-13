@@ -46,7 +46,7 @@ export interface NeuralGraphData {
 }
 
 const DEFAULT_TRAINING_IGNORE_TARGET = -999;
-const GG_FILE_EXTENSIONS = ['.gg', '.ggx'];
+const GG_FILE_EXTENSIONS = ['.gg', '.ggx', '.mgg'];
 
 export interface LoadTopologyOptions {
   preserveWeights?: boolean;
@@ -150,6 +150,17 @@ async function readTopologyFromPath(topologyFilePath: string): Promise<string> {
     );
   }
 
+  if (topologyFilePath.toLowerCase().endsWith('.mgg')) {
+    const { loadGnosisModuleFromFile } = await dynamicImport<{
+      loadGnosisModuleFromFile(
+        modulePath: string,
+        rootDir?: string
+      ): Promise<{ mergedSource: string }>;
+    }>('./mod/loader.js');
+    const loadedModule = await loadGnosisModuleFromFile(topologyFilePath);
+    return loadedModule.mergedSource;
+  }
+
   const bunRuntime = getBunRuntime();
   if (bunRuntime) {
     return bunRuntime.file(topologyFilePath).text();
@@ -162,7 +173,7 @@ async function readTopologyFromPath(topologyFilePath: string): Promise<string> {
     return await fsPromises.readFile(topologyFilePath, 'utf-8');
   } catch (error) {
     throw new Error(
-      `Unable to load .gg topology file "${topologyFilePath}": ${formatUnknownError(
+      `Unable to load topology file "${topologyFilePath}": ${formatUnknownError(
         error
       )}`
     );

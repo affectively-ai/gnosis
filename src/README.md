@@ -10,16 +10,16 @@ This directory contains the Gnosis compiler, runtime, and execution tooling.
 - CLI easter eggs: `crank` = Wallace check, `stank` = Buley check.
 - `lib.ts`: Package main entry used by `@affectively/gnosis` imports.
 - `cli.ts`: CLI entrypoint used by `bin/gnosis.js`.
-- `analysis.ts`: Formal complexity/steering analysis for `.gg` topologies, including canonical `wallaceNumber`/`wally` frontier diagnostics, `twokeys` EDA summaries, micro-Charley wall/CPU telemetry, and steering modes. The old `charleyNumber` steering name is removed.
+- `analysis.ts`: Formal complexity/steering analysis for `.gg` topologies, including canonical `wallaceNumber`/`wally` frontier diagnostics, boundary-walk bias / lean-in classification, `twokeys` EDA summaries, micro-Charley wall/CPU telemetry, and steering modes. The old `charleyNumber` steering name is removed.
 - `steering-trace.ts`: `QDoc`/DashRelay-backed steering trace stream plus `twokeys` cohort summaries for empirical Wallace-vs-micro-Charley analysis across runs and nodes.
 - `neural-compat.ts`: `.gg`-native neural runtime exposing [`@affectively/neural`](https://github.com/affectively-ai/neural/)'s `NeuralEngine` interface, including `GPUEngine`, `WebNNEngine`, canonical topic-domain module constants, and neural graph repositories/types.
-- `benchmarks/`: learned benchmark kernels for the Chapter 17 fold-boundary evidence package, including the original cancellation learner and the harder mini-MoE routing learner.
+- `benchmarks/`: learned benchmark kernels for the Chapter 17 fold-boundary evidence package, including the original cancellation learner, the one-path negative controls, and the harder mini-MoE routing learner.
 
 ## Subdirectories
 
 - [auth](./auth): Native UCAN/ZK/custodial runtime integration, HALT attestation verification, and execution-envelope authorization helpers.
-- [benchmarks](./benchmarks/README.md): seeded benchmark helpers for parameter-matched `.gg` topologies, including the cancellation learner and the mini-MoE routing learner used by the Chapter 17 companion artifacts.
+- [benchmarks](./benchmarks/README.md): seeded benchmark helpers for parameter-matched `.gg` topologies, including the cancellation learner, the one-path negative controls, and the mini-MoE routing learner used by the Chapter 17 companion artifacts.
 - [betty](./betty/README.md): Betty bootstrap compiler, parser, closed-variant exhaustiveness checks, and quantum bridge.
 - [capabilities](./capabilities): Runtime capability profiles and target validation (`workers`, `node`, `bun`).
-- [mod](./mod): `gnosis mod` package manager commands.
+- [mod](./mod/README.md): `gnosis mod` package manager commands plus native `.mgg` module parsing, resolution, and merged-source loading.
 - [runtime](./runtime): Runtime registry, interpreter engine, native `Result`/`Option`/`Variant`/`Destructure`/`Delay` handlers, case-aware branch routing, path-aware and tuple-aware destructuring, structured concurrency semantics for `RACE`/`FOLD`, native frame runtime adapter, and renderer compatibility layer.

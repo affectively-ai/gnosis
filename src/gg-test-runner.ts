@@ -22,6 +22,7 @@ import {
   getGgTerminalNodeIds,
 } from '@affectively/aeon-logic';
 import type { CheckerResult, GgTopologyState } from '@affectively/aeon-logic';
+import { detectModuleFormat, loadGnosisModuleFromFile } from './mod/loader.js';
 import { lowerUfcsSource } from './ufcs.js';
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -150,6 +151,16 @@ async function verifyModule(
   }
 }
 
+async function loadModuleSource(filePath: string): Promise<string> {
+  const source = readFileSync(filePath, 'utf-8');
+  if (detectModuleFormat(filePath, source) === 'mgg') {
+    const loadedModule = await loadGnosisModuleFromFile(filePath);
+    return loadedModule.mergedSource;
+  }
+
+  return source;
+}
+
 // ── Run a .test.gg file ─────────────────────────────────────────────────────
 
 export async function runGGTestFile(
@@ -169,8 +180,13 @@ export async function runGGTestFile(
     const modPath = resolve(testDir, directive.modulePath);
     let modSource: string;
     try {
-      modSource = readFileSync(modPath, 'utf-8');
-    } catch {
+      modSource = await loadModuleSource(modPath);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const violation =
+        error instanceof Error && 'code' in error && error.code === 'ENOENT'
+          ? `file not found: ${modPath}`
+          : `module load error: ${message}`;
       return {
         name: directive.modulePath,
         path: modPath,
@@ -180,7 +196,7 @@ export async function runGGTestFile(
         nodeCount: 0,
         edgeCount: 0,
         forkCount: 0,
-        violations: [`file not found: ${modPath}`],
+        violations: [violation],
       } satisfies GGTestModuleResult;
     }
 

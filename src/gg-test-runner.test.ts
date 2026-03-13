@@ -1,4 +1,5 @@
-import { describe, test, expect } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import {
   runGGTestFile,
   runGGTestSuite,
@@ -6,9 +7,20 @@ import {
   formatGGTestResults,
   formatGGTestDiscoveryResults,
 } from './gg-test-runner.js';
-import { resolve } from 'path';
+import { join, resolve } from 'node:path';
 
 const EXAMPLES_DIR = resolve(__dirname, '../examples');
+const temporaryDirectories = new Set<string>();
+const tempRoot = join(process.cwd(), '.tmp-test-workspaces');
+
+afterEach(async () => {
+  await Promise.all(
+    Array.from(temporaryDirectories.values()).map(async (directoryPath) => {
+      await rm(directoryPath, { recursive: true, force: true });
+      temporaryDirectories.delete(directoryPath);
+    })
+  );
+});
 
 describe('gg test runner — auto-discovery', () => {
   test('discovers all .test.gg files', () => {
@@ -97,5 +109,52 @@ describe('gg test runner — individual suites', () => {
     expect(output).toContain('oscillator.gg');
     expect(output).toContain('test-topology');
     expect(output).toContain('passed');
+  });
+
+  test('Verify nodes can target .mgg modules', async () => {
+    await mkdir(tempRoot, { recursive: true });
+    const directoryPath = await mkdtemp(join(tempRoot, 'gnosis-gg-test-'));
+    temporaryDirectories.add(directoryPath);
+
+    const routesPath = join(directoryPath, 'routes.gg');
+    const appPath = join(directoryPath, 'app.mgg');
+    const suitePath = join(directoryPath, 'module.test.gg');
+
+    await writeFile(
+      routesPath,
+      '(router: Router)\n(router)-[:PROCESS]->(handler: Handler)\n',
+      'utf-8'
+    );
+    await writeFile(
+      appPath,
+      [
+        "import { router } from './routes.gg'",
+        '',
+        '(request: Request)',
+        '(request)-[:PROCESS]->(router)',
+        '',
+        'export { request }',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+    await writeFile(
+      suitePath,
+      [
+        '(suite_start: Suite)',
+        "(verify_app: Verify { module: './app.mgg', beta1_max: '128' })",
+        '(suite_start)-[:PROCESS]->(verify_app)',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+
+    const result = await runGGTestFile(suitePath);
+
+    expect(result.ok).toBe(true);
+    expect(result.modules).toHaveLength(1);
+    expect(result.modules[0].ok).toBe(true);
+    expect(result.modules[0].nodeCount).toBeGreaterThanOrEqual(3);
+    expect(result.composition.ok).toBe(true);
   });
 });

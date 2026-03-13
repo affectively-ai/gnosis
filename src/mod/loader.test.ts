@@ -1,0 +1,219 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+import { afterEach, describe, expect, it } from 'bun:test';
+import {
+  GnosisModuleLoader,
+  createFilesystemModuleResolver,
+  loadGnosisModuleFromFile,
+  parseMGG,
+  renderMGG,
+} from './loader.js';
+
+const tempDirs: string[] = [];
+const tempRoot = path.join(process.cwd(), '.tmp-test-workspaces');
+
+function makeTempDir(): string {
+  mkdirSync(tempRoot, { recursive: true });
+  const dir = mkdtempSync(path.join(tempRoot, 'gnosis-loader-'));
+  tempDirs.push(dir);
+  return dir;
+}
+
+afterEach(() => {
+  while (tempDirs.length > 0) {
+    const dir = tempDirs.pop();
+    if (dir) {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+});
+
+describe('parseMGG', () => {
+  it('extracts imports, topology, and exports', () => {
+    const parsed = parseMGG(`
+import { router } from './routes.gg'
+
+(request)-[:PROCESS]->(router)
+
+export { request }
+`);
+
+    expect(parsed.imports).toEqual([
+      {
+        names: ['router'],
+        source: './routes.gg',
+      },
+    ]);
+    expect(parsed.topologySource).toContain('(request)-[:PROCESS]->(router)');
+    expect(parsed.exports).toEqual([{ names: ['request'] }]);
+  });
+
+  it('renders a parsed module back to source', () => {
+    const rendered = renderMGG({
+      imports: [{ names: ['router'], source: './routes.gg' }],
+      topologySource: '(request)-[:PROCESS]->(router)',
+      exports: [{ names: ['request'] }],
+    });
+
+    expect(rendered).toContain("import { router } from './routes.gg'");
+    expect(rendered).toContain('(request)-[:PROCESS]->(router)');
+    expect(rendered).toContain('export { request }');
+  });
+});
+
+describe('GnosisModuleLoader', () => {
+  it('loads a module with a relative .gg import and merges its topology', async () => {
+    const cwd = makeTempDir();
+    const routesPath = path.join(cwd, 'routes.gg');
+    const appPath = path.join(cwd, 'app.mgg');
+
+    writeFileSync(
+      routesPath,
+      '(router:Router)\n(router)-[:PROCESS]->(handler:Handler)\n',
+      'utf-8'
+    );
+    writeFileSync(
+      appPath,
+      [
+        "import { router } from './routes.gg'",
+        '',
+        '(request:Request)',
+        '(request)-[:PROCESS]->(router)',
+        '',
+        'export { request }',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+
+    const module = await loadGnosisModuleFromFile(appPath, cwd);
+
+    expect(module.format).toBe('mgg');
+    expect(module.exports).toEqual(['request']);
+    expect(module.imports).toHaveLength(1);
+    expect(module.ast.nodes.has('request')).toBe(true);
+    expect(module.ast.nodes.has('router')).toBe(true);
+    expect(
+      [...module.ast.nodes.keys()].some((nodeId) => nodeId.endsWith(':handler'))
+    ).toBe(true);
+    expect(module.mergedSource).toContain('(request:Request)');
+    expect(module.mergedSource).toContain('(request)-[:PROCESS]->(router)');
+  });
+
+  it('supports empty re-export modules', async () => {
+    const cwd = makeTempDir();
+    const routesPath = path.join(cwd, 'routes.gg');
+    const bridgePath = path.join(cwd, 'bridge.mgg');
+
+    writeFileSync(
+      routesPath,
+      '(router:Router)\n(router)-[:PROCESS]->(handler:Handler)\n',
+      'utf-8'
+    );
+    writeFileSync(
+      bridgePath,
+      [
+        "import { router } from './routes.gg'",
+        '',
+        'export { router }',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+
+    const loader = new GnosisModuleLoader(createFilesystemModuleResolver(cwd));
+    const module = await loader.load(bridgePath);
+
+    expect(module.exports).toEqual(['router']);
+    expect(module.ast.nodes.has('router')).toBe(true);
+    expect(
+      [...module.ast.nodes.keys()].some((nodeId) => nodeId.endsWith(':handler'))
+    ).toBe(true);
+  });
+
+  it('supports imports from node-only .gg modules', async () => {
+    const cwd = makeTempDir();
+    const basePath = path.join(cwd, 'base.gg');
+    const appPath = path.join(cwd, 'app.mgg');
+
+    writeFileSync(
+      basePath,
+      "(input:Tensor { activation: 'identity' })\n",
+      'utf-8'
+    );
+    writeFileSync(
+      appPath,
+      [
+        "import { input } from './base.gg'",
+        '',
+        '(input)-[:PROCESS]->(output:Tensor)',
+        '',
+        'export { output }',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+
+    const module = await loadGnosisModuleFromFile(appPath, cwd);
+
+    expect(module.ast.nodes.has('input')).toBe(true);
+    expect(module.ast.nodes.has('output')).toBe(true);
+    expect(module.mergedSource).toContain('(input:Tensor');
+  });
+
+  it('allows imports of target-only nodes from plain .gg files', async () => {
+    const cwd = makeTempDir();
+    const routesPath = path.join(cwd, 'routes.gg');
+    const appPath = path.join(cwd, 'app.mgg');
+
+    writeFileSync(
+      routesPath,
+      '(router:Router)\n(router)-[:PROCESS]->(step)-[:PROCESS]->(handler)\n',
+      'utf-8'
+    );
+    writeFileSync(
+      appPath,
+      [
+        "import { handler } from './routes.gg'",
+        '',
+        '(request:Request)',
+        '(request)-[:PROCESS]->(handler)',
+        '',
+        'export { request }',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+
+    const module = await loadGnosisModuleFromFile(appPath, cwd);
+
+    expect(module.ast.nodes.has('handler')).toBe(true);
+    expect(module.mergedSource).toContain('(handler)');
+  });
+
+  it('rejects imports of non-exported symbols', async () => {
+    const cwd = makeTempDir();
+    const routesPath = path.join(cwd, 'routes.gg');
+    const appPath = path.join(cwd, 'app.mgg');
+
+    writeFileSync(
+      routesPath,
+      '(router:Router)\n(router)-[:PROCESS]->(handler:Handler)\n',
+      'utf-8'
+    );
+    writeFileSync(
+      appPath,
+      [
+        "import { missing } from './routes.gg'",
+        '',
+        '(request)-[:PROCESS]->(missing)',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+
+    await expect(loadGnosisModuleFromFile(appPath, cwd)).rejects.toThrow(
+      "'missing' is not exported from './routes.gg'"
+    );
+  });
+});

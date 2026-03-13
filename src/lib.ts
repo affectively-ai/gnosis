@@ -3,6 +3,16 @@ export { GnosisRegistry } from './runtime/registry.js';
 export { GnosisEngine } from './runtime/engine.js';
 export { BettyCompiler } from './betty/compiler.js';
 export {
+  GnosisModuleLoader,
+  createFilesystemModuleResolver,
+  detectModuleFormat,
+  loadGnosisModuleFromFile,
+  looksLikeModule,
+  parseMGG,
+  renderGraphAst,
+  renderMGG,
+} from './mod/loader.js';
+export {
   DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES,
   makeDefaultFoldTrainingConfig,
   renderGnosisFoldTrainingBenchmarkMarkdown,
@@ -10,7 +20,9 @@ export {
 } from './benchmarks/fold-training-benchmark.js';
 export {
   analyzeGnosisSource,
+  classifySteeringBias,
   createEmptySteeringTelemetry,
+  deriveBoundaryWalkBias,
   formatGnosisViolations,
   DEFAULT_GNOSIS_STEERING_MODE,
   finishSteeringTelemetry,
@@ -25,6 +37,15 @@ export {
 
 export type { GnosisHandler } from './runtime/registry.js';
 export type { GraphAST, ASTNode, ASTEdge } from './betty/compiler.js';
+export type {
+  GnosisModuleImport,
+  GnosisModuleExport,
+  ParsedGnosisModule,
+  LoadedGnosisModule,
+  GnosisResolvedImport,
+  ResolveResult,
+  GnosisModuleResolver,
+} from './mod/loader.js';
 export type {
   FoldTrainingConfig,
   FoldTrainingSamplePrediction,
@@ -41,6 +62,7 @@ export type {
   GnosisLineMetrics,
   GnosisQuantumMetrics,
   GnosisSteeringAction,
+  GnosisSteeringBias,
   GnosisSteeringEda,
   GnosisSteeringMetrics,
   GnosisSteeringMode,
