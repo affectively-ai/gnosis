@@ -355,10 +355,10 @@ theorem spectrallyStable_of_rowMass
           ((Finset.sup_lt_iff (show (0 : NNReal) < 1 by norm_num)).2
             (fun source _ => by
               have h_sum_eq :
-                  (((∑ target : Fin nodeCount, ‖kernel.transition source target‖₊) : ℝ≥0) :
+                  (((∑ target : Fin nodeCount, ‖kernel.transition source target‖₊) : NNReal) :
                     Real) = rowBound source := by
                 calc
-                  (((∑ target : Fin nodeCount, ‖kernel.transition source target‖₊) : ℝ≥0) :
+                  (((∑ target : Fin nodeCount, ‖kernel.transition source target‖₊) : NNReal) :
                       Real)
                     = ∑ target : Fin nodeCount, ‖kernel.transition source target‖ := by
                         simp [NNReal.coe_sum]
@@ -366,13 +366,13 @@ theorem spectrallyStable_of_rowMass
                         simp_rw [Real.norm_of_nonneg (h_nonnegative source ·)]
                   _ = rowBound source := h_row_eq source
               have h_sum_lt_real :
-                  (((∑ target : Fin nodeCount, ‖kernel.transition source target‖₊) : ℝ≥0) :
+                  (((∑ target : Fin nodeCount, ‖kernel.transition source target‖₊) : NNReal) :
                     Real) < 1 := by
                 rwa [h_sum_eq]
               exact NNReal.coe_lt_coe.mp h_sum_lt_real))
   have h_norm_lt_coe_real : ((‖kernel.transition‖₊ : NNReal) : Real) < 1 := by
     simpa using h_norm_lt_real
-  have h_norm_lt : (↑‖kernel.transition‖₊ : ℝ≥0∞) < 1 := by
+  have h_norm_lt : ((‖kernel.transition‖₊ : NNReal) : ℝ≥0∞) < 1 := by
     exact_mod_cast h_norm_lt_coe_real
   exact h_norm_lt
 
