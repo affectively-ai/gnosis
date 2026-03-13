@@ -78,7 +78,7 @@ describe('GnosisModuleLoader', () => {
     writeFileSync(
       routesPath,
       '(router:Router)\n(router)-[:PROCESS]->(handler:Handler)\n',
-      'utf-8',
+      'utf-8'
     );
     writeFileSync(
       appPath,
@@ -91,7 +91,7 @@ describe('GnosisModuleLoader', () => {
         'export { request }',
         '',
       ].join('\n'),
-      'utf-8',
+      'utf-8'
     );
 
     const module = await loadGnosisModuleFromFile(appPath, cwd);
@@ -102,12 +102,49 @@ describe('GnosisModuleLoader', () => {
     expect(module.ast.nodes.has('request')).toBe(true);
     expect(module.ast.nodes.has('router')).toBe(true);
     expect(
-      [...module.ast.nodes.keys()].some((nodeId) =>
-        nodeId.endsWith(':handler'),
-      ),
+      [...module.ast.nodes.keys()].some((nodeId) => nodeId.endsWith(':handler'))
     ).toBe(true);
     expect(module.mergedSource).toContain('(request:Request)');
     expect(module.mergedSource).toContain('(request)-[:PROCESS]->(router)');
+  });
+
+  it('surfaces merged effect contracts for imported modules', async () => {
+    const cwd = makeTempDir();
+    const authPath = path.join(cwd, 'auth.gg');
+    const appPath = path.join(cwd, 'app.mgg');
+
+    writeFileSync(
+      authPath,
+      "(verify:UCANVerify { effects: 'auth.ucan' })\n",
+      'utf-8'
+    );
+    writeFileSync(
+      appPath,
+      [
+        "import { verify } from './auth.gg'",
+        '',
+        '(request:Request)',
+        '(request)-[:PROCESS]->(verify)',
+        '',
+        'export { request }',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+
+    const module = await loadGnosisModuleFromFile(appPath, cwd);
+    const verifyNode = module.effects.nodes.find(
+      (node) => node.nodeId === 'verify'
+    );
+
+    expect(module.effects.required).toEqual(['auth.ucan']);
+    expect(module.effects.declared).toEqual(['auth.ucan']);
+    expect(module.effects.inferred).toEqual(['auth.ucan']);
+    expect(verifyNode).toEqual({
+      nodeId: 'verify',
+      declared: ['auth.ucan'],
+      inferred: ['auth.ucan'],
+    });
   });
 
   it('supports empty re-export modules', async () => {
@@ -118,7 +155,7 @@ describe('GnosisModuleLoader', () => {
     writeFileSync(
       routesPath,
       '(router:Router)\n(router)-[:PROCESS]->(handler:Handler)\n',
-      'utf-8',
+      'utf-8'
     );
     writeFileSync(
       bridgePath,
@@ -128,7 +165,7 @@ describe('GnosisModuleLoader', () => {
         'export { router }',
         '',
       ].join('\n'),
-      'utf-8',
+      'utf-8'
     );
 
     const loader = new GnosisModuleLoader(createFilesystemModuleResolver(cwd));
@@ -137,9 +174,7 @@ describe('GnosisModuleLoader', () => {
     expect(module.exports).toEqual(['router']);
     expect(module.ast.nodes.has('router')).toBe(true);
     expect(
-      [...module.ast.nodes.keys()].some((nodeId) =>
-        nodeId.endsWith(':handler'),
-      ),
+      [...module.ast.nodes.keys()].some((nodeId) => nodeId.endsWith(':handler'))
     ).toBe(true);
   });
 
@@ -155,7 +190,7 @@ describe('GnosisModuleLoader', () => {
         '(input)-[:PROCESS]->(output)',
         '',
       ].join('\n'),
-      'utf-8',
+      'utf-8'
     );
 
     const module = await loadGnosisModuleFromFile(modulePath, cwd);
@@ -181,7 +216,7 @@ describe('GnosisModuleLoader', () => {
         'export { seed }',
         '',
       ].join('\n'),
-      'utf-8',
+      'utf-8'
     );
 
     const module = await loadGnosisModuleFromFile(modulePath, cwd);
@@ -204,7 +239,7 @@ describe('GnosisModuleLoader', () => {
         'export { seed, sink }',
         '',
       ].join('\n'),
-      'utf-8',
+      'utf-8'
     );
 
     const module = await loadGnosisModuleFromFile(modulePath, cwd);
@@ -222,9 +257,9 @@ describe('GnosisModuleLoader', () => {
     writeFileSync(
       modulePath,
       ['(seed:Source)', '(sink:Sink)', '(seed)-[:PROCESS]->(sink)', ''].join(
-        '\n',
+        '\n'
       ),
-      'utf-8',
+      'utf-8'
     );
 
     const module = await loadGnosisModuleFromFile(modulePath, cwd);
@@ -242,7 +277,7 @@ describe('GnosisModuleLoader', () => {
     writeFileSync(
       basePath,
       "(input:Tensor { activation: 'identity' })\n",
-      'utf-8',
+      'utf-8'
     );
     writeFileSync(
       appPath,
@@ -254,7 +289,7 @@ describe('GnosisModuleLoader', () => {
         'export { output }',
         '',
       ].join('\n'),
-      'utf-8',
+      'utf-8'
     );
 
     const module = await loadGnosisModuleFromFile(appPath, cwd);
@@ -272,7 +307,7 @@ describe('GnosisModuleLoader', () => {
     writeFileSync(
       routesPath,
       '(router:Router)\n(router)-[:PROCESS]->(step)-[:PROCESS]->(handler)\n',
-      'utf-8',
+      'utf-8'
     );
     writeFileSync(
       appPath,
@@ -285,7 +320,7 @@ describe('GnosisModuleLoader', () => {
         'export { request }',
         '',
       ].join('\n'),
-      'utf-8',
+      'utf-8'
     );
 
     const module = await loadGnosisModuleFromFile(appPath, cwd);
@@ -302,7 +337,7 @@ describe('GnosisModuleLoader', () => {
     writeFileSync(
       routesPath,
       '(router:Router)\n(router)-[:PROCESS]->(handler:Handler)\n',
-      'utf-8',
+      'utf-8'
     );
     writeFileSync(
       appPath,
@@ -312,11 +347,11 @@ describe('GnosisModuleLoader', () => {
         '(request)-[:PROCESS]->(missing)',
         '',
       ].join('\n'),
-      'utf-8',
+      'utf-8'
     );
 
     await expect(loadGnosisModuleFromFile(appPath, cwd)).rejects.toThrow(
-      "'missing' is not exported from './routes.gg'",
+      "'missing' is not exported from './routes.gg'"
     );
   });
 
@@ -330,7 +365,7 @@ describe('GnosisModuleLoader', () => {
       'github.com',
       'acme',
       'routes',
-      'v1.2.3',
+      'v1.2.3'
     );
 
     writeFileSync(
@@ -343,11 +378,11 @@ describe('GnosisModuleLoader', () => {
         'require github.com/acme/routes v1.2.3',
         '',
       ].join('\n'),
-      'utf-8',
+      'utf-8'
     );
     new ModManager(cwd).tidy();
     expect(readFileSync(path.join(cwd, 'gnosis.lock'), 'utf-8')).toContain(
-      '"path": "github.com/acme/routes"',
+      '"path": "github.com/acme/routes"'
     );
 
     mkdirSync(packageRoot, { recursive: true });
@@ -360,7 +395,7 @@ describe('GnosisModuleLoader', () => {
         'export { router }',
         '',
       ].join('\n'),
-      'utf-8',
+      'utf-8'
     );
     writeFileSync(
       appPath,
@@ -373,7 +408,7 @@ describe('GnosisModuleLoader', () => {
         'export { request }',
         '',
       ].join('\n'),
-      'utf-8',
+      'utf-8'
     );
 
     const module = await loadGnosisModuleFromFile(appPath, cwd);
@@ -381,9 +416,7 @@ describe('GnosisModuleLoader', () => {
     expect(module.imports).toHaveLength(1);
     expect(module.ast.nodes.has('router')).toBe(true);
     expect(
-      [...module.ast.nodes.keys()].some((nodeId) =>
-        nodeId.endsWith(':handler'),
-      ),
+      [...module.ast.nodes.keys()].some((nodeId) => nodeId.endsWith(':handler'))
     ).toBe(true);
     expect(module.mergedSource).toContain('(request)-[:PROCESS]->(router)');
   });
@@ -398,7 +431,7 @@ describe('GnosisModuleLoader', () => {
       'github.com',
       'acme',
       'routes',
-      'v1.2.3',
+      'v1.2.3'
     );
 
     writeFileSync(
@@ -411,14 +444,14 @@ describe('GnosisModuleLoader', () => {
         'require github.com/acme/routes v1.2.3',
         '',
       ].join('\n'),
-      'utf-8',
+      'utf-8'
     );
 
     mkdirSync(packageRoot, { recursive: true });
     writeFileSync(
       path.join(packageRoot, 'index.gg'),
       '(router:Router)\n(router)-[:PROCESS]->(handler:Handler)\n',
-      'utf-8',
+      'utf-8'
     );
     writeFileSync(
       appPath,
@@ -430,7 +463,7 @@ describe('GnosisModuleLoader', () => {
         'export { request }',
         '',
       ].join('\n'),
-      'utf-8',
+      'utf-8'
     );
 
     const module = await loadGnosisModuleFromFile(appPath, cwd);
@@ -456,7 +489,7 @@ describe('GnosisModuleLoader', () => {
         'export { alpha }',
         '',
       ].join('\n'),
-      'utf-8',
+      'utf-8'
     );
     writeFileSync(
       betaPath,
@@ -469,7 +502,7 @@ describe('GnosisModuleLoader', () => {
         'export { beta }',
         '',
       ].join('\n'),
-      'utf-8',
+      'utf-8'
     );
 
     const loadResult = Promise.race([
@@ -482,7 +515,7 @@ describe('GnosisModuleLoader', () => {
     ]);
 
     await expect(loadResult).rejects.toThrow(
-      /cyclic module import: .*alpha\.mgg -> .*beta\.mgg -> .*alpha\.mgg/,
+      /cyclic module import: .*alpha\.mgg -> .*beta\.mgg -> .*alpha\.mgg/
     );
   });
 });
@@ -532,14 +565,14 @@ describe('createFilesystemModuleResolver', () => {
       'github.com',
       'acme',
       'routes',
-      'v1.2.3',
+      'v1.2.3'
     );
 
     mkdirSync(dependencyRoot, { recursive: true });
     writeFileSync(
       path.join(dependencyRoot, 'index.gg'),
       '(router:Router)\n',
-      'utf-8',
+      'utf-8'
     );
     writeFileSync(appPath, '(request:Request)\n', 'utf-8');
 
@@ -553,7 +586,7 @@ describe('createFilesystemModuleResolver', () => {
         'require github.com/acme/routes v1.2.3',
         '',
       ].join('\n'),
-      'utf-8',
+      'utf-8'
     );
     new ModManager(cwd).tidy();
 

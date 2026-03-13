@@ -44,6 +44,18 @@ describe('capability inference', () => {
     expect(caps).toContain('auth.zk');
   });
 
+  it('infers capabilities from node-only GG source', () => {
+    const source = `
+      (verify: UCANVerify { effects: 'auth.ucan' })
+    `;
+
+    const requirements = inferCapabilitiesFromGgSource(source);
+    const report = validateCapabilitiesForTarget(requirements, 'agnostic');
+
+    expect(report.ok).toBe(true);
+    expect(report.requiredUnique).toEqual(['auth.ucan']);
+  });
+
   it('rejects workers-incompatible network capabilities', () => {
     const source = `
       (n1: TcpServer { transport: 'tcp', mode: 'server' })

@@ -1,4 +1,5 @@
 import { parseGgProgram } from '@affectively/aeon-logic';
+import { BettyCompiler } from '../betty/compiler.js';
 import type { CapabilityRequirement, HostCapability } from './types.js';
 import { lowerUfcsSource } from '../ufcs.js';
 
@@ -286,13 +287,55 @@ function dedupeRequirements(
   return unique;
 }
 
+interface CapabilityInferenceNode {
+  id: string;
+  labels: readonly string[];
+  properties: Record<string, string>;
+}
+
+function parseCapabilityInferenceNodes(
+  source: string
+): CapabilityInferenceNode[] {
+  const normalizedSource = lowerUfcsSource(source);
+
+  try {
+    const program = parseGgProgram(normalizedSource);
+    return program.nodes.map((node) => ({
+      id: node.id,
+      labels: node.labels ?? [],
+      properties: (node.properties ?? {}) as Record<string, string>,
+    }));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes('No .gg topology edges were parsed.')) {
+      throw error;
+    }
+
+    const compiler = new BettyCompiler();
+    const { ast, diagnostics } = compiler.parse(normalizedSource);
+    const errors = diagnostics
+      .filter((diagnostic) => diagnostic.severity === 'error')
+      .map((diagnostic) => diagnostic.message);
+
+    if (errors.length > 0 || !ast) {
+      throw new Error(errors.length > 0 ? errors.join('; ') : message);
+    }
+
+    return [...ast.nodes.values()].map((node) => ({
+      id: node.id,
+      labels: node.labels ?? [],
+      properties: node.properties ?? {},
+    }));
+  }
+}
+
 export function inferCapabilitiesFromGgSource(
   source: string
 ): CapabilityRequirement[] {
   const requirements: CapabilityRequirement[] = [];
-  const program = parseGgProgram(lowerUfcsSource(source));
+  const nodes = parseCapabilityInferenceNodes(source);
 
-  for (const node of program.nodes) {
+  for (const node of nodes) {
     const nodeId = node.id;
     const labels = node.labels ?? [];
     const properties = (node.properties ?? {}) as Record<string, string>;

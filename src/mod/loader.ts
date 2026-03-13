@@ -14,6 +14,11 @@ import {
   type GnosisEngineExecutionResult,
 } from '../runtime/engine.js';
 import { GnosisRegistry } from '../runtime/registry.js';
+import {
+  inferCapabilitiesFromGgSource,
+  summarizeCapabilityRequirements,
+  type CapabilityContractSummary,
+} from '../capabilities/index.js';
 import { ModManager, type ModDependency } from './manager.js';
 import { lowerUfcsSource } from '../ufcs.js';
 
@@ -40,6 +45,7 @@ export interface LoadedGnosisModule {
   mergedSource: string;
   ast: GraphAST;
   b1: number;
+  effects: CapabilityContractSummary;
   exports: string[];
   imports: GnosisResolvedImport[];
 }
@@ -55,7 +61,7 @@ export type ResolveResult =
 
 export type GnosisModuleResolver = (
   specifier: string,
-  fromModule: string,
+  fromModule: string
 ) => Promise<ResolveResult>;
 
 const IMPORT_RE = /^\s*import\s+\{([^}]+)\}\s+from\s+['"]([^'"]+)['"]\s*;?\s*$/;
@@ -164,7 +170,7 @@ function getModuleLoaderTopologyAst(): GraphAST {
   }
 
   const topologySource = readBundledTopologySource(
-    MODULE_LOADER_TOPOLOGY_URL_CANDIDATES,
+    MODULE_LOADER_TOPOLOGY_URL_CANDIDATES
   );
   const compiler = new BettyCompiler();
   const { ast, diagnostics } = compiler.parse(lowerUfcsSource(topologySource));
@@ -176,7 +182,7 @@ function getModuleLoaderTopologyAst(): GraphAST {
     throw new Error(
       errors.length > 0
         ? errors.join('; ')
-        : 'Failed to compile bundled module loader topology.',
+        : 'Failed to compile bundled module loader topology.'
     );
   }
 
@@ -190,7 +196,7 @@ function getModuleResolverTopologyAst(): GraphAST {
   }
 
   const topologySource = readBundledTopologySource(
-    MODULE_RESOLVER_TOPOLOGY_URL_CANDIDATES,
+    MODULE_RESOLVER_TOPOLOGY_URL_CANDIDATES
   );
   const compiler = new BettyCompiler();
   const { ast, diagnostics } = compiler.parse(lowerUfcsSource(topologySource));
@@ -202,7 +208,7 @@ function getModuleResolverTopologyAst(): GraphAST {
     throw new Error(
       errors.length > 0
         ? errors.join('; ')
-        : 'Failed to compile bundled module resolver topology.',
+        : 'Failed to compile bundled module resolver topology.'
     );
   }
 
@@ -226,7 +232,7 @@ function requireModuleLoaderState(payload: unknown): ModuleLoaderState {
     typeof (candidate as { source?: unknown }).source !== 'string'
   ) {
     throw new Error(
-      'Module loader pipeline received an invalid state payload.',
+      'Module loader pipeline received an invalid state payload.'
     );
   }
 
@@ -242,7 +248,7 @@ function requireLoadedModule(payload: unknown): LoadedGnosisModule {
     !('ast' in payload)
   ) {
     throw new Error(
-      'Module loader pipeline did not return a valid loaded module.',
+      'Module loader pipeline did not return a valid loaded module.'
     );
   }
 
@@ -266,7 +272,7 @@ function requireModuleResolverState(payload: unknown): ModuleResolverState {
     typeof (candidate as { fromModule?: unknown }).fromModule !== 'string'
   ) {
     throw new Error(
-      'Module resolver pipeline received an invalid state payload.',
+      'Module resolver pipeline received an invalid state payload.'
     );
   }
 
@@ -280,7 +286,7 @@ function requireResolveResult(payload: unknown): ResolveResult {
     typeof (payload as { resolved?: unknown }).resolved !== 'boolean'
   ) {
     throw new Error(
-      'Module resolver pipeline did not return a valid resolution result.',
+      'Module resolver pipeline did not return a valid resolution result.'
     );
   }
 
@@ -290,12 +296,12 @@ function requireResolveResult(payload: unknown): ResolveResult {
       typeof (payload as { source?: unknown }).source !== 'string'
     ) {
       throw new Error(
-        'Module resolver pipeline returned an invalid successful result.',
+        'Module resolver pipeline returned an invalid successful result.'
       );
     }
   } else if (typeof (payload as { error?: unknown }).error !== 'string') {
     throw new Error(
-      'Module resolver pipeline returned an invalid failed result.',
+      'Module resolver pipeline returned an invalid failed result.'
     );
   }
 
@@ -304,7 +310,7 @@ function requireResolveResult(payload: unknown): ResolveResult {
 
 function findWorkspaceRoot(
   startPath: string,
-  fallbackRoot: string,
+  fallbackRoot: string
 ): string | null {
   let current = path.resolve(startPath);
   const floor = path.resolve(fallbackRoot);
@@ -349,13 +355,13 @@ function readWorkspaceDependencies(workspaceRoot: string): ModDependency[] {
 
 function resolveDependencySpecifier(
   specifier: string,
-  workspaceRoot: string,
+  workspaceRoot: string
 ): WorkspaceDependencyResolution | null {
   const dependencies = readWorkspaceDependencies(workspaceRoot)
     .filter(
       (dependency) =>
         specifier === dependency.path ||
-        specifier.startsWith(`${dependency.path}/`),
+        specifier.startsWith(`${dependency.path}/`)
     )
     .sort((left, right) => right.path.length - left.path.length);
   const dependency = dependencies[0];
@@ -377,20 +383,20 @@ function resolveDependencySpecifier(
 
 function buildDependencyRootPath(
   workspaceRoot: string,
-  dependency: ModDependency,
+  dependency: ModDependency
 ): string {
   return path.join(
     workspaceRoot,
     '.gnosis',
     'deps',
     ...dependency.path.split('/').filter((segment) => segment.length > 0),
-    dependency.version,
+    dependency.version
   );
 }
 
 function buildDependencyCandidates(
   dependencyRoot: string,
-  subpath: string,
+  subpath: string
 ): string[] {
   if (subpath.length === 0) {
     return [
@@ -430,7 +436,7 @@ function formatImportCycle(chain: readonly string[]): string {
 async function resolveBareModuleSpecifier(
   specifier: string,
   fromModule: string,
-  fallbackRoot: string,
+  fallbackRoot: string
 ): Promise<ResolveResult> {
   const searchStart =
     fromModule.length > 0
@@ -464,11 +470,11 @@ async function resolveBareModuleSpecifier(
 
   const dependencyRoot = buildDependencyRootPath(
     resolution.workspaceRoot,
-    resolution.dependency,
+    resolution.dependency
   );
   const candidates = buildDependencyCandidates(
     dependencyRoot,
-    resolution.subpath,
+    resolution.subpath
   );
 
   for (const candidate of candidates) {
@@ -500,14 +506,14 @@ async function resolveBareModuleSpecifier(
       resolution.dependency.path
     }' is declared at '${path.relative(
       resolution.workspaceRoot,
-      dependencyRoot,
+      dependencyRoot
     )}' but no module entry was found for '${specifier}'.`,
   };
 }
 
 async function resolveFilesystemCandidates(
   candidates: readonly string[],
-  specifier: string,
+  specifier: string
 ): Promise<ResolveResult> {
   for (const candidate of candidates) {
     try {
@@ -549,7 +555,7 @@ function graphAstFromProgram(source: string): GraphAST {
           labels: [...node.labels],
           properties: { ...node.properties },
         },
-      ]),
+      ])
     ),
     edges: program.edges.map((edge) => ({
       sourceIds: [...edge.sourceIds],
@@ -589,7 +595,7 @@ function compileTopology(source: string): CompiledTopology {
   let normalizedAst: GraphAST;
   try {
     normalizedAst = materializeImplicitNodes(
-      graphAstFromProgram(normalizedSource),
+      graphAstFromProgram(normalizedSource)
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -603,9 +609,13 @@ function compileTopology(source: string): CompiledTopology {
   return { ast: normalizedAst, b1 };
 }
 
+function summarizeModuleEffects(source: string): CapabilityContractSummary {
+  return summarizeCapabilityRequirements(inferCapabilitiesFromGgSource(source));
+}
+
 function formatProperties(properties: Record<string, string>): string {
   const entries = Object.entries(properties).sort(([left], [right]) =>
-    left.localeCompare(right),
+    left.localeCompare(right)
   );
   if (entries.length === 0) {
     return '';
@@ -624,7 +634,7 @@ function renderNode(node: ASTNode): string {
 
 function renderEdge(edge: ASTEdge): string {
   return `(${edge.sourceIds.join('|')})-[:${edge.type}${formatProperties(
-    edge.properties,
+    edge.properties
   )}]->(${edge.targetIds.join('|')})`;
 }
 
@@ -638,7 +648,7 @@ function prefixForModuleId(moduleId: string): string {
 
 function mergeTopologies(
   local: CompiledTopology,
-  imports: readonly GnosisResolvedImport[],
+  imports: readonly GnosisResolvedImport[]
 ): CompiledTopology {
   const mergedNodes = new Map(local.ast.nodes);
   const mergedEdges = [...local.ast.edges];
@@ -743,9 +753,9 @@ export function renderMGG(parsed: ParsedGnosisModule): string {
           (declaration) =>
             `import { ${declaration.names.join(', ')} } from '${
               declaration.source
-            }'`,
+            }'`
         )
-        .join('\n'),
+        .join('\n')
     );
   }
 
@@ -758,7 +768,7 @@ export function renderMGG(parsed: ParsedGnosisModule): string {
     sections.push(
       parsed.exports
         .map((declaration) => `export { ${declaration.names.join(', ')} }`)
-        .join('\n'),
+        .join('\n')
     );
   }
 
@@ -774,7 +784,7 @@ export function looksLikeModule(source: string): boolean {
 
 export function detectModuleFormat(
   moduleId: string,
-  source?: string,
+  source?: string
 ): 'gg' | 'mgg' {
   if (moduleId.toLowerCase().endsWith('.mgg')) {
     return 'mgg';
@@ -792,7 +802,7 @@ export function renderGraphAst(ast: GraphAST): string {
 }
 
 export function createFilesystemModuleResolver(
-  rootDir: string = process.cwd(),
+  rootDir: string = process.cwd()
 ): GnosisModuleResolver {
   const registry = new GnosisRegistry();
 
@@ -816,7 +826,7 @@ export function createFilesystemModuleResolver(
     return resolveBareModuleSpecifier(
       state.specifier,
       state.fromModule,
-      state.rootDir,
+      state.rootDir
     );
   });
 
@@ -832,8 +842,8 @@ export function createFilesystemModuleResolver(
       candidateBase: state.specifier.startsWith('file:')
         ? new URL(state.specifier).pathname
         : path.isAbsolute(state.specifier)
-          ? state.specifier
-          : path.resolve(baseDir, state.specifier),
+        ? state.specifier
+        : path.resolve(baseDir, state.specifier),
     } satisfies ModuleResolverState;
   });
 
@@ -859,7 +869,7 @@ export function createFilesystemModuleResolver(
       const state = requireModuleResolverState(payload);
       const candidateBase = state.candidateBase ?? state.specifier;
       return resolveFilesystemCandidates([candidateBase], state.specifier);
-    },
+    }
   );
 
   registry.register('ModuleResolveFilesystemCandidates', async (payload) => {
@@ -867,7 +877,7 @@ export function createFilesystemModuleResolver(
     const candidateBase = state.candidateBase ?? state.specifier;
     return resolveFilesystemCandidates(
       [`${candidateBase}.mgg`, `${candidateBase}.gg`, candidateBase],
-      state.specifier,
+      state.specifier
     );
   });
 
@@ -875,7 +885,7 @@ export function createFilesystemModuleResolver(
 
   return async (
     specifier: string,
-    fromModule: string,
+    fromModule: string
   ): Promise<ResolveResult> => {
     const result = await engine.executeWithResult(
       getModuleResolverTopologyAst(),
@@ -883,7 +893,7 @@ export function createFilesystemModuleResolver(
         rootDir,
         specifier,
         fromModule,
-      } satisfies ModuleResolverState,
+      } satisfies ModuleResolverState
     );
     return requireResolveResult(result.payload);
   };
@@ -891,10 +901,10 @@ export function createFilesystemModuleResolver(
 
 export async function loadGnosisModuleFromFile(
   modulePath: string,
-  rootDir: string = process.cwd(),
+  rootDir: string = process.cwd()
 ): Promise<LoadedGnosisModule> {
   const loader = new GnosisModuleLoader(
-    createFilesystemModuleResolver(rootDir),
+    createFilesystemModuleResolver(rootDir)
   );
   return loader.load(modulePath);
 }
@@ -919,14 +929,14 @@ export class GnosisModuleLoader {
 
     if (!resolvedTopLevel.resolved) {
       throw new Error(
-        `Failed to resolve module '${modulePath}': ${resolvedTopLevel.error}`,
+        `Failed to resolve module '${modulePath}': ${resolvedTopLevel.error}`
       );
     }
 
     return this.loadResolved(
       resolvedTopLevel.path,
       resolvedTopLevel.source,
-      [],
+      []
     );
   }
 
@@ -937,7 +947,7 @@ export class GnosisModuleLoader {
   private async loadResolved(
     modulePath: string,
     source: string,
-    importChain: readonly string[],
+    importChain: readonly string[]
   ): Promise<LoadedGnosisModule> {
     if (importChain.includes(modulePath)) {
       throw new Error(formatImportCycle([...importChain, modulePath]));
@@ -968,20 +978,20 @@ export class GnosisModuleLoader {
   private async loadThroughTopology(
     modulePath: string,
     source: string,
-    importChain: readonly string[],
+    importChain: readonly string[]
   ): Promise<LoadedGnosisModule> {
     return this.runModuleLoaderTopology(
       {
         modulePath,
         source,
       },
-      importChain,
+      importChain
     );
   }
 
   private async runModuleLoaderTopology(
     initialState: ModuleLoaderState,
-    importChain: readonly string[],
+    importChain: readonly string[]
   ): Promise<LoadedGnosisModule> {
     const registry = new GnosisRegistry();
     this.registerModuleLoaderHandlers(registry, importChain);
@@ -989,7 +999,7 @@ export class GnosisModuleLoader {
     const engine = new GnosisEngine(registry);
     const result: GnosisEngineExecutionResult = await engine.executeWithResult(
       getModuleLoaderTopologyAst(),
-      initialState,
+      initialState
     );
 
     return requireLoadedModule(result.payload);
@@ -997,7 +1007,7 @@ export class GnosisModuleLoader {
 
   private registerModuleLoaderHandlers(
     registry: GnosisRegistry,
-    importChain: readonly string[],
+    importChain: readonly string[]
   ): void {
     registry.register('ModuleParse', async (payload) => {
       const state = requireModuleLoaderState(payload);
@@ -1046,11 +1056,11 @@ export class GnosisModuleLoader {
       for (const declaration of parsed.imports) {
         const resolved = await this.resolver(
           declaration.source,
-          state.modulePath,
+          state.modulePath
         );
         if (!resolved.resolved) {
           throw new Error(
-            `Cannot resolve import '${declaration.source}' from '${state.modulePath}': ${resolved.error}`,
+            `Cannot resolve import '${declaration.source}' from '${state.modulePath}': ${resolved.error}`
           );
         }
 
@@ -1076,7 +1086,7 @@ export class GnosisModuleLoader {
         const importedModule = await this.loadResolved(
           resolution.resolvedPath,
           resolution.resolvedSource,
-          [...importChain, state.modulePath],
+          [...importChain, state.modulePath]
         );
         resolvedImports.push({
           declaration: resolution.declaration,
@@ -1100,8 +1110,8 @@ export class GnosisModuleLoader {
               `'${name}' is not exported from '${
                 resolvedImport.declaration.source
               }'. Available exports: ${resolvedImport.module.exports.join(
-                ', ',
-              )}`,
+                ', '
+              )}`
             );
           }
         }
@@ -1121,7 +1131,7 @@ export class GnosisModuleLoader {
         parsed,
         localTopology: compileTopology(parsed.topologySource),
         explicitExports: parsed.exports.flatMap(
-          (declaration) => declaration.names,
+          (declaration) => declaration.names
         ),
       } satisfies ModuleLoaderState;
     });
@@ -1131,7 +1141,7 @@ export class GnosisModuleLoader {
       const localTopology =
         state.localTopology ??
         compileTopology(
-          (state.parsed ?? parseMGG(state.source)).topologySource,
+          (state.parsed ?? parseMGG(state.source)).topologySource
         );
 
       return {
@@ -1156,7 +1166,7 @@ export class GnosisModuleLoader {
       const localTopology =
         state.localTopology ??
         compileTopology(
-          (state.parsed ?? parseMGG(state.source)).topologySource,
+          (state.parsed ?? parseMGG(state.source)).topologySource
         );
 
       return {
@@ -1171,7 +1181,7 @@ export class GnosisModuleLoader {
       const localTopology =
         state.localTopology ??
         compileTopology(
-          (state.parsed ?? parseMGG(state.source)).topologySource,
+          (state.parsed ?? parseMGG(state.source)).topologySource
         );
 
       return {
@@ -1186,7 +1196,7 @@ export class GnosisModuleLoader {
       const localTopology =
         state.localTopology ??
         compileTopology(
-          (state.parsed ?? parseMGG(state.source)).topologySource,
+          (state.parsed ?? parseMGG(state.source)).topologySource
         );
 
       return {
@@ -1194,7 +1204,7 @@ export class GnosisModuleLoader {
         localTopology,
         mergedTopology: mergeTopologies(
           localTopology,
-          state.resolvedImports ?? [],
+          state.resolvedImports ?? []
         ),
       } satisfies ModuleLoaderState;
     });
@@ -1215,7 +1225,7 @@ export class GnosisModuleLoader {
       for (const exportedName of exports) {
         if (!mergedTopology.ast.nodes.has(exportedName)) {
           throw new Error(
-            `Cannot export '${exportedName}' from '${state.modulePath}' because no such topology node exists after import resolution.`,
+            `Cannot export '${exportedName}' from '${state.modulePath}' because no such topology node exists after import resolution.`
           );
         }
       }
@@ -1239,15 +1249,17 @@ export class GnosisModuleLoader {
       const mergedTopology =
         state.mergedTopology ??
         mergeTopologies(localTopology, state.resolvedImports ?? []);
+      const mergedSource = renderGraphAst(mergedTopology.ast);
 
       return {
         id: state.modulePath,
         format,
         source: state.source,
         topologySource: parsed.topologySource,
-        mergedSource: renderGraphAst(mergedTopology.ast),
+        mergedSource,
         ast: mergedTopology.ast,
         b1: mergedTopology.b1,
+        effects: summarizeModuleEffects(mergedSource),
         exports:
           state.exportNames && state.exportNames.length > 0
             ? state.exportNames
