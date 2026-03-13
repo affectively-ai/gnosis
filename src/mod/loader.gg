@@ -1,4 +1,6 @@
-(parse:ModuleParse)-[:PROCESS]->(resolve_specs:ModuleResolveImportSpecifiers)
+(parse:ModuleParse)-[:PROCESS]->(imports_state:ModuleImportState)
+(imports_state)-[:PROCESS { case: 'imports' }]->(resolve_specs:ModuleResolveImportSpecifiers)
+(imports_state)-[:PROCESS { case: 'none' }]->(compile:ModuleCompileTopology)
 (resolve_specs)-[:PROCESS]->(load_imports:ModuleLoadImports)
 (load_imports)-[:PROCESS]->(validate_imports:ModuleValidateImports)
 (validate_imports)-[:PROCESS]->(compile:ModuleCompileTopology)

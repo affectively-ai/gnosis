@@ -138,6 +138,30 @@ describe('GnosisModuleLoader', () => {
     ).toBe(true);
   });
 
+  it('loads standalone mgg modules through the no-import branch', async () => {
+    const cwd = makeTempDir();
+    const modulePath = path.join(cwd, 'standalone.mgg');
+
+    writeFileSync(
+      modulePath,
+      [
+        '(seed:Source)',
+        '(seed)-[:PROCESS]->(sink:Sink)',
+        '',
+        'export { seed, sink }',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+
+    const module = await loadGnosisModuleFromFile(modulePath, cwd);
+
+    expect(module.imports).toEqual([]);
+    expect(module.exports).toEqual(['seed', 'sink']);
+    expect(module.ast.nodes.has('seed')).toBe(true);
+    expect(module.ast.nodes.has('sink')).toBe(true);
+  });
+
   it('supports imports from node-only .gg modules', async () => {
     const cwd = makeTempDir();
     const basePath = path.join(cwd, 'base.gg');

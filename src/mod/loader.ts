@@ -171,18 +171,26 @@ function getModuleLoaderTopologyAst(): GraphAST {
 }
 
 function requireModuleLoaderState(payload: unknown): ModuleLoaderState {
+  const candidate =
+    payload &&
+    typeof payload === 'object' &&
+    'value' in payload &&
+    typeof (payload as { value?: unknown }).value === 'object'
+      ? (payload as { value: unknown }).value
+      : payload;
+
   if (
-    !payload ||
-    typeof payload !== 'object' ||
-    typeof (payload as { modulePath?: unknown }).modulePath !== 'string' ||
-    typeof (payload as { source?: unknown }).source !== 'string'
+    !candidate ||
+    typeof candidate !== 'object' ||
+    typeof (candidate as { modulePath?: unknown }).modulePath !== 'string' ||
+    typeof (candidate as { source?: unknown }).source !== 'string'
   ) {
     throw new Error(
       'Module loader pipeline received an invalid state payload.'
     );
   }
 
-  return payload as ModuleLoaderState;
+  return candidate as ModuleLoaderState;
 }
 
 function requireLoadedModule(payload: unknown): LoadedGnosisModule {
@@ -858,6 +866,21 @@ export class GnosisModuleLoader {
         ...state,
         parsed: parseMGG(state.source),
       } satisfies ModuleLoaderState;
+    });
+
+    registry.register('ModuleImportState', async (payload) => {
+      const state = requireModuleLoaderState(payload);
+      const parsed = state.parsed ?? parseMGG(state.source);
+
+      return {
+        adt: 'ModuleImports',
+        kind: parsed.imports.length > 0 ? 'imports' : 'none',
+        case: parsed.imports.length > 0 ? 'imports' : 'none',
+        value: {
+          ...state,
+          parsed,
+        } satisfies ModuleLoaderState,
+      };
     });
 
     registry.register('ModuleResolveImportSpecifiers', async (payload) => {
