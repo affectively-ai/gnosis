@@ -274,9 +274,11 @@ function buildSpectralWitness(
       proof: `have h_spectral : SpectrallyStable ${kernelExpression} := by
   have h_nilpotent_rat : transitionRat ^ topologyNodeCount = 0 := by
     native_decide
+  have h_nilpotent_map :
+      (Rat.castHom Real).mapMatrix (transitionRat ^ topologyNodeCount) = 0 := by
+    simpa using congrArg ((Rat.castHom Real).mapMatrix) h_nilpotent_rat
   have h_nilpotent : transition ^ topologyNodeCount = 0 := by
-    simpa [transition, Matrix.map_pow] using
-      congrArg ((Rat.castHom Real).mapMatrix) h_nilpotent_rat
+    simpa [transition, Matrix.map_pow] using h_nilpotent_map
   exact spectrallyStable_of_nilpotent
     (kernel := ${kernelExpression})
     (power := topologyNodeCount)
@@ -368,7 +370,7 @@ function buildKernelDefinitions(
 
 def topologyNodeCount : Nat := ${topologyNodeCount}
 instance : NeZero topologyNodeCount := by
-  simp [topologyNodeCount]
+  simpa [topologyNodeCount] using (inferInstance : NeZero ${topologyNodeCount})
 
 def topologyNodes : List NodeId := ${topologyNodes}
 def smallSetNodeIds : List NodeId := ${smallSetNodeIds}
