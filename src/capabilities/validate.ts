@@ -71,19 +71,20 @@ export function validateCapabilitiesForTarget(
   target: RuntimeTarget
 ): CapabilityValidationReport {
   const requiredUnique = uniqueCapabilities(requirements);
+  const issues: CapabilityIssue[] = [];
+  appendDeclarationContractIssues(requirements, issues, target);
 
   if (target === 'agnostic') {
     return {
       target,
       required: [...requirements],
       requiredUnique,
-      issues: [],
-      ok: true,
+      issues,
+      ok: !issues.some((issue) => issue.severity === 'error'),
     };
   }
 
   const profile = CAPABILITY_PROFILES[target];
-  const issues: CapabilityIssue[] = [];
 
   for (const capability of requiredUnique) {
     if (!profile.supported.has(capability)) {
@@ -106,8 +107,6 @@ export function validateCapabilitiesForTarget(
       });
     }
   }
-
-  appendDeclarationContractIssues(requirements, issues, target);
 
   return {
     target,
