@@ -1,4 +1,5 @@
 import { parseGgProgram } from '@affectively/aeon-logic';
+import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
@@ -7,6 +8,7 @@ import {
   type ASTNode,
   type GraphAST,
 } from '../betty/compiler.js';
+import { ModManager, type ModDependency } from './manager.js';
 import { lowerUfcsSource } from '../ufcs.js';
 
 export interface GnosisModuleImport {
@@ -58,6 +60,12 @@ interface CompiledTopology {
   b1: number;
 }
 
+interface WorkspaceDependencyResolution {
+  workspaceRoot: string;
+  dependency: ModDependency;
+  subpath: string;
+}
+
 function materializeImplicitNodes(ast: GraphAST): GraphAST {
   const nodes = new Map(ast.nodes);
 
@@ -88,6 +96,209 @@ function splitNames(rawNames: string): string[] {
 
 function sortStrings(values: Iterable<string>): string[] {
   return [...new Set(values)].sort((left, right) => left.localeCompare(right));
+}
+
+function fileExists(filePath: string): boolean {
+  return fsSync.existsSync(filePath);
+}
+
+function findWorkspaceRoot(
+  startPath: string,
+  fallbackRoot: string
+): string | null {
+  let current = path.resolve(startPath);
+  const floor = path.resolve(fallbackRoot);
+
+  while (true) {
+    if (
+      fileExists(path.join(current, 'gnosis.lock')) ||
+      fileExists(path.join(current, 'gnosis.mod'))
+    ) {
+      return current;
+    }
+
+    if (current === floor || current === path.dirname(current)) {
+      break;
+    }
+
+    current = path.dirname(current);
+  }
+
+  if (
+    fileExists(path.join(floor, 'gnosis.lock')) ||
+    fileExists(path.join(floor, 'gnosis.mod'))
+  ) {
+    return floor;
+  }
+
+  return null;
+}
+
+function readWorkspaceDependencies(workspaceRoot: string): ModDependency[] {
+  const manager = new ModManager(workspaceRoot);
+  const lockFile = manager.readLockFile();
+  if (lockFile) {
+    return lockFile.dependencies.map((dependency) => ({
+      path: dependency.path,
+      version: dependency.version,
+    }));
+  }
+
+  return manager.parse().requires;
+}
+
+function resolveDependencySpecifier(
+  specifier: string,
+  workspaceRoot: string
+): WorkspaceDependencyResolution | null {
+  const dependencies = readWorkspaceDependencies(workspaceRoot)
+    .filter(
+      (dependency) =>
+        specifier === dependency.path ||
+        specifier.startsWith(`${dependency.path}/`)
+    )
+    .sort((left, right) => right.path.length - left.path.length);
+  const dependency = dependencies[0];
+  if (!dependency) {
+    return null;
+  }
+
+  const subpath =
+    specifier === dependency.path
+      ? ''
+      : specifier.slice(dependency.path.length + 1);
+
+  return {
+    workspaceRoot,
+    dependency,
+    subpath,
+  };
+}
+
+function buildDependencyRootPath(
+  workspaceRoot: string,
+  dependency: ModDependency
+): string {
+  return path.join(
+    workspaceRoot,
+    '.gnosis',
+    'deps',
+    ...dependency.path.split('/').filter((segment) => segment.length > 0),
+    dependency.version
+  );
+}
+
+function buildDependencyCandidates(
+  dependencyRoot: string,
+  subpath: string
+): string[] {
+  if (subpath.length === 0) {
+    return [
+      path.join(dependencyRoot, 'index.mgg'),
+      path.join(dependencyRoot, 'index.gg'),
+    ];
+  }
+
+  const normalizedSubpath = path.normalize(subpath);
+  if (
+    normalizedSubpath.startsWith('..') ||
+    path.isAbsolute(normalizedSubpath) ||
+    normalizedSubpath.includes(`${path.sep}..${path.sep}`) ||
+    normalizedSubpath === '..'
+  ) {
+    return [];
+  }
+
+  const candidateBase = path.join(dependencyRoot, normalizedSubpath);
+  const hasExtension = path.extname(candidateBase).length > 0;
+  if (hasExtension) {
+    return [candidateBase];
+  }
+
+  return [
+    `${candidateBase}.mgg`,
+    `${candidateBase}.gg`,
+    path.join(candidateBase, 'index.mgg'),
+    path.join(candidateBase, 'index.gg'),
+  ];
+}
+
+async function resolveBareModuleSpecifier(
+  specifier: string,
+  fromModule: string,
+  fallbackRoot: string
+): Promise<ResolveResult> {
+  const searchStart =
+    fromModule.length > 0
+      ? path.dirname(fromModule)
+      : path.resolve(fallbackRoot);
+  const workspaceRoot = findWorkspaceRoot(searchStart, fallbackRoot);
+  if (!workspaceRoot) {
+    return {
+      resolved: false,
+      error: `Bare module specifier '${specifier}' requires a gnosis.mod or gnosis.lock workspace root.`,
+    };
+  }
+
+  let resolution: WorkspaceDependencyResolution | null;
+  try {
+    resolution = resolveDependencySpecifier(specifier, workspaceRoot);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      resolved: false,
+      error: `Unable to read dependency metadata for '${specifier}': ${message}`,
+    };
+  }
+
+  if (!resolution) {
+    return {
+      resolved: false,
+      error: `Bare module specifier '${specifier}' is not declared in gnosis.mod or gnosis.lock.`,
+    };
+  }
+
+  const dependencyRoot = buildDependencyRootPath(
+    resolution.workspaceRoot,
+    resolution.dependency
+  );
+  const candidates = buildDependencyCandidates(
+    dependencyRoot,
+    resolution.subpath
+  );
+
+  for (const candidate of candidates) {
+    try {
+      const source = await fs.readFile(candidate, 'utf-8');
+      return {
+        resolved: true,
+        path: candidate,
+        source,
+      };
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        !('code' in error) ||
+        error.code !== 'ENOENT'
+      ) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          resolved: false,
+          error: `Unable to read '${candidate}': ${message}`,
+        };
+      }
+    }
+  }
+
+  return {
+    resolved: false,
+    error: `Dependency '${
+      resolution.dependency.path
+    }' is declared at '${path.relative(
+      resolution.workspaceRoot,
+      dependencyRoot
+    )}' but no module entry was found for '${specifier}'.`,
+  };
 }
 
 function graphAstFromProgram(source: string): GraphAST {
@@ -355,10 +566,7 @@ export function createFilesystemModuleResolver(
       !specifier.startsWith('/') &&
       !specifier.startsWith('file:')
     ) {
-      return {
-        resolved: false,
-        error: `Bare module specifier '${specifier}' is not supported yet.`,
-      };
+      return resolveBareModuleSpecifier(specifier, fromModule, rootDir);
     }
 
     const baseDir =

@@ -1,4 +1,10 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
 import {
@@ -8,6 +14,7 @@ import {
   parseMGG,
   renderMGG,
 } from './loader.js';
+import { ModManager } from './manager.js';
 
 const tempDirs: string[] = [];
 const tempRoot = path.join(process.cwd(), '.tmp-test-workspaces');
@@ -215,5 +222,123 @@ describe('GnosisModuleLoader', () => {
     await expect(loadGnosisModuleFromFile(appPath, cwd)).rejects.toThrow(
       "'missing' is not exported from './routes.gg'"
     );
+  });
+
+  it('resolves bare module specifiers through gnosis.lock dependencies', async () => {
+    const cwd = makeTempDir();
+    const appPath = path.join(cwd, 'app.mgg');
+    const packageRoot = path.join(
+      cwd,
+      '.gnosis',
+      'deps',
+      'github.com',
+      'acme',
+      'routes',
+      'v1.2.3'
+    );
+
+    writeFileSync(
+      path.join(cwd, 'gnosis.mod'),
+      [
+        'module github.com/acme/app',
+        '',
+        'gnosis 0.1.0',
+        '',
+        'require github.com/acme/routes v1.2.3',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+    new ModManager(cwd).tidy();
+    expect(readFileSync(path.join(cwd, 'gnosis.lock'), 'utf-8')).toContain(
+      '"path": "github.com/acme/routes"'
+    );
+
+    mkdirSync(packageRoot, { recursive: true });
+    writeFileSync(
+      path.join(packageRoot, 'index.mgg'),
+      [
+        '(router:Router)',
+        '(router)-[:PROCESS]->(handler:Handler)',
+        '',
+        'export { router }',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+    writeFileSync(
+      appPath,
+      [
+        "import { router } from 'github.com/acme/routes'",
+        '',
+        '(request:Request)',
+        '(request)-[:PROCESS]->(router)',
+        '',
+        'export { request }',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+
+    const module = await loadGnosisModuleFromFile(appPath, cwd);
+
+    expect(module.imports).toHaveLength(1);
+    expect(module.ast.nodes.has('router')).toBe(true);
+    expect(
+      [...module.ast.nodes.keys()].some((nodeId) => nodeId.endsWith(':handler'))
+    ).toBe(true);
+    expect(module.mergedSource).toContain('(request)-[:PROCESS]->(router)');
+  });
+
+  it('falls back to gnosis.mod dependencies when no lockfile exists yet', async () => {
+    const cwd = makeTempDir();
+    const appPath = path.join(cwd, 'app.mgg');
+    const packageRoot = path.join(
+      cwd,
+      '.gnosis',
+      'deps',
+      'github.com',
+      'acme',
+      'routes',
+      'v1.2.3'
+    );
+
+    writeFileSync(
+      path.join(cwd, 'gnosis.mod'),
+      [
+        'module github.com/acme/app',
+        '',
+        'gnosis 0.1.0',
+        '',
+        'require github.com/acme/routes v1.2.3',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+
+    mkdirSync(packageRoot, { recursive: true });
+    writeFileSync(
+      path.join(packageRoot, 'index.gg'),
+      '(router:Router)\n(router)-[:PROCESS]->(handler:Handler)\n',
+      'utf-8'
+    );
+    writeFileSync(
+      appPath,
+      [
+        "import { router } from 'github.com/acme/routes'",
+        '',
+        '(request)-[:PROCESS]->(router)',
+        '',
+        'export { request }',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+
+    const module = await loadGnosisModuleFromFile(appPath, cwd);
+
+    expect(module.imports).toHaveLength(1);
+    expect(module.ast.nodes.has('router')).toBe(true);
+    expect(module.ast.nodes.has('request')).toBe(true);
   });
 });
