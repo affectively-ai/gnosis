@@ -1,4 +1,9 @@
 import Mathlib.Tactic
+import Mathlib.Analysis.Matrix.Normed
+import Mathlib.Analysis.Normed.Algebra.Spectrum
+import Mathlib.LinearAlgebra.Matrix.Integer
+
+open scoped BigOperators
 
 namespace GnosisProofs
 
@@ -235,8 +240,33 @@ structure CertifiedKernel (nodeCount : Nat) where
   geometricCeiling : Real
   drift : Option DriftCertificate
 
-def SpectrallyStable (kernel : CertifiedKernel nodeCount) : Prop :=
-  kernel.spectralCeiling < 1
+def rowMass (kernel : CertifiedKernel nodeCount) (source : Fin nodeCount) : Real :=
+  ∑ target : Fin nodeCount, kernel.transition source target
+
+def HasNonnegativeTransitions (kernel : CertifiedKernel nodeCount) : Prop :=
+  forall source target : Fin nodeCount, 0 ≤ kernel.transition source target
+
+def RowMassContractive
+    (kernel : CertifiedKernel nodeCount)
+    (rowBound : Fin nodeCount -> Real) : Prop :=
+  (forall source : Fin nodeCount, rowMass kernel source = rowBound source) ∧
+    (forall source : Fin nodeCount, rowBound source < 1)
+
+def RankAcyclic
+    (kernel : CertifiedKernel nodeCount)
+    (rank : Fin nodeCount -> Nat) : Prop :=
+  forall source target : Fin nodeCount,
+    kernel.transition source target ≠ 0 -> rank source < rank target
+
+def SpectrallyStable [NeZero nodeCount] (kernel : CertifiedKernel nodeCount) : Prop := by
+  classical
+  letI : NormedRing (Matrix (Fin nodeCount) (Fin nodeCount) Real) :=
+    Matrix.linftyOpNormedRing
+  letI : NormedAlgebra ℝ (Matrix (Fin nodeCount) (Fin nodeCount) Real) :=
+    Matrix.linftyOpNormedAlgebra
+  letI : NormOneClass (Matrix (Fin nodeCount) (Fin nodeCount) Real) :=
+    Matrix.linfty_opNormOneClass
+  exact spectralRadius ℝ kernel.transition < 1
 
 def HasNegativeDrift (kernel : CertifiedKernel nodeCount) : Prop :=
   match kernel.drift with
@@ -245,17 +275,99 @@ def HasNegativeDrift (kernel : CertifiedKernel nodeCount) : Prop :=
       0 < certificate.gamma ∧
         forall queueDepth : Nat, driftAt certificate queueDepth <= -certificate.gamma
 
-def GeometricStability (kernel : CertifiedKernel nodeCount) : Prop :=
+def GeometricStability [NeZero nodeCount] (kernel : CertifiedKernel nodeCount) : Prop :=
   SpectrallyStable kernel ∧ HasNegativeDrift kernel
 
 theorem certifiedKernel_stable
+    [NeZero nodeCount]
     (kernel : CertifiedKernel nodeCount)
     (h_spectral : SpectrallyStable kernel)
     (h_drift : HasNegativeDrift kernel) :
     GeometricStability kernel := by
   exact And.intro h_spectral h_drift
 
+theorem spectralRadius_eq_zero_of_pow_eq_zero
+    {A : Type*}
+    [NormedRing A]
+    [NormedAlgebra ℝ A]
+    [CompleteSpace A]
+    [NormOneClass A]
+    {a : A}
+    {power : Nat}
+    (h_power : power ≠ 0)
+    (h_nilpotent : a ^ power = 0) :
+    spectralRadius ℝ a = 0 := by
+  have hle : spectralRadius ℝ a ^ power ≤ spectralRadius ℝ (a ^ power) :=
+    spectrum.spectralRadius_pow_le (𝕜 := ℝ) a power h_power
+  have hpow_zero : spectralRadius ℝ a ^ power = 0 := by
+    refine le_antisymm ?_ bot_le
+    simpa [h_nilpotent] using hle
+  by_cases h_radius : spectralRadius ℝ a = 0
+  · exact h_radius
+  · exfalso
+    exact (pow_ne_zero power h_radius) hpow_zero
+
+theorem spectrallyStable_of_nilpotent
+    [NeZero nodeCount]
+    (kernel : CertifiedKernel nodeCount)
+    {power : Nat}
+    (h_power : power ≠ 0)
+    (h_nilpotent : kernel.transition ^ power = 0) :
+    SpectrallyStable kernel := by
+  classical
+  letI : NormedRing (Matrix (Fin nodeCount) (Fin nodeCount) Real) :=
+    Matrix.linftyOpNormedRing
+  letI : NormedAlgebra ℝ (Matrix (Fin nodeCount) (Fin nodeCount) Real) :=
+    Matrix.linftyOpNormedAlgebra
+  letI : NormOneClass (Matrix (Fin nodeCount) (Fin nodeCount) Real) :=
+    Matrix.linfty_opNormOneClass
+  dsimp [SpectrallyStable]
+  have h_radius_zero :=
+    spectralRadius_eq_zero_of_pow_eq_zero (a := kernel.transition) h_power h_nilpotent
+  simpa [h_radius_zero]
+
+theorem spectrallyStable_of_rowMass
+    [NeZero nodeCount]
+    (kernel : CertifiedKernel nodeCount)
+    (h_nonnegative : HasNonnegativeTransitions kernel)
+    (rowBound : Fin nodeCount -> Real)
+    (h_row : RowMassContractive kernel rowBound) :
+    SpectrallyStable kernel := by
+  classical
+  letI : NormedRing (Matrix (Fin nodeCount) (Fin nodeCount) Real) :=
+    Matrix.linftyOpNormedRing
+  letI : NormedAlgebra ℝ (Matrix (Fin nodeCount) (Fin nodeCount) Real) :=
+    Matrix.linftyOpNormedAlgebra
+  letI : NormOneClass (Matrix (Fin nodeCount) (Fin nodeCount) Real) :=
+    Matrix.linfty_opNormOneClass
+  rcases h_row with ⟨h_row_eq, h_row_lt⟩
+  dsimp [SpectrallyStable]
+  refine lt_of_le_of_lt (spectrum.spectralRadius_le_nnnorm (𝕜 := ℝ) kernel.transition) ?_
+  have h_norm_lt : ‖kernel.transition‖₊ < (1 : NNReal) := by
+    change
+      ((Finset.univ : Finset (Fin nodeCount)).sup
+        fun source : Fin nodeCount => ∑ target : Fin nodeCount, ‖kernel.transition source target‖₊) <
+        1
+    refine (Finset.sup_lt_iff (show (0 : NNReal) < 1 by norm_num)).2 ?_
+    intro source _
+    have h_sum_eq :
+        (((∑ target : Fin nodeCount, ‖kernel.transition source target‖₊) : ℝ≥0) : Real) =
+          rowBound source := by
+      calc
+        (((∑ target : Fin nodeCount, ‖kernel.transition source target‖₊) : ℝ≥0) : Real)
+          = ∑ target : Fin nodeCount, ‖kernel.transition source target‖ := by
+              simp [NNReal.coe_sum]
+        _ = ∑ target : Fin nodeCount, kernel.transition source target := by
+              simp_rw [Real.norm_of_nonneg (h_nonnegative source ·)]
+        _ = rowBound source := h_row_eq source
+    have h_sum_lt_real :
+        (((∑ target : Fin nodeCount, ‖kernel.transition source target‖₊) : ℝ≥0) : Real) < 1 := by
+      rwa [h_sum_eq]
+    exact NNReal.coe_lt_coe.mp h_sum_lt_real
+  exact_mod_cast h_norm_lt
+
 theorem certifiedKernel_stable_of_supremum
+    [NeZero nodeCount]
     (kernel : CertifiedKernel nodeCount)
     (h_spectral : SpectrallyStable kernel)
     (h_no_drift : kernel.drift = none) :
@@ -265,6 +377,7 @@ theorem certifiedKernel_stable_of_supremum
   · simp [HasNegativeDrift, h_no_drift]
 
 theorem certifiedKernel_stable_of_drift_certificate
+    [NeZero nodeCount]
     (kernel : CertifiedKernel nodeCount)
     (certificate : DriftCertificate)
     (h_kernel : kernel.drift = some certificate)

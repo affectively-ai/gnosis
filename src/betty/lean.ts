@@ -20,6 +20,15 @@ interface IndexedKernelEdge {
   weight: number;
 }
 
+type SpectralProofStrategy =
+  | {
+      kind: 'nilpotent';
+    }
+  | {
+      kind: 'row-bound';
+      rowBounds: number[];
+    };
+
 function round3(value: number): number {
   return Math.round(value * 1000) / 1000;
 }
@@ -47,6 +56,14 @@ function buildModuleName(options: GnosisLeanOptions): string {
       ? path.basename(options.sourceFilePath, path.extname(options.sourceFilePath))
       : 'gnosis_generated');
   return sanitizeLeanIdentifier(rawName);
+}
+
+function indentBlock(block: string, spaces: number): string {
+  const indent = ' '.repeat(spaces);
+  return block
+    .split('\n')
+    .map((line) => (line.length > 0 ? `${indent}${line}` : line))
+    .join('\n');
 }
 
 function formatLeanReal(value: number | string | null | undefined): string {
@@ -102,7 +119,7 @@ function aggregateKernelEdges(
   });
 }
 
-function buildTransitionDefinition(
+function buildTransitionDefinitions(
   indexedKernelEdges: readonly IndexedKernelEdge[]
 ): string {
   const clauses = indexedKernelEdges
@@ -112,10 +129,186 @@ function buildTransitionDefinition(
     )
     .join('\n');
 
-  return `def transition : Fin topologyNodeCount -> Fin topologyNodeCount -> Real :=
+  return `def transitionRat : Fin topologyNodeCount -> Fin topologyNodeCount -> Rat :=
   fun source target =>
     match source.1, target.1 with
-${clauses.length > 0 ? `${clauses}\n` : ''}    | _, _ => 0`;
+${clauses.length > 0 ? `${clauses}\n` : ''}    | _, _ => 0
+
+def transition : Fin topologyNodeCount -> Fin topologyNodeCount -> Real :=
+  (Rat.castHom Real).mapMatrix transitionRat`;
+}
+
+function buildRealMatchDefinition(name: string, values: readonly number[]): string {
+  const clauses = values
+    .map(
+      (value, index) =>
+        `    | ${index} => ${formatLeanReal(value)}`
+    )
+    .join('\n');
+
+  return `def ${name} : Fin topologyNodeCount -> Real :=
+  fun source =>
+    match source.1 with
+${clauses}
+    | _ => 0`;
+}
+
+function buildRatMatchDefinition(name: string, values: readonly number[]): string {
+  const clauses = values
+    .map(
+      (value, index) =>
+        `    | ${index} => ${formatLeanReal(value)}`
+    )
+    .join('\n');
+
+  return `def ${name} : Fin topologyNodeCount -> Rat :=
+  fun source =>
+    match source.1 with
+${clauses}
+    | _ => 0`;
+}
+
+function buildRowBounds(
+  nodeCount: number,
+  indexedKernelEdges: readonly IndexedKernelEdge[]
+): number[] {
+  const rowBounds = Array.from({ length: nodeCount }, () => 0);
+
+  for (const edge of indexedKernelEdges) {
+    rowBounds[edge.sourceIndex] = round3(rowBounds[edge.sourceIndex] + edge.weight);
+  }
+
+  return rowBounds;
+}
+
+function buildAstAdjacency(ast: GraphAST, nodeIds: readonly string[]): Map<string, string[]> {
+  const adjacency = new Map<string, string[]>(nodeIds.map((nodeId) => [nodeId, []]));
+
+  for (const edge of ast.edges) {
+    for (const sourceId of edge.sourceIds) {
+      const normalizedSourceId = sourceId.trim();
+      const sourceTargets = adjacency.get(normalizedSourceId) ?? [];
+      for (const targetId of edge.targetIds) {
+        sourceTargets.push(targetId.trim());
+      }
+      adjacency.set(normalizedSourceId, sourceTargets);
+    }
+  }
+
+  return adjacency;
+}
+
+function computeTopologicalRanks(
+  ast: GraphAST,
+  nodeIds: readonly string[]
+): number[] | null {
+  const adjacency = buildAstAdjacency(ast, nodeIds);
+  const indegreeByNodeId = new Map<string, number>(nodeIds.map((nodeId) => [nodeId, 0]));
+
+  for (const [, targets] of adjacency) {
+    for (const targetId of targets) {
+      indegreeByNodeId.set(targetId, (indegreeByNodeId.get(targetId) ?? 0) + 1);
+    }
+  }
+
+  const ranksByNodeId = new Map<string, number>(nodeIds.map((nodeId) => [nodeId, 0]));
+  const frontier = nodeIds.filter((nodeId) => (indegreeByNodeId.get(nodeId) ?? 0) === 0);
+  let processedCount = 0;
+
+  while (frontier.length > 0) {
+    const currentNodeId = frontier.shift();
+    if (!currentNodeId) {
+      continue;
+    }
+
+    processedCount += 1;
+    const currentRank = ranksByNodeId.get(currentNodeId) ?? 0;
+    for (const targetNodeId of adjacency.get(currentNodeId) ?? []) {
+      ranksByNodeId.set(
+        targetNodeId,
+        Math.max(ranksByNodeId.get(targetNodeId) ?? 0, currentRank + 1)
+      );
+      const nextIndegree = (indegreeByNodeId.get(targetNodeId) ?? 0) - 1;
+      indegreeByNodeId.set(targetNodeId, nextIndegree);
+      if (nextIndegree === 0) {
+        frontier.push(targetNodeId);
+      }
+    }
+  }
+
+  if (processedCount !== nodeIds.length) {
+    return null;
+  }
+
+  return nodeIds.map((nodeId) => ranksByNodeId.get(nodeId) ?? 0);
+}
+
+function buildSpectralProofStrategy(
+  ast: GraphAST,
+  nodeIds: readonly string[],
+  indexedKernelEdges: readonly IndexedKernelEdge[]
+): SpectralProofStrategy {
+  const topologicalRanks = computeTopologicalRanks(ast, nodeIds);
+  if (topologicalRanks !== null) {
+    return {
+      kind: 'nilpotent',
+    };
+  }
+
+  return {
+    kind: 'row-bound',
+    rowBounds: buildRowBounds(nodeIds.length, indexedKernelEdges),
+  };
+}
+
+function buildSpectralWitness(
+  strategy: SpectralProofStrategy,
+  kernelExpression: string
+): {
+  definitions: string;
+  proof: string;
+} {
+  if (strategy.kind === 'nilpotent') {
+    return {
+      definitions: '',
+      proof: `have h_spectral : SpectrallyStable ${kernelExpression} := by
+  have h_nilpotent_rat : transitionRat ^ topologyNodeCount = 0 := by
+    native_decide
+  have h_nilpotent : transition ^ topologyNodeCount = 0 := by
+    simpa [transition, Matrix.map_pow] using
+      congrArg (Matrix.map (Rat.castHom Real)) h_nilpotent_rat
+  apply spectrallyStable_of_nilpotent (kernel := ${kernelExpression}) (power := topologyNodeCount)
+  · decide
+  · exact h_nilpotent`,
+    };
+  }
+
+  return {
+    definitions: `${buildRatMatchDefinition('rowBoundRat', strategy.rowBounds)}
+
+def rowBound : Fin topologyNodeCount -> Real :=
+  fun source => (rowBoundRat source : Real)
+`,
+    proof: `have h_spectral : SpectrallyStable ${kernelExpression} := by
+  have h_nonnegative : HasNonnegativeTransitions ${kernelExpression} := by
+    intro source target
+    fin_cases source <;> fin_cases target <;> norm_num [transition, transitionRat]
+  apply spectrallyStable_of_rowMass
+    (kernel := ${kernelExpression})
+    (h_nonnegative := h_nonnegative)
+    (rowBound := rowBound)
+  constructor
+  · intro source
+    have h_row_rat : (∑ target : Fin topologyNodeCount, transitionRat source target) = rowBoundRat source := by
+      fin_cases source <;> native_decide
+    simpa [rowMass, rowBound, transition] using
+      congrArg (fun value : Rat => (value : Real)) h_row_rat
+  · intro source
+    have h_bound_rat : rowBoundRat source < 1 := by
+      fin_cases source <;> native_decide
+    change (rowBoundRat source : Real) < 1
+    exact_mod_cast h_bound_rat`,
+  };
 }
 
 function findAssessmentGamma(assessment: StabilityStateAssessment): number | null {
@@ -159,6 +352,7 @@ function buildKernelDefinitions(
 } {
   const { nodeIds, indexByNodeId } = buildNodeIndex(ast);
   const indexedKernelEdges = aggregateKernelEdges(stability.kernelEdges, indexByNodeId);
+  const spectralStrategy = buildSpectralProofStrategy(ast, nodeIds, indexedKernelEdges);
   const topologyNodes = toLeanStringList(nodeIds);
   const smallSetNodeIds = toLeanStringList(stability.smallSetNodeIds);
   const topologyNodeCount = nodeIds.length;
@@ -166,7 +360,7 @@ function buildKernelDefinitions(
   const redline = formatLeanReal(stability.redline ?? 0);
   const geometricCeiling = formatLeanReal(stability.geometricCeiling ?? stability.spectralRadius ?? 0);
   const gammaValue = buildGammaValue(stability);
-  const transitionDefinition = buildTransitionDefinition(indexedKernelEdges);
+  const transitionDefinitions = buildTransitionDefinitions(indexedKernelEdges);
 
   const sharedDefinitions = `abbrev NodeId := String
 
@@ -174,13 +368,16 @@ def topologyNodeCount : Nat := ${topologyNodeCount}
 def topologyNodes : List NodeId := ${topologyNodes}
 def smallSetNodeIds : List NodeId := ${smallSetNodeIds}
 
-${transitionDefinition}
+${transitionDefinitions}
 `;
 
   if (stability.proof.kind === 'bounded-supremum') {
+    const spectralWitness = buildSpectralWitness(spectralStrategy, 'kernel');
+    const spectralProof = indentBlock(spectralWitness.proof, 2);
     return {
       nodeIds,
       definitions: `${sharedDefinitions}
+${spectralWitness.definitions}
 def kernel : CertifiedKernel topologyNodeCount := {
   transition := transition
   topologyNodes := topologyNodes
@@ -189,12 +386,13 @@ def kernel : CertifiedKernel topologyNodeCount := {
   redline := ${redline}
   geometricCeiling := ${geometricCeiling}
   drift := none
-}
+} 
 `,
       theorem: `theorem ${theoremName} :
   GeometricStability kernel := by
+${spectralProof}
   apply certifiedKernel_stable_of_supremum (kernel := kernel)
-  · norm_num [SpectrallyStable, kernel]
+  · exact h_spectral
   · rfl`,
     };
   }
@@ -205,9 +403,12 @@ def kernel : CertifiedKernel topologyNodeCount := {
     const muValue = firstAssessment?.service ?? '0';
     const alphaValue = firstAssessment?.vent ?? '0';
 
+    const spectralWitness = buildSpectralWitness(spectralStrategy, 'kernel');
+    const spectralProof = indentBlock(spectralWitness.proof, 2);
     return {
       nodeIds,
       definitions: `${sharedDefinitions}
+${spectralWitness.definitions}
 def lam : Real := ${lamValue}
 def mu : Real := ${muValue}
 def alpha : Nat -> Real := fun _ => ${alphaValue}
@@ -231,11 +432,12 @@ def kernel : CertifiedKernel topologyNodeCount := {
 `,
       theorem: `theorem ${theoremName} :
   GeometricStability kernel := by
+${spectralProof}
   apply certifiedKernel_stable_of_drift_certificate
     (kernel := kernel)
     (certificate := driftCertificate)
   · rfl
-  · norm_num [SpectrallyStable, kernel]
+  · exact h_spectral
   · norm_num [driftCertificate]
   · intro queueDepth
     norm_num [driftAt, driftCertificate, lam, mu, alpha]`,
@@ -248,9 +450,12 @@ def kernel : CertifiedKernel topologyNodeCount := {
   const driftFloorAssumption =
     driftFloorType ?? `forall n : Nat, driftAt (driftCertificate lam mu alpha) n <= -${gammaValue}`;
 
+  const spectralWitness = buildSpectralWitness(spectralStrategy, '(kernel lam mu alpha)');
+  const spectralProof = indentBlock(spectralWitness.proof, 2);
   return {
     nodeIds,
     definitions: `${sharedDefinitions}
+${spectralWitness.definitions}
 def driftCertificate (lam mu : Real) (alpha : Nat -> Real) : DriftCertificate := {
   gamma := ${gammaValue}
   arrivalRate := lam
@@ -273,11 +478,12 @@ def kernel (lam mu : Real) (alpha : Nat -> Real) : CertifiedKernel topologyNodeC
   (alpha : Nat -> Real)
   (h_drift_floor : ${driftFloorAssumption}) :
   GeometricStability (kernel lam mu alpha) := by
+${spectralProof}
   apply certifiedKernel_stable_of_drift_certificate
     (kernel := kernel lam mu alpha)
     (certificate := driftCertificate lam mu alpha)
   · rfl
-  · norm_num [SpectrallyStable, kernel]
+  · exact h_spectral
   · norm_num [driftCertificate]
   · simpa [driftAt, driftCertificate] using h_drift_floor`,
   };
