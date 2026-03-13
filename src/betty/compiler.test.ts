@@ -125,6 +125,34 @@ describe('BettyCompiler', () => {
     );
   });
 
+  it('reports invalid structured concurrency failure policies', () => {
+    const { diagnostics } = compiler.parse(`
+            (src)-[:FORK]->(fast|slow)
+            (fast|slow)-[:RACE { failure: "explode" }]->(sink)
+        `);
+
+    expect(
+      diagnostics.some((d) =>
+        d.message.includes("RACE uses unknown failure policy 'explode'")
+      )
+    ).toBe(true);
+  });
+
+  it('reports invalid structured concurrency timeout values', () => {
+    const { diagnostics } = compiler.parse(`
+            (src)-[:FORK]->(fast|slow)
+            (fast|slow)-[:FOLD { timeoutMs: "soon" }]->(sink)
+        `);
+
+    expect(
+      diagnostics.some((d) =>
+        d.message.includes(
+          "FOLD requires 'timeoutMs' to be a non-negative number."
+        )
+      )
+    ).toBe(true);
+  });
+
   it('keeps betti.gg exhaustive for tagged compiler routing', () => {
     const source = readFileSync(
       new URL('../../betti.gg', import.meta.url),

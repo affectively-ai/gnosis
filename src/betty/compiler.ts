@@ -32,6 +32,8 @@ const TAGGED_NODE_CASES: Record<string, readonly string[]> = {
   Option: ['some', 'none'],
 };
 
+const STRUCTURED_CONCURRENCY_FAILURES = new Set(['cancel', 'vent', 'shield']);
+
 export class BettyCompiler {
   private b1 = 0;
   private ast: GraphAST = { nodes: new Map(), edges: [] };
@@ -286,6 +288,7 @@ export class BettyCompiler {
     });
 
     this.checkTaggedNodeExhaustiveness();
+    this.checkStructuredConcurrencyProperties();
 
     const injectionResult = injectSensitiveZkEnvelopes(this.ast);
     this.ast = injectionResult.ast;
@@ -445,5 +448,44 @@ export class BettyCompiler {
       .split(/[\s,|]+/)
       .map((entry) => entry.trim().toLowerCase())
       .filter((entry) => entry.length > 0);
+  }
+
+  private checkStructuredConcurrencyProperties(): void {
+    for (const edge of this.ast.edges) {
+      if (
+        edge.type !== 'RACE' &&
+        edge.type !== 'FOLD' &&
+        edge.type !== 'COLLAPSE'
+      ) {
+        continue;
+      }
+
+      const rawFailure = edge.properties.failure?.trim().toLowerCase();
+      if (rawFailure && !STRUCTURED_CONCURRENCY_FAILURES.has(rawFailure)) {
+        this.diagnostics.push({
+          line: 1,
+          column: 1,
+          message: `${edge.type} uses unknown failure policy '${rawFailure}'. Expected one of: cancel, vent, shield.`,
+          severity: 'error',
+        });
+      }
+
+      for (const field of ['timeoutMs', 'deadlineMs', 'timeout', 'deadline']) {
+        const rawValue = edge.properties[field];
+        if (!rawValue) {
+          continue;
+        }
+
+        const parsed = Number(rawValue);
+        if (!Number.isFinite(parsed) || parsed < 0) {
+          this.diagnostics.push({
+            line: 1,
+            column: 1,
+            message: `${edge.type} requires '${field}' to be a non-negative number.`,
+            severity: 'error',
+          });
+        }
+      }
+    }
   }
 }

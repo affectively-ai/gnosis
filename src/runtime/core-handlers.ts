@@ -1,4 +1,4 @@
-import { GnosisRegistry } from './registry.js';
+import { GnosisRegistry, type GnosisHandlerContext } from './registry.js';
 
 type GnosisTaggedValue =
   | { kind: 'ok'; value: unknown }
@@ -348,6 +348,32 @@ function parseNumericValue(raw: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function delayWithCancellation(
+  durationMs: number,
+  signal: AbortSignal | undefined
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, durationMs);
+
+    function onAbort(): void {
+      clearTimeout(timeoutId);
+      reject(new Error('Delay cancelled.'));
+    }
+
+    if (signal) {
+      if (signal.aborted) {
+        onAbort();
+        return;
+      }
+
+      signal.addEventListener('abort', onAbort, { once: true });
+    }
+  });
+}
+
 function readNumericPayload(
   payload: unknown,
   key: string | undefined
@@ -453,6 +479,30 @@ export function registerCoreRuntimeHandlers(registry: GnosisRegistry): void {
 
     return extracted;
   });
+
+  registry.register(
+    'Delay',
+    async (
+      payload,
+      props,
+      context: GnosisHandlerContext | undefined
+    ): Promise<unknown> => {
+      const durationMs = Math.max(
+        0,
+        Math.round(
+          parseNumericValue(props.ms ?? props.delayMs ?? props.durationMs, 0)
+        )
+      );
+
+      await delayWithCancellation(durationMs, context?.signal);
+
+      if (props.emit) {
+        return parseLiteral(props.emit);
+      }
+
+      return payload;
+    }
+  );
 
   registry.register('Qubit', async (payload, props) => {
     return normalizeQubitState(payload, props.state ?? props.basis);

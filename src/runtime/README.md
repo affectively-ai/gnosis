@@ -7,15 +7,15 @@ Runtime execution surfaces for graph traversal and handler dispatch.
 ## Files
 
 - [registry.ts](./registry.ts): Label-to-handler registration map.
-- [engine.ts](./engine.ts): Topology execution engine for `FORK/RACE/FOLD/VENT` graphs with optional UCAN edge authorization and case-aware routing from native `.gg` payloads.
-- [core-handlers.ts](./core-handlers.ts): Built-in `Result`, `Option`, and `Destructure` handlers for native `.gg` data-shaping and branch selection.
+- [engine.ts](./engine.ts): Topology execution engine for `FORK/RACE/FOLD/VENT` graphs with optional UCAN edge authorization, case-aware routing from native `.gg` payloads, and structured cancellation/timeout semantics for concurrent collapse edges.
+- [core-handlers.ts](./core-handlers.ts): Built-in `Result`, `Option`, `Destructure`, `Delay`, quantum, and differentiable handlers for native `.gg` data-shaping and execution.
 - [native-runtime.ts](./native-runtime.ts): Native `.gg` frame runtime adapter over `gnosis_runtime` WASM, with deterministic fallback metrics when WASM is unavailable.
 - [renderer-compat.ts](./renderer-compat.ts): 3D renderer compatibility layer targeting `@affectively/aeon-3d` with local fallback.
 - [engine.test.ts](./engine.test.ts): Runtime engine behavior tests.
 - [native-runtime.test.ts](./native-runtime.test.ts): Native runtime edge-processing and metrics tests.
 - [renderer-compat.test.ts](./renderer-compat.test.ts): Topology renderer compatibility tests.
 
-## Native Value Primitives
+## Native Value And Execution Primitives
 
 The runtime now treats three value-shaping labels as built-ins:
 
@@ -42,6 +42,13 @@ Differentiable value primitives are also built in:
 - `GradientStep`: applies gradient descent using `learningRate`, `parameterKey`, and `gradientKey`
 - `MeanSquaredError`: computes a scalar loss from folded `prediction` and `target` branches
 
+Structured concurrency also has a native runtime surface:
+
+- `Delay`: a cancellable timer node for `.gg` topologies and tests
+- `RACE` losers are cancelled automatically
+- `RACE` / `FOLD` / `COLLAPSE` edges can declare `failure: "cancel" | "vent" | "shield"`
+- `timeoutMs` and `deadlineMs` become part of branch lifetime semantics instead of ambient runtime behavior
+
 ```gg
 (source:Source)-[:PROCESS]->(decision:Result { kind: 'ok' })
 (decision)-[:PROCESS { case: 'ok' }]->(extract:Destructure { from: 'value', fields: 'user,score' })
@@ -67,4 +74,9 @@ Differentiable value primitives are also built in:
 ```gg
 (seed:Scalar { value: '3.0' })-[:FORK]->(prediction:Scalar | target:Scalar { value: '1.0' })
 (prediction | target)-[:FOLD]->(loss:MeanSquaredError { predictionKey: 'prediction', targetKey: 'target' })
+```
+
+```gg
+(seed:Scalar { value: '0' })-[:FORK]->(fast:Delay { ms: '1', emit: 'ready' } | slow:Delay { ms: '25', emit: 'late' })
+(fast | slow)-[:FOLD { timeoutMs: '5', failure: 'shield' }]->(sink)
 ```

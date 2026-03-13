@@ -1,0 +1,4 @@
+// Structured concurrency: shielded folds preserve timed-out branches as values.
+
+(seed:Scalar { value: "0" })-[:FORK]->(ready:Delay { ms: "1", emit: "ready-path" } | stalled:Delay { ms: "25", emit: "late-path" })
+(ready | stalled)-[:FOLD { timeoutMs: "5", failure: "shield" }]->(sink:Sink)

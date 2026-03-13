@@ -185,6 +185,58 @@ describe('GnosisEngine', () => {
     expect(result).toContain('"delta":2');
   });
 
+  it('cancels race losers under native structured concurrency from .gg files', async () => {
+    const registry = new GnosisRegistry();
+    registry.register('Sink', async (payload) => payload);
+
+    const engine = new GnosisEngine(registry);
+    const source = readFileSync(
+      new URL('../../structured_race.gg', import.meta.url),
+      'utf-8'
+    );
+    const { ast } = compiler.parse(source);
+
+    const result = await engine.execute(ast!);
+    expect(result).toContain('Race concluded! Winner: fast');
+    expect(result).toContain('[BRANCH fast] success');
+    expect(result).toContain('[BRANCH slow] cancelled');
+    expect(result).toContain('"fast-path"');
+  });
+
+  it('shields timed-out fold branches under native structured concurrency from .gg files', async () => {
+    const registry = new GnosisRegistry();
+    registry.register('Sink', async (payload) => payload);
+
+    const engine = new GnosisEngine(registry);
+    const source = readFileSync(
+      new URL('../../structured_fold_shield.gg', import.meta.url),
+      'utf-8'
+    );
+    const { ast } = compiler.parse(source);
+
+    const result = await engine.execute(ast!);
+    expect(result).toContain('[BRANCH ready] success');
+    expect(result).toContain('[BRANCH stalled] timeout');
+    expect(result).toContain('"ready":"ready-path"');
+    expect(result).toContain('"stalled":{"kind":"timeout"');
+  });
+
+  it('vents timed-out fold branches when the topology opts into vent semantics', async () => {
+    const registry = new GnosisRegistry();
+    registry.register('Sink', async (payload) => payload);
+
+    const engine = new GnosisEngine(registry);
+    const { ast } = compiler.parse(`
+            (seed:Scalar { value: "0" })-[:FORK]->(fast:Delay { ms: "1", emit: "ready" } | slow:Delay { ms: "25", emit: "stale" })
+            (fast | slow)-[:FOLD { timeoutMs: "5", failure: "vent" }]->(sink:Sink)
+        `);
+
+    const result = await engine.execute(ast!);
+    expect(result).toContain('[BRANCH slow] vented');
+    expect(result).toContain('"fast":"ready"');
+    expect(result).not.toContain('"slow"');
+  });
+
   it('should handle MEASURE and HALT edges', async () => {
     const registry = new GnosisRegistry();
     registry.register('Step', async (p) => p);
@@ -205,7 +257,12 @@ describe('GnosisEngine', () => {
   it('should handle Quantum Pillars (EVOLVE, SUPERPOSE, ENTANGLE)', async () => {
     const registry = new GnosisRegistry();
     registry.register('Source', async () => 'data');
-    registry.register('Worker', async (p, props, shared) => {
+    registry.register('Worker', async (p, props, context) => {
+      const shared = context?.sharedState as
+        | {
+            value?: number;
+          }
+        | undefined;
       if (shared) {
         shared.value = (shared.value || 0) + 1;
         return shared.value;
