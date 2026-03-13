@@ -343,28 +343,29 @@ theorem spectrallyStable_of_rowMass
   rcases h_row with ⟨h_row_eq, h_row_lt⟩
   dsimp [SpectrallyStable]
   refine lt_of_le_of_lt (spectrum.spectralRadius_le_nnnorm (𝕜 := ℝ) kernel.transition) ?_
-  have h_norm_lt : ‖kernel.transition‖₊ < (1 : NNReal) := by
-    change
-      ((Finset.univ : Finset (Fin nodeCount)).sup
-        fun source : Fin nodeCount => ∑ target : Fin nodeCount, ‖kernel.transition source target‖₊) <
-        1
-    refine (Finset.sup_lt_iff (show (0 : NNReal) < 1 by norm_num)).2 ?_
-    intro source _
-    have h_sum_eq :
-        (((∑ target : Fin nodeCount, ‖kernel.transition source target‖₊) : ℝ≥0) : Real) =
-          rowBound source := by
-      calc
-        (((∑ target : Fin nodeCount, ‖kernel.transition source target‖₊) : ℝ≥0) : Real)
-          = ∑ target : Fin nodeCount, ‖kernel.transition source target‖ := by
-              simp [NNReal.coe_sum]
-        _ = ∑ target : Fin nodeCount, kernel.transition source target := by
-              simp_rw [Real.norm_of_nonneg (h_nonnegative source ·)]
-        _ = rowBound source := h_row_eq source
-    have h_sum_lt_real :
-        (((∑ target : Fin nodeCount, ‖kernel.transition source target‖₊) : ℝ≥0) : Real) < 1 := by
-      rwa [h_sum_eq]
-    exact NNReal.coe_lt_coe.mp h_sum_lt_real
-  exact_mod_cast h_norm_lt
+  have h_norm_lt_real : ‖kernel.transition‖ < 1 := by
+    rw [Matrix.linfty_opNorm_def]
+    exact_mod_cast <|
+      (Finset.sup_lt_iff (show (0 : NNReal) < 1 by norm_num)).2
+        (fun source _ => by
+          have h_sum_eq :
+              (((∑ target : Fin nodeCount, ‖kernel.transition source target‖₊) : ℝ≥0) : Real) =
+                rowBound source := by
+            calc
+              (((∑ target : Fin nodeCount, ‖kernel.transition source target‖₊) : ℝ≥0) : Real)
+                = ∑ target : Fin nodeCount, ‖kernel.transition source target‖ := by
+                    simp [NNReal.coe_sum]
+              _ = ∑ target : Fin nodeCount, kernel.transition source target := by
+                    simp_rw [Real.norm_of_nonneg (h_nonnegative source ·)]
+              _ = rowBound source := h_row_eq source
+          have h_sum_lt_real :
+              (((∑ target : Fin nodeCount, ‖kernel.transition source target‖₊) : ℝ≥0) : Real) <
+                1 := by
+            rwa [h_sum_eq]
+          exact NNReal.coe_lt_coe.mp h_sum_lt_real)
+  have h_norm_lt : (↑‖kernel.transition‖₊ : ℝ≥0∞) < 1 := by
+    exact_mod_cast h_norm_lt_real
+  exact h_norm_lt
 
 theorem certifiedKernel_stable_of_supremum
     [NeZero nodeCount]
