@@ -129,12 +129,12 @@ function buildTransitionDefinitions(
     )
     .join('\n');
 
-  return `def transitionRat : Fin topologyNodeCount -> Fin topologyNodeCount -> Rat :=
+  return `def transitionRat : Matrix (Fin topologyNodeCount) (Fin topologyNodeCount) Rat :=
   fun source target =>
     match source.1, target.1 with
 ${clauses.length > 0 ? `${clauses}\n` : ''}    | _, _ => 0
 
-def transition : Fin topologyNodeCount -> Fin topologyNodeCount -> Real :=
+def transition : Matrix (Fin topologyNodeCount) (Fin topologyNodeCount) Real :=
   (Rat.castHom Real).mapMatrix transitionRat`;
 }
 

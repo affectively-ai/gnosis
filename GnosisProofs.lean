@@ -232,7 +232,7 @@ def driftAt (certificate : DriftCertificate) (queueDepth : Nat) : Real :=
   certificate.arrivalRate - (certificate.serviceRate + certificate.ventRate queueDepth)
 
 structure CertifiedKernel (nodeCount : Nat) where
-  transition : Fin nodeCount -> Fin nodeCount -> Real
+  transition : Matrix (Fin nodeCount) (Fin nodeCount) Real
   topologyNodes : List String
   smallSetNodeIds : List String
   spectralCeiling : Real
