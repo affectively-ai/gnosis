@@ -6,6 +6,11 @@ import {
   type GgEdge,
   type GgProgram,
 } from '@affectively/aeon-logic';
+import {
+  inferCapabilitiesFromGgSource,
+  summarizeCapabilityRequirements,
+  type CapabilityContractSummary,
+} from './capabilities/index.js';
 import { lowerUfcsSource } from './ufcs.js';
 
 export interface GnosisTlaBridgeOptions {
@@ -28,6 +33,7 @@ export interface GnosisTlaBridgeResult {
   readonly tla: string;
   readonly cfg: string;
   readonly stats: GnosisTlaBridgeStats;
+  readonly effects: CapabilityContractSummary;
 }
 
 const MODULE_PREFIX = 'Gnosis';
@@ -184,7 +190,8 @@ function renderTla(
   program: GgProgram,
   roots: readonly string[],
   terminals: readonly string[],
-  foldTargets: readonly string[]
+  foldTargets: readonly string[],
+  effects: CapabilityContractSummary
 ): string {
   const renderedActions = program.edges.map((edge, index) =>
     renderEdgeAction(edge, index)
@@ -201,6 +208,16 @@ function renderTla(
   lines.push(`ROOTS == ${toTlaSet(roots)}`);
   lines.push(`TERMINALS == ${toTlaSet(terminals)}`);
   lines.push(`FOLD_TARGETS == ${toTlaSet(foldTargets)}`);
+  lines.push(`EFFECTS == ${toTlaSet(effects.required)}`);
+  lines.push(`DECLARED_EFFECTS == ${toTlaSet(effects.declared)}`);
+  lines.push(`INFERRED_EFFECTS == ${toTlaSet(effects.inferred)}`);
+  for (const effectNode of effects.nodes) {
+    lines.push(
+      `\\* EFFECT_NODE ${effectNode.nodeId} declared=${toTlaSet(
+        effectNode.declared
+      )} inferred=${toTlaSet(effectNode.inferred)}`
+    );
+  }
   lines.push('');
   lines.push('VARIABLES active, beta1, payloadPresent, consensusReached');
   lines.push('vars == <<active, beta1, payloadPresent, consensusReached>>');
@@ -265,11 +282,15 @@ export function generateTlaFromGnosisSource(
   sourceText: string,
   options: GnosisTlaBridgeOptions = {}
 ): GnosisTlaBridgeResult {
-  const program = parseGgProgram(lowerUfcsSource(sourceText));
+  const normalizedSource = lowerUfcsSource(sourceText);
+  const program = parseGgProgram(normalizedSource);
   const moduleName = deriveModuleName(program, options);
   const roots = getResolvedRoots(program);
   const terminals = getGgTerminalNodeIds(program);
   const foldTargets = getFoldTargets(program);
+  const effects = summarizeCapabilityRequirements(
+    inferCapabilitiesFromGgSource(normalizedSource)
+  );
 
   const forkEdgeCount = program.edges.filter(
     (edge) => edge.type.toUpperCase() === 'FORK'
@@ -280,7 +301,7 @@ export function generateTlaFromGnosisSource(
 
   return {
     moduleName,
-    tla: renderTla(moduleName, program, roots, terminals, foldTargets),
+    tla: renderTla(moduleName, program, roots, terminals, foldTargets, effects),
     cfg: renderCfg(),
     stats: {
       nodeCount: program.nodes.length,
@@ -291,5 +312,6 @@ export function generateTlaFromGnosisSource(
       forkEdgeCount,
       raceEdgeCount,
     },
+    effects,
   };
 }

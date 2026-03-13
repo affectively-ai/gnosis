@@ -1,5 +1,6 @@
 export { CAPABILITY_PROFILES } from './profiles.js';
 export { inferCapabilitiesFromGgSource } from './inference.js';
+export { summarizeCapabilityRequirements } from './summary.js';
 export { validateCapabilitiesForTarget } from './validate.js';
 export type {
   RuntimeTarget,
@@ -9,3 +10,7 @@ export type {
   CapabilityProfile,
   CapabilityValidationReport,
 } from './types.js';
+export type {
+  CapabilityContractNodeSummary,
+  CapabilityContractSummary,
+} from './summary.js';

@@ -58,4 +58,25 @@ describe('TLA bridge', () => {
     expect(result.tla).toContain('ROOTS == {"start"}');
     expect(result.tla).toContain('TERMINALS == {"finish"}');
   });
+
+  it('preserves declared and inferred effects in bridge output', () => {
+    const source = [
+      "(sync: ZKSyncEnvelope { effects: 'fs.local' })",
+      '(sync)-[:PROCESS]->(sink)',
+    ].join('\n');
+
+    const result = generateTlaFromGnosisSource(source, {
+      moduleName: 'EffectSpec',
+    });
+
+    expect(result.effects.declared).toEqual(['fs.local']);
+    expect(result.effects.inferred).toEqual(['auth.zk']);
+    expect(result.effects.required).toEqual(['auth.zk', 'fs.local']);
+    expect(result.tla).toContain('EFFECTS == {"auth.zk", "fs.local"}');
+    expect(result.tla).toContain('DECLARED_EFFECTS == {"fs.local"}');
+    expect(result.tla).toContain('INFERRED_EFFECTS == {"auth.zk"}');
+    expect(result.tla).toContain(
+      '\\* EFFECT_NODE sync declared={"fs.local"} inferred={"auth.zk"}'
+    );
+  });
 });

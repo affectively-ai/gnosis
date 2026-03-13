@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { GnosisComplexityReport } from './analysis.js';
+import { summarizeCapabilityRequirements } from './capabilities/index.js';
 import type { TsSonarReport } from './ts-sonar.js';
 
 interface SarifArtifactLocation {
@@ -22,6 +23,7 @@ interface SarifResult {
   level: 'error' | 'warning' | 'note';
   message: { text: string };
   locations?: SarifLocation[];
+  properties?: Record<string, unknown>;
 }
 
 interface SarifReportingDescriptor {
@@ -46,18 +48,19 @@ interface SarifLog {
 }
 
 function toUri(filePath: string): string {
-  return path.isAbsolute(filePath) ? filePath : path.resolve(process.cwd(), filePath);
+  return path.isAbsolute(filePath)
+    ? filePath
+    : path.resolve(process.cwd(), filePath);
 }
 
 function buildSarifLog(
   name: string,
   rules: SarifReportingDescriptor[],
-  results: SarifResult[],
+  results: SarifResult[]
 ): SarifLog {
   return {
     version: '2.1.0',
-    $schema:
-      'https://json.schemastore.org/sarif-2.1.0.json',
+    $schema: 'https://json.schemastore.org/sarif-2.1.0.json',
     runs: [
       {
         tool: {
@@ -73,7 +76,9 @@ function buildSarifLog(
   };
 }
 
-function uniqueRules(results: readonly SarifResult[]): SarifReportingDescriptor[] {
+function uniqueRules(
+  results: readonly SarifResult[]
+): SarifReportingDescriptor[] {
   const map = new Map<string, SarifReportingDescriptor>();
   for (const result of results) {
     if (map.has(result.ruleId)) {
@@ -87,11 +92,46 @@ function uniqueRules(results: readonly SarifResult[]): SarifReportingDescriptor[
   return [...map.values()];
 }
 
+function formatEffectSummary(
+  filePath: string,
+  report: GnosisComplexityReport
+): SarifResult | null {
+  const summary = summarizeCapabilityRequirements(report.capabilities.required);
+  if (summary.required.length === 0) {
+    return null;
+  }
+
+  return {
+    ruleId: 'gnosis.gg.effects',
+    level: 'note',
+    message: {
+      text: `Effects required: ${summary.required.join(', ')}. Declared: ${
+        summary.declared.length > 0 ? summary.declared.join(', ') : 'none'
+      }. Inferred: ${
+        summary.inferred.length > 0 ? summary.inferred.join(', ') : 'none'
+      }.`,
+    },
+    locations: [
+      {
+        physicalLocation: {
+          artifactLocation: { uri: toUri(filePath) },
+        },
+      },
+    ],
+    properties: {
+      requiredEffects: summary.required,
+      declaredEffects: summary.declared,
+      inferredEffects: summary.inferred,
+      nodeEffects: summary.nodes,
+    },
+  };
+}
+
 export function ggReportToSarif(
   filePath: string,
   report: GnosisComplexityReport,
   formattedViolations: readonly string[],
-  maxBuley: number | null,
+  maxBuley: number | null
 ): SarifLog {
   const results: SarifResult[] = [];
 
@@ -134,7 +174,9 @@ export function ggReportToSarif(
       ruleId: `gnosis.gg.capability.${issue.capability}`,
       level: issue.severity === 'error' ? 'error' : 'warning',
       message: {
-        text: `${issue.message} (target=${issue.target})`,
+        text: `${issue.message} (target=${issue.target}${
+          issue.nodeId ? `, node=${issue.nodeId}` : ''
+        })`,
       },
       locations: [
         {
@@ -143,7 +185,17 @@ export function ggReportToSarif(
           },
         },
       ],
+      properties: {
+        capability: issue.capability,
+        target: issue.target,
+        ...(issue.nodeId ? { nodeId: issue.nodeId } : {}),
+      },
     });
+  }
+
+  const effectSummary = formatEffectSummary(filePath, report);
+  if (effectSummary) {
+    results.push(effectSummary);
   }
 
   if (results.length === 0) {
@@ -203,7 +255,7 @@ function parseTsViolation(violation: string): {
 
 export function tsReportToSarif(
   targetPath: string,
-  report: TsSonarReport,
+  report: TsSonarReport
 ): SarifLog {
   const results: SarifResult[] = report.violations.map((violation) => {
     const parsed = parseTsViolation(violation);
@@ -216,7 +268,9 @@ export function tsReportToSarif(
             {
               physicalLocation: {
                 artifactLocation: { uri: toUri(parsed.filePath) },
-                ...(parsed.startLine ? { region: { startLine: parsed.startLine } } : {}),
+                ...(parsed.startLine
+                  ? { region: { startLine: parsed.startLine } }
+                  : {}),
               },
             },
           ]
