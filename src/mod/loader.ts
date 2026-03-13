@@ -91,12 +91,25 @@ interface PendingImportResolution {
   resolvedSource: string;
 }
 
+interface ModuleResolverState {
+  rootDir: string;
+  specifier: string;
+  fromModule: string;
+  candidateBase?: string;
+}
+
 const MODULE_LOADER_TOPOLOGY_URL_CANDIDATES = [
   new URL('./loader.gg', import.meta.url),
   new URL('../../src/mod/loader.gg', import.meta.url),
 ];
 
+const MODULE_RESOLVER_TOPOLOGY_URL_CANDIDATES = [
+  new URL('./resolver.gg', import.meta.url),
+  new URL('../../src/mod/resolver.gg', import.meta.url),
+];
+
 let moduleLoaderTopologyAst: GraphAST | null = null;
+let moduleResolverTopologyAst: GraphAST | null = null;
 
 function materializeImplicitNodes(ast: GraphAST): GraphAST {
   const nodes = new Map(ast.nodes);
@@ -171,6 +184,32 @@ function getModuleLoaderTopologyAst(): GraphAST {
   return moduleLoaderTopologyAst;
 }
 
+function getModuleResolverTopologyAst(): GraphAST {
+  if (moduleResolverTopologyAst) {
+    return moduleResolverTopologyAst;
+  }
+
+  const topologySource = readBundledTopologySource(
+    MODULE_RESOLVER_TOPOLOGY_URL_CANDIDATES,
+  );
+  const compiler = new BettyCompiler();
+  const { ast, diagnostics } = compiler.parse(lowerUfcsSource(topologySource));
+  const errors = diagnostics
+    .filter((diagnostic) => diagnostic.severity === 'error')
+    .map((diagnostic) => diagnostic.message);
+
+  if (errors.length > 0 || !ast) {
+    throw new Error(
+      errors.length > 0
+        ? errors.join('; ')
+        : 'Failed to compile bundled module resolver topology.',
+    );
+  }
+
+  moduleResolverTopologyAst = materializeImplicitNodes(ast);
+  return moduleResolverTopologyAst;
+}
+
 function requireModuleLoaderState(payload: unknown): ModuleLoaderState {
   const candidate =
     payload &&
@@ -208,6 +247,59 @@ function requireLoadedModule(payload: unknown): LoadedGnosisModule {
   }
 
   return payload as LoadedGnosisModule;
+}
+
+function requireModuleResolverState(payload: unknown): ModuleResolverState {
+  const candidate =
+    payload &&
+    typeof payload === 'object' &&
+    'value' in payload &&
+    typeof (payload as { value?: unknown }).value === 'object'
+      ? (payload as { value: unknown }).value
+      : payload;
+
+  if (
+    !candidate ||
+    typeof candidate !== 'object' ||
+    typeof (candidate as { rootDir?: unknown }).rootDir !== 'string' ||
+    typeof (candidate as { specifier?: unknown }).specifier !== 'string' ||
+    typeof (candidate as { fromModule?: unknown }).fromModule !== 'string'
+  ) {
+    throw new Error(
+      'Module resolver pipeline received an invalid state payload.',
+    );
+  }
+
+  return candidate as ModuleResolverState;
+}
+
+function requireResolveResult(payload: unknown): ResolveResult {
+  if (
+    !payload ||
+    typeof payload !== 'object' ||
+    typeof (payload as { resolved?: unknown }).resolved !== 'boolean'
+  ) {
+    throw new Error(
+      'Module resolver pipeline did not return a valid resolution result.',
+    );
+  }
+
+  if ((payload as ResolveResult).resolved) {
+    if (
+      typeof (payload as { path?: unknown }).path !== 'string' ||
+      typeof (payload as { source?: unknown }).source !== 'string'
+    ) {
+      throw new Error(
+        'Module resolver pipeline returned an invalid successful result.',
+      );
+    }
+  } else if (typeof (payload as { error?: unknown }).error !== 'string') {
+    throw new Error(
+      'Module resolver pipeline returned an invalid failed result.',
+    );
+  }
+
+  return payload as ResolveResult;
 }
 
 function findWorkspaceRoot(
@@ -410,6 +502,39 @@ async function resolveBareModuleSpecifier(
       resolution.workspaceRoot,
       dependencyRoot,
     )}' but no module entry was found for '${specifier}'.`,
+  };
+}
+
+async function resolveFilesystemCandidates(
+  candidates: readonly string[],
+  specifier: string,
+): Promise<ResolveResult> {
+  for (const candidate of candidates) {
+    try {
+      const source = await fs.readFile(candidate, 'utf-8');
+      return {
+        resolved: true,
+        path: candidate,
+        source,
+      };
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        !('code' in error) ||
+        error.code !== 'ENOENT'
+      ) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          resolved: false,
+          error: `Unable to read '${candidate}': ${message}`,
+        };
+      }
+    }
+  }
+
+  return {
+    resolved: false,
+    error: `File not found for '${specifier}'.`,
   };
 }
 
@@ -669,59 +794,98 @@ export function renderGraphAst(ast: GraphAST): string {
 export function createFilesystemModuleResolver(
   rootDir: string = process.cwd(),
 ): GnosisModuleResolver {
+  const registry = new GnosisRegistry();
+
+  registry.register('ModuleResolveSpecifierKind', async (payload) => {
+    const state = requireModuleResolverState(payload);
+    const isFilesystemSpecifier =
+      state.specifier.startsWith('.') ||
+      state.specifier.startsWith('/') ||
+      state.specifier.startsWith('file:');
+
+    return {
+      adt: 'ModuleSpecifier',
+      kind: isFilesystemSpecifier ? 'filesystem' : 'bare',
+      case: isFilesystemSpecifier ? 'filesystem' : 'bare',
+      value: state,
+    };
+  });
+
+  registry.register('ModuleResolveBareSpecifier', async (payload) => {
+    const state = requireModuleResolverState(payload);
+    return resolveBareModuleSpecifier(
+      state.specifier,
+      state.fromModule,
+      state.rootDir,
+    );
+  });
+
+  registry.register('ModulePrepareFilesystemPath', async (payload) => {
+    const state = requireModuleResolverState(payload);
+    const baseDir =
+      state.fromModule.length > 0
+        ? path.dirname(state.fromModule)
+        : path.resolve(state.rootDir);
+
+    return {
+      ...state,
+      candidateBase: state.specifier.startsWith('file:')
+        ? new URL(state.specifier).pathname
+        : path.isAbsolute(state.specifier)
+          ? state.specifier
+          : path.resolve(baseDir, state.specifier),
+    } satisfies ModuleResolverState;
+  });
+
+  registry.register('ModuleFilesystemCandidateState', async (payload) => {
+    const state = requireModuleResolverState(payload);
+    const candidateBase = state.candidateBase ?? state.specifier;
+    const hasExtension = path.extname(candidateBase).length > 0;
+
+    return {
+      adt: 'ModuleFilesystemCandidates',
+      kind: hasExtension ? 'exact' : 'search',
+      case: hasExtension ? 'exact' : 'search',
+      value: {
+        ...state,
+        candidateBase,
+      } satisfies ModuleResolverState,
+    };
+  });
+
+  registry.register(
+    'ModuleResolveExactFilesystemCandidate',
+    async (payload) => {
+      const state = requireModuleResolverState(payload);
+      const candidateBase = state.candidateBase ?? state.specifier;
+      return resolveFilesystemCandidates([candidateBase], state.specifier);
+    },
+  );
+
+  registry.register('ModuleResolveFilesystemCandidates', async (payload) => {
+    const state = requireModuleResolverState(payload);
+    const candidateBase = state.candidateBase ?? state.specifier;
+    return resolveFilesystemCandidates(
+      [`${candidateBase}.mgg`, `${candidateBase}.gg`, candidateBase],
+      state.specifier,
+    );
+  });
+
+  const engine = new GnosisEngine(registry);
+
   return async (
     specifier: string,
     fromModule: string,
   ): Promise<ResolveResult> => {
-    if (
-      !specifier.startsWith('.') &&
-      !specifier.startsWith('/') &&
-      !specifier.startsWith('file:')
-    ) {
-      return resolveBareModuleSpecifier(specifier, fromModule, rootDir);
-    }
-
-    const baseDir =
-      fromModule.length > 0 ? path.dirname(fromModule) : path.resolve(rootDir);
-    const candidateBase = specifier.startsWith('file:')
-      ? new URL(specifier).pathname
-      : path.isAbsolute(specifier)
-        ? specifier
-        : path.resolve(baseDir, specifier);
-
-    const hasExtension = path.extname(candidateBase).length > 0;
-    const candidates = hasExtension
-      ? [candidateBase]
-      : [`${candidateBase}.mgg`, `${candidateBase}.gg`, candidateBase];
-
-    for (const candidate of candidates) {
-      try {
-        const source = await fs.readFile(candidate, 'utf-8');
-        return {
-          resolved: true,
-          path: candidate,
-          source,
-        };
-      } catch (error) {
-        if (
-          !(error instanceof Error) ||
-          !('code' in error) ||
-          error.code !== 'ENOENT'
-        ) {
-          const message =
-            error instanceof Error ? error.message : String(error);
-          return {
-            resolved: false,
-            error: `Unable to read '${candidate}': ${message}`,
-          };
-        }
-      }
-    }
-
-    return {
-      resolved: false,
-      error: `File not found for '${specifier}'.`,
-    };
+    const result = await engine.executeWithResult(
+      getModuleResolverTopologyAst(),
+      {
+        rootDir,
+        specifier,
+        fromModule,
+      } satisfies ModuleResolverState,
+    );
+    return requireResolveResult(result.payload);
   };
 }
 

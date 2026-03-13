@@ -1,0 +1,5 @@
+(detect_specifier:ModuleResolveSpecifierKind)-[:PROCESS { case: 'bare' }]->(resolve_bare:ModuleResolveBareSpecifier)
+(detect_specifier)-[:PROCESS { case: 'filesystem' }]->(prepare_filesystem_path:ModulePrepareFilesystemPath)
+(prepare_filesystem_path)-[:PROCESS]->(candidate_state:ModuleFilesystemCandidateState)
+(candidate_state)-[:PROCESS { case: 'exact' }]->(resolve_exact_candidate:ModuleResolveExactFilesystemCandidate)
+(candidate_state)-[:PROCESS { case: 'search' }]->(resolve_search_candidates:ModuleResolveFilesystemCandidates)

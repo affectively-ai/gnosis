@@ -6,6 +6,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'bun:test';
 import {
   GnosisModuleLoader,
@@ -483,5 +484,86 @@ describe('GnosisModuleLoader', () => {
     await expect(loadResult).rejects.toThrow(
       /cyclic module import: .*alpha\.mgg -> .*beta\.mgg -> .*alpha\.mgg/,
     );
+  });
+});
+
+describe('createFilesystemModuleResolver', () => {
+  it('resolves filesystem specifiers through the GG-native resolver topology', async () => {
+    const cwd = makeTempDir();
+    const routesPath = path.join(cwd, 'routes.gg');
+    const appPath = path.join(cwd, 'app.mgg');
+
+    writeFileSync(routesPath, '(router:Router)\n', 'utf-8');
+    writeFileSync(appPath, '(request:Request)\n', 'utf-8');
+
+    const resolver = createFilesystemModuleResolver(cwd);
+    const result = await resolver('./routes', appPath);
+
+    expect(result).toMatchObject({
+      resolved: true,
+      path: routesPath,
+      source: '(router:Router)\n',
+    });
+  });
+
+  it('resolves file URL specifiers through the GG-native resolver topology', async () => {
+    const cwd = makeTempDir();
+    const routesPath = path.join(cwd, 'routes.gg');
+
+    writeFileSync(routesPath, '(router:Router)\n', 'utf-8');
+
+    const resolver = createFilesystemModuleResolver(cwd);
+    const result = await resolver(pathToFileURL(routesPath).href, '');
+
+    expect(result).toMatchObject({
+      resolved: true,
+      path: routesPath,
+      source: '(router:Router)\n',
+    });
+  });
+
+  it('resolves bare specifiers through the GG-native resolver topology', async () => {
+    const cwd = makeTempDir();
+    const appPath = path.join(cwd, 'app.mgg');
+    const dependencyRoot = path.join(
+      cwd,
+      '.gnosis',
+      'deps',
+      'github.com',
+      'acme',
+      'routes',
+      'v1.2.3',
+    );
+
+    mkdirSync(dependencyRoot, { recursive: true });
+    writeFileSync(
+      path.join(dependencyRoot, 'index.gg'),
+      '(router:Router)\n',
+      'utf-8',
+    );
+    writeFileSync(appPath, '(request:Request)\n', 'utf-8');
+
+    writeFileSync(
+      path.join(cwd, 'gnosis.mod'),
+      [
+        'module github.com/acme/app',
+        '',
+        'gnosis 0.1.0',
+        '',
+        'require github.com/acme/routes v1.2.3',
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+    new ModManager(cwd).tidy();
+
+    const resolver = createFilesystemModuleResolver(cwd);
+    const result = await resolver('github.com/acme/routes', appPath);
+
+    expect(result).toMatchObject({
+      resolved: true,
+      path: path.join(dependencyRoot, 'index.gg'),
+      source: '(router:Router)\n',
+    });
   });
 });
