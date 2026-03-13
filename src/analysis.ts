@@ -112,14 +112,14 @@ export interface GnosisSteeringMetrics {
   autoApplyEnabled: boolean;
   /** Steering actuators are not wired yet; `apply` is contract-only for now. */
   applySupported: boolean;
-  /** Primary scalar statistic for frontier pessimism / underfill. */
+  /** Primary scalar statistic for frontier pessimism / underfill; canonical Wallace surface. */
   wallaceNumber: number;
   wallaceUnit: 'wally';
-  /** Short-form alias for Wallace output. */
+  /** Short-form alias for Wallace output. Legacy `charleyNumber` is removed. */
   wally: number;
   topologyDeficit: number;
   frontierFill: number;
-  /** Descriptive underfill field. */
+  /** Descriptive underfill field kept alongside the canonical Wallace surface. */
   frontierDeficit: number;
   regime: GnosisSteeringRegime;
   recommendedAction: GnosisSteeringAction | null;

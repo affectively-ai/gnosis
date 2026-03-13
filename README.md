@@ -207,6 +207,8 @@ The REPL and `lint` / `verify` / `analyze` output now also surface a steering bl
 - `eda`: Tukey-style frontier and graph summaries from `twokeys`
 - `recommendedAction`: shown in `suggest` / `apply` modes only
 
+Migration note: `wallaceNumber` and `wally` are now the canonical steering names. The legacy `charleyNumber` surface has been removed rather than kept as a hidden compatibility alias.
+
 Steering modes:
 
 - `off`: suppress steering surfaces

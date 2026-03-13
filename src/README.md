@@ -10,7 +10,7 @@ This directory contains the Gnosis compiler, runtime, and execution tooling.
 - CLI easter eggs: `crank` = Wallace check, `stank` = Buley check.
 - `lib.ts`: Package main entry used by `@affectively/gnosis` imports.
 - `cli.ts`: CLI entrypoint used by `bin/gnosis.js`.
-- `analysis.ts`: Formal complexity/steering analysis for `.gg` topologies, including Buley, Wallace/Wally frontier diagnostics, `twokeys` EDA summaries, micro-Charley wall/CPU telemetry, and steering modes.
+- `analysis.ts`: Formal complexity/steering analysis for `.gg` topologies, including canonical `wallaceNumber`/`wally` frontier diagnostics, `twokeys` EDA summaries, micro-Charley wall/CPU telemetry, and steering modes. The old `charleyNumber` steering name is removed.
 - `neural-compat.ts`: `.gg`-native neural runtime exposing [`@affectively/neural`](https://github.com/affectively-ai/neural/)'s `NeuralEngine` interface, including `GPUEngine`, `WebNNEngine`, canonical topic-domain module constants, and neural graph repositories/types.
 
 ## Subdirectories

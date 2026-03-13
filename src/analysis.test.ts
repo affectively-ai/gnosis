@@ -25,6 +25,7 @@ describe('Gnosis analysis steering', () => {
       recommendedAction: 'hold',
       telemetry: createEmptySteeringTelemetry(),
     });
+    expect('charleyNumber' in report.steering).toBe(false);
     expect(report.steering.eda.frontierWidths.summary.mean).toBe(1);
     expect(report.steering.eda.graph.nodeCount).toBe(2);
     expect(report.steering.eda.graph.edgeCount).toBe(1);
@@ -74,6 +75,7 @@ describe('Gnosis analysis steering', () => {
     expect(applyMode.steering.recommendedAction).toBe('hold');
     expect(applyMode.steering.autoApplyEnabled).toBe(true);
     expect(applyMode.steering.applySupported).toBe(false);
+    expect('charleyNumber' in applyMode.steering).toBe(false);
   });
 
   test('can attach runtime telemetry without mutating the steering baseline', async () => {
