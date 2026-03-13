@@ -17,6 +17,10 @@
 // Convergence into AST construction
 (ast_assembler: Compiler { phase: 'assemble' })
 (betti_verifier: Topology { mode: 'quantum_verification' })
+(verify_result: Result { kindFrom: 'verified' })
+(verified_compilation: Destructure { from: 'value', fields: 'stats,buleyNumber,quantum,steering' })
+(failed_compilation: Destructure { from: 'error', fields: 'errors,buleyNumber', strict: 'false' })
+(compile_halt: HALT)
 
 // Emission
 (wasm_emitter: Runtime { target: 'aeon_flow_10b' })
@@ -28,6 +32,7 @@
 
 (node_lexer | edge_lexer | property_lexer)-[:FOLD { strategy: 'merge-ast' }]->(raw_ast)
 
-(raw_ast)-[:PROCESS]->(ast_assembler)-[:PROCESS]->(betti_verifier)
+(raw_ast)-[:PROCESS]->(ast_assembler)-[:PROCESS]->(betti_verifier)-[:PROCESS]->(verify_result)
 
-(betti_verifier)-[:PROCESS]->(wasm_emitter)-[:PROCESS]->(binary_output)
+(verify_result)-[:PROCESS { case: 'ok' }]->(verified_compilation)-[:PROCESS]->(wasm_emitter)-[:PROCESS]->(binary_output)
+(verify_result)-[:PROCESS { case: 'err' }]->(failed_compilation)-[:HALT]->(compile_halt)

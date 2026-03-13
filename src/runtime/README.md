@@ -7,9 +7,33 @@ Runtime execution surfaces for graph traversal and handler dispatch.
 ## Files
 
 - [registry.ts](./registry.ts): Label-to-handler registration map.
-- [engine.ts](./engine.ts): Topology execution engine for `FORK/RACE/FOLD/VENT` graphs with optional UCAN edge authorization.
+- [engine.ts](./engine.ts): Topology execution engine for `FORK/RACE/FOLD/VENT` graphs with optional UCAN edge authorization and case-aware routing from native `.gg` payloads.
+- [core-handlers.ts](./core-handlers.ts): Built-in `Result`, `Option`, and `Destructure` handlers for native `.gg` data-shaping and branch selection.
 - [native-runtime.ts](./native-runtime.ts): Native `.gg` frame runtime adapter over `gnosis_runtime` WASM, with deterministic fallback metrics when WASM is unavailable.
 - [renderer-compat.ts](./renderer-compat.ts): 3D renderer compatibility layer targeting `@affectively/aeon-3d` with local fallback.
 - [engine.test.ts](./engine.test.ts): Runtime engine behavior tests.
 - [native-runtime.test.ts](./native-runtime.test.ts): Native runtime edge-processing and metrics tests.
 - [renderer-compat.test.ts](./renderer-compat.test.ts): Topology renderer compatibility tests.
+
+## Native Value Primitives
+
+The runtime now treats three value-shaping labels as built-ins:
+
+- `Result`: emits `{ kind: "ok", value }` or `{ kind: "err", error }`
+- `Option`: emits `{ kind: "some", value }` or `{ kind: "none" }`
+- `Destructure`: extracts named fields from object payloads, including `Result.value` and `Option.value`
+
+Outgoing edges can route on those tagged values with properties such as `case`, `match`, `when`, `kind`, `variant`, or `status`.
+
+`Result` and `Option` can also derive their case from a payload field via `kindFrom`, and can narrow the wrapped payload with `valueFrom` or `errorFrom`.
+
+```gg
+(source:Source)-[:PROCESS]->(decision:Result { kind: 'ok' })
+(decision)-[:PROCESS { case: 'ok' }]->(extract:Destructure { from: 'value', fields: 'user,score' })
+(decision)-[:PROCESS { case: 'err' }]->(fallback)
+```
+
+```gg
+(betti_verifier)-[:PROCESS]->(verify_result:Result { kindFrom: 'verified' })
+(verify_result)-[:PROCESS { case: 'ok' }]->(emit_ready:Destructure { from: 'value', fields: 'stats,buleyNumber' })
+```
