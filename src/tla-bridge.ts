@@ -6,6 +6,7 @@ import {
   type GgEdge,
   type GgProgram,
 } from '@affectively/aeon-logic';
+import { lowerUfcsSource } from './ufcs.js';
 
 export interface GnosisTlaBridgeOptions {
   readonly moduleName?: string;
@@ -52,7 +53,7 @@ function sanitizeModuleName(rawName: string): string {
 
 function deriveModuleName(
   program: GgProgram,
-  options: GnosisTlaBridgeOptions,
+  options: GnosisTlaBridgeOptions
 ): string {
   if (options.moduleName && options.moduleName.trim().length > 0) {
     return sanitizeModuleName(options.moduleName.trim());
@@ -72,9 +73,7 @@ function deriveModuleName(
 }
 
 function escapeTlaString(value: string): string {
-  return value
-    .replace(/\\/g, '\\\\')
-    .replace(/"/g, '\\"');
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
 function toTlaSet(nodeIds: readonly string[]): string {
@@ -103,7 +102,7 @@ function getFoldTargets(program: GgProgram): readonly string[] {
           const type = edge.type.toUpperCase();
           return type === 'FOLD' || type === 'COLLAPSE' || type === 'OBSERVE';
         })
-        .flatMap((edge) => edge.targetIds),
+        .flatMap((edge) => edge.targetIds)
     ),
   ];
 }
@@ -114,7 +113,11 @@ function edgeActionName(edge: GgEdge, index: number): string {
   return `Edge_${ordinal}_${typeName}`;
 }
 
-function edgeBetaExpression(edge: GgEdge, sourceSet: string, targetSet: string): string {
+function edgeBetaExpression(
+  edge: GgEdge,
+  sourceSet: string,
+  targetSet: string
+): string {
   const edgeType = edge.type.toUpperCase();
   if (edgeType === 'FORK') {
     return `beta1 + (Cardinality(${targetSet}) - 1)`;
@@ -122,7 +125,11 @@ function edgeBetaExpression(edge: GgEdge, sourceSet: string, targetSet: string):
   if (edgeType === 'RACE') {
     return `Max2(0, beta1 - (Cardinality(${sourceSet}) - 1))`;
   }
-  if (edgeType === 'FOLD' || edgeType === 'COLLAPSE' || edgeType === 'OBSERVE') {
+  if (
+    edgeType === 'FOLD' ||
+    edgeType === 'COLLAPSE' ||
+    edgeType === 'OBSERVE'
+  ) {
     return '0';
   }
   if (edgeType === 'VENT' || edgeType === 'TUNNEL') {
@@ -177,10 +184,14 @@ function renderTla(
   program: GgProgram,
   roots: readonly string[],
   terminals: readonly string[],
-  foldTargets: readonly string[],
+  foldTargets: readonly string[]
 ): string {
-  const renderedActions = program.edges.map((edge, index) => renderEdgeAction(edge, index));
-  const actionNames = program.edges.map((edge, index) => edgeActionName(edge, index));
+  const renderedActions = program.edges.map((edge, index) =>
+    renderEdgeAction(edge, index)
+  );
+  const actionNames = program.edges.map((edge, index) =>
+    edgeActionName(edge, index)
+  );
 
   const lines: string[] = [];
   lines.push(`${HEADER_DASHES} MODULE ${moduleName} ${HEADER_DASHES}`);
@@ -196,7 +207,9 @@ function renderTla(
   lines.push('');
   lines.push('Max2(a, b) == IF a > b THEN a ELSE b');
   lines.push('CanFire(sourceSet) == sourceSet \\subseteq active');
-  lines.push('UpdateActive(sourceSet, targetSet) == (active \\ sourceSet) \\cup targetSet');
+  lines.push(
+    'UpdateActive(sourceSet, targetSet) == (active \\ sourceSet) \\cup targetSet'
+  );
   lines.push('');
   lines.push('Init ==');
   lines.push('  /\\ active = ROOTS');
@@ -218,7 +231,7 @@ function renderTla(
   lines.push('HasFoldTargets == FOLD_TARGETS # {}');
   lines.push('EventuallyTerminal == <> (active \\cap TERMINALS # {})');
   lines.push(
-    'EventuallyConsensus == IF HasFoldTargets THEN <> consensusReached ELSE TRUE',
+    'EventuallyConsensus == IF HasFoldTargets THEN <> consensusReached ELSE TRUE'
   );
   lines.push('DeadlockFree == []<>(ENABLED Next)');
   lines.push('');
@@ -229,7 +242,9 @@ function renderTla(
   lines.push('');
   lines.push('THEOREM Spec => []NoLostPayloadInvariant');
   lines.push('');
-  lines.push('=============================================================================');
+  lines.push(
+    '============================================================================='
+  );
 
   return `${lines.join('\n')}\n`;
 }
@@ -248,19 +263,19 @@ function renderCfg(): string {
 
 export function generateTlaFromGnosisSource(
   sourceText: string,
-  options: GnosisTlaBridgeOptions = {},
+  options: GnosisTlaBridgeOptions = {}
 ): GnosisTlaBridgeResult {
-  const program = parseGgProgram(sourceText);
+  const program = parseGgProgram(lowerUfcsSource(sourceText));
   const moduleName = deriveModuleName(program, options);
   const roots = getResolvedRoots(program);
   const terminals = getGgTerminalNodeIds(program);
   const foldTargets = getFoldTargets(program);
 
   const forkEdgeCount = program.edges.filter(
-    (edge) => edge.type.toUpperCase() === 'FORK',
+    (edge) => edge.type.toUpperCase() === 'FORK'
   ).length;
   const raceEdgeCount = program.edges.filter(
-    (edge) => edge.type.toUpperCase() === 'RACE',
+    (edge) => edge.type.toUpperCase() === 'RACE'
   ).length;
 
   return {
@@ -278,4 +293,3 @@ export function generateTlaFromGnosisSource(
     },
   };
 }
-

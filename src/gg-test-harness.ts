@@ -36,6 +36,7 @@ import type {
   CheckerResult,
   NamedPredicate,
 } from '@affectively/aeon-logic';
+import { lowerUfcsSource } from './ufcs.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Test Result
@@ -163,7 +164,8 @@ export class GGTestBuilder {
 
   /** Run the verification and return a structured result */
   async run(): Promise<GGTestResult> {
-    const program = parseGgProgram(this.source);
+    const normalizedSource = lowerUfcsSource(this.source);
+    const program = parseGgProgram(normalizedSource);
     const rootNodes = getGgRootNodeIds(program);
     const terminalNodes = getGgTerminalNodeIds(program);
 
@@ -177,7 +179,10 @@ export class GGTestBuilder {
       });
     }
     if (this._wantCollapses) {
-      eventuals.push({ name: 'eventually_beta1_zero', test: (s) => s.beta1 === 0 });
+      eventuals.push({
+        name: 'eventually_beta1_zero',
+        test: (s) => s.beta1 === 0,
+      });
     }
     eventuals.push(...this.extraEventuals);
 
@@ -191,7 +196,7 @@ export class GGTestBuilder {
       eventual: eventuals,
     };
 
-    const raw = await checkGgProgram(this.source, {
+    const raw = await checkGgProgram(normalizedSource, {
       model: this.modelOpts,
       checker: checkerOpts,
     });

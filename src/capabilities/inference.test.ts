@@ -26,6 +26,24 @@ describe('capability inference', () => {
     expect(caps).toContain('auth.zk');
   });
 
+  it('infers capabilities from UFCS-lowered GG source', () => {
+    const source = `
+      (gateway: TcpServer { transport: 'tcp', mode: 'server' })
+      (relay: Socket { transport: 'udp' })
+      (auth: UCANVerify)
+      (sync: ZKSyncEnvelope)
+      gateway.relay().auth().sync()
+    `;
+
+    const requirements = inferCapabilitiesFromGgSource(source);
+    const caps = requirements.map((requirement) => requirement.capability);
+
+    expect(caps).toContain('net.tcp.server');
+    expect(caps).toContain('net.udp');
+    expect(caps).toContain('auth.ucan');
+    expect(caps).toContain('auth.zk');
+  });
+
   it('rejects workers-incompatible network capabilities', () => {
     const source = `
       (n1: TcpServer { transport: 'tcp', mode: 'server' })

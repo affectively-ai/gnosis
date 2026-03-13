@@ -26,13 +26,14 @@
 (wasm_emitter: Runtime { target: 'aeon_flow_10b' })
 
 // 2. The Compilation Topology
-(source_code)-[:PROCESS]->(source_reader)-[:PROCESS]->(strip_comments)
+source_reader(source_code)
+source_reader.strip_comments()
 
 (strip_comments)-[:FORK]->(node_lexer | edge_lexer | property_lexer)
 
 (node_lexer | edge_lexer | property_lexer)-[:FOLD { strategy: 'merge-ast' }]->(raw_ast)
 
-(raw_ast)-[:PROCESS]->(ast_assembler)-[:PROCESS]->(betti_verifier)-[:PROCESS]->(verify_result)
+raw_ast.ast_assembler().betti_verifier().verify_result()
 
 (verify_result)-[:PROCESS { case: 'ok' }]->(verified_compilation)-[:PROCESS]->(wasm_emitter)-[:PROCESS]->(binary_output)
 (verify_result)-[:PROCESS { case: 'err' }]->(failed_compilation)-[:HALT]->(compile_halt)

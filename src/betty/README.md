@@ -6,7 +6,7 @@ Bootstrap compiler surfaces for parsing `.gg`, validating graph structure, and l
 
 ## Files
 
-- [compiler.ts](./compiler.ts): Betty parser/compiler for `.gg`, including tagged-route exhaustiveness checks for `Result`, `Option`, and closed `Variant` nodes.
+- [compiler.ts](./compiler.ts): Betty parser/compiler for `.gg`, including tagged-route exhaustiveness checks for `Result`, `Option`, and closed `Variant` nodes plus UFCS lowering for single-receiver `PROCESS` call chains.
 - [compiler.test.ts](./compiler.test.ts): Compiler parsing and diagnostic regression tests.
 
 ## Subdirectories

@@ -37,7 +37,7 @@ describe('Gnosis analysis steering', () => {
         '(start)-[:FORK]->(left|right)',
         '(left)-[:FOLD]->(finish)',
         '(right)-[:FOLD]->(finish)',
-      ].join('\n'),
+      ].join('\n')
     );
 
     expect(report.topology.structuralBeta1).toBe(1);
@@ -92,6 +92,14 @@ describe('Gnosis analysis steering', () => {
     expect(withTelemetry.telemetry).toEqual(telemetry);
     expect(withTelemetry.wallaceNumber).toBe(report.steering.wallaceNumber);
   });
+
+  test('accepts UFCS source by lowering it before analysis', async () => {
+    const report = await analyzeGnosisSource('start.finish()');
+
+    expect(report.topology.nodeCount).toBe(2);
+    expect(report.topology.edgeCount).toBe(1);
+    expect(report.correctness.ok).toBe(true);
+  });
 });
 
 describe('Gnosis steering policy', () => {
@@ -103,7 +111,9 @@ describe('Gnosis steering policy', () => {
 
   test('recommends actions from topology and frontier pressure', () => {
     expect(recommendSteeringAction(1, 0.1, 'laminar')).toBe('expand');
-    expect(recommendSteeringAction(1, 0.3, 'transitional')).toBe('staggered-expand');
+    expect(recommendSteeringAction(1, 0.3, 'transitional')).toBe(
+      'staggered-expand'
+    );
     expect(recommendSteeringAction(-1, 0.3, 'transitional')).toBe('constrain');
     expect(recommendSteeringAction(0, 0.45, 'turbulent')).toBe('multiplex');
     expect(recommendSteeringAction(0, 0.05, 'laminar')).toBe('hold');

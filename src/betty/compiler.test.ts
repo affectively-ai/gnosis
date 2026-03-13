@@ -91,6 +91,42 @@ describe('BettyCompiler', () => {
     expect(node?.properties.fields).toBe('left.score:leftScore');
   });
 
+  it('lowers single-receiver canonical call syntax into PROCESS edges', () => {
+    const { ast } = compiler.parse(`
+            (start)
+            (wrap:Result { kind: "ok" })
+            wrap(start)
+        `);
+
+    expect(ast?.edges).toHaveLength(1);
+    expect(ast?.edges[0]).toMatchObject({
+      sourceIds: ['start'],
+      targetIds: ['wrap'],
+      type: 'PROCESS',
+    });
+  });
+
+  it('lowers UFCS chains into PROCESS edges', () => {
+    const { ast } = compiler.parse(`
+            (start)
+            (wrap:Result { kind: "ok" })
+            (extract:Destructure { from: "value", fields: "name" })
+            start.wrap().extract()
+        `);
+
+    expect(ast?.edges).toHaveLength(2);
+    expect(ast?.edges[0]).toMatchObject({
+      sourceIds: ['start'],
+      targetIds: ['wrap'],
+      type: 'PROCESS',
+    });
+    expect(ast?.edges[1]).toMatchObject({
+      sourceIds: ['wrap'],
+      targetIds: ['extract'],
+      type: 'PROCESS',
+    });
+  });
+
   it('reports missing tagged routes for Result nodes', () => {
     const { diagnostics } = compiler.parse(`
             (decision:Result)-[:PROCESS { case: "ok" }]->(success)

@@ -6,6 +6,7 @@ import {
   type GgProgram,
 } from '@affectively/aeon-logic';
 import { Pipeline } from '@affectively/aeon-pipelines';
+import { lowerUfcsSource } from './ufcs.js';
 
 export interface Neuron {
   id: string;
@@ -191,7 +192,10 @@ async function tryReadCanonicalTopicDomainTopology(): Promise<string | null> {
       fileURLToPath(url: URL): string;
     }>('node:url');
 
-    return await fsPromises.readFile(nodeUrl.fileURLToPath(sourceFileUrl), 'utf-8');
+    return await fsPromises.readFile(
+      nodeUrl.fileURLToPath(sourceFileUrl),
+      'utf-8'
+    );
   } catch {
     return null;
   }
@@ -202,7 +206,10 @@ export async function getTopicDomainTransformerTopologySource(): Promise<string>
   return canonicalSource ?? TOPIC_DOMAIN_TRANSFORMER_TOPOLOGY;
 }
 
-function parseNumericProperty(raw: string | undefined, fallback: number): number {
+function parseNumericProperty(
+  raw: string | undefined,
+  fallback: number
+): number {
   if (!raw) {
     return fallback;
   }
@@ -608,7 +615,9 @@ export class GPUEngine {
       this.batchSize
     );
 
-    this.activations = neurons.map((neuron) => normalizeActivation(neuron.activation));
+    this.activations = neurons.map((neuron) =>
+      normalizeActivation(neuron.activation)
+    );
   }
 
   private activate(value: number, index: number): number {
@@ -747,7 +756,7 @@ async function verifyTopology(topologySource: string): Promise<void> {
   }
 
   const pending = (async () => {
-    const result = await checkGgProgram(topologySource, {
+    const result = await checkGgProgram(lowerUfcsSource(topologySource), {
       defaults: {
         maxDepth: 64,
         maxBeta1Exclusive: 24,
@@ -800,8 +809,7 @@ export class NeuralEngine {
 
   constructor(topologySource?: string) {
     this.customTopologyProvided = topologySource !== undefined;
-    this.topologySource =
-      topologySource ?? TOPIC_DOMAIN_TRANSFORMER_TOPOLOGY;
+    this.topologySource = topologySource ?? TOPIC_DOMAIN_TRANSFORMER_TOPOLOGY;
     this.gpu = new GPUEngine();
     this.npu = new WebNNEngine();
     this.neuronRepo = new NeuronRepository(this.store);
@@ -824,7 +832,7 @@ export class NeuralEngine {
   ): Promise<NeuralGraphData> {
     this.topologySource = topologySource;
     await verifyTopology(this.topologySource);
-    this.topologyProgram = parseGgProgram(this.topologySource);
+    this.topologyProgram = parseGgProgram(lowerUfcsSource(this.topologySource));
 
     await this.gpu.init();
     this.gpu.batchSize = Math.max(1, this.adapterTrainingConfig.microBatchSize);
@@ -928,10 +936,7 @@ export class NeuralEngine {
       ...this.adapterTrainingConfig,
       ...config,
     };
-    this.gpu.batchSize = Math.max(
-      1,
-      this.adapterTrainingConfig.microBatchSize
-    );
+    this.gpu.batchSize = Math.max(1, this.adapterTrainingConfig.microBatchSize);
   }
 
   getAdapterTrainingConfig(): AdapterTrainingConfig {
@@ -1011,7 +1016,9 @@ export class NeuralEngine {
     this.store.neurons.clear();
     this.store.synapses.clear();
 
-    const program = this.topologyProgram ?? parseGgProgram(this.topologySource);
+    const program =
+      this.topologyProgram ??
+      parseGgProgram(lowerUfcsSource(this.topologySource));
     const graph = buildGraphFromGg(program);
 
     for (const neuron of graph.neurons) {

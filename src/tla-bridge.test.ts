@@ -37,13 +37,25 @@ describe('TLA bridge', () => {
   it('includes safety and liveness checks for TLC', () => {
     const result = generateTlaFromGnosisSource('(start)-[:PROCESS]->(end)');
 
-    expect(result.tla).toContain('NoLostPayloadInvariant == payloadPresent = TRUE');
-    expect(result.tla).toContain('EventuallyTerminal == <> (active \\cap TERMINALS # {})');
     expect(result.tla).toContain(
-      'EventuallyConsensus == IF HasFoldTargets THEN <> consensusReached ELSE TRUE',
+      'NoLostPayloadInvariant == payloadPresent = TRUE'
+    );
+    expect(result.tla).toContain(
+      'EventuallyTerminal == <> (active \\cap TERMINALS # {})'
+    );
+    expect(result.tla).toContain(
+      'EventuallyConsensus == IF HasFoldTargets THEN <> consensusReached ELSE TRUE'
     );
     expect(result.cfg).toContain('INVARIANT TypeInvariant');
     expect(result.cfg).toContain('PROPERTY DeadlockFree');
   });
-});
 
+  it('lowers UFCS source before generating TLA artifacts', () => {
+    const result = generateTlaFromGnosisSource('start.finish()');
+
+    expect(result.stats.nodeCount).toBe(2);
+    expect(result.stats.edgeCount).toBe(1);
+    expect(result.tla).toContain('ROOTS == {"start"}');
+    expect(result.tla).toContain('TERMINALS == {"finish"}');
+  });
+});

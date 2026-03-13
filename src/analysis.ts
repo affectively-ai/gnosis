@@ -13,6 +13,7 @@ import {
   type HostCapability,
   type RuntimeTarget,
 } from './capabilities/index.js';
+import { lowerUfcsSource } from './ufcs.js';
 import {
   Points,
   Series,
@@ -68,8 +69,7 @@ export const VALID_GNOSIS_STEERING_MODES = [
   'apply',
 ] as const;
 
-export type GnosisSteeringMode =
-  (typeof VALID_GNOSIS_STEERING_MODES)[number];
+export type GnosisSteeringMode = (typeof VALID_GNOSIS_STEERING_MODES)[number];
 
 export const DEFAULT_GNOSIS_STEERING_MODE: GnosisSteeringMode = 'suggest';
 
@@ -159,7 +159,9 @@ function buildLineMetrics(source: string): GnosisLineMetrics {
   const lines = source.split('\n');
   const totalLines = lines.length;
   const nonEmptyLines = lines.filter((line) => line.trim().length > 0).length;
-  const commentLines = lines.filter((line) => line.trim().startsWith('//')).length;
+  const commentLines = lines.filter((line) =>
+    line.trim().startsWith('//')
+  ).length;
   const topologyLines = lines.filter((line) => line.includes('-[:')).length;
 
   return {
@@ -252,35 +254,45 @@ function buildTopologyMetrics(program: ParsedGgProgram): GnosisTopologyMetrics {
   const edgeTypes = program.edges.map((edge) => edge.type.toUpperCase());
   const forkEdgeCount = edgeTypes.filter((type) => type === 'FORK').length;
   const raceEdgeCount = edgeTypes.filter((type) => type === 'RACE').length;
-  const foldEdgeCount = edgeTypes.filter((type) => type === 'FOLD' || type === 'COLLAPSE').length;
-  const ventEdgeCount = edgeTypes.filter((type) => type === 'VENT' || type === 'TUNNEL').length;
-  const interfereEdgeCount = edgeTypes.filter((type) => type === 'INTERFERE').length;
-  const processEdgeCount = edgeTypes.filter((type) => type === 'PROCESS').length;
-  const observeEdgeCount = edgeTypes.filter((type) => type === 'OBSERVE').length;
+  const foldEdgeCount = edgeTypes.filter(
+    (type) => type === 'FOLD' || type === 'COLLAPSE'
+  ).length;
+  const ventEdgeCount = edgeTypes.filter(
+    (type) => type === 'VENT' || type === 'TUNNEL'
+  ).length;
+  const interfereEdgeCount = edgeTypes.filter(
+    (type) => type === 'INTERFERE'
+  ).length;
+  const processEdgeCount = edgeTypes.filter(
+    (type) => type === 'PROCESS'
+  ).length;
+  const observeEdgeCount = edgeTypes.filter(
+    (type) => type === 'OBSERVE'
+  ).length;
   const forkWidths = program.edges
     .filter((edge) => edge.type.toUpperCase() === 'FORK')
     .map((edge) => edge.targetIds.length);
-  const maxBranchFactor = Math.max(
-    1,
-    ...forkWidths,
-  );
+  const maxBranchFactor = Math.max(1, ...forkWidths);
   const avgBranchFactor =
     forkWidths.length === 0
       ? 1
-      : round2(forkWidths.reduce((sum, width) => sum + width, 0) / forkWidths.length);
+      : round2(
+          forkWidths.reduce((sum, width) => sum + width, 0) / forkWidths.length
+        );
   const expandedEdgeCount = program.edges.reduce(
     (sum, edge) => sum + edge.sourceIds.length * edge.targetIds.length,
-    0,
+    0
   );
   const connectedComponents = countConnectedComponents(program);
   const structuralBeta1 = Math.max(
     0,
-    expandedEdgeCount - program.nodes.length + connectedComponents,
+    expandedEdgeCount - program.nodes.length + connectedComponents
   );
 
   return {
     nodeCount: program.nodes.length,
-    functionNodeCount: program.nodes.filter((node) => node.labels.length > 0).length,
+    functionNodeCount: program.nodes.filter((node) => node.labels.length > 0)
+      .length,
     edgeCount: program.edges.length,
     expandedEdgeCount,
     structuralBeta1,
@@ -294,7 +306,10 @@ function buildTopologyMetrics(program: ParsedGgProgram): GnosisTopologyMetrics {
     maxBranchFactor,
     avgBranchFactor,
     // McCabe-style approximation for directed graph workflows.
-    cyclomaticApprox: Math.max(1, program.edges.length - program.nodes.length + 2),
+    cyclomaticApprox: Math.max(
+      1,
+      program.edges.length - program.nodes.length + 2
+    ),
   };
 }
 
@@ -313,13 +328,13 @@ export function surfaceSteeringMetrics(mode: GnosisSteeringMode): boolean {
 }
 
 export function surfaceSteeringRecommendations(
-  mode: GnosisSteeringMode,
+  mode: GnosisSteeringMode
 ): boolean {
   return mode === 'suggest' || mode === 'apply';
 }
 
 function resolveSteeringMode(
-  steeringMode?: GnosisSteeringMode,
+  steeringMode?: GnosisSteeringMode
 ): GnosisSteeringMode {
   return steeringMode ?? DEFAULT_GNOSIS_STEERING_MODE;
 }
@@ -327,7 +342,7 @@ function resolveSteeringMode(
 export function recommendSteeringAction(
   topologyDeficit: number,
   wally: number,
-  regime: GnosisSteeringRegime,
+  regime: GnosisSteeringRegime
 ): GnosisSteeringAction {
   if (topologyDeficit > 0.5 && wally >= 0.25) {
     return 'staggered-expand';
@@ -346,7 +361,7 @@ export function recommendSteeringAction(
 
 function buildSteeringEda(
   program: ParsedGgProgram,
-  correctness: CheckerResult<GgTopologyState>,
+  correctness: CheckerResult<GgTopologyState>
 ): GnosisSteeringEda {
   const frontierWidths =
     correctness.topology.frontierByLayer.length > 0
@@ -387,9 +402,11 @@ export function startSteeringTelemetry(): GnosisSteeringStopwatch {
 }
 
 export function finishSteeringTelemetry(
-  stopwatch: GnosisSteeringStopwatch,
+  stopwatch: GnosisSteeringStopwatch
 ): GnosisSteeringTelemetry {
-  const wallMicroCharleys = round2(performance.now() - stopwatch.wallStartedAtMs);
+  const wallMicroCharleys = round2(
+    performance.now() - stopwatch.wallStartedAtMs
+  );
   const cpuUsage = process.cpuUsage(stopwatch.cpuStartedAt);
   const cpuMicroCharleys = round2((cpuUsage.user + cpuUsage.system) / 1000);
 
@@ -405,7 +422,7 @@ export function finishSteeringTelemetry(
 
 export function withSteeringTelemetry(
   steering: GnosisSteeringMetrics,
-  telemetry: GnosisSteeringTelemetry,
+  telemetry: GnosisSteeringTelemetry
 ): GnosisSteeringMetrics {
   return {
     ...steering,
@@ -417,24 +434,25 @@ function buildSteeringMetrics(
   program: ParsedGgProgram,
   topology: GnosisTopologyMetrics,
   correctness: CheckerResult<GgTopologyState>,
-  steeringMode?: GnosisSteeringMode,
+  steeringMode?: GnosisSteeringMode
 ): GnosisSteeringMetrics {
   const mode = resolveSteeringMode(steeringMode);
   const frontierFill = round2(correctness.topology.frontierFill);
-  const checkerTopology = correctness.topology as typeof correctness.topology & {
-    wally?: number;
-  };
+  const checkerTopology =
+    correctness.topology as typeof correctness.topology & {
+      wally?: number;
+    };
   const wally = round2(
-    checkerTopology.wally ?? correctness.topology.frontierDeficit,
+    checkerTopology.wally ?? correctness.topology.frontierDeficit
   );
   const topologyDeficit = round2(
-    topology.structuralBeta1 - correctness.topology.beta1,
+    topology.structuralBeta1 - correctness.topology.beta1
   );
   const regime = classifySteeringRegime(wally);
   const recommendedAction = recommendSteeringAction(
     topologyDeficit,
     wally,
-    regime,
+    regime
   );
 
   return {
@@ -458,27 +476,39 @@ function buildSteeringMetrics(
 
 function buildQuantumMetrics(
   topology: GnosisTopologyMetrics,
-  correctness: CheckerResult<GgTopologyState>,
+  correctness: CheckerResult<GgTopologyState>
 ): GnosisQuantumMetrics {
-  const superpositionEdgeCount = topology.forkEdgeCount + topology.interfereEdgeCount;
+  const superpositionEdgeCount =
+    topology.forkEdgeCount + topology.interfereEdgeCount;
   // OBSERVE is a collapse operation — reading forces superposition to resolve
-  const collapseEdgeCount = topology.raceEdgeCount + topology.foldEdgeCount + topology.ventEdgeCount + topology.observeEdgeCount;
+  const collapseEdgeCount =
+    topology.raceEdgeCount +
+    topology.foldEdgeCount +
+    topology.ventEdgeCount +
+    topology.observeEdgeCount;
   const collapseCoverage =
-    topology.forkEdgeCount === 0 ? 1 : round2(collapseEdgeCount / topology.forkEdgeCount);
-  const collapseDeficit = Math.max(0, topology.forkEdgeCount - collapseEdgeCount);
+    topology.forkEdgeCount === 0
+      ? 1
+      : round2(collapseEdgeCount / topology.forkEdgeCount);
+  const collapseDeficit = Math.max(
+    0,
+    topology.forkEdgeCount - collapseEdgeCount
+  );
   const interferenceDensity =
-    topology.edgeCount === 0 ? 0 : round2(topology.interfereEdgeCount / topology.edgeCount);
+    topology.edgeCount === 0
+      ? 0
+      : round2(topology.interfereEdgeCount / topology.edgeCount);
   const betaPressure = round2(
     topology.maxBranchFactor * Math.max(1, topology.forkEdgeCount) +
       topology.interfereEdgeCount * 1.5 +
-      correctness.topology.beta1,
+      correctness.topology.beta1
   );
   const betaHeadroom = round2(Math.max(0, 10 - correctness.topology.beta1));
   const quantumIndex = round2(
     betaPressure +
       collapseDeficit * 2 +
       Math.max(0, 1 - collapseCoverage) * 4 +
-      interferenceDensity * 5,
+      interferenceDensity * 5
   );
 
   return {
@@ -495,7 +525,7 @@ function buildQuantumMetrics(
 
 function computeBuleyNumber(
   line: GnosisLineMetrics,
-  topology: GnosisTopologyMetrics,
+  topology: GnosisTopologyMetrics
 ): number {
   const sizeComponent = Math.log2(line.nonEmptyLines + 1);
   const branchComponent =
@@ -504,23 +534,30 @@ function computeBuleyNumber(
     topology.interfereEdgeCount * 1.4 +
     topology.maxBranchFactor * 1.1;
   const collapsePenalty =
-    Math.max(0, topology.forkEdgeCount - (topology.foldEdgeCount + topology.raceEdgeCount + topology.ventEdgeCount)) *
-    1.75;
+    Math.max(
+      0,
+      topology.forkEdgeCount -
+        (topology.foldEdgeCount +
+          topology.raceEdgeCount +
+          topology.ventEdgeCount)
+    ) * 1.75;
   const shapeComponent = topology.cyclomaticApprox * 1.35;
   const functionDensity =
-    topology.nodeCount > 0 ? topology.functionNodeCount / topology.nodeCount : 0;
+    topology.nodeCount > 0
+      ? topology.functionNodeCount / topology.nodeCount
+      : 0;
 
   return round2(
     sizeComponent +
       branchComponent +
       collapsePenalty +
       shapeComponent +
-      functionDensity * 2,
+      functionDensity * 2
   );
 }
 
 export function formatGnosisViolations(
-  result: CheckerResult<GgTopologyState>,
+  result: CheckerResult<GgTopologyState>
 ): string[] {
   if (result.ok) {
     return [];
@@ -537,13 +574,14 @@ export function formatGnosisViolations(
 
 export async function analyzeGnosisSource(
   source: string,
-  options: GnosisAnalyzeOptions = {},
+  options: GnosisAnalyzeOptions = {}
 ): Promise<GnosisComplexityReport> {
+  const normalizedSource = lowerUfcsSource(source);
   const line = buildLineMetrics(source);
-  const program = parseGgProgram(source);
+  const program = parseGgProgram(normalizedSource);
   const topology = buildTopologyMetrics(program);
   const target = options.target ?? 'agnostic';
-  const correctness = await checkGgProgram(source, {
+  const correctness = await checkGgProgram(normalizedSource, {
     defaults: {
       maxDepth: 64,
       maxBeta1Exclusive: 10,
@@ -554,7 +592,7 @@ export async function analyzeGnosisSource(
     program,
     topology,
     correctness,
-    options.steeringMode,
+    options.steeringMode
   );
   const capabilityRequirements = inferCapabilitiesFromGgSource(source);
   const capabilityValidation = validateCapabilitiesForTarget(

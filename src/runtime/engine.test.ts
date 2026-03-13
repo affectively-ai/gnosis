@@ -67,6 +67,24 @@ describe('GnosisEngine', () => {
     expect(result).toContain('secret');
   });
 
+  it('executes UFCS-lowered PROCESS chains without changing runtime behavior', async () => {
+    const registry = new GnosisRegistry();
+    registry.register('Source', async () => ({ user: { name: 'ada' } }));
+    registry.register('Sink', async (payload) => payload);
+
+    const engine = new GnosisEngine(registry);
+    const { ast } = compiler.parse(`
+            (start:Source)
+            (wrap:Result { kind: "ok", valueFrom: "user" })
+            (extract:Destructure { from: "value", fields: "name" })
+            (sink:Sink)
+            start.wrap().extract().sink()
+        `);
+
+    const result = await engine.execute(ast!);
+    expect(result).toContain('"name":"ada"');
+  });
+
   it('routes native Result cases and destructures payloads in .gg', async () => {
     const registry = new GnosisRegistry();
     registry.register('Source', async () => ({

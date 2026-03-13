@@ -22,6 +22,7 @@ import {
   getGgTerminalNodeIds,
 } from '@affectively/aeon-logic';
 import type { CheckerResult, GgTopologyState } from '@affectively/aeon-logic';
+import { lowerUfcsSource } from './ufcs.js';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -99,10 +100,11 @@ async function verifyModule(
   beta1Max: number
 ): Promise<GGTestModuleResult> {
   try {
-    const program = parseGgProgram(source);
+    const normalizedSource = lowerUfcsSource(source);
+    const program = parseGgProgram(normalizedSource);
     const terminalNodes = new Set(getGgTerminalNodeIds(program));
 
-    const result = await checkGgProgram(source, {
+    const result = await checkGgProgram(normalizedSource, {
       checker: {
         maxDepth: 64,
         invariants: [
@@ -110,7 +112,10 @@ async function verifyModule(
           { name: 'beta1_lt_bound', test: (s) => s.beta1 < beta1Max },
         ],
         eventual: [
-          { name: 'eventually_terminal', test: (s) => terminalNodes.has(s.nodeId) },
+          {
+            name: 'eventually_terminal',
+            test: (s) => terminalNodes.has(s.nodeId),
+          },
         ],
       },
     });
@@ -190,12 +195,7 @@ export async function runGGTestFile(
   modules.push(...(await Promise.all(verifyPromises)));
 
   // FOLD: verify the test topology itself is well-formed
-  const composition = await verifyModule(
-    'test-topology',
-    absPath,
-    source,
-    128
-  );
+  const composition = await verifyModule('test-topology', absPath, source, 128);
 
   // RACE: all must pass
   const allOk = modules.every((m) => m.ok) && composition.ok;
@@ -241,16 +241,14 @@ export function discoverTestFiles(rootDir: string): string[] {
  * Auto-discovery, no manual wiring, unmaintainable lists eliminated.
  */
 export async function runGGTestSuite(
-  rootDir: string,
+  rootDir: string
 ): Promise<GGTestDiscoveryResult> {
   const start = performance.now();
   const testFiles = discoverTestFiles(rootDir);
   const suites: GGTestSuiteResult[] = [];
 
   // Run all test files in parallel — FORK
-  const results = await Promise.all(
-    testFiles.map((f) => runGGTestFile(f)),
-  );
+  const results = await Promise.all(testFiles.map((f) => runGGTestFile(f)));
   suites.push(...results);
 
   let totalModules = 0;
@@ -282,7 +280,9 @@ export async function runGGTestSuite(
 /**
  * Format a full discovery result for terminal output.
  */
-export function formatGGTestDiscoveryResults(result: GGTestDiscoveryResult): string {
+export function formatGGTestDiscoveryResults(
+  result: GGTestDiscoveryResult
+): string {
   const lines: string[] = [];
   lines.push(`[gnosis test] discovered ${result.suites.length} test suite(s)`);
   lines.push('');
@@ -293,7 +293,11 @@ export function formatGGTestDiscoveryResults(result: GGTestDiscoveryResult): str
   }
 
   const status = result.ok ? 'ALL PASSED' : 'FAILURES';
-  lines.push(`${status}  ${result.totalPassed}/${result.totalModules} modules  ${result.elapsed.toFixed(0)}ms`);
+  lines.push(
+    `${status}  ${result.totalPassed}/${
+      result.totalModules
+    } modules  ${result.elapsed.toFixed(0)}ms`
+  );
   return lines.join('\n');
 }
 
@@ -317,7 +321,11 @@ export function formatGGTestResults(result: GGTestSuiteResult): string {
 
   lines.push('');
   lines.push(
-    `  ${result.composition.ok ? 'PASS' : 'FAIL'}  test-topology  (nodes=${result.composition.nodeCount} edges=${result.composition.edgeCount} states=${result.composition.stateCount} b1=${result.composition.beta1})`
+    `  ${result.composition.ok ? 'PASS' : 'FAIL'}  test-topology  (nodes=${
+      result.composition.nodeCount
+    } edges=${result.composition.edgeCount} states=${
+      result.composition.stateCount
+    } b1=${result.composition.beta1})`
   );
   for (const v of result.composition.violations) {
     lines.push(`         ${v}`);
@@ -326,11 +334,8 @@ export function formatGGTestResults(result: GGTestSuiteResult): string {
   lines.push('');
   const total = result.modules.length + 1;
   const passed =
-    result.modules.filter((m) => m.ok).length +
-    (result.composition.ok ? 1 : 0);
-  lines.push(
-    `  ${passed}/${total} passed  ${result.elapsed.toFixed(0)}ms`
-  );
+    result.modules.filter((m) => m.ok).length + (result.composition.ok ? 1 : 0);
+  lines.push(`  ${passed}/${total} passed  ${result.elapsed.toFixed(0)}ms`);
 
   return lines.join('\n');
 }

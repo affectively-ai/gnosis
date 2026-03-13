@@ -1,5 +1,6 @@
 import { parseGgProgram } from '@affectively/aeon-logic';
 import type { CapabilityRequirement, HostCapability } from './types.js';
+import { lowerUfcsSource } from '../ufcs.js';
 
 const DECLARED_CAPABILITY_FIELDS = [
   'capability',
@@ -55,7 +56,10 @@ const ZK_LABELS = new Set([
 const CUSTODIAL_LABELS = new Set(['custodialsigner']);
 
 function normalizeToken(value: string): string {
-  return value.trim().toLowerCase().replace(/^['"]|['"]$/g, '');
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/^['"]|['"]$/g, '');
 }
 
 function parseCapabilityTokens(value: string): string[] {
@@ -118,8 +122,12 @@ function inferTransportCapabilities(
   label: string | undefined,
   properties: Record<string, string>
 ): void {
-  const transport = normalizeToken(properties.transport ?? properties.protocol ?? '');
-  const mode = normalizeToken(properties.mode ?? properties.role ?? properties.op ?? '');
+  const transport = normalizeToken(
+    properties.transport ?? properties.protocol ?? ''
+  );
+  const mode = normalizeToken(
+    properties.mode ?? properties.role ?? properties.op ?? ''
+  );
 
   if (transport === 'udp') {
     addRequirement(
@@ -135,7 +143,9 @@ function inferTransportCapabilities(
 
   if (transport === 'tcp') {
     const capability =
-      mode.includes('server') || mode.includes('listen') || mode.includes('bind')
+      mode.includes('server') ||
+      mode.includes('listen') ||
+      mode.includes('bind')
         ? 'net.tcp.server'
         : 'net.tcp.client';
 
@@ -156,7 +166,9 @@ function inferStorageCapabilities(
   label: string | undefined,
   properties: Record<string, string>
 ): void {
-  const storage = normalizeToken(properties.storage ?? properties.persistence ?? '');
+  const storage = normalizeToken(
+    properties.storage ?? properties.persistence ?? ''
+  );
   const durableFlag = normalizeToken(properties.durable ?? '');
   const op = normalizeToken(properties.op ?? '');
 
@@ -278,7 +290,7 @@ export function inferCapabilitiesFromGgSource(
   source: string
 ): CapabilityRequirement[] {
   const requirements: CapabilityRequirement[] = [];
-  const program = parseGgProgram(source);
+  const program = parseGgProgram(lowerUfcsSource(source));
 
   for (const node of program.nodes) {
     const nodeId = node.id;

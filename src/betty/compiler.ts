@@ -1,6 +1,7 @@
 import { Pipeline } from '@affectively/aeon-pipelines';
 import { QuantumWasmBridge } from './quantum/bridge.js';
 import { injectSensitiveZkEnvelopes } from '../auth/auto-zk.js';
+import { lowerUfcsSource } from '../ufcs.js';
 
 export interface ASTNode {
   id: string;
@@ -107,7 +108,8 @@ export class BettyCompiler {
     diagnostics: Diagnostic[];
     buleyMeasure: number;
   } {
-    if (!input.trim())
+    const normalizedInput = lowerUfcsSource(input);
+    if (!normalizedInput.trim())
       return { ast: null, output: '', b1: 0, diagnostics: [], buleyMeasure: 0 };
 
     this.logs = [];
@@ -116,7 +118,7 @@ export class BettyCompiler {
     this.ast = { nodes: new Map(), edges: [] };
     this.wasmBridge = new QuantumWasmBridge();
 
-    const lines = input.split('\n');
+    const lines = normalizedInput.split('\n');
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
