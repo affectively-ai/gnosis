@@ -1,0 +1,12 @@
+// loss_surface.gg
+// Native scalar loss computation for differentiable topologies.
+
+(seed:Scalar { value: '3.0' })
+(prediction:Scalar)
+(target:Scalar { value: '1.0' })
+(loss:MeanSquaredError { predictionKey: 'prediction', targetKey: 'target' })
+(sink:Sink)
+
+(seed)-[:FORK]->(prediction | target)
+(prediction | target)-[:FOLD]->(loss)
+(loss)-[:PROCESS]->(sink)

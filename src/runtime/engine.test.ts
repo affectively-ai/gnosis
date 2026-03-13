@@ -168,6 +168,23 @@ describe('GnosisEngine', () => {
     expect(result).toContain('"gradient":1.5');
   });
 
+  it('executes native differentiable loss topologies from .gg files', async () => {
+    const registry = new GnosisRegistry();
+    registry.register('Sink', async (payload) => payload);
+
+    const engine = new GnosisEngine(registry);
+    const source = readFileSync(
+      new URL('../../loss_surface.gg', import.meta.url),
+      'utf-8'
+    );
+    const { ast } = compiler.parse(source);
+
+    const result = await engine.execute(ast!);
+    expect(result).toContain('"type":"loss"');
+    expect(result).toContain('"value":4');
+    expect(result).toContain('"delta":2');
+  });
+
   it('should handle MEASURE and HALT edges', async () => {
     const registry = new GnosisRegistry();
     registry.register('Step', async (p) => p);

@@ -29,6 +29,11 @@ interface GnosisGradientState {
   value: number;
 }
 
+interface GnosisScalarState {
+  type: 'scalar';
+  value: number;
+}
+
 const SQRT1_2 = Math.SQRT1_2;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -101,6 +106,14 @@ function isGradientState(payload: unknown): payload is GnosisGradientState {
   return (
     isRecord(payload) &&
     payload.type === 'gradient' &&
+    typeof payload.value === 'number'
+  );
+}
+
+function isScalarState(payload: unknown): payload is GnosisScalarState {
+  return (
+    isRecord(payload) &&
+    payload.type === 'scalar' &&
     typeof payload.value === 'number'
   );
 }
@@ -335,6 +348,26 @@ function parseNumericValue(raw: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function readNumericPayload(
+  payload: unknown,
+  key: string | undefined
+): number | null {
+  const candidate = key && isRecord(payload) ? payload[key] : payload;
+
+  if (typeof candidate === 'number') {
+    return candidate;
+  }
+  if (
+    isScalarState(candidate) ||
+    isGradientState(candidate) ||
+    isParameterState(candidate)
+  ) {
+    return candidate.value;
+  }
+
+  return null;
+}
+
 export function registerCoreRuntimeHandlers(registry: GnosisRegistry): void {
   registry.register('Result', async (payload, props) => {
     const derivedKind = deriveTaggedKindFromField(
@@ -485,6 +518,20 @@ export function registerCoreRuntimeHandlers(registry: GnosisRegistry): void {
     } satisfies GnosisGradientState;
   });
 
+  registry.register('Scalar', async (payload, props) => {
+    if (isScalarState(payload) && !props.value) {
+      return payload;
+    }
+
+    return {
+      type: 'scalar',
+      value: parseNumericValue(
+        props.value,
+        isScalarState(payload) ? payload.value : 0
+      ),
+    } satisfies GnosisScalarState;
+  });
+
   registry.register('GradientStep', async (payload, props) => {
     const learningRate = parseNumericValue(props.learningRate, 0.1);
     const parameterKey = props.parameterKey ?? 'parameter';
@@ -515,6 +562,28 @@ export function registerCoreRuntimeHandlers(registry: GnosisRegistry): void {
       previousValue: parameterPayload.value,
       gradient: gradientPayload.value,
       learningRate,
+    };
+  });
+
+  registry.register('MeanSquaredError', async (payload, props) => {
+    const prediction = readNumericPayload(
+      payload,
+      props.predictionKey ?? 'prediction'
+    );
+    const target = readNumericPayload(payload, props.targetKey ?? 'target');
+    if (prediction === null || target === null) {
+      throw new Error(
+        'MeanSquaredError expected prediction and target numeric payloads.'
+      );
+    }
+
+    const delta = prediction - target;
+    return {
+      type: 'loss',
+      value: Math.round(delta * delta * 1000) / 1000,
+      prediction,
+      target,
+      delta: Math.round(delta * 1000) / 1000,
     };
   });
 }

@@ -36,9 +36,11 @@ Quantum value primitives are also built in:
 
 Differentiable value primitives are also built in:
 
+- `Scalar`: creates or forwards a scalar value node
 - `Parameter`: creates or forwards a differentiable scalar parameter
 - `Gradient`: creates or forwards a scalar gradient
 - `GradientStep`: applies gradient descent using `learningRate`, `parameterKey`, and `gradientKey`
+- `MeanSquaredError`: computes a scalar loss from folded `prediction` and `target` branches
 
 ```gg
 (source:Source)-[:PROCESS]->(decision:Result { kind: 'ok' })
@@ -60,4 +62,9 @@ Differentiable value primitives are also built in:
 ```gg
 (seed:Parameter { value: '2.0' })-[:FORK]->(param:Parameter | grad:Gradient { value: '1.5' })
 (param | grad)-[:FOLD]->(update:GradientStep { learningRate: '0.1', parameterKey: 'param', gradientKey: 'grad' })
+```
+
+```gg
+(seed:Scalar { value: '3.0' })-[:FORK]->(prediction:Scalar | target:Scalar { value: '1.0' })
+(prediction | target)-[:FOLD]->(loss:MeanSquaredError { predictionKey: 'prediction', targetKey: 'target' })
 ```
