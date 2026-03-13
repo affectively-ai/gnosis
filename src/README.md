@@ -20,7 +20,7 @@ This directory contains the Gnosis compiler, runtime, and execution tooling.
 
 - [auth](./auth): Native UCAN/ZK/custodial runtime integration, topology-local auth bootstrap, HALT attestation verification, execution-envelope authorization helpers, and steering/boundary-walk capability contracts.
 - [benchmarks](./benchmarks/README.md): seeded benchmark helpers for parameter-matched `.gg` topologies, including the cancellation learner, the one-path negative controls, the regime sweep, the adversarial controls, and the mini-MoE routing learner used by the Chapter 17 companion artifacts.
-- [betty](./betty/README.md): Betty bootstrap compiler, parser, closed-variant exhaustiveness checks, UFCS lowering, and quantum bridge.
+- [betty](./betty/README.md): Betty bootstrap compiler, parser, closed-variant exhaustiveness checks, UFCS lowering, thermodynamic stability auditing, certified-kernel Lean proof artifact generation, and quantum bridge.
 - [capabilities](./capabilities/README.md): Runtime capability profiles, effect-contract summaries, and target validation (`workers`, `node`, `bun`).
 - [crdt](./crdt/README.md): topology-native CRDT primitives plus the generic Aeon relay adapter and DashRelay compatibility shim.
 - [mod](./mod/README.md): `gnosis mod` package manager commands plus native `.mgg` module parsing, resolution, and merged-source loading.

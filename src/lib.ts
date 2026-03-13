@@ -2,6 +2,7 @@ export { GnosisNeo4jBridge } from './neo4j-bridge.js';
 export { GnosisRegistry } from './runtime/registry.js';
 export { GnosisEngine } from './runtime/engine.js';
 export { BettyCompiler } from './betty/compiler.js';
+export { generateLeanFromGnosisAst } from './betty/lean.js';
 export {
   GnosisModuleLoader,
   createFilesystemModuleResolver,
@@ -42,7 +43,23 @@ export {
 } from './steering-trace.js';
 
 export type { GnosisHandler } from './runtime/registry.js';
-export type { GraphAST, ASTNode, ASTEdge } from './betty/compiler.js';
+export type {
+  GraphAST,
+  ASTNode,
+  ASTEdge,
+  BettyParseResult,
+  Diagnostic,
+  DiagnosticCode,
+} from './betty/compiler.js';
+export type {
+  StabilityKernelEdge,
+  StabilityMetadata,
+  StabilityProofAssumption,
+  StabilityProofKind,
+  StabilityProofObligation,
+  StabilityReport,
+  StabilityStateAssessment,
+} from './betty/stability.js';
 export type {
   GnosisModuleImport,
   GnosisModuleExport,

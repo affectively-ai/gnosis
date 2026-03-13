@@ -2,6 +2,10 @@ import { Pipeline } from '@affectively/aeon-pipelines';
 import { QuantumWasmBridge } from './quantum/bridge.js';
 import { injectSensitiveZkEnvelopes } from '../auth/auto-zk.js';
 import { lowerUfcsSource } from '../ufcs.js';
+import {
+  analyzeTopologyStability,
+  type StabilityReport,
+} from './stability.js';
 
 export interface ASTNode {
   id: string;
@@ -19,13 +23,29 @@ export interface ASTEdge {
 export interface Diagnostic {
   line: number;
   column: number;
+  code?: DiagnosticCode;
   message: string;
   severity: 'error' | 'warning' | 'info';
 }
 
+export type DiagnosticCode =
+  | 'ERR_BETA_UNBOUNDED'
+  | 'ERR_SPECTRAL_EXPLOSION'
+  | 'ERR_DRIFT_POSITIVE'
+  | 'ERR_REPAIR_DEBT_LEAK';
+
 export interface GraphAST {
   nodes: Map<string, ASTNode>;
   edges: ASTEdge[];
+}
+
+export interface BettyParseResult {
+  ast: GraphAST | null;
+  output: string;
+  b1: number;
+  diagnostics: Diagnostic[];
+  buleyMeasure: number;
+  stability: StabilityReport | null;
 }
 
 const NATIVE_TAGGED_NODE_CASES: Record<string, readonly string[]> = {
@@ -40,6 +60,7 @@ export class BettyCompiler {
   private ast: GraphAST = { nodes: new Map(), edges: [] };
   private logs: string[] = [];
   private diagnostics: Diagnostic[] = [];
+  private stability: StabilityReport | null = null;
   private wasmBridge: QuantumWasmBridge;
 
   constructor() {
@@ -60,6 +81,10 @@ export class BettyCompiler {
 
   public getDiagnostics(): Diagnostic[] {
     return this.diagnostics;
+  }
+
+  public getStability(): StabilityReport | null {
+    return this.stability;
   }
 
   /**
@@ -101,21 +126,23 @@ export class BettyCompiler {
     return [...keywords, ...nodeIds].filter((w) => w.startsWith(prefix));
   }
 
-  public parse(input: string): {
-    ast: GraphAST | null;
-    output: string;
-    b1: number;
-    diagnostics: Diagnostic[];
-    buleyMeasure: number;
-  } {
+  public parse(input: string): BettyParseResult {
     const normalizedInput = lowerUfcsSource(input);
     if (!normalizedInput.trim())
-      return { ast: null, output: '', b1: 0, diagnostics: [], buleyMeasure: 0 };
+      return {
+        ast: null,
+        output: '',
+        b1: 0,
+        diagnostics: [],
+        buleyMeasure: 0,
+        stability: null,
+      };
 
     this.logs = [];
     this.diagnostics = [];
     this.b1 = 0;
     this.ast = { nodes: new Map(), edges: [] };
+    this.stability = null;
     this.wasmBridge = new QuantumWasmBridge();
 
     const lines = normalizedInput.split('\n');
@@ -140,23 +167,25 @@ export class BettyCompiler {
 
       // 2. PARSE NODES
       // Only match nodes that are NOT part of an edge definition (followed by -[: or preceded by ]->)
-      const nodeRegex =
-        /(?<!->)\(([^:)\s|]+)(?:\s*:\s*([^){\s]+))?(?:\s*{([^}]+)})?\)(?!-\[:)/g;
-      let nodeMatch;
-      while ((nodeMatch = nodeRegex.exec(line)) !== null) {
-        const id = nodeMatch[1].trim();
-        if (!id) continue;
+      if (!line.includes('-[:')) {
+        const nodeRegex =
+          /\(([^:)\s|]+)(?:\s*:\s*([^){\s]+))?(?:\s*{([^}]+)})?\)/g;
+        let nodeMatch;
+        while ((nodeMatch = nodeRegex.exec(line)) !== null) {
+          const id = nodeMatch[1].trim();
+          if (!id) continue;
 
-        const label = nodeMatch[2] ? nodeMatch[2].trim() : '';
-        const propertiesRaw = nodeMatch[3] ? nodeMatch[3].trim() : '';
-        const properties = this.parseProperties(propertiesRaw);
+          const label = nodeMatch[2] ? nodeMatch[2].trim() : '';
+          const propertiesRaw = nodeMatch[3] ? nodeMatch[3].trim() : '';
+          const properties = this.parseProperties(propertiesRaw);
 
-        if (!this.ast.nodes.has(id)) {
-          this.ast.nodes.set(id, {
-            id,
-            labels: label ? [label] : [],
-            properties,
-          });
+          if (!this.ast.nodes.has(id)) {
+            this.ast.nodes.set(id, {
+              id,
+              labels: label ? [label] : [],
+              properties,
+            });
+          }
         }
       }
 
@@ -303,12 +332,22 @@ export class BettyCompiler {
       });
     }
 
+    this.stability = analyzeTopologyStability(this.ast, this.b1);
+    if (this.stability) {
+      this.diagnostics.push(...this.stability.diagnostics);
+    }
+
     const buleyMeasure = this.getBuleyMeasurement();
+    const spectralSummary =
+      this.stability?.spectralRadius !== null &&
+      this.stability?.spectralRadius !== undefined
+        ? `\nSpectral Radius: ${this.stability.spectralRadius.toFixed(3)}`
+        : '';
     const summary = `[Betty Professional Compiler]\nNodes: ${
       this.ast.nodes.size
     }, Edges: ${this.ast.edges.length}\nBetti: ${
       this.b1
-    }, Buley Measure: ${buleyMeasure.toFixed(2)}`;
+    }, Buley Measure: ${buleyMeasure.toFixed(2)}${spectralSummary}`;
 
     return {
       ast: this.ast,
@@ -316,6 +355,7 @@ export class BettyCompiler {
       b1: this.b1,
       diagnostics: this.diagnostics,
       buleyMeasure,
+      stability: this.stability,
     };
   }
 

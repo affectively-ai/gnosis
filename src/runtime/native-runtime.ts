@@ -1,4 +1,5 @@
 import type { ASTEdge } from '../betty/compiler.js';
+import type { StabilityMetadata } from '../betty/stability.js';
 
 const FLOW_FLAG_FORK = 0b00000001;
 const FLOW_FLAG_RACE = 0b00000010;
@@ -25,6 +26,11 @@ export interface GnosisNativeRuntimeSnapshot {
   edgesProcessed: number;
   metrics: string;
   trace: string;
+  stabilityMetadata: StabilityMetadata | null;
+}
+
+export interface GnosisNativeRuntimeProcessOptions {
+  stabilityMetadata?: StabilityMetadata | null;
 }
 
 export class GnosisNativeRuntime {
@@ -33,10 +39,15 @@ export class GnosisNativeRuntime {
   private initPromise: Promise<void> | null = null;
   private sequence = 1;
   private edgesProcessed = 0;
+  private stabilityMetadata: StabilityMetadata | null = null;
 
   private fallbackPaths = 1;
   private fallbackBeta1 = 0;
   private fallbackTrace: string[] = [];
+
+  public setStabilityMetadata(stabilityMetadata: StabilityMetadata | null): void {
+    this.stabilityMetadata = stabilityMetadata;
+  }
 
   public async onEdge(edge: ASTEdge): Promise<void> {
     const flags = this.edgeTypeToFlags(edge.type);
@@ -51,6 +62,16 @@ export class GnosisNativeRuntime {
         edge: edge.type,
         sourceCount: edge.sourceIds.length,
         targetCount: edge.targetIds.length,
+        stability: this.stabilityMetadata
+          ? {
+              redline: this.stabilityMetadata.redline,
+              geometricCeiling: this.stabilityMetadata.geometricCeiling,
+              spectralRadius: this.stabilityMetadata.spectralRadius,
+              supremumBound: this.stabilityMetadata.supremumBound,
+              proofKind: this.stabilityMetadata.proofKind,
+              theoremName: this.stabilityMetadata.theoremName,
+            }
+          : undefined,
       })
     );
     const sequence = this.sequence;
@@ -75,8 +96,12 @@ export class GnosisNativeRuntime {
   }
 
   public async processEdges(
-    edges: ASTEdge[]
+    edges: ASTEdge[],
+    options: GnosisNativeRuntimeProcessOptions = {}
   ): Promise<GnosisNativeRuntimeSnapshot> {
+    if (options.stabilityMetadata !== undefined) {
+      this.stabilityMetadata = options.stabilityMetadata;
+    }
     for (const edge of edges) {
       await this.onEdge(edge);
     }
@@ -99,6 +124,7 @@ export class GnosisNativeRuntime {
       edgesProcessed: this.edgesProcessed,
       metrics,
       trace,
+      stabilityMetadata: this.stabilityMetadata,
     };
   }
 

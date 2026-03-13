@@ -9,7 +9,7 @@ Runtime execution surfaces for graph traversal and handler dispatch.
 - [registry.ts](./registry.ts): Label-to-handler registration map.
 - [engine.ts](./engine.ts): Topology execution engine for `FORK/RACE/FOLD/VENT` graphs with persistent execution-auth context, fail-closed UCAN edge authorization, case-aware routing from native `.gg` payloads, structured cancellation/timeout semantics for concurrent collapse edges, and programmatic `executeWithResult()` access to final payloads for internal GG-native subsystems.
 - [core-handlers.ts](./core-handlers.ts): Built-in `Result`, `Option`, `Variant`, `Destructure`, `Delay`, quantum, and differentiable handlers for native `.gg` data-shaping and execution, including path-aware record destructuring and explicit tuple unpacking.
-- [native-runtime.ts](./native-runtime.ts): Native `.gg` frame runtime adapter over `gnosis_runtime` WASM, with deterministic fallback metrics when WASM is unavailable.
+- [native-runtime.ts](./native-runtime.ts): Native `.gg` frame runtime adapter over `gnosis_runtime` WASM, with deterministic fallback metrics when WASM is unavailable and compiler-supplied stability metadata attached to emitted frame payloads/snapshots.
 - [renderer-compat.ts](./renderer-compat.ts): 3D renderer compatibility layer targeting `@affectively/aeon-3d` with local fallback.
 - [engine.test.ts](./engine.test.ts): Runtime engine behavior tests.
 - [native-runtime.test.ts](./native-runtime.test.ts): Native runtime edge-processing and metrics tests.

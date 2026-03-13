@@ -1,0 +1,1125 @@
+import type {
+  ASTEdge,
+  ASTNode,
+  Diagnostic,
+  DiagnosticCode,
+  GraphAST,
+} from './compiler.js';
+
+const THERMODYNAMIC_NODE_LABELS = new Set(['SOURCE', 'STATE', 'SINK']);
+const THERMODYNAMIC_PROPERTIES = new Set([
+  'pressure',
+  'potential',
+  'capacity',
+  'beta1_target',
+  'weight',
+  'service_rate',
+  'drift_gamma',
+  'drift_coefficient',
+  'repair_debt',
+  'supremum_bound',
+]);
+const FORK_EDGE_TYPES = new Set(['FORK', 'EVOLVE', 'SUPERPOSE', 'ENTANGLE']);
+const COLLAPSE_EDGE_TYPES = new Set(['FOLD', 'COLLAPSE', 'OBSERVE']);
+const VENT_EDGE_TYPES = new Set(['VENT', 'TUNNEL']);
+const RACE_EDGE_TYPES = new Set(['RACE']);
+const DEFAULT_SMALL_SOURCE_PRESSURE = 1;
+const POWER_ITERATION_STEPS = 24;
+const EPSILON = 1e-6;
+
+export type StabilityProofKind =
+  | 'none'
+  | 'numeric'
+  | 'symbolic-reneging'
+  | 'bounded-supremum'
+  | 'unsupported';
+
+export interface StabilityKernelEdge {
+  sourceId: string;
+  targetId: string;
+  edgeType: string;
+  rawWeight: number;
+  normalizedWeight: number;
+  effectiveWeight: number;
+}
+
+export interface StabilityStateAssessment {
+  nodeId: string;
+  potential: string;
+  arrival: string | null;
+  service: string | null;
+  vent: string | null;
+  gamma: string | null;
+  driftExpression: string;
+  status: 'stable' | 'unstable' | 'symbolic' | 'unknown';
+}
+
+export interface StabilityProofAssumption {
+  name: string;
+  leanType: string;
+  description: string;
+}
+
+export interface StabilityProofObligation {
+  theoremName: string;
+  kind: StabilityProofKind;
+  assumptions: StabilityProofAssumption[];
+  summary: string;
+  requiresLean: boolean;
+}
+
+export interface StabilityMetadata {
+  redline: number | null;
+  geometricCeiling: number | null;
+  spectralRadius: number | null;
+  supremumBound: number | null;
+  smallSetNodeIds: string[];
+  restorativeGamma: string | null;
+  proofKind: StabilityProofKind;
+  theoremName: string;
+}
+
+export interface StabilityReport {
+  enabled: boolean;
+  kernelEdges: StabilityKernelEdge[];
+  spectralRadius: number | null;
+  supremumBound: number | null;
+  stateAssessments: StabilityStateAssessment[];
+  smallSetNodeIds: string[];
+  harrisRecurrent: boolean;
+  ventIsolationOk: boolean;
+  redline: number | null;
+  geometricCeiling: number | null;
+  restorativeGamma: string | null;
+  proof: StabilityProofObligation;
+  metadata: StabilityMetadata;
+  diagnostics: Diagnostic[];
+}
+
+interface ExpandedEdgeCandidate {
+  sourceId: string;
+  targetId: string;
+  edgeType: string;
+  rawWeight: number;
+  properties: Record<string, string>;
+}
+
+interface RateSummary {
+  service: number;
+  vent: number;
+  gamma: number | null;
+  serviceRaw: string | null;
+  ventRaw: string | null;
+  gammaRaw: string | null;
+  supremumBound: number | null;
+}
+
+interface ScalarTerm {
+  raw: string | null;
+  numericValue: number | null;
+  symbolic: boolean;
+}
+
+function round3(value: number): number {
+  return Math.round(value * 1000) / 1000;
+}
+
+function sanitizeIdentifier(raw: string): string {
+  return raw
+    .trim()
+    .replace(/[^A-Za-z0-9_]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase();
+}
+
+function buildThermalTheoremName(ast: GraphAST): string {
+  const sinkNode = [...ast.nodes.values()].find((node) =>
+    node.labels.some((label) => label.toUpperCase() === 'SINK')
+  );
+  const anchor = sinkNode?.id ?? [...ast.nodes.keys()][0] ?? 'gnosis_pipeline';
+  const normalized = sanitizeIdentifier(anchor);
+  return `${normalized || 'gnosis_pipeline'}_is_geometrically_stable`;
+}
+
+function parseFinite(raw: string | undefined): number | null {
+  if (!raw) {
+    return null;
+  }
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function readScalarTerm(raw: string | undefined): ScalarTerm {
+  if (!raw) {
+    return { raw: null, numericValue: null, symbolic: false };
+  }
+  const numericValue = parseFinite(raw);
+  return {
+    raw,
+    numericValue,
+    symbolic: numericValue === null,
+  };
+}
+
+function createDiagnostic(
+  code: DiagnosticCode,
+  message: string,
+  severity: Diagnostic['severity']
+): Diagnostic {
+  return {
+    line: 1,
+    column: 1,
+    code,
+    message,
+    severity,
+  };
+}
+
+function shouldAnalyzeThermodynamics(ast: GraphAST): boolean {
+  for (const node of ast.nodes.values()) {
+    if (
+      node.labels.some((label) => THERMODYNAMIC_NODE_LABELS.has(label.toUpperCase()))
+    ) {
+      return true;
+    }
+
+    if (Object.keys(node.properties).some((key) => THERMODYNAMIC_PROPERTIES.has(key))) {
+      return true;
+    }
+  }
+
+  for (const edge of ast.edges) {
+    if (Object.keys(edge.properties).some((key) => THERMODYNAMIC_PROPERTIES.has(key))) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function buildOutgoingEdges(ast: GraphAST): Map<string, ASTEdge[]> {
+  const outgoing = new Map<string, ASTEdge[]>();
+
+  for (const nodeId of ast.nodes.keys()) {
+    outgoing.set(nodeId, []);
+  }
+
+  for (const edge of ast.edges) {
+    for (const sourceId of edge.sourceIds) {
+      const normalizedSourceId = sourceId.trim();
+      const sourceEdges = outgoing.get(normalizedSourceId) ?? [];
+      sourceEdges.push(edge);
+      outgoing.set(normalizedSourceId, sourceEdges);
+    }
+  }
+
+  return outgoing;
+}
+
+function buildIncomingEdges(ast: GraphAST): Map<string, ASTEdge[]> {
+  const incoming = new Map<string, ASTEdge[]>();
+
+  for (const nodeId of ast.nodes.keys()) {
+    incoming.set(nodeId, []);
+  }
+
+  for (const edge of ast.edges) {
+    for (const targetId of edge.targetIds) {
+      const normalizedTargetId = targetId.trim();
+      const targetEdges = incoming.get(normalizedTargetId) ?? [];
+      targetEdges.push(edge);
+      incoming.set(normalizedTargetId, targetEdges);
+    }
+  }
+
+  return incoming;
+}
+
+function defaultRawWeight(edge: ASTEdge): number {
+  const explicit = parseFinite(edge.properties.weight);
+  if (explicit !== null && explicit >= 0) {
+    return explicit;
+  }
+
+  if (FORK_EDGE_TYPES.has(edge.type.toUpperCase()) || RACE_EDGE_TYPES.has(edge.type.toUpperCase())) {
+    return edge.targetIds.length > 0 ? 1 / edge.targetIds.length : 1;
+  }
+
+  return 1;
+}
+
+function expandEdges(ast: GraphAST): ExpandedEdgeCandidate[] {
+  const expanded: ExpandedEdgeCandidate[] = [];
+
+  for (const edge of ast.edges) {
+    const rawWeight = defaultRawWeight(edge);
+    for (const sourceId of edge.sourceIds) {
+      for (const targetId of edge.targetIds) {
+        expanded.push({
+          sourceId: sourceId.trim(),
+          targetId: targetId.trim(),
+          edgeType: edge.type.toUpperCase(),
+          rawWeight,
+          properties: edge.properties,
+        });
+      }
+    }
+  }
+
+  return expanded;
+}
+
+function buildNormalizedKernel(expanded: ExpandedEdgeCandidate[]): StabilityKernelEdge[] {
+  const rawTotals = new Map<string, number>();
+
+  for (const edge of expanded) {
+    rawTotals.set(edge.sourceId, (rawTotals.get(edge.sourceId) ?? 0) + edge.rawWeight);
+  }
+
+  return expanded.map((edge) => {
+    const total = rawTotals.get(edge.sourceId) ?? edge.rawWeight;
+    const normalizedWeight = total > 0 ? edge.rawWeight / total : 0;
+    return {
+      sourceId: edge.sourceId,
+      targetId: edge.targetId,
+      edgeType: edge.edgeType,
+      rawWeight: edge.rawWeight,
+      normalizedWeight,
+      effectiveWeight: normalizedWeight,
+    };
+  });
+}
+
+function collectSourceNodeIds(ast: GraphAST): string[] {
+  const ids = [...ast.nodes.values()]
+    .filter(
+      (node) =>
+        node.labels.some((label) => label.toUpperCase() === 'SOURCE') ||
+        typeof node.properties.pressure === 'string'
+    )
+    .map((node) => node.id);
+
+  return ids.length > 0 ? ids : [...ast.nodes.keys()].slice(0, 1);
+}
+
+function basePressureForNode(node: ASTNode): number {
+  const pressure = parseFinite(node.properties.pressure);
+  if (pressure !== null) {
+    return pressure;
+  }
+
+  return node.labels.some((label) => label.toUpperCase() === 'SOURCE')
+    ? typeof node.properties.pressure === 'string'
+      ? 0
+      : DEFAULT_SMALL_SOURCE_PRESSURE
+    : 0;
+}
+
+function propagatePressure(
+  ast: GraphAST,
+  kernelEdges: StabilityKernelEdge[]
+): Map<string, number> {
+  const nodeIds = [...ast.nodes.keys()];
+  const indexByNodeId = new Map<string, number>(
+    nodeIds.map((nodeId, index) => [nodeId, index])
+  );
+  const base = nodeIds.map((nodeId) => {
+    const node = ast.nodes.get(nodeId);
+    return node ? basePressureForNode(node) : 0;
+  });
+  const hasNumericPressure = base.some((value) => value > 0);
+
+  if (!hasNumericPressure) {
+    const sourceNodeIds = collectSourceNodeIds(ast);
+    for (const sourceNodeId of sourceNodeIds) {
+      const sourceIndex = indexByNodeId.get(sourceNodeId);
+      if (sourceIndex !== undefined) {
+        const sourceNode = ast.nodes.get(sourceNodeId);
+        if (!sourceNode || typeof sourceNode.properties.pressure === 'string') {
+          continue;
+        }
+        base[sourceIndex] = DEFAULT_SMALL_SOURCE_PRESSURE;
+      }
+    }
+  }
+
+  let current = [...base];
+  for (let step = 0; step < POWER_ITERATION_STEPS; step += 1) {
+    const next = [...base];
+    for (const edge of kernelEdges) {
+      const sourceIndex = indexByNodeId.get(edge.sourceId);
+      const targetIndex = indexByNodeId.get(edge.targetId);
+      if (sourceIndex === undefined || targetIndex === undefined) {
+        continue;
+      }
+      next[targetIndex] += current[sourceIndex] * edge.normalizedWeight;
+    }
+    current = next;
+  }
+
+  return new Map<string, number>(
+    nodeIds.map((nodeId, index) => [nodeId, round3(current[index])])
+  );
+}
+
+function sinkCapacityForTargets(ast: GraphAST, targetIds: readonly string[]): number {
+  return targetIds.reduce((sum, targetId) => {
+    const target = ast.nodes.get(targetId.trim());
+    if (!target) {
+      return sum;
+    }
+
+    const capacity = parseFinite(target.properties.capacity);
+    return capacity !== null ? sum + capacity : sum;
+  }, 0);
+}
+
+function summarizeRates(
+  ast: GraphAST,
+  outgoingEdges: readonly ASTEdge[]
+): RateSummary {
+  let service = 0;
+  let vent = 0;
+  let gamma: number | null = null;
+  let serviceRaw: string | null = null;
+  let ventRaw: string | null = null;
+  let gammaRaw: string | null = null;
+  let supremumBound: number | null = null;
+
+  for (const edge of outgoingEdges) {
+    const edgeType = edge.type.toUpperCase();
+    const edgeGamma = parseFinite(edge.properties.drift_gamma);
+    if (edgeGamma !== null && edgeGamma > 0) {
+      gamma = gamma === null ? edgeGamma : Math.min(gamma, edgeGamma);
+      gammaRaw = edge.properties.drift_gamma;
+    }
+
+    if (RACE_EDGE_TYPES.has(edgeType)) {
+      const bound = parseFinite(edge.properties.supremum_bound);
+      if (bound !== null) {
+        supremumBound = supremumBound === null ? bound : Math.min(supremumBound, bound);
+      }
+    }
+
+    if (COLLAPSE_EDGE_TYPES.has(edgeType)) {
+      const serviceRateRaw = edge.properties.service_rate;
+      const numericService =
+        parseFinite(serviceRateRaw) ??
+        (serviceRateRaw ? null : sinkCapacityForTargets(ast, edge.targetIds));
+      if (numericService !== null && numericService > 0) {
+        service += numericService;
+      }
+      if (!serviceRaw && typeof serviceRateRaw === 'string') {
+        serviceRaw = serviceRateRaw;
+      }
+    }
+
+    if (VENT_EDGE_TYPES.has(edgeType)) {
+      const driftCoefficientRaw = edge.properties.drift_coefficient;
+      const driftGammaRaw = edge.properties.drift_gamma;
+      const numericVent =
+        parseFinite(driftCoefficientRaw) ??
+        parseFinite(driftGammaRaw) ??
+        (driftCoefficientRaw || driftGammaRaw
+          ? null
+          : sinkCapacityForTargets(ast, edge.targetIds));
+      if (numericVent !== null && numericVent > 0) {
+        vent += numericVent;
+      }
+      if (!ventRaw) {
+        ventRaw = driftCoefficientRaw ?? driftGammaRaw ?? null;
+      }
+    }
+  }
+
+  return {
+    service,
+    vent,
+    gamma,
+    serviceRaw,
+    ventRaw,
+    gammaRaw,
+    supremumBound,
+  };
+}
+
+function computeScalingByNode(
+  ast: GraphAST,
+  pressureByNodeId: Map<string, number>,
+  outgoingByNodeId: Map<string, ASTEdge[]>
+): {
+  scalingByNodeId: Map<string, number>;
+  rateByNodeId: Map<string, RateSummary>;
+} {
+  const scalingByNodeId = new Map<string, number>();
+  const rateByNodeId = new Map<string, RateSummary>();
+
+  for (const nodeId of ast.nodes.keys()) {
+    const outgoingEdges = outgoingByNodeId.get(nodeId) ?? [];
+    const rates = summarizeRates(ast, outgoingEdges);
+    rateByNodeId.set(nodeId, rates);
+
+    const arrival = pressureByNodeId.get(nodeId) ?? 0;
+    const restorative = rates.service + rates.vent;
+    let scaling = 1;
+
+    if (arrival > 0 && restorative > 0) {
+      scaling = arrival / restorative;
+    } else if (arrival > 0 && restorative === 0 && outgoingEdges.length > 0) {
+      scaling = 1.1;
+    }
+
+    if (rates.supremumBound !== null) {
+      scaling = Math.min(scaling, rates.supremumBound);
+    }
+
+    scalingByNodeId.set(nodeId, round3(scaling));
+  }
+
+  return {
+    scalingByNodeId,
+    rateByNodeId,
+  };
+}
+
+function materializeEffectiveKernel(
+  kernelEdges: readonly StabilityKernelEdge[],
+  scalingByNodeId: Map<string, number>
+): StabilityKernelEdge[] {
+  return kernelEdges.map((edge) => ({
+    ...edge,
+    effectiveWeight: round3(edge.normalizedWeight * (scalingByNodeId.get(edge.sourceId) ?? 1)),
+  }));
+}
+
+function buildAdjacency(ast: GraphAST): Map<string, string[]> {
+  const adjacency = new Map<string, string[]>();
+
+  for (const nodeId of ast.nodes.keys()) {
+    adjacency.set(nodeId, []);
+  }
+
+  for (const edge of ast.edges) {
+    for (const sourceId of edge.sourceIds) {
+      const normalizedSourceId = sourceId.trim();
+      const outgoing = adjacency.get(normalizedSourceId) ?? [];
+      outgoing.push(...edge.targetIds.map((targetId) => targetId.trim()));
+      adjacency.set(normalizedSourceId, outgoing);
+    }
+  }
+
+  return adjacency;
+}
+
+function buildEffectiveMatrix(
+  nodeIds: readonly string[],
+  kernelEdges: readonly StabilityKernelEdge[]
+): number[][] {
+  const indexByNodeId = new Map<string, number>(
+    nodeIds.map((nodeId, index) => [nodeId, index])
+  );
+  const matrix = nodeIds.map(() => nodeIds.map(() => 0));
+
+  for (const edge of kernelEdges) {
+    const sourceIndex = indexByNodeId.get(edge.sourceId);
+    const targetIndex = indexByNodeId.get(edge.targetId);
+    if (sourceIndex === undefined || targetIndex === undefined) {
+      continue;
+    }
+    matrix[sourceIndex][targetIndex] += edge.effectiveWeight;
+  }
+
+  return matrix.map((row) => row.map((value) => round3(value)));
+}
+
+function estimateSpectralRadius(matrix: readonly number[][]): number {
+  if (matrix.length === 0) {
+    return 0;
+  }
+
+  let vector = matrix.map(() => 1);
+  let norm = 1;
+
+  for (let step = 0; step < POWER_ITERATION_STEPS; step += 1) {
+    const next = matrix.map((row) =>
+      row.reduce((sum, value, index) => sum + value * vector[index], 0)
+    );
+    norm = Math.max(...next.map((value) => Math.abs(value)), 0);
+    if (norm <= EPSILON) {
+      return 0;
+    }
+    vector = next.map((value) => value / norm);
+  }
+
+  return round3(norm);
+}
+
+function findStronglyConnectedComponents(
+  nodeIds: readonly string[],
+  adjacency: Map<string, string[]>
+): string[][] {
+  let index = 0;
+  const stack: string[] = [];
+  const indices = new Map<string, number>();
+  const lowLinks = new Map<string, number>();
+  const onStack = new Set<string>();
+  const components: string[][] = [];
+
+  const strongConnect = (nodeId: string): void => {
+    indices.set(nodeId, index);
+    lowLinks.set(nodeId, index);
+    index += 1;
+    stack.push(nodeId);
+    onStack.add(nodeId);
+
+    for (const neighborId of adjacency.get(nodeId) ?? []) {
+      if (!indices.has(neighborId)) {
+        strongConnect(neighborId);
+        lowLinks.set(
+          nodeId,
+          Math.min(lowLinks.get(nodeId) ?? 0, lowLinks.get(neighborId) ?? 0)
+        );
+      } else if (onStack.has(neighborId)) {
+        lowLinks.set(
+          nodeId,
+          Math.min(lowLinks.get(nodeId) ?? 0, indices.get(neighborId) ?? 0)
+        );
+      }
+    }
+
+    if ((lowLinks.get(nodeId) ?? -1) === (indices.get(nodeId) ?? -2)) {
+      const component: string[] = [];
+      let current = stack.pop();
+      while (current !== undefined) {
+        onStack.delete(current);
+        component.push(current);
+        if (current === nodeId) {
+          break;
+        }
+        current = stack.pop();
+      }
+      components.push(component);
+    }
+  };
+
+  for (const nodeId of nodeIds) {
+    if (!indices.has(nodeId)) {
+      strongConnect(nodeId);
+    }
+  }
+
+  return components;
+}
+
+function componentHasCycle(
+  component: readonly string[],
+  adjacency: Map<string, string[]>
+): boolean {
+  if (component.length > 1) {
+    return true;
+  }
+
+  const [nodeId] = component;
+  return (adjacency.get(nodeId) ?? []).includes(nodeId);
+}
+
+function canReachSink(
+  startNodeId: string,
+  sinkNodeIds: Set<string>,
+  adjacency: Map<string, string[]>
+): boolean {
+  const visited = new Set<string>();
+  const frontier = [startNodeId];
+
+  while (frontier.length > 0) {
+    const current = frontier.pop();
+    if (!current || visited.has(current)) {
+      continue;
+    }
+
+    if (sinkNodeIds.has(current)) {
+      return true;
+    }
+
+    visited.add(current);
+    frontier.push(...(adjacency.get(current) ?? []));
+  }
+
+  return false;
+}
+
+function resolveArrivalExpression(
+  nodeId: string,
+  incomingByNodeId: Map<string, ASTEdge[]>,
+  pressureByNodeId: Map<string, number>,
+  ast: GraphAST
+): string | null {
+  const numericArrival = pressureByNodeId.get(nodeId);
+  if (numericArrival !== undefined && numericArrival > 0) {
+    return `${numericArrival}`;
+  }
+
+  for (const edge of incomingByNodeId.get(nodeId) ?? []) {
+    for (const sourceId of edge.sourceIds) {
+      const sourceNode = ast.nodes.get(sourceId.trim());
+      if (!sourceNode) {
+        continue;
+      }
+      if (typeof sourceNode.properties.pressure === 'string') {
+        return sourceNode.properties.pressure;
+      }
+    }
+  }
+
+  return null;
+}
+
+function assessStateDrift(
+  ast: GraphAST,
+  pressureByNodeId: Map<string, number>,
+  outgoingByNodeId: Map<string, ASTEdge[]>,
+  incomingByNodeId: Map<string, ASTEdge[]>,
+  sinkNodeIds: Set<string>,
+  rateByNodeId: Map<string, RateSummary>
+): {
+  assessments: StabilityStateAssessment[];
+  diagnostics: Diagnostic[];
+  proofKind: StabilityProofKind;
+  proofAssumptions: StabilityProofAssumption[];
+  restorativeGamma: string | null;
+} {
+  const diagnostics: Diagnostic[] = [];
+  const assessments: StabilityStateAssessment[] = [];
+  let proofKind: StabilityProofKind = 'none';
+  const proofAssumptions: StabilityProofAssumption[] = [];
+  let restorativeGamma: string | null = null;
+
+  const stateNodes = [...ast.nodes.values()].filter(
+    (node) =>
+      node.labels.some((label) => label.toUpperCase() === 'STATE') ||
+      typeof node.properties.potential === 'string'
+  );
+
+  for (const stateNode of stateNodes) {
+    const rates = rateByNodeId.get(stateNode.id) ?? {
+      service: 0,
+      vent: 0,
+      gamma: null,
+      serviceRaw: null,
+      ventRaw: null,
+      gammaRaw: null,
+      supremumBound: null,
+    };
+    const arrivalExpression = resolveArrivalExpression(
+      stateNode.id,
+      incomingByNodeId,
+      pressureByNodeId,
+      ast
+    );
+    const potential = stateNode.properties.potential ?? 'beta1';
+    const serviceExpression = rates.serviceRaw ?? (rates.service > 0 ? `${rates.service}` : null);
+    const ventExpression = rates.ventRaw ?? (rates.vent > 0 ? `${rates.vent}` : null);
+    const gammaExpression =
+      rates.gammaRaw ?? (rates.gamma !== null ? `${rates.gamma}` : null);
+    const arrivalValue = parseFinite(arrivalExpression ?? undefined);
+    const serviceValue = parseFinite(serviceExpression ?? undefined) ?? rates.service;
+    const ventValue = parseFinite(ventExpression ?? undefined) ?? rates.vent;
+    const gammaValue = parseFinite(gammaExpression ?? undefined) ?? rates.gamma ?? 0;
+    const driftExpression = `${arrivalExpression ?? '0'} - ( ${
+      serviceExpression ?? '0'
+    } + ${ventExpression ?? '0'} )`;
+
+    let status: StabilityStateAssessment['status'] = 'unknown';
+    const hasReachableSink = canReachSink(
+      stateNode.id,
+      sinkNodeIds,
+      buildAdjacency(ast)
+    );
+
+    if (
+      arrivalValue !== null &&
+      Number.isFinite(serviceValue) &&
+      Number.isFinite(ventValue)
+    ) {
+      const netDrift = arrivalValue - (serviceValue + ventValue);
+      const gammaFloor = gammaValue > 0 ? -gammaValue : 0;
+      status =
+        netDrift < 0 && netDrift <= gammaFloor + EPSILON ? 'stable' : 'unstable';
+
+      if (!restorativeGamma && gammaExpression) {
+        restorativeGamma = gammaExpression;
+      }
+
+      if (status === 'stable') {
+        proofKind = proofKind === 'none' ? 'numeric' : proofKind;
+      } else {
+        diagnostics.push(
+          createDiagnostic(
+            'ERR_DRIFT_POSITIVE',
+            `State '${stateNode.id}' has positive drift (${round3(netDrift)}). Restorative flow ${round3(
+              serviceValue + ventValue
+            )} does not dominate pressure ${round3(arrivalValue)}.`,
+            'error'
+          )
+        );
+      }
+    } else {
+      const hasVentEdge = (outgoingByNodeId.get(stateNode.id) ?? []).some((edge) =>
+        VENT_EDGE_TYPES.has(edge.type.toUpperCase())
+      );
+      const repairDebtLeak = (outgoingByNodeId.get(stateNode.id) ?? []).some((edge) => {
+        if (!VENT_EDGE_TYPES.has(edge.type.toUpperCase())) {
+          return false;
+        }
+        return (parseFinite(edge.properties.repair_debt) ?? 0) > 0;
+      });
+
+      if (
+        arrivalExpression &&
+        serviceExpression &&
+        ventExpression &&
+        hasVentEdge &&
+        hasReachableSink &&
+        !repairDebtLeak
+      ) {
+        status = 'symbolic';
+        proofKind = 'symbolic-reneging';
+        restorativeGamma = gammaExpression ?? restorativeGamma;
+        if (proofAssumptions.length === 0) {
+          proofAssumptions.push(
+            {
+              name: 'h_drift_floor',
+              leanType: 'forall n : Nat, lam - (mu + alpha n) <= -1',
+              description: 'Arrival pressure never exceeds the combined fold and vent floor.',
+            }
+          );
+        }
+      } else {
+        diagnostics.push(
+          createDiagnostic(
+            'ERR_DRIFT_POSITIVE',
+            `State '${stateNode.id}' declares potential '${potential}' but Betti cannot prove negative drift from pressure='${arrivalExpression ?? 'unknown'}', service='${serviceExpression ?? 'unknown'}', vent='${ventExpression ?? 'unknown'}'.`,
+            'error'
+          )
+        );
+      }
+    }
+
+    assessments.push({
+      nodeId: stateNode.id,
+      potential,
+      arrival: arrivalExpression,
+      service: serviceExpression,
+      vent: ventExpression,
+      gamma: gammaExpression,
+      driftExpression,
+      status,
+    });
+  }
+
+  if (proofKind === 'none' && assessments.length > 0) {
+    proofKind = 'unsupported';
+  }
+
+  return {
+    assessments,
+    diagnostics,
+    proofKind,
+    proofAssumptions,
+    restorativeGamma,
+  };
+}
+
+function collectBranchReachability(
+  startNodeId: string,
+  outgoingByNodeId: Map<string, ASTEdge[]>,
+  sinkNodeIds: Set<string>
+): Set<string> {
+  const visited = new Set<string>();
+  const frontier = [startNodeId];
+
+  while (frontier.length > 0) {
+    const current = frontier.pop();
+    if (!current || visited.has(current)) {
+      continue;
+    }
+    visited.add(current);
+
+    if (sinkNodeIds.has(current)) {
+      continue;
+    }
+
+    for (const edge of outgoingByNodeId.get(current) ?? []) {
+      const edgeType = edge.type.toUpperCase();
+      const isConvergenceBarrier =
+        COLLAPSE_EDGE_TYPES.has(edgeType) && edge.sourceIds.length > 1;
+      if (isConvergenceBarrier) {
+        continue;
+      }
+      for (const targetId of edge.targetIds) {
+        frontier.push(targetId.trim());
+      }
+    }
+  }
+
+  return visited;
+}
+
+function assessVentIsolation(
+  ast: GraphAST,
+  outgoingByNodeId: Map<string, ASTEdge[]>,
+  sinkNodeIds: Set<string>
+): { ok: boolean; diagnostics: Diagnostic[] } {
+  const diagnostics: Diagnostic[] = [];
+
+  for (const edge of ast.edges) {
+    const edgeType = edge.type.toUpperCase();
+    if (!FORK_EDGE_TYPES.has(edgeType) || edge.targetIds.length < 2) {
+      continue;
+    }
+
+    const branchMaps = edge.targetIds.map((targetId) =>
+      collectBranchReachability(targetId.trim(), outgoingByNodeId, sinkNodeIds)
+    );
+    const branchOwnerByNodeId = new Map<string, number>();
+
+    branchMaps.forEach((reachableNodeIds, branchIndex) => {
+      reachableNodeIds.forEach((nodeId) => {
+        const priorBranchIndex = branchOwnerByNodeId.get(nodeId);
+        if (
+          priorBranchIndex !== undefined &&
+          priorBranchIndex !== branchIndex &&
+          !sinkNodeIds.has(nodeId)
+        ) {
+          diagnostics.push(
+            createDiagnostic(
+              'ERR_REPAIR_DEBT_LEAK',
+              `Fork '${edge.sourceIds.join('|')}' loses branch isolation: node '${nodeId}' is shared by sibling branches before a sink/fold barrier.`,
+              'error'
+            )
+          );
+        } else {
+          branchOwnerByNodeId.set(nodeId, branchIndex);
+        }
+      });
+    });
+  }
+
+  for (const edge of ast.edges) {
+    const edgeType = edge.type.toUpperCase();
+    if (!VENT_EDGE_TYPES.has(edgeType)) {
+      continue;
+    }
+
+    const repairDebt = parseFinite(edge.properties.repair_debt) ?? 0;
+    if (repairDebt > 0) {
+      diagnostics.push(
+        createDiagnostic(
+          'ERR_REPAIR_DEBT_LEAK',
+          `Vent '${edge.sourceIds.join('|')} -> ${edge.targetIds.join('|')}' carries repair debt ${repairDebt}. Vent paths must remain zero-debt under branch isolation.`,
+          'error'
+        )
+      );
+    }
+  }
+
+  return {
+    ok: diagnostics.length === 0,
+    diagnostics,
+  };
+}
+
+function computeRedline(
+  ast: GraphAST,
+  sinkNodeIds: readonly string[],
+  spectralRadius: number | null
+): number | null {
+  const numericCapacities = sinkNodeIds
+    .map((sinkNodeId) => parseFinite(ast.nodes.get(sinkNodeId)?.properties.capacity))
+    .filter((capacity): capacity is number => capacity !== null);
+
+  if (numericCapacities.length > 0) {
+    return Math.min(...numericCapacities);
+  }
+
+  if (spectralRadius !== null && spectralRadius < 1) {
+    return round3(1 / Math.max(1 - spectralRadius, 0.001));
+  }
+
+  return null;
+}
+
+export function analyzeTopologyStability(
+  ast: GraphAST,
+  currentBettiNumber: number
+): StabilityReport | null {
+  if (!shouldAnalyzeThermodynamics(ast)) {
+    return null;
+  }
+
+  const diagnostics: Diagnostic[] = [];
+  const nodeIds = [...ast.nodes.keys()];
+  const outgoingByNodeId = buildOutgoingEdges(ast);
+  const incomingByNodeId = buildIncomingEdges(ast);
+  const baseKernel = buildNormalizedKernel(expandEdges(ast));
+  const pressureByNodeId = propagatePressure(ast, baseKernel);
+  const { scalingByNodeId, rateByNodeId } = computeScalingByNode(
+    ast,
+    pressureByNodeId,
+    outgoingByNodeId
+  );
+  const kernelEdges = materializeEffectiveKernel(baseKernel, scalingByNodeId);
+  const adjacency = buildAdjacency(ast);
+  const matrix = buildEffectiveMatrix(nodeIds, kernelEdges);
+  const spectralRadius = estimateSpectralRadius(matrix);
+  const sinkNodeIds = [...ast.nodes.values()]
+    .filter(
+      (node) =>
+        node.labels.some((label) => label.toUpperCase() === 'SINK') ||
+        parseFinite(node.properties.beta1_target) === 0
+    )
+    .map((node) => node.id);
+  const sinkNodeIdSet = new Set<string>(sinkNodeIds);
+  const supremumBound = [...rateByNodeId.values()]
+    .map((rates) => rates.supremumBound)
+    .filter((bound): bound is number => bound !== null)
+    .reduce<number | null>(
+      (lowest, bound) => (lowest === null ? bound : Math.min(lowest, bound)),
+      null
+    );
+
+  if (currentBettiNumber > 0 && sinkNodeIds.length === 0) {
+    diagnostics.push(
+      createDiagnostic(
+        'ERR_BETA_UNBOUNDED',
+        `The topology retains beta1=${currentBettiNumber} but declares no Sink/small-set node. Betti cannot prove the covering space returns to zero debt.`,
+        'error'
+      )
+    );
+  }
+
+  const components = findStronglyConnectedComponents(nodeIds, adjacency);
+  for (const component of components) {
+    if (!componentHasCycle(component, adjacency)) {
+      continue;
+    }
+
+    const cycleScales = component.map(
+      (nodeId) => scalingByNodeId.get(nodeId) ?? 1
+    );
+    const canDrain = component.some((nodeId) =>
+      canReachSink(nodeId, sinkNodeIdSet, adjacency)
+    );
+    if (!canDrain || Math.max(...cycleScales) >= 1) {
+      diagnostics.push(
+        createDiagnostic(
+          'ERR_BETA_UNBOUNDED',
+          `Cycle '${component.join(' -> ')}' has no stable geometric floor. A feedback loop either cannot reach the small set or amplifies pressure with load factor ${round3(
+            Math.max(...cycleScales)
+          )}.`,
+          'error'
+        )
+      );
+    }
+  }
+
+  const threshold = supremumBound ?? 1;
+  if (spectralRadius >= threshold - EPSILON) {
+    diagnostics.push(
+      createDiagnostic(
+        'ERR_SPECTRAL_EXPLOSION',
+        `Spectral radius ${spectralRadius} exceeds the admissible ceiling ${round3(
+          threshold
+        )}. The routing kernel cannot dissipate failure flow fast enough.`,
+        'error'
+      )
+    );
+  }
+
+  const driftAssessment = assessStateDrift(
+    ast,
+    pressureByNodeId,
+    outgoingByNodeId,
+    incomingByNodeId,
+    sinkNodeIdSet,
+    rateByNodeId
+  );
+  diagnostics.push(...driftAssessment.diagnostics);
+
+  const ventIsolation = assessVentIsolation(ast, outgoingByNodeId, sinkNodeIdSet);
+  diagnostics.push(...ventIsolation.diagnostics);
+
+  const harrisRecurrent =
+    sinkNodeIds.length > 0 &&
+    driftAssessment.assessments.every(
+      (assessment) =>
+        assessment.status === 'stable' || assessment.status === 'symbolic'
+    ) &&
+    driftAssessment.assessments.every((assessment) =>
+      canReachSink(assessment.nodeId, sinkNodeIdSet, adjacency)
+    );
+
+  const proofKind =
+    driftAssessment.proofKind === 'none' && supremumBound !== null
+      ? 'bounded-supremum'
+      : driftAssessment.proofKind;
+  const theoremName = buildThermalTheoremName(ast);
+  const redline = computeRedline(ast, sinkNodeIds, spectralRadius);
+  const geometricCeiling = round3(supremumBound ?? spectralRadius);
+  const proofAssumptions =
+    driftAssessment.proofAssumptions.length > 0
+      ? driftAssessment.proofAssumptions
+      : proofKind === 'numeric'
+      ? [
+          {
+            name: 'h_drift_floor',
+            leanType: 'forall n : Nat, lam - (mu + alpha n) <= -1',
+            description: 'Concrete rates already satisfy the negative-drift floor.',
+          },
+        ]
+      : [];
+  const proofSummary =
+    proofKind === 'symbolic-reneging'
+      ? 'Reneging-family queue detected; export the drift floor to Lean and discharge it with derive_gnosis_drift.'
+      : proofKind === 'numeric'
+      ? 'Numeric thermodynamic bounds are sufficient to certify the drift floor directly.'
+      : proofKind === 'bounded-supremum'
+      ? 'Adaptive routing is constrained by an explicit supremum bound below one.'
+      : 'No thermodynamic proof family could be synthesized from the annotated topology.';
+
+  const proof: StabilityProofObligation = {
+    theoremName,
+    kind: proofKind,
+    assumptions: proofAssumptions,
+    summary: proofSummary,
+    requiresLean: proofKind === 'symbolic-reneging' || proofKind === 'bounded-supremum',
+  };
+
+  const metadata: StabilityMetadata = {
+    redline,
+    geometricCeiling,
+    spectralRadius,
+    supremumBound,
+    smallSetNodeIds: sinkNodeIds,
+    restorativeGamma: driftAssessment.restorativeGamma,
+    proofKind,
+    theoremName,
+  };
+
+  return {
+    enabled: true,
+    kernelEdges,
+    spectralRadius,
+    supremumBound,
+    stateAssessments: driftAssessment.assessments,
+    smallSetNodeIds: sinkNodeIds,
+    harrisRecurrent,
+    ventIsolationOk: ventIsolation.ok,
+    redline,
+    geometricCeiling,
+    restorativeGamma: driftAssessment.restorativeGamma,
+    proof,
+    metadata,
+    diagnostics,
+  };
+}

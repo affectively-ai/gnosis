@@ -129,7 +129,7 @@ Gnosis provides a unified architecture for high-performance, verified computatio
 1.  **Gnosis Graph Language (GGL)**: A Cypher-inspired ASCII-art syntax for drawing execution graphs.
 2.  **Betty/Betti Compiler**: A self-hosting compilation pipeline that translates graphs into binary flows.
 3.  **Vectorized Runtime**: A "hella-optimized" Rust-based WebAssembly engine that evaluates topologies using the Aeon Flow 10-byte wire format with zero overhead.
-4.  **Formal Verification**: Natively integrated with `aeon-logic` to prove topological invariants and quantum bounds ($\beta_1$) at compile time.
+4.  **Formal Verification**: Natively integrated with `aeon-logic` to prove topological invariants and quantum bounds ($\beta_1$) at compile time, and `build` / `verify` can now emit Lean 4 drift-proof artifacts for thermodynamic topologies.
 5.  **Statistical Measurement**: Integrated with `twokeys` for Tukey-style Exploratory Data Analysis (EDA) inside the wave function.
 6.  **3D Compatibility Runtime**: `Renderer` nodes can route 3D scene workloads through the `aeon-3d` topology compat layer (`fork/race/fold/vent`) to reduce sequential render-loop pressure.
 
@@ -155,6 +155,7 @@ Gnosis is capable of expressing the most complex software architectures as pure 
 ## Source Tree
 
 - [ROADMAP](./ROADMAP.md): Narrow language roadmap for effects, ADTs, explicit error values, structured concurrency, module tooling, and destructuring.
+- [content](./content/README.md): Chapter manuscript sources, companion verification notes, and publish-proof metadata for the forkracefold research surface.
 - [src](./src/README.md): Compiler, runtime, and module tooling internals, including native `Result`/`Option`/`Destructure` runtime primitives.
 - [examples](./examples/README.md): topology examples, `.test.gg` suites, and the fold-boundary benchmark modules.
 - [bindings](./bindings/README.md): Multi-language CLI bindings (TIOBE-heavy + Lua/Haskell/Erlang) for embedding Gnosis in non-TS runtimes.
@@ -181,6 +182,10 @@ Gnosis ships subprocess-based bindings for:
 See [bindings/README.md](./bindings/README.md) for the shared command contract and per-language client files.
 
 ## Getting Started
+
+### Lean Proof Workspace
+
+`open-source/gnosis` now includes a local Lean 4 / Lake workspace pinned by [`lean-toolchain`](./lean-toolchain) and [`lakefile.lean`](./lakefile.lean). Betti-generated proof artifacts use this workspace so Mathlib-backed drift proofs resolve through `lake env lean` instead of relying on a global Lean search path. The shared proof module [`GnosisProofs.lean`](./GnosisProofs.lean) now also formalizes the monoidal execution fragment for `fork` / `race` / `fold` and lifts the thermodynamic layer into a shared `CertifiedKernel` semantics, so spectral and drift certificates are emitted as part of the same Lean object referenced by the Chapter 17 manuscript in [`content/ch17-arxiv-manuscript.md`](./content/ch17-arxiv-manuscript.md).
 
 ### The REPL
 

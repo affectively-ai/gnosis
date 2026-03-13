@@ -1,9 +1,15 @@
 import fs from 'fs';
 import path from 'path';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'url';
 import { Pipeline } from '@affectively/aeon-pipelines';
 import * as twokeys from 'twokeys';
-import { BettyCompiler, type GraphAST } from './betty/compiler.js';
+import {
+  BettyCompiler,
+  type Diagnostic,
+  type GraphAST,
+} from './betty/compiler.js';
+import { generateLeanFromGnosisAst } from './betty/lean.js';
 import { GnosisRegistry } from './runtime/registry.js';
 import { GnosisEngine } from './runtime/engine.js';
 import { GnosisNativeRuntime } from './runtime/native-runtime.js';
@@ -81,6 +87,7 @@ export {
   GnosisEngine,
   GnosisNativeRuntime,
   BettyCompiler,
+  generateLeanFromGnosisAst,
 };
 export {
   GnosisModuleLoader,
@@ -123,7 +130,23 @@ export type {
   GnosisModuleResolver,
 } from './mod/loader.js';
 export type { GnosisHandler } from './runtime/registry.js';
-export type { GraphAST, ASTNode, ASTEdge } from './betty/compiler.js';
+export type {
+  GraphAST,
+  ASTNode,
+  ASTEdge,
+  BettyParseResult,
+  Diagnostic,
+  DiagnosticCode,
+} from './betty/compiler.js';
+export type {
+  StabilityKernelEdge,
+  StabilityMetadata,
+  StabilityProofAssumption,
+  StabilityProofKind,
+  StabilityProofObligation,
+  StabilityReport,
+  StabilityStateAssessment,
+} from './betty/stability.js';
 export { generateTlaFromGnosisSource };
 export type {
   GnosisTlaBridgeResult,
@@ -204,6 +227,10 @@ export {
 
 const args = process.argv.slice(2);
 const verboseMode = args.includes('--verbose');
+const GNOSIS_PACKAGE_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..'
+);
 
 function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -384,6 +411,16 @@ interface TlaWritePaths {
   cfgFilePath: string;
 }
 
+interface LeanWritePaths {
+  leanFilePath: string;
+}
+
+interface LeanCheckResult {
+  attempted: boolean;
+  ok: boolean;
+  message: string;
+}
+
 const VALID_RUNTIME_TARGETS: RuntimeTarget[] = [
   'agnostic',
   'workers',
@@ -416,6 +453,84 @@ function parseSteeringMode(rawArgs: string[]): GnosisSteeringMode | null {
   }
 
   return normalized;
+}
+
+function formatCompilerDiagnostic(diagnostic: Diagnostic): string {
+  const prefix = diagnostic.code ? `[${diagnostic.code}] ` : '';
+  return `${prefix}${diagnostic.message}`;
+}
+
+function runLeanProofCheck(leanFilePath: string): LeanCheckResult {
+  const hasLakeWorkspace =
+    fs.existsSync(path.join(GNOSIS_PACKAGE_ROOT, 'lakefile.lean')) ||
+    fs.existsSync(path.join(GNOSIS_PACKAGE_ROOT, 'lakefile.toml'));
+  const command = hasLakeWorkspace ? 'lake' : 'lean';
+  const versionArgs = hasLakeWorkspace ? ['--version'] : ['--version'];
+  const versionCheck = spawnSync(command, versionArgs, {
+    cwd: hasLakeWorkspace ? GNOSIS_PACKAGE_ROOT : undefined,
+    encoding: 'utf-8',
+  });
+  if (versionCheck.error) {
+    const missingMessage =
+      versionCheck.error instanceof Error
+        ? versionCheck.error.message
+        : String(versionCheck.error);
+    return {
+      attempted: false,
+      ok: false,
+      message: `skipped (${missingMessage})`,
+    };
+  }
+
+  const result = spawnSync(
+    command,
+    hasLakeWorkspace ? ['env', 'lean', leanFilePath] : [leanFilePath],
+    {
+      cwd: hasLakeWorkspace ? GNOSIS_PACKAGE_ROOT : undefined,
+      encoding: 'utf-8',
+    }
+  );
+  if (result.error) {
+    const errorMessage =
+      result.error instanceof Error
+        ? result.error.message
+        : String(result.error);
+    return {
+      attempted: true,
+      ok: false,
+      message: errorMessage,
+    };
+  }
+
+  const stderr = result.stderr.trim();
+  const stdout = result.stdout.trim();
+  const combinedOutput = `${stderr}\n${stdout}`;
+  const missingMathlib =
+    combinedOutput.includes("unknown module prefix 'Mathlib'") ||
+    combinedOutput.includes("No directory 'Mathlib'") ||
+    combinedOutput.includes("file 'Mathlib.olean'") ||
+    combinedOutput.includes("unknown package 'Mathlib'");
+  if (missingMathlib) {
+    return {
+      attempted: false,
+      ok: false,
+      message: hasLakeWorkspace
+        ? 'skipped (Lean workspace found, but Mathlib is unavailable in the local Lake environment)'
+        : 'skipped (Lean found, but Mathlib is unavailable in the current environment)',
+    };
+  }
+  return {
+    attempted: true,
+    ok: result.status === 0,
+    message:
+      stderr.length > 0
+        ? stderr
+        : stdout.length > 0
+        ? stdout
+        : result.status === 0
+        ? 'ok'
+        : `exit ${result.status ?? 1}`,
+  };
 }
 
 function steeringTraceEnabled(rawArgs: string[]): boolean {
@@ -735,6 +850,11 @@ async function main() {
       const maxBuley = parseMaxBuley(args);
       const loadedTopology = await loadCliTopologySource(filePath);
       const source = loadedTopology.source;
+      const betty = new BettyCompiler();
+      const compilerResult = betty.parse(source);
+      const compilerErrors = compilerResult.diagnostics.filter(
+        (diagnostic) => diagnostic.severity === 'error'
+      );
       const report = await analyzeGnosisSource(source, {
         target: runtimeTarget,
         steeringMode,
@@ -747,7 +867,8 @@ async function main() {
       const ok =
         report.correctness.ok &&
         !buleyExceeded &&
-        capabilityErrors.length === 0;
+        capabilityErrors.length === 0 &&
+        compilerErrors.length === 0;
       const shouldGenerateTla = args[0] === 'verify' || args[0] === 'build';
       const shouldPrintTla = shouldGenerateTla && args.includes('--tla');
       const tlaOutputDir = shouldGenerateTla
@@ -763,7 +884,28 @@ async function main() {
             sourceFilePath: filePath,
           })
         : null;
+      const shouldGenerateLean =
+        shouldGenerateTla &&
+        compilerErrors.length === 0 &&
+        compilerResult.ast !== null &&
+        compilerResult.stability !== null;
+      const shouldPrintLean = shouldGenerateLean && args.includes('--lean');
+      const leanOutputDir = shouldGenerateLean
+        ? parseFlagValue(args, '--lean-out') ??
+          (args[0] === 'build' ? path.join('lean', 'generated') : null)
+        : null;
+      const leanModuleOverride = shouldGenerateLean
+        ? parseFlagValue(args, '--lean-module')
+        : null;
+      const leanArtifact = shouldGenerateLean
+        ? generateLeanFromGnosisAst(compilerResult.ast, compilerResult.stability, {
+            moduleName: leanModuleOverride ?? undefined,
+            sourceFilePath: filePath,
+          })
+        : null;
       let tlaWritePaths: TlaWritePaths | null = null;
+      let leanWritePaths: LeanWritePaths | null = null;
+      let leanCheck: LeanCheckResult | null = null;
 
       if (tlaBridge && tlaOutputDir) {
         const resolvedOutputDir = path.resolve(process.cwd(), tlaOutputDir);
@@ -783,6 +925,25 @@ async function main() {
         tlaWritePaths = { tlaFilePath, cfgFilePath };
       }
 
+      if (leanArtifact && leanOutputDir) {
+        const resolvedOutputDir = path.resolve(process.cwd(), leanOutputDir);
+        fs.mkdirSync(resolvedOutputDir, { recursive: true });
+
+        const leanFilePath = path.join(
+          resolvedOutputDir,
+          `${leanArtifact.moduleName}.lean`
+        );
+        fs.writeFileSync(leanFilePath, leanArtifact.lean, 'utf-8');
+        leanWritePaths = { leanFilePath };
+
+        if (args[0] === 'build') {
+          leanCheck = runLeanProofCheck(leanFilePath);
+        }
+      }
+
+      const finalOk =
+        ok && (!leanCheck || !leanCheck.attempted || leanCheck.ok);
+
       if (sarifOutput) {
         const sarif = ggReportToSarif(filePath, report, violations, maxBuley);
         console.log(JSON.stringify(sarif, null, 2));
@@ -796,12 +957,17 @@ async function main() {
             : args[0] === 'build'
             ? 'build'
             : 'gg',
-          ok,
+          ok: finalOk,
           buleyNumber: report.buleyNumber,
           wallaceNumber: report.steering.wallaceNumber,
           wallaceUnit: report.steering.wallaceUnit,
           buleyUnit: 'bule',
           maxBuley,
+          compiler: {
+            output: compilerResult.output,
+            diagnostics: compilerResult.diagnostics,
+            stability: compilerResult.stability,
+          },
           line: report.line,
           topology: report.topology,
           quantum: report.quantum,
@@ -834,6 +1000,16 @@ async function main() {
           };
         }
 
+        if (leanArtifact) {
+          basePayload.lean = {
+            moduleName: leanArtifact.moduleName,
+            theoremName: leanArtifact.theoremName,
+            outputPaths: leanWritePaths,
+            check: leanCheck,
+            source: shouldPrintLean ? leanArtifact.lean : undefined,
+          };
+        }
+
         console.log(JSON.stringify(basePayload, null, 2));
       } else {
         if (wallaceOnly) {
@@ -860,6 +1036,11 @@ async function main() {
               report.correctness.topology.beta1
             })`
           );
+          console.log(
+            `  compiler: ${
+              compilerErrors.length === 0 ? 'PASS' : 'FAIL'
+            } (diagnostics=${compilerResult.diagnostics.length})`
+          );
         } else if (buleyOnly) {
           console.log(`[Gnosis stank] ${filePath}`);
           console.log(
@@ -877,6 +1058,11 @@ async function main() {
               report.correctness.topology.beta1
             })`
           );
+          console.log(
+            `  compiler: ${
+              compilerErrors.length === 0 ? 'PASS' : 'FAIL'
+            } (diagnostics=${compilerResult.diagnostics.length})`
+          );
         } else {
           console.log(`[Gnosis ${args[0]}] ${filePath}`);
           console.log(
@@ -885,6 +1071,11 @@ async function main() {
             } (states=${report.correctness.stateCount}, beta1=${
               report.correctness.topology.beta1
             })`
+          );
+          console.log(
+            `  compiler: ${
+              compilerErrors.length === 0 ? 'PASS' : 'FAIL'
+            } (diagnostics=${compilerResult.diagnostics.length})`
           );
           if (loadedTopology.format === 'mgg') {
             console.log(`  module-format: ${loadedTopology.format}`);
@@ -920,6 +1111,11 @@ async function main() {
           console.log(
             `  quantum-index: ${report.quantum.quantumIndex} beta-pressure=${report.quantum.betaPressure} beta-headroom=${report.quantum.betaHeadroom}`
           );
+          if (compilerResult.stability) {
+            console.log(
+              `  thermodynamics: spectral-radius=${compilerResult.stability.spectralRadius ?? 'n/a'} redline=${compilerResult.stability.redline ?? 'n/a'} ceiling=${compilerResult.stability.geometricCeiling ?? 'n/a'} proof=${compilerResult.stability.proof.kind}`
+            );
+          }
           if (surfaceSteeringMetrics(report.steering.mode)) {
             const failureBoundary = formatFailureBoundaryNarrative(
               report.steering
@@ -967,6 +1163,36 @@ async function main() {
             console.log(tlaBridge.cfg);
           }
         }
+        if (leanArtifact) {
+          console.log(
+            `  lean-theorem: ${leanArtifact.theoremName} (module=${leanArtifact.moduleName})`
+          );
+          if (leanWritePaths) {
+            console.log(`  lean-file: ${leanWritePaths.leanFilePath}`);
+          }
+          if (leanCheck) {
+            const leanStatus = leanCheck.attempted
+              ? leanCheck.ok
+                ? 'PASS'
+                : 'FAIL'
+              : 'SKIP';
+            console.log(`  lean-check: ${leanStatus} ${leanCheck.message}`);
+          } else {
+            console.log(
+              `  lean-hint: pass --lean to print the generated proof or --lean-out <dir> to write it`
+            );
+          }
+          if (shouldPrintLean) {
+            console.log('\n[Lean Proof]');
+            console.log(leanArtifact.lean);
+          }
+        }
+        if (compilerResult.diagnostics.length > 0) {
+          for (const diagnostic of compilerResult.diagnostics) {
+            const prefix = diagnostic.severity === 'error' ? 'error' : 'warn';
+            console.error(`  ${prefix}: ${formatCompilerDiagnostic(diagnostic)}`);
+          }
+        }
         if (violations.length > 0) {
           violations.forEach((line) => console.error(`  ${line}`));
         }
@@ -985,7 +1211,7 @@ async function main() {
         }
       }
 
-      process.exit(ok ? 0 : 1);
+      process.exit(finalOk ? 0 : 1);
     }
 
     const tsReport = analyzeTypeScriptTargets(
@@ -1043,7 +1269,7 @@ async function main() {
     args[0] === 'stank'
   ) {
     console.error(
-      `[Gnosis] Usage: gnosis ${args[0]} <target> [--target <agnostic|workers|node|bun>] [--steering-mode <off|report|suggest|apply>] [--max-buley <number>] [--max-file-lines <number>] [--max-function-lines <number>] [--max-cyclomatic <number>] [--max-cognitive <number>] [--max-nesting <number>] [--json] [--sarif] [--tla] [--tla-out <dir>] [--tla-module <name>]`
+      `[Gnosis] Usage: gnosis ${args[0]} <target> [--target <agnostic|workers|node|bun>] [--steering-mode <off|report|suggest|apply>] [--max-buley <number>] [--max-file-lines <number>] [--max-function-lines <number>] [--max-cyclomatic <number>] [--max-cognitive <number>] [--max-nesting <number>] [--json] [--sarif] [--tla] [--tla-out <dir>] [--tla-module <name>] [--lean] [--lean-out <dir>] [--lean-module <name>]`
     );
     process.exit(1);
   } else if ((args[0] === 'run' || args[0] === 'native') && args[1]) {
@@ -1071,9 +1297,19 @@ async function main() {
     const loadedTopology = await loadCliTopologySource(filePath);
     const content = loadedTopology.source;
     const betty = new BettyCompiler();
-    const { ast, output } = betty.parse(content);
+    const { ast, output, diagnostics, stability } = betty.parse(content);
     if (!ast) {
       console.error(`[Gnosis Error] Failed to parse AST.`);
+      process.exit(1);
+    }
+    const compilerErrors = diagnostics.filter(
+      (diagnostic) => diagnostic.severity === 'error'
+    );
+    if (compilerErrors.length > 0) {
+      console.error(`[Gnosis] Compiler validation failed before execution.`);
+      for (const diagnostic of diagnostics) {
+        console.error(`  ${formatCompilerDiagnostic(diagnostic)}`);
+      }
       process.exit(1);
     }
     const boundaryWalkExecutionAuth = await resolveBoundaryWalkExecutionAuth({
@@ -1474,6 +1710,7 @@ async function main() {
       });
 
       const nativeRuntime = useNativeRuntime ? new GnosisNativeRuntime() : null;
+      nativeRuntime?.setStabilityMetadata(stability?.metadata ?? null);
       const engine = new GnosisEngine(registry, {
         onEdgeEvaluated: nativeRuntime
           ? async (edge) => {

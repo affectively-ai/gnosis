@@ -229,6 +229,59 @@ describe('BettyCompiler', () => {
     ).toBe(true);
   });
 
+  it('rejects unstable thermodynamic cycles with spectral explosion', () => {
+    const { diagnostics, stability } = compiler.parse(`
+            (inbound:Source { pressure: "5" })
+            (queue:State { potential: "beta1" })
+            (resolved:Sink { capacity: "1" })
+            (inbound)-[:FORK { weight: "1.0" }]->(queue)
+            (queue)-[:FORK { weight: "1.0" }]->(queue)
+            (queue)-[:FOLD { service_rate: "2", drift_gamma: "1.0" }]->(resolved)
+        `);
+
+    expect(stability?.enabled).toBe(true);
+    expect(
+      diagnostics.some((diagnostic) => diagnostic.code === 'ERR_SPECTRAL_EXPLOSION')
+    ).toBe(true);
+    expect(
+      diagnostics.some((diagnostic) => diagnostic.code === 'ERR_DRIFT_POSITIVE')
+    ).toBe(true);
+  });
+
+  it('recognizes the symbolic reneging proof family', () => {
+    const { diagnostics, stability } = compiler.parse(`
+            (traffic:Source { pressure: "lambda" })
+            (processing:State { potential: "beta1" })
+            (complete:Sink { beta1_target: "0", capacity: "64" })
+            (traffic)-[:FORK { weight: "1.0" }]->(processing)
+            (processing)-[:FOLD { service_rate: "mu", drift_gamma: "1.0" }]->(complete)
+            (processing)-[:VENT { drift_coefficient: "alpha(n)", repair_debt: "0" }]->(complete)
+        `);
+
+    expect(stability?.proof.kind).toBe('symbolic-reneging');
+    expect(stability?.metadata.redline).toBe(64);
+    expect(
+      diagnostics.some((diagnostic) => diagnostic.code === 'ERR_DRIFT_POSITIVE')
+    ).toBe(false);
+  });
+
+  it('flags repair debt leaking through vents', () => {
+    const { diagnostics } = compiler.parse(`
+            (traffic:Source { pressure: "1" })
+            (processing:State { potential: "beta1" })
+            (left:State { potential: "queue_depth" })
+            (right:State { potential: "queue_depth" })
+            (complete:Sink { capacity: "16" })
+            (traffic)-[:FORK]->(left|right)
+            (left)-[:VENT { drift_coefficient: "1", repair_debt: "1" }]->(complete)
+            (right)-[:FOLD { service_rate: "4", drift_gamma: "1" }]->(complete)
+        `);
+
+    expect(
+      diagnostics.some((diagnostic) => diagnostic.code === 'ERR_REPAIR_DEBT_LEAK')
+    ).toBe(true);
+  });
+
   it('keeps betti.gg exhaustive for tagged compiler routing', () => {
     const source = readFileSync(
       new URL('../../betti.gg', import.meta.url),
