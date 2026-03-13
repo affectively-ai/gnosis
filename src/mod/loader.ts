@@ -76,10 +76,18 @@ interface ModuleLoaderState {
   modulePath: string;
   source: string;
   parsed?: ParsedGnosisModule;
+  importResolutions?: PendingImportResolution[];
   resolvedImports?: GnosisResolvedImport[];
   localTopology?: CompiledTopology;
   mergedTopology?: CompiledTopology;
   explicitExports?: string[];
+  exportNames?: string[];
+}
+
+interface PendingImportResolution {
+  declaration: GnosisModuleImport;
+  resolvedPath: string;
+  resolvedSource: string;
 }
 
 const MODULE_LOADER_TOPOLOGY_URL_CANDIDATES = [
@@ -852,10 +860,10 @@ export class GnosisModuleLoader {
       } satisfies ModuleLoaderState;
     });
 
-    registry.register('ModuleResolveImports', async (payload) => {
+    registry.register('ModuleResolveImportSpecifiers', async (payload) => {
       const state = requireModuleLoaderState(payload);
       const parsed = state.parsed ?? parseMGG(state.source);
-      const resolvedImports: GnosisResolvedImport[] = [];
+      const importResolutions: PendingImportResolution[] = [];
 
       for (const declaration of parsed.imports) {
         const resolved = await this.resolver(
@@ -868,31 +876,61 @@ export class GnosisModuleLoader {
           );
         }
 
-        const importedModule = await this.loadResolved(
-          resolved.path,
-          resolved.source,
-          [...importChain, state.modulePath]
-        );
-        for (const name of declaration.names) {
-          if (!importedModule.exports.includes(name)) {
-            throw new Error(
-              `'${name}' is not exported from '${
-                declaration.source
-              }'. Available exports: ${importedModule.exports.join(', ')}`
-            );
-          }
-        }
-
-        resolvedImports.push({
+        importResolutions.push({
           declaration,
-          module: importedModule,
+          resolvedPath: resolved.path,
+          resolvedSource: resolved.source,
         });
       }
 
       return {
         ...state,
         parsed,
+        importResolutions,
+      } satisfies ModuleLoaderState;
+    });
+
+    registry.register('ModuleLoadImports', async (payload) => {
+      const state = requireModuleLoaderState(payload);
+      const resolvedImports: GnosisResolvedImport[] = [];
+
+      for (const resolution of state.importResolutions ?? []) {
+        const importedModule = await this.loadResolved(
+          resolution.resolvedPath,
+          resolution.resolvedSource,
+          [...importChain, state.modulePath]
+        );
+        resolvedImports.push({
+          declaration: resolution.declaration,
+          module: importedModule,
+        });
+      }
+
+      return {
+        ...state,
         resolvedImports,
+      } satisfies ModuleLoaderState;
+    });
+
+    registry.register('ModuleValidateImports', async (payload) => {
+      const state = requireModuleLoaderState(payload);
+
+      for (const resolvedImport of state.resolvedImports ?? []) {
+        for (const name of resolvedImport.declaration.names) {
+          if (!resolvedImport.module.exports.includes(name)) {
+            throw new Error(
+              `'${name}' is not exported from '${
+                resolvedImport.declaration.source
+              }'. Available exports: ${resolvedImport.module.exports.join(
+                ', '
+              )}`
+            );
+          }
+        }
+      }
+
+      return {
+        ...state,
       } satisfies ModuleLoaderState;
     });
 
@@ -907,6 +945,24 @@ export class GnosisModuleLoader {
         explicitExports: parsed.exports.flatMap(
           (declaration) => declaration.names
         ),
+      } satisfies ModuleLoaderState;
+    });
+
+    registry.register('ModuleDetermineExports', async (payload) => {
+      const state = requireModuleLoaderState(payload);
+      const localTopology =
+        state.localTopology ??
+        compileTopology(
+          (state.parsed ?? parseMGG(state.source)).topologySource
+        );
+
+      return {
+        ...state,
+        localTopology,
+        exportNames:
+          state.explicitExports && state.explicitExports.length > 0
+            ? sortStrings(state.explicitExports)
+            : sortStrings(localTopology.ast.nodes.keys()),
       } satisfies ModuleLoaderState;
     });
 
@@ -937,8 +993,8 @@ export class GnosisModuleLoader {
         state.mergedTopology ??
         mergeTopologies(localTopology, state.resolvedImports ?? []);
       const exports =
-        state.explicitExports && state.explicitExports.length > 0
-          ? sortStrings(state.explicitExports)
+        state.exportNames && state.exportNames.length > 0
+          ? state.exportNames
           : sortStrings(localTopology.ast.nodes.keys());
 
       for (const exportedName of exports) {
