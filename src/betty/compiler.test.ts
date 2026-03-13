@@ -1,3 +1,4 @@
+import { readFileSync } from 'fs';
 import { describe, it, expect } from 'bun:test';
 import { BettyCompiler } from './compiler.js';
 
@@ -78,5 +79,64 @@ describe('BettyCompiler', () => {
     const node = ast?.nodes.get('extract');
     expect(node?.properties.fields).toBe('user,score');
     expect(node?.properties.from).toBe('value');
+  });
+
+  it('reports missing tagged routes for Result nodes', () => {
+    const { diagnostics } = compiler.parse(`
+            (decision:Result)-[:PROCESS { case: "ok" }]->(success)
+        `);
+
+    expect(
+      diagnostics.some((d) =>
+        d.message.includes(
+          "Result node 'decision' is missing tagged routes for: err."
+        )
+      )
+    ).toBe(true);
+  });
+
+  it('reports duplicate tagged routes for Result nodes', () => {
+    const { diagnostics } = compiler.parse(`
+            (decision:Result)-[:PROCESS { case: "ok" }]->(first_success)
+            (decision)-[:PROCESS { case: "ok" }]->(second_success)
+            (decision)-[:PROCESS { case: "err" }]->(failure)
+        `);
+
+    expect(
+      diagnostics.some((d) =>
+        d.message.includes(
+          "Result node 'decision' routes case 'ok' more than once."
+        )
+      )
+    ).toBe(true);
+  });
+
+  it('accepts exhaustive Option routing', () => {
+    const { diagnostics } = compiler.parse(`
+            (maybe:Option)-[:PROCESS { case: "some" }]->(has_value)
+            (maybe)-[:PROCESS { case: "none" }]->(no_value)
+        `);
+
+    expect(
+      diagnostics.some((d) => d.message.includes('missing tagged routes'))
+    ).toBe(false);
+    expect(diagnostics.some((d) => d.message.includes('routes case'))).toBe(
+      false
+    );
+  });
+
+  it('keeps betti.gg exhaustive for tagged compiler routing', () => {
+    const source = readFileSync(
+      new URL('../../betti.gg', import.meta.url),
+      'utf-8'
+    );
+    const { diagnostics } = compiler.parse(source);
+
+    expect(
+      diagnostics.some((d) => d.message.includes('missing tagged routes'))
+    ).toBe(false);
+    expect(diagnostics.some((d) => d.message.includes('routes case'))).toBe(
+      false
+    );
   });
 });

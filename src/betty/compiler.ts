@@ -27,6 +27,11 @@ export interface GraphAST {
   edges: ASTEdge[];
 }
 
+const TAGGED_NODE_CASES: Record<string, readonly string[]> = {
+  Result: ['ok', 'err'],
+  Option: ['some', 'none'],
+};
+
 export class BettyCompiler {
   private b1 = 0;
   private ast: GraphAST = { nodes: new Map(), edges: [] };
@@ -280,6 +285,8 @@ export class BettyCompiler {
       }
     });
 
+    this.checkTaggedNodeExhaustiveness();
+
     const injectionResult = injectSensitiveZkEnvelopes(this.ast);
     this.ast = injectionResult.ast;
     if (injectionResult.injected.length > 0) {
@@ -338,5 +345,105 @@ export class BettyCompiler {
     }
 
     return properties;
+  }
+
+  private checkTaggedNodeExhaustiveness(): void {
+    for (const node of this.ast.nodes.values()) {
+      const taggedLabel = node.labels.find((label) => TAGGED_NODE_CASES[label]);
+      if (!taggedLabel) {
+        continue;
+      }
+
+      const expectedCases = TAGGED_NODE_CASES[taggedLabel];
+      const outgoingEdges = this.ast.edges.filter((edge) =>
+        edge.sourceIds.some((sourceId) => sourceId.trim() === node.id)
+      );
+      if (outgoingEdges.length === 0) {
+        continue;
+      }
+
+      const caseEdges = outgoingEdges
+        .map((edge) => ({
+          edge,
+          cases: this.extractTaggedCases(edge),
+        }))
+        .filter((entry) => entry.cases.length > 0);
+
+      if (caseEdges.length === 0) {
+        continue;
+      }
+
+      const unconstrainedEdgeCount = outgoingEdges.length - caseEdges.length;
+      if (unconstrainedEdgeCount > 0) {
+        this.diagnostics.push({
+          line: 1,
+          column: 1,
+          message: `${taggedLabel} node '${node.id}' mixes tagged case edges with unconstrained exits; exhaustiveness cannot be guaranteed.`,
+          severity: 'warning',
+        });
+      }
+
+      const seenCases = new Map<string, number>();
+      for (const { edge, cases } of caseEdges) {
+        for (const edgeCase of cases) {
+          if (!expectedCases.includes(edgeCase)) {
+            this.diagnostics.push({
+              line: 1,
+              column: 1,
+              message: `${taggedLabel} node '${
+                node.id
+              }' uses unknown case '${edgeCase}' on ${
+                edge.type
+              }. Expected one of: ${expectedCases.join(', ')}.`,
+              severity: 'error',
+            });
+            continue;
+          }
+
+          const existingCount = seenCases.get(edgeCase) ?? 0;
+          seenCases.set(edgeCase, existingCount + 1);
+          if (existingCount > 0) {
+            this.diagnostics.push({
+              line: 1,
+              column: 1,
+              message: `${taggedLabel} node '${node.id}' routes case '${edgeCase}' more than once.`,
+              severity: 'error',
+            });
+          }
+        }
+      }
+
+      const missingCases = expectedCases.filter(
+        (edgeCase) => !seenCases.has(edgeCase)
+      );
+      if (missingCases.length > 0) {
+        this.diagnostics.push({
+          line: 1,
+          column: 1,
+          message: `${taggedLabel} node '${
+            node.id
+          }' is missing tagged routes for: ${missingCases.join(', ')}.`,
+          severity: 'error',
+        });
+      }
+    }
+  }
+
+  private extractTaggedCases(edge: ASTEdge): string[] {
+    const rawCase =
+      edge.properties.case ??
+      edge.properties.match ??
+      edge.properties.when ??
+      edge.properties.variant ??
+      edge.properties.kind ??
+      edge.properties.status;
+    if (!rawCase) {
+      return [];
+    }
+
+    return rawCase
+      .split(/[\s,|]+/)
+      .map((entry) => entry.trim().toLowerCase())
+      .filter((entry) => entry.length > 0);
   }
 }
