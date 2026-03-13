@@ -984,7 +984,7 @@ export class GnosisModuleLoader {
       } satisfies ModuleLoaderState;
     });
 
-    registry.register('ModuleFinalize', async (payload) => {
+    registry.register('ModuleValidateExports', async (payload) => {
       const state = requireModuleLoaderState(payload);
       const parsed = state.parsed ?? parseMGG(state.source);
       const localTopology =
@@ -1006,6 +1006,24 @@ export class GnosisModuleLoader {
       }
 
       return {
+        ...state,
+        parsed,
+        localTopology,
+        mergedTopology,
+        exportNames: exports,
+      } satisfies ModuleLoaderState;
+    });
+
+    registry.register('ModuleAssembleModule', async (payload) => {
+      const state = requireModuleLoaderState(payload);
+      const parsed = state.parsed ?? parseMGG(state.source);
+      const localTopology =
+        state.localTopology ?? compileTopology(parsed.topologySource);
+      const mergedTopology =
+        state.mergedTopology ??
+        mergeTopologies(localTopology, state.resolvedImports ?? []);
+
+      return {
         id: state.modulePath,
         format: 'mgg',
         source: state.source,
@@ -1013,7 +1031,10 @@ export class GnosisModuleLoader {
         mergedSource: renderGraphAst(mergedTopology.ast),
         ast: mergedTopology.ast,
         b1: mergedTopology.b1,
-        exports,
+        exports:
+          state.exportNames && state.exportNames.length > 0
+            ? state.exportNames
+            : sortStrings(localTopology.ast.nodes.keys()),
         imports: state.resolvedImports ?? [],
       } satisfies LoadedGnosisModule;
     });

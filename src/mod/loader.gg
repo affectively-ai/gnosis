@@ -4,4 +4,5 @@
 (validate_imports)-[:PROCESS]->(compile:ModuleCompileTopology)
 (compile)-[:PROCESS]->(determine_exports:ModuleDetermineExports)
 (determine_exports)-[:PROCESS]->(merge:ModuleMergeTopology)
-(merge)-[:PROCESS]->(finalize:ModuleFinalize)
+(merge)-[:PROCESS]->(validate_exports:ModuleValidateExports)
+(validate_exports)-[:PROCESS]->(assemble:ModuleAssembleModule)
