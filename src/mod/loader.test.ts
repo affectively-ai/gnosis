@@ -341,4 +341,50 @@ describe('GnosisModuleLoader', () => {
     expect(module.ast.nodes.has('router')).toBe(true);
     expect(module.ast.nodes.has('request')).toBe(true);
   });
+
+  it('rejects cyclic module imports with an import chain', async () => {
+    const cwd = makeTempDir();
+    const alphaPath = path.join(cwd, 'alpha.mgg');
+    const betaPath = path.join(cwd, 'beta.mgg');
+
+    writeFileSync(
+      alphaPath,
+      [
+        "import { beta } from './beta.mgg'",
+        '',
+        '(alpha:Stage)',
+        '(alpha)-[:PROCESS]->(beta)',
+        '',
+        'export { alpha }',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+    writeFileSync(
+      betaPath,
+      [
+        "import { alpha } from './alpha.mgg'",
+        '',
+        '(beta:Stage)',
+        '(beta)-[:PROCESS]->(alpha)',
+        '',
+        'export { beta }',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+
+    const loadResult = Promise.race([
+      loadGnosisModuleFromFile(alphaPath, cwd),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          reject(new Error('module load timed out'));
+        }, 50);
+      }),
+    ]);
+
+    await expect(loadResult).rejects.toThrow(
+      /cyclic module import: .*alpha\.mgg -> .*beta\.mgg -> .*alpha\.mgg/
+    );
+  });
 });

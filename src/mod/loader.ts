@@ -223,6 +223,10 @@ function buildDependencyCandidates(
   ];
 }
 
+function formatImportCycle(chain: readonly string[]): string {
+  return `cyclic module import: ${chain.join(' -> ')}`;
+}
+
 async function resolveBareModuleSpecifier(
   specifier: string,
   fromModule: string,
@@ -647,7 +651,11 @@ export class GnosisModuleLoader {
       );
     }
 
-    return this.loadResolved(resolvedTopLevel.path, resolvedTopLevel.source);
+    return this.loadResolved(
+      resolvedTopLevel.path,
+      resolvedTopLevel.source,
+      []
+    );
   }
 
   clearCache(): void {
@@ -656,8 +664,13 @@ export class GnosisModuleLoader {
 
   private async loadResolved(
     modulePath: string,
-    source: string
+    source: string,
+    importChain: readonly string[]
   ): Promise<LoadedGnosisModule> {
+    if (importChain.includes(modulePath)) {
+      throw new Error(formatImportCycle([...importChain, modulePath]));
+    }
+
     const cached = this.cache.get(modulePath);
     if (cached) {
       return cached;
@@ -668,7 +681,7 @@ export class GnosisModuleLoader {
       return inFlight;
     }
 
-    const promise = this.loadByFormat(modulePath, source);
+    const promise = this.loadByFormat(modulePath, source, importChain);
     this.loading.set(modulePath, promise);
 
     try {
@@ -682,11 +695,12 @@ export class GnosisModuleLoader {
 
   private async loadByFormat(
     modulePath: string,
-    source: string
+    source: string,
+    importChain: readonly string[]
   ): Promise<LoadedGnosisModule> {
     const format = detectModuleFormat(modulePath, source);
     if (format === 'mgg') {
-      return this.loadMGG(modulePath, source);
+      return this.loadMGG(modulePath, source, importChain);
     }
 
     const compiled = compileTopology(source);
@@ -707,7 +721,8 @@ export class GnosisModuleLoader {
 
   private async loadMGG(
     modulePath: string,
-    source: string
+    source: string,
+    importChain: readonly string[]
   ): Promise<LoadedGnosisModule> {
     const parsed = parseMGG(source);
     const resolvedImports: GnosisResolvedImport[] = [];
@@ -722,7 +737,8 @@ export class GnosisModuleLoader {
 
       const importedModule = await this.loadResolved(
         resolved.path,
-        resolved.source
+        resolved.source,
+        [...importChain, modulePath]
       );
       for (const name of declaration.names) {
         if (!importedModule.exports.includes(name)) {
