@@ -136,21 +136,21 @@ function parseBindings(raw: string | undefined): DestructureBinding[] {
     .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0)
     .map((entry) => {
-      const aliasMatch = entry.match(
-        /^([A-Za-z_][A-Za-z0-9_]*)\s+as\s+([A-Za-z_][A-Za-z0-9_]*)$/
-      );
+      const aliasMatch = entry.match(/^(.+?)\s+as\s+([A-Za-z_][A-Za-z0-9_]*)$/);
       if (aliasMatch) {
         return {
-          sourceKey: aliasMatch[1],
+          sourceKey: aliasMatch[1].trim(),
           targetKey: aliasMatch[2],
         };
       }
 
-      const [sourceKey, targetKey] = entry
-        .split(':')
-        .map((segment) => segment.trim());
-      if (sourceKey && targetKey) {
-        return { sourceKey, targetKey };
+      const separator = entry.indexOf(':');
+      if (separator >= 0) {
+        const sourceKey = entry.slice(0, separator).trim();
+        const targetKey = entry.slice(separator + 1).trim();
+        if (sourceKey && targetKey) {
+          return { sourceKey, targetKey };
+        }
       }
 
       return {
@@ -158,6 +158,10 @@ function parseBindings(raw: string | undefined): DestructureBinding[] {
         targetKey: entry,
       };
     });
+}
+
+function parseTupleBindings(raw: string | undefined): DestructureBinding[] {
+  return parseBindings(raw);
 }
 
 function parseCaseList(raw: string | undefined): string[] {
@@ -179,8 +183,13 @@ function resolveTaggedPayloadSource(
   payload: unknown,
   from: string | undefined
 ): unknown {
-  if (from && isRecord(payload)) {
-    return payload[from];
+  if (from) {
+    const resolved = resolvePathValue(payload, from);
+    if (resolved.found) {
+      return resolved.value;
+    }
+
+    return undefined;
   }
 
   if (isTaggedValue(payload)) {
@@ -202,6 +211,44 @@ function resolveTaggedPayloadSource(
   }
 
   return payload;
+}
+
+function resolvePathValue(
+  source: unknown,
+  path: string
+): { found: boolean; value: unknown } {
+  const segments = path
+    .split('.')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+
+  if (segments.length === 0) {
+    return { found: true, value: source };
+  }
+
+  let current: unknown = source;
+  for (const segment of segments) {
+    if (Array.isArray(current)) {
+      const index = Number(segment);
+      if (!Number.isInteger(index) || index < 0 || index >= current.length) {
+        return { found: false, value: undefined };
+      }
+      current = current[index];
+      continue;
+    }
+
+    if (isRecord(current)) {
+      if (!(segment in current)) {
+        return { found: false, value: undefined };
+      }
+      current = current[segment];
+      continue;
+    }
+
+    return { found: false, value: undefined };
+  }
+
+  return { found: true, value: current };
 }
 
 function normalizeResultKind(
@@ -558,32 +605,62 @@ export function registerCoreRuntimeHandlers(registry: GnosisRegistry): void {
   });
 
   registry.register('Destructure', async (payload, props) => {
-    const bindings = parseBindings(props.fields ?? props.field ?? props.bind);
-    if (bindings.length === 0) {
+    const fieldBindings = parseBindings(
+      props.fields ?? props.field ?? props.bind
+    );
+    const tupleBindings = parseTupleBindings(props.items ?? props.item);
+    if (fieldBindings.length === 0 && tupleBindings.length === 0) {
       return payload;
     }
 
     const source = resolveTaggedPayloadSource(payload, props.from);
-    if (!isRecord(source)) {
-      throw new Error(
-        `Destructure expected an object payload but received ${typeof source}.`
-      );
-    }
-
     const strict = props.strict !== 'false';
     const extracted: Record<string, unknown> = {};
 
-    for (const binding of bindings) {
-      if (!(binding.sourceKey in source)) {
-        if (strict) {
-          throw new Error(
-            `Destructure missing field "${binding.sourceKey}" in payload.`
-          );
-        }
-        continue;
+    if (fieldBindings.length > 0) {
+      if (!isRecord(source)) {
+        throw new Error(
+          `Destructure expected an object payload for fields but received ${
+            Array.isArray(source) ? 'array' : typeof source
+          }.`
+        );
       }
 
-      extracted[binding.targetKey] = source[binding.sourceKey];
+      for (const binding of fieldBindings) {
+        const resolved = resolvePathValue(source, binding.sourceKey);
+        if (!resolved.found) {
+          if (strict) {
+            throw new Error(
+              `Destructure missing field "${binding.sourceKey}" in payload.`
+            );
+          }
+          continue;
+        }
+
+        extracted[binding.targetKey] = resolved.value;
+      }
+    }
+
+    if (tupleBindings.length > 0) {
+      if (!Array.isArray(source)) {
+        throw new Error(
+          `Destructure expected an array payload for items but received ${typeof source}.`
+        );
+      }
+
+      for (const binding of tupleBindings) {
+        const resolved = resolvePathValue(source, binding.sourceKey);
+        if (!resolved.found) {
+          if (strict) {
+            throw new Error(
+              `Destructure missing tuple item "${binding.sourceKey}" in payload.`
+            );
+          }
+          continue;
+        }
+
+        extracted[binding.targetKey] = resolved.value;
+      }
     }
 
     return extracted;

@@ -8,7 +8,7 @@ Runtime execution surfaces for graph traversal and handler dispatch.
 
 - [registry.ts](./registry.ts): Label-to-handler registration map.
 - [engine.ts](./engine.ts): Topology execution engine for `FORK/RACE/FOLD/VENT` graphs with optional UCAN edge authorization, case-aware routing from native `.gg` payloads, and structured cancellation/timeout semantics for concurrent collapse edges.
-- [core-handlers.ts](./core-handlers.ts): Built-in `Result`, `Option`, `Variant`, `Destructure`, `Delay`, quantum, and differentiable handlers for native `.gg` data-shaping and execution.
+- [core-handlers.ts](./core-handlers.ts): Built-in `Result`, `Option`, `Variant`, `Destructure`, `Delay`, quantum, and differentiable handlers for native `.gg` data-shaping and execution, including path-aware record destructuring and explicit tuple unpacking.
 - [native-runtime.ts](./native-runtime.ts): Native `.gg` frame runtime adapter over `gnosis_runtime` WASM, with deterministic fallback metrics when WASM is unavailable.
 - [renderer-compat.ts](./renderer-compat.ts): 3D renderer compatibility layer targeting `@affectively/aeon-3d` with local fallback.
 - [engine.test.ts](./engine.test.ts): Runtime engine behavior tests.
@@ -22,13 +22,19 @@ The runtime now treats four value-shaping labels as built-ins:
 - `Result`: emits `{ kind: "ok", value }` or `{ kind: "err", error }`
 - `Option`: emits `{ kind: "some", value }` or `{ kind: "none" }`
 - `Variant`: emits closed ADT-like values such as `{ adt: "ReviewState", case: "retry", value }`
-- `Destructure`: extracts named fields from object payloads, including `Result.value` and `Option.value`
+- `Destructure`: extracts named fields from object payloads, including nested paths from `FOLD` results and explicit tuple items from array payloads
 
 Outgoing edges can route on those tagged values with properties such as `case`, `match`, `when`, `kind`, `variant`, or `status`.
 
 `Result` and `Option` can also derive their case from a payload field via `kindFrom`, and can narrow the wrapped payload with `valueFrom` or `errorFrom`.
 
 `Variant` nodes declare their closed cases with `cases`, derive the active case with `case` or `caseFrom`, and participate in the same case-aware edge routing as `Result` and `Option`.
+
+`Destructure` now supports:
+
+- `fields`: object and nested-path bindings such as `left.score:leftScore`
+- `items`: explicit tuple/array bindings such as `0.id:firstId,2.id:thirdId`
+- automatic payload unwrapping from `Result`, `Option`, and `Variant` values before binding
 
 Quantum value primitives are also built in:
 
@@ -66,6 +72,15 @@ Structured concurrency also has a native runtime surface:
 ```gg
 (source:Source)-[:PROCESS]->(state:Variant { adt: 'ReviewState', cases: 'ready,retry,timeout', caseFrom: 'status' })
 (state)-[:PROCESS { case: 'retry' }]->(retry_payload:Destructure { fields: 'attempts,message' })
+```
+
+```gg
+(seed:Forker)-[:FORK]->(left:Worker | right:Worker)
+(left | right)-[:FOLD]->(extract:Destructure { fields: 'left.score:leftScore,right.meta.label:rightLabel' })
+```
+
+```gg
+(seed:Source)-[:PROCESS]->(extract:Destructure { items: '0.id:firstId,2.id:thirdId' })
 ```
 
 ```gg

@@ -81,6 +81,16 @@ describe('BettyCompiler', () => {
     expect(node?.properties.from).toBe('value');
   });
 
+  it('preserves tuple and path destructuring bindings', () => {
+    const { ast } = compiler.parse(`
+            (extract:Destructure { items: "0.id:firstId,2.id:thirdId", fields: "left.score:leftScore" })-[:PROCESS]->(sink)
+        `);
+
+    const node = ast?.nodes.get('extract');
+    expect(node?.properties.items).toBe('0.id:firstId,2.id:thirdId');
+    expect(node?.properties.fields).toBe('left.score:leftScore');
+  });
+
   it('reports missing tagged routes for Result nodes', () => {
     const { diagnostics } = compiler.parse(`
             (decision:Result)-[:PROCESS { case: "ok" }]->(success)

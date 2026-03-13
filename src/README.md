@@ -22,4 +22,4 @@ This directory contains the Gnosis compiler, runtime, and execution tooling.
 - [betty](./betty/README.md): Betty bootstrap compiler, parser, closed-variant exhaustiveness checks, and quantum bridge.
 - [capabilities](./capabilities): Runtime capability profiles and target validation (`workers`, `node`, `bun`).
 - [mod](./mod): `gnosis mod` package manager commands.
-- [runtime](./runtime): Runtime registry, interpreter engine, native `Result`/`Option`/`Variant`/`Destructure`/`Delay` handlers, case-aware branch routing, structured concurrency semantics for `RACE`/`FOLD`, native frame runtime adapter, and renderer compatibility layer.
+- [runtime](./runtime): Runtime registry, interpreter engine, native `Result`/`Option`/`Variant`/`Destructure`/`Delay` handlers, case-aware branch routing, path-aware and tuple-aware destructuring, structured concurrency semantics for `RACE`/`FOLD`, native frame runtime adapter, and renderer compatibility layer.

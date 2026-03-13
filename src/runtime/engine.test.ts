@@ -158,6 +158,48 @@ describe('GnosisEngine', () => {
     expect(result).not.toContain('Executing [timeout_payload]');
   });
 
+  it('destructures nested fold outputs without repetitive property access', async () => {
+    const registry = new GnosisRegistry();
+    registry.register('Forker', async () => [
+      { score: 3, meta: { label: 'left-branch' } },
+      { score: 8, meta: { label: 'right-branch' } },
+    ]);
+    registry.register('Worker', async (payload) => payload);
+    registry.register('Sink', async (payload) => payload);
+
+    const engine = new GnosisEngine(registry);
+    const { ast } = compiler.parse(`
+            (seed:Forker)-[:FORK]->(left:Worker|right:Worker)
+            (left|right)-[:FOLD]->(extract:Destructure { fields: "left.score:leftScore,right.meta.label:rightLabel" })
+            (extract)-[:PROCESS]->(sink:Sink)
+        `);
+
+    const result = await engine.execute(ast!);
+    expect(result).toContain('"leftScore":3');
+    expect(result).toContain('"rightLabel":"right-branch"');
+  });
+
+  it('destructures tuple-style payloads from .gg files with explicit items', async () => {
+    const registry = new GnosisRegistry();
+    registry.register('Source', async () => [
+      { id: 'alpha' },
+      { id: 'beta' },
+      { id: 'gamma' },
+    ]);
+    registry.register('Sink', async (payload) => payload);
+
+    const engine = new GnosisEngine(registry);
+    const source = readFileSync(
+      new URL('../../destructure_tuple.gg', import.meta.url),
+      'utf-8'
+    );
+    const { ast } = compiler.parse(source);
+
+    const result = await engine.execute(ast!);
+    expect(result).toContain('"firstId":"alpha"');
+    expect(result).toContain('"thirdId":"gamma"');
+  });
+
   it('executes native qubit measurement topologies from .gg files', async () => {
     const registry = new GnosisRegistry();
     registry.register('Sink', async (payload) => payload);
