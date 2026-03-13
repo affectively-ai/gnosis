@@ -22,6 +22,16 @@ describe('GnosisNativeRuntime', () => {
     expect(snapshot.trace.length).toBeGreaterThan(0);
     expect(snapshot.stabilityMetadata?.redline).toBe(8);
     expect(snapshot.stabilityMetadata?.proofKind).toBe('numeric');
+    expect(snapshot.stabilityMetadata?.countableQueueCertified).toBe(true);
+    expect(snapshot.stabilityMetadata?.queueBoundary).toBe(8);
+    expect(snapshot.stabilityMetadata?.laminarAtom).toBe(0);
+    expect(snapshot.stabilityMetadata?.queuePotential).toBe('beta1');
+    expect(snapshot.stabilityMetadata?.laminarGeometricTheoremName).toBe(
+      `${snapshot.stabilityMetadata?.theoremName}_laminar_geometric_stable`
+    );
+    expect(snapshot.stabilityMetadata?.measurableHarrisTheoremName).toBe(
+      `${snapshot.stabilityMetadata?.theoremName}_measurable_harris_certified`
+    );
   });
 
   it('ignores non-topological PROCESS edges', async () => {

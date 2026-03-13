@@ -144,6 +144,8 @@ export type {
   StabilityProofAssumption,
   StabilityProofKind,
   StabilityProofObligation,
+  StabilityRecurrenceStep,
+  StabilityRecurrenceWitness,
   StabilityReport,
   StabilityStateAssessment,
 } from './betty/stability.js';
@@ -1115,6 +1117,11 @@ async function main() {
             console.log(
               `  thermodynamics: spectral-radius=${compilerResult.stability.spectralRadius ?? 'n/a'} redline=${compilerResult.stability.redline ?? 'n/a'} ceiling=${compilerResult.stability.geometricCeiling ?? 'n/a'} proof=${compilerResult.stability.proof.kind}`
             );
+            if (compilerResult.stability.metadata.countableQueueCertified) {
+              console.log(
+                `  laminar-proof: queue-boundary=${compilerResult.stability.metadata.queueBoundary ?? 'n/a'} atom=${compilerResult.stability.metadata.laminarAtom ?? 'n/a'} potential=${compilerResult.stability.metadata.queuePotential ?? 'n/a'} theorem=${compilerResult.stability.metadata.laminarGeometricTheoremName ?? 'n/a'} measurable-theorem=${compilerResult.stability.metadata.measurableHarrisTheoremName ?? 'n/a'}`
+              );
+            }
           }
           if (surfaceSteeringMetrics(report.steering.mode)) {
             const failureBoundary = formatFailureBoundaryNarrative(

@@ -68,6 +68,29 @@ export interface StabilityProofObligation {
   requiresLean: boolean;
 }
 
+export interface StabilityRecurrenceStep {
+  nodeId: string;
+  distanceToSmallSet: number | null;
+  nextNodeId: string | null;
+}
+
+export interface StabilityRecurrenceWitness {
+  finiteStateCertified: boolean;
+  steps: StabilityRecurrenceStep[];
+}
+
+export interface StabilityCountableQueueWitness {
+  stateNodeId: string;
+  potential: string;
+  queueBoundary: number;
+  laminarAtom: number;
+  arrivalExpression: string;
+  serviceExpression: string;
+  ventExpression: string;
+  predecessorStepMode: 'margin-predecessor';
+  smallSetKind: 'queue-boundary';
+}
+
 export interface StabilityMetadata {
   redline: number | null;
   geometricCeiling: number | null;
@@ -75,8 +98,15 @@ export interface StabilityMetadata {
   supremumBound: number | null;
   smallSetNodeIds: string[];
   restorativeGamma: string | null;
+  finiteStateRecurrent: boolean;
   proofKind: StabilityProofKind;
   theoremName: string;
+  countableQueueCertified: boolean;
+  laminarGeometricTheoremName: string | null;
+  measurableHarrisTheoremName: string | null;
+  queueBoundary: number | null;
+  laminarAtom: number | null;
+  queuePotential: string | null;
 }
 
 export interface StabilityReport {
@@ -86,6 +116,8 @@ export interface StabilityReport {
   supremumBound: number | null;
   stateAssessments: StabilityStateAssessment[];
   smallSetNodeIds: string[];
+  countableQueue: StabilityCountableQueueWitness | null;
+  recurrence: StabilityRecurrenceWitness;
   harrisRecurrent: boolean;
   ventIsolationOk: boolean;
   redline: number | null;
@@ -648,6 +680,121 @@ function canReachSink(
   return false;
 }
 
+function buildKernelSupportGraph(
+  nodeIds: readonly string[],
+  kernelEdges: readonly StabilityKernelEdge[]
+): {
+  outgoingByNodeId: Map<string, string[]>;
+  incomingByNodeId: Map<string, string[]>;
+} {
+  const outgoingByNodeId = new Map<string, Set<string>>();
+  const incomingByNodeId = new Map<string, Set<string>>();
+
+  for (const nodeId of nodeIds) {
+    outgoingByNodeId.set(nodeId, new Set());
+    incomingByNodeId.set(nodeId, new Set());
+  }
+
+  for (const edge of kernelEdges) {
+    if (edge.effectiveWeight <= EPSILON) {
+      continue;
+    }
+
+    outgoingByNodeId.get(edge.sourceId)?.add(edge.targetId);
+    incomingByNodeId.get(edge.targetId)?.add(edge.sourceId);
+  }
+
+  return {
+    outgoingByNodeId: new Map(
+      [...outgoingByNodeId.entries()].map(([nodeId, targets]) => [nodeId, [...targets]])
+    ),
+    incomingByNodeId: new Map(
+      [...incomingByNodeId.entries()].map(([nodeId, sources]) => [nodeId, [...sources]])
+    ),
+  };
+}
+
+function buildFiniteStateRecurrenceWitness(
+  nodeIds: readonly string[],
+  kernelEdges: readonly StabilityKernelEdge[],
+  sinkNodeIds: readonly string[]
+): StabilityRecurrenceWitness {
+  if (sinkNodeIds.length === 0) {
+    return {
+      finiteStateCertified: false,
+      steps: nodeIds.map((nodeId) => ({
+        nodeId,
+        distanceToSmallSet: null,
+        nextNodeId: null,
+      })),
+    };
+  }
+
+  const { outgoingByNodeId, incomingByNodeId } = buildKernelSupportGraph(
+    nodeIds,
+    kernelEdges
+  );
+  const distanceByNodeId = new Map<string, number>();
+  const frontier = [...new Set(sinkNodeIds)];
+
+  for (const sinkNodeId of frontier) {
+    distanceByNodeId.set(sinkNodeId, 0);
+  }
+
+  while (frontier.length > 0) {
+    const currentNodeId = frontier.shift();
+    if (!currentNodeId) {
+      continue;
+    }
+
+    const currentDistance = distanceByNodeId.get(currentNodeId);
+    if (currentDistance === undefined) {
+      continue;
+    }
+
+    for (const sourceNodeId of incomingByNodeId.get(currentNodeId) ?? []) {
+      if (distanceByNodeId.has(sourceNodeId)) {
+        continue;
+      }
+      distanceByNodeId.set(sourceNodeId, currentDistance + 1);
+      frontier.push(sourceNodeId);
+    }
+  }
+
+  const steps = nodeIds.map<StabilityRecurrenceStep>((nodeId) => {
+    const distanceToSmallSet = distanceByNodeId.get(nodeId) ?? null;
+    if (distanceToSmallSet === null || distanceToSmallSet === 0) {
+      return {
+        nodeId,
+        distanceToSmallSet,
+        nextNodeId: null,
+      };
+    }
+
+    const nextNodeId =
+      (outgoingByNodeId.get(nodeId) ?? []).find(
+        (targetNodeId) =>
+          (distanceByNodeId.get(targetNodeId) ?? Number.POSITIVE_INFINITY) ===
+          distanceToSmallSet - 1
+      ) ?? null;
+
+    return {
+      nodeId,
+      distanceToSmallSet,
+      nextNodeId,
+    };
+  });
+
+  return {
+    finiteStateCertified: steps.every(
+      (step) =>
+        step.distanceToSmallSet !== null &&
+        (step.distanceToSmallSet === 0 || step.nextNodeId !== null)
+    ),
+    steps,
+  };
+}
+
 function resolveArrivalExpression(
   nodeId: string,
   incomingByNodeId: Map<string, ASTEdge[]>,
@@ -949,6 +1096,39 @@ function computeRedline(
   return null;
 }
 
+function buildCountableQueueWitness(
+  proofKind: StabilityProofKind,
+  assessments: readonly StabilityStateAssessment[],
+  redline: number | null
+): StabilityCountableQueueWitness | null {
+  if (proofKind !== 'symbolic-reneging' && proofKind !== 'numeric') {
+    return null;
+  }
+
+  const queueAssessment = assessments.find(
+    (assessment) =>
+      assessment.status === 'symbolic' || assessment.status === 'stable'
+  );
+  if (!queueAssessment?.arrival || !queueAssessment.service) {
+    return null;
+  }
+
+  return {
+    stateNodeId: queueAssessment.nodeId,
+    potential: queueAssessment.potential,
+    queueBoundary:
+      typeof redline === 'number' && Number.isFinite(redline) && redline >= 0
+        ? Math.trunc(redline)
+        : 0,
+    laminarAtom: 0,
+    arrivalExpression: queueAssessment.arrival,
+    serviceExpression: queueAssessment.service,
+    ventExpression: queueAssessment.vent ?? '0',
+    predecessorStepMode: 'margin-predecessor',
+    smallSetKind: 'queue-boundary',
+  };
+}
+
 export function analyzeTopologyStability(
   ast: GraphAST,
   currentBettiNumber: number
@@ -1049,15 +1229,12 @@ export function analyzeTopologyStability(
   const ventIsolation = assessVentIsolation(ast, outgoingByNodeId, sinkNodeIdSet);
   diagnostics.push(...ventIsolation.diagnostics);
 
-  const harrisRecurrent =
-    sinkNodeIds.length > 0 &&
-    driftAssessment.assessments.every(
-      (assessment) =>
-        assessment.status === 'stable' || assessment.status === 'symbolic'
-    ) &&
-    driftAssessment.assessments.every((assessment) =>
-      canReachSink(assessment.nodeId, sinkNodeIdSet, adjacency)
-    );
+  const recurrence = buildFiniteStateRecurrenceWitness(
+    nodeIds,
+    kernelEdges,
+    sinkNodeIds
+  );
+  const harrisRecurrent = recurrence.finiteStateCertified;
 
   const proofKind =
     driftAssessment.proofKind === 'none' && supremumBound !== null
@@ -1066,6 +1243,11 @@ export function analyzeTopologyStability(
   const theoremName = buildThermalTheoremName(ast);
   const redline = computeRedline(ast, sinkNodeIds, spectralRadius);
   const geometricCeiling = round3(supremumBound ?? spectralRadius);
+  const countableQueue = buildCountableQueueWitness(
+    proofKind,
+    driftAssessment.assessments,
+    redline
+  );
   const proofAssumptions =
     driftAssessment.proofAssumptions.length > 0
       ? driftAssessment.proofAssumptions
@@ -1102,8 +1284,21 @@ export function analyzeTopologyStability(
     supremumBound,
     smallSetNodeIds: sinkNodeIds,
     restorativeGamma: driftAssessment.restorativeGamma,
+    finiteStateRecurrent: recurrence.finiteStateCertified,
     proofKind,
     theoremName,
+    countableQueueCertified: countableQueue !== null,
+    laminarGeometricTheoremName:
+      countableQueue !== null
+        ? `${theoremName}_laminar_geometric_stable`
+        : null,
+    measurableHarrisTheoremName:
+      countableQueue !== null
+        ? `${theoremName}_measurable_harris_certified`
+        : null,
+    queueBoundary: countableQueue?.queueBoundary ?? null,
+    laminarAtom: countableQueue?.laminarAtom ?? null,
+    queuePotential: countableQueue?.potential ?? null,
   };
 
   return {
@@ -1113,6 +1308,8 @@ export function analyzeTopologyStability(
     supremumBound,
     stateAssessments: driftAssessment.assessments,
     smallSetNodeIds: sinkNodeIds,
+    countableQueue,
+    recurrence,
     harrisRecurrent,
     ventIsolationOk: ventIsolation.ok,
     redline,

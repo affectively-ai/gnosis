@@ -70,6 +70,15 @@ export class GnosisNativeRuntime {
               supremumBound: this.stabilityMetadata.supremumBound,
               proofKind: this.stabilityMetadata.proofKind,
               theoremName: this.stabilityMetadata.theoremName,
+              countableQueueCertified:
+                this.stabilityMetadata.countableQueueCertified,
+              laminarGeometricTheoremName:
+                this.stabilityMetadata.laminarGeometricTheoremName,
+              measurableHarrisTheoremName:
+                this.stabilityMetadata.measurableHarrisTheoremName,
+              queueBoundary: this.stabilityMetadata.queueBoundary,
+              laminarAtom: this.stabilityMetadata.laminarAtom,
+              queuePotential: this.stabilityMetadata.queuePotential,
             }
           : undefined,
       })

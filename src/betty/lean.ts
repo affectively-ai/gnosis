@@ -49,6 +49,14 @@ function toLeanStringList(values: readonly string[]): string {
   return `[${values.map((value) => JSON.stringify(value)).join(', ')}]`;
 }
 
+function toLeanNatList(values: readonly number[]): string {
+  if (values.length === 0) {
+    return '[]';
+  }
+
+  return `[${values.join(', ')}]`;
+}
+
 function buildModuleName(options: GnosisLeanOptions): string {
   const rawName =
     options.moduleName ??
@@ -168,6 +176,36 @@ ${clauses}
     | _ => 0`;
 }
 
+function buildNatMatchDefinition(name: string, values: readonly number[]): string {
+  const clauses = values
+    .map((value, index) => `    | ${index} => ${value}`)
+    .join('\n');
+
+  return `def ${name} : Fin topologyNodeCount -> Nat :=
+  fun source =>
+    match source.1 with
+${clauses}
+    | _ => 0`;
+}
+
+function buildFinMatchDefinition(
+  name: string,
+  values: readonly number[]
+): string {
+  const clauses = values
+    .map(
+      (value, index) =>
+        `    | ${index} => ⟨${value}, by native_decide⟩`
+    )
+    .join('\n');
+
+  return `def ${name} : Fin topologyNodeCount -> Fin topologyNodeCount :=
+  fun source =>
+    match source.1 with
+${clauses}
+    | _ => ⟨0, by native_decide⟩`;
+}
+
 function buildRowBounds(
   nodeCount: number,
   indexedKernelEdges: readonly IndexedKernelEdge[]
@@ -278,7 +316,8 @@ function buildSpectralWitness(
       (Rat.castHom Real).mapMatrix (transitionRat ^ topologyNodeCount) = 0 := by
     simpa using congrArg ((Rat.castHom Real).mapMatrix) h_nilpotent_rat
   have h_nilpotent : transition ^ topologyNodeCount = 0 := by
-    simpa [transition, Matrix.map_pow] using h_nilpotent_map
+    rw [transition, ← map_pow]
+    exact h_nilpotent_map
   exact spectrallyStable_of_nilpotent
     (kernel := ${kernelExpression})
     (power := topologyNodeCount)
@@ -345,6 +384,698 @@ function buildGammaValue(stability: StabilityReport): string {
   return inferredGamma !== null ? formatLeanReal(inferredGamma) : '1';
 }
 
+function buildQueueBoundaryNat(stability: StabilityReport): number {
+  if (stability.countableQueue) {
+    return stability.countableQueue.queueBoundary;
+  }
+
+  const redline = Number(stability.redline);
+  if (Number.isFinite(redline) && redline >= 0) {
+    return Math.trunc(redline);
+  }
+
+  return 0;
+}
+
+function buildCountableQueueRecurrenceTheorem(
+  theoremName: string,
+  stability: StabilityReport
+): {
+  definitions: string;
+  theorem: string;
+} | null {
+  const countableQueue = stability.countableQueue;
+  if (!countableQueue || countableQueue.predecessorStepMode !== 'margin-predecessor') {
+    return null;
+  }
+
+  const queueBoundary = buildQueueBoundaryNat(stability);
+  const queueAtom = countableQueue.laminarAtom;
+  const queueMinorizationFloor =
+    stability.proof.kind === 'numeric' ? buildGammaValue(stability) : '1';
+  const sharedDefinitions = `def queueBoundary : Nat := ${queueBoundary}
+
+def queueAtom : Nat := ${queueAtom}
+
+def queueMinorizationFloor : Real := ${queueMinorizationFloor}
+
+def queueSmallSet : Set Nat := {current : Nat | current <= queueBoundary}
+
+def queueKernel (lam mu : Real) (alpha : Nat -> Real) : CountableCertifiedKernel Nat := {
+  transition := fun current target =>
+    if current <= queueBoundary then
+      if target = queueAtom then 1 else 0
+    else if target + 1 = current then mu + alpha current - lam else 0
+  smallSet := queueSmallSet
+}
+`;
+
+  if (stability.proof.kind === 'numeric') {
+    return {
+      definitions: sharedDefinitions,
+      theorem: `
+
+theorem ${theoremName}_small_set_minorized
+  : CountableAtomicSmallSetMinorized
+      (queueKernel lam mu alpha)
+      queueAtom
+      1 := by
+  apply countableAtomicSmallSetMinorized_one_of_collapse
+  · simp [queueKernel, queueSmallSet, queueAtom]
+  · intro current h_current_small
+    have h_current_le : current <= queueBoundary := by
+      simpa [queueSmallSet] using h_current_small
+    simp [queueKernel, queueSmallSet, queueAtom, h_current_le]
+
+theorem ${theoremName}_uniformly_minorized
+  : CountableUniformPredecessorMinorized
+      (queueKernel lam mu alpha)
+      queueBoundary
+      queueMinorizationFloor := by
+  constructor
+  · norm_num [queueMinorizationFloor]
+  · intro current h_current_gt
+    have h_current_not_le : ¬ current ≤ queueBoundary := Nat.not_le_of_gt h_current_gt
+    have h_current_not_le_value : ¬ current ≤ ${queueBoundary} := by
+      simpa [queueBoundary] using h_current_not_le
+    have h_predecessor : current - 1 + 1 = current := by
+      omega
+    have h_margin_floor : 1 <= mu + alpha current - lam := by
+      norm_num [lam, mu, alpha]
+    have h_queue_floor : queueMinorizationFloor <= mu + alpha current - lam := by
+      simpa [queueMinorizationFloor] using h_margin_floor
+    simpa [queueKernel, queueSmallSet, queueBoundary, h_current_not_le_value, h_predecessor] using h_queue_floor
+
+theorem ${theoremName}_countably_recurrent
+  : CountableSmallSetRecurrent (queueKernel lam mu alpha) := by
+  apply natSmallSetRecurrent_of_uniformPredecessorMinorization
+    (kernel := queueKernel lam mu alpha)
+    (boundary := queueBoundary)
+    (epsilon := queueMinorizationFloor)
+    (h_small := by
+      simp [queueKernel, queueSmallSet])
+  exact ${theoremName}_uniformly_minorized
+
+theorem ${theoremName}_atom_accessible
+  : CountableAtomAccessible (queueKernel lam mu alpha) queueAtom := by
+  exact countableAtomAccessible_of_smallSetRecurrence_and_atomicMinorization
+    (kernel := queueKernel lam mu alpha)
+    (atom := queueAtom)
+    (epsilon := 1)
+    ${theoremName}_countably_recurrent
+    ${theoremName}_small_set_minorized
+
+theorem ${theoremName}_psi_irreducible
+  : CountablePsiIrreducibleAtAtom (queueKernel lam mu alpha) queueAtom := by
+  exact countablePsiIrreducibleAtAtom_of_atomAccessible
+    (kernel := queueKernel lam mu alpha)
+    (atom := queueAtom)
+    ${theoremName}_atom_accessible
+
+theorem ${theoremName}_harris_prelude
+  : CountableHarrisPreludeAtAtom
+      (queueKernel lam mu alpha)
+      queueAtom
+      queueBoundary
+      1
+      queueMinorizationFloor := by
+  exact countableHarrisPreludeAtAtom_of_components
+    (kernel := queueKernel lam mu alpha)
+    (atom := queueAtom)
+    (boundary := queueBoundary)
+    (smallSetEpsilon := 1)
+    (stepEpsilon := queueMinorizationFloor)
+    ${theoremName}_small_set_minorized
+    ${theoremName}_uniformly_minorized
+    ${theoremName}_psi_irreducible
+
+theorem ${theoremName}_harris_recurrent_class
+  : CountableHarrisRecurrentClassAtAtom
+      (queueKernel lam mu alpha)
+      queueAtom := by
+  exact countableHarrisRecurrentClassAtAtom_of_recurrence_and_prelude
+    (kernel := queueKernel lam mu alpha)
+    (atom := queueAtom)
+    (boundary := queueBoundary)
+    (smallSetEpsilon := 1)
+    (stepEpsilon := queueMinorizationFloor)
+    ${theoremName}_countably_recurrent
+    ${theoremName}_harris_prelude
+
+theorem ${theoremName}_atom_hitting_bound
+  : CountableAtomHittingBoundAtAtom
+      (queueKernel lam mu alpha)
+      queueAtom
+      queueBoundary := by
+  exact countableAtomHittingBoundAtAtom_of_minorization
+    (kernel := queueKernel lam mu alpha)
+    (atom := queueAtom)
+    (boundary := queueBoundary)
+    (smallSetEpsilon := 1)
+    (stepEpsilon := queueMinorizationFloor)
+    (h_small := by
+      simp [queueKernel, queueSmallSet])
+    ${theoremName}_small_set_minorized
+    ${theoremName}_uniformly_minorized
+
+theorem ${theoremName}_geometric_envelope
+  : CountableGeometricEnvelopeAtAtom
+      (queueKernel lam mu alpha)
+      queueAtom
+      queueBoundary
+      1
+      queueMinorizationFloor := by
+  exact countableGeometricEnvelopeAtAtom_of_harrisPrelude_and_bound
+    (kernel := queueKernel lam mu alpha)
+    (atom := queueAtom)
+    (boundary := queueBoundary)
+    (smallSetEpsilon := 1)
+    (stepEpsilon := queueMinorizationFloor)
+    ${theoremName}_harris_prelude
+    ${theoremName}_harris_recurrent_class
+    ${theoremName}_atom_hitting_bound
+
+theorem ${theoremName}_atom_hit_lower_bound
+  : CountableAtomGeometricHitLowerBoundAtAtom
+      (queueKernel lam mu alpha)
+      queueAtom
+      queueBoundary
+      1
+      queueMinorizationFloor := by
+  exact countableAtomGeometricHitLowerBoundAtAtom_of_minorization
+    (kernel := queueKernel lam mu alpha)
+    (atom := queueAtom)
+    (boundary := queueBoundary)
+    (smallSetEpsilon := 1)
+    (stepEpsilon := queueMinorizationFloor)
+    (h_small := by
+      simp [queueKernel, queueSmallSet])
+    ${theoremName}_small_set_minorized
+    ${theoremName}_uniformly_minorized
+
+theorem ${theoremName}_quantitative_geometric_envelope
+  : CountableQuantitativeGeometricEnvelopeAtAtom
+      (queueKernel lam mu alpha)
+      queueAtom
+      queueBoundary
+      1
+      queueMinorizationFloor := by
+  exact countableQuantitativeGeometricEnvelopeAtAtom_of_components
+    (kernel := queueKernel lam mu alpha)
+    (atom := queueAtom)
+    (boundary := queueBoundary)
+    (smallSetEpsilon := 1)
+    (stepEpsilon := queueMinorizationFloor)
+    ${theoremName}_geometric_envelope
+    ${theoremName}_atom_hit_lower_bound
+
+theorem ${theoremName}_laminar_geometric_stable
+  : CountableLaminarGeometricStabilityAtAtom
+      (queueKernel lam mu alpha)
+      queueAtom
+      queueBoundary
+      1
+      queueMinorizationFloor := by
+  exact countableLaminarGeometricStabilityAtAtom_of_components
+    (kernel := queueKernel lam mu alpha)
+    (atom := queueAtom)
+    (boundary := queueBoundary)
+    (smallSetEpsilon := 1)
+    (stepEpsilon := queueMinorizationFloor)
+    ${theoremName}_geometric_envelope
+    ${theoremName}_atom_hit_lower_bound
+
+theorem ${theoremName}_measurable_harris_certified
+  (queueMeasurableKernel : ProbabilityTheory.Kernel Nat Nat)
+  (invariantMeasure minorizationMeasure : MeasureTheory.Measure Nat)
+  (queueEpsilon : ENNReal)
+  (h_atom_accessible : MeasurableAtomAccessible queueMeasurableKernel queueAtom)
+  (h_invariant : ProbabilityTheory.Kernel.Invariant queueMeasurableKernel invariantMeasure)
+  (h_small :
+    MeasurableSmallSetMinorized queueMeasurableKernel queueSmallSet minorizationMeasure queueEpsilon) :
+  MeasurableHarrisCertified
+      queueMeasurableKernel
+      (MeasureTheory.Measure.dirac queueAtom)
+      invariantMeasure
+      minorizationMeasure
+      queueSmallSet
+      queueEpsilon := by
+  exact measurableHarrisCertified_of_atomAccessible
+    queueMeasurableKernel
+    queueAtom
+    invariantMeasure
+    minorizationMeasure
+    queueSmallSet
+    queueEpsilon
+    (by simp [queueSmallSet, queueAtom, queueBoundary])
+    h_atom_accessible
+    h_invariant
+    h_small
+
+theorem ${theoremName}_measurable_small_set_accessible
+  (queueMeasurableKernel : ProbabilityTheory.Kernel Nat Nat)
+  (invariantMeasure minorizationMeasure : MeasureTheory.Measure Nat)
+  (queueEpsilon : ENNReal)
+  (h_atom_accessible : MeasurableAtomAccessible queueMeasurableKernel queueAtom)
+  (h_invariant : ProbabilityTheory.Kernel.Invariant queueMeasurableKernel invariantMeasure)
+  (h_small :
+    MeasurableSmallSetMinorized queueMeasurableKernel queueSmallSet minorizationMeasure queueEpsilon) :
+  MeasurableSmallSetAccessible queueMeasurableKernel queueSmallSet := by
+  exact measurableSmallSetAccessible_of_atomAccessible
+    queueMeasurableKernel
+    queueAtom
+    invariantMeasure
+    minorizationMeasure
+    queueSmallSet
+    queueEpsilon
+    (by simp [queueSmallSet, queueAtom, queueBoundary])
+    h_atom_accessible
+    h_invariant
+    h_small
+
+theorem ${theoremName}_measurable_containing_atom_accessible
+  (queueMeasurableKernel : ProbabilityTheory.Kernel Nat Nat)
+  (invariantMeasure minorizationMeasure : MeasureTheory.Measure Nat)
+  (queueEpsilon : ENNReal)
+  (measurableSet : Set Nat)
+  (h_atom_accessible : MeasurableAtomAccessible queueMeasurableKernel queueAtom)
+  (h_invariant : ProbabilityTheory.Kernel.Invariant queueMeasurableKernel invariantMeasure)
+  (h_small :
+    MeasurableSmallSetMinorized queueMeasurableKernel queueSmallSet minorizationMeasure queueEpsilon)
+  (h_measurableSet : MeasurableSet measurableSet)
+  (h_atom_mem : queueAtom ∈ measurableSet) :
+  forall current : Nat,
+    ∃ n : ℕ, (queueMeasurableKernel ^ n) current measurableSet > 0 := by
+  exact measurableContainingAtomAccessible_of_atomAccessible
+    queueMeasurableKernel
+    queueAtom
+    invariantMeasure
+    minorizationMeasure
+    queueSmallSet
+    measurableSet
+    queueEpsilon
+    (by simp [queueSmallSet, queueAtom, queueBoundary])
+    h_atom_accessible
+    h_invariant
+    h_small
+    h_measurableSet
+    h_atom_mem`,
+    };
+  }
+
+  return {
+    definitions: sharedDefinitions,
+      theorem: `
+
+theorem ${theoremName}_small_set_minorized
+  (lam mu : Real)
+  (alpha : Nat -> Real)
+  : CountableAtomicSmallSetMinorized
+      (queueKernel lam mu alpha)
+      queueAtom
+      1 := by
+  apply countableAtomicSmallSetMinorized_one_of_collapse
+  · simp [queueKernel, queueSmallSet, queueAtom]
+  · intro current h_current_small
+    have h_current_le : current <= queueBoundary := by
+      simpa [queueSmallSet] using h_current_small
+    simp [queueKernel, queueSmallSet, queueAtom, h_current_le]
+
+theorem ${theoremName}_uniformly_minorized
+  (lam mu : Real)
+  (alpha : Nat -> Real)
+  (h_drift_floor :
+    ∀ current : Nat,
+      queueBoundary < current ->
+        lam - (mu + alpha current) <= -1) :
+  CountableUniformPredecessorMinorized
+      (queueKernel lam mu alpha)
+      queueBoundary
+      queueMinorizationFloor := by
+  constructor
+  · norm_num [queueMinorizationFloor]
+  · intro current h_current_gt
+    have h_current_not_le : ¬ current ≤ queueBoundary := Nat.not_le_of_gt h_current_gt
+    have h_current_not_le_value : ¬ current ≤ ${queueBoundary} := by
+      simpa [queueBoundary] using h_current_not_le
+    have h_predecessor : current - 1 + 1 = current := by
+      omega
+    have h_margin_floor : 1 <= mu + alpha current - lam := by
+      have h_floor := h_drift_floor current h_current_gt
+      linarith
+    have h_queue_floor : queueMinorizationFloor <= mu + alpha current - lam := by
+      simpa [queueMinorizationFloor] using h_margin_floor
+    simpa [queueKernel, queueSmallSet, queueBoundary, h_current_not_le_value, h_predecessor] using h_queue_floor
+
+theorem ${theoremName}_countably_recurrent
+  (lam mu : Real)
+  (alpha : Nat -> Real)
+  (h_drift_floor :
+    ∀ current : Nat,
+      queueBoundary < current ->
+        lam - (mu + alpha current) <= -1) :
+  CountableSmallSetRecurrent (queueKernel lam mu alpha) := by
+  apply natSmallSetRecurrent_of_uniformPredecessorMinorization
+    (kernel := queueKernel lam mu alpha)
+    (boundary := queueBoundary)
+    (epsilon := queueMinorizationFloor)
+    (h_small := by
+      simp [queueKernel, queueSmallSet])
+  exact ${theoremName}_uniformly_minorized lam mu alpha h_drift_floor
+
+theorem ${theoremName}_atom_accessible
+  (lam mu : Real)
+  (alpha : Nat -> Real)
+  (h_drift_floor :
+    ∀ current : Nat,
+      queueBoundary < current ->
+        lam - (mu + alpha current) <= -1) :
+  CountableAtomAccessible (queueKernel lam mu alpha) queueAtom := by
+  exact countableAtomAccessible_of_smallSetRecurrence_and_atomicMinorization
+    (kernel := queueKernel lam mu alpha)
+    (atom := queueAtom)
+    (epsilon := 1)
+    (${theoremName}_countably_recurrent lam mu alpha h_drift_floor)
+    (${theoremName}_small_set_minorized lam mu alpha)
+
+theorem ${theoremName}_psi_irreducible
+  (lam mu : Real)
+  (alpha : Nat -> Real)
+  (h_drift_floor :
+    ∀ current : Nat,
+      queueBoundary < current ->
+        lam - (mu + alpha current) <= -1) :
+  CountablePsiIrreducibleAtAtom (queueKernel lam mu alpha) queueAtom := by
+  exact countablePsiIrreducibleAtAtom_of_atomAccessible
+    (kernel := queueKernel lam mu alpha)
+    (atom := queueAtom)
+    (${theoremName}_atom_accessible lam mu alpha h_drift_floor)
+
+theorem ${theoremName}_harris_prelude
+  (lam mu : Real)
+  (alpha : Nat -> Real)
+  (h_drift_floor :
+    ∀ current : Nat,
+      queueBoundary < current ->
+        lam - (mu + alpha current) <= -1) :
+  CountableHarrisPreludeAtAtom
+      (queueKernel lam mu alpha)
+      queueAtom
+      queueBoundary
+      1
+      queueMinorizationFloor := by
+  exact countableHarrisPreludeAtAtom_of_components
+    (kernel := queueKernel lam mu alpha)
+    (atom := queueAtom)
+    (boundary := queueBoundary)
+    (smallSetEpsilon := 1)
+    (stepEpsilon := queueMinorizationFloor)
+    (${theoremName}_small_set_minorized lam mu alpha)
+    (${theoremName}_uniformly_minorized lam mu alpha h_drift_floor)
+    (${theoremName}_psi_irreducible lam mu alpha h_drift_floor)
+
+theorem ${theoremName}_harris_recurrent_class
+  (lam mu : Real)
+  (alpha : Nat -> Real)
+  (h_drift_floor :
+    ∀ current : Nat,
+      queueBoundary < current ->
+        lam - (mu + alpha current) <= -1) :
+  CountableHarrisRecurrentClassAtAtom
+      (queueKernel lam mu alpha)
+      queueAtom := by
+  exact countableHarrisRecurrentClassAtAtom_of_recurrence_and_prelude
+    (kernel := queueKernel lam mu alpha)
+    (atom := queueAtom)
+    (boundary := queueBoundary)
+    (smallSetEpsilon := 1)
+    (stepEpsilon := queueMinorizationFloor)
+    (${theoremName}_countably_recurrent lam mu alpha h_drift_floor)
+    (${theoremName}_harris_prelude lam mu alpha h_drift_floor)
+
+theorem ${theoremName}_atom_hitting_bound
+  (lam mu : Real)
+  (alpha : Nat -> Real)
+  (h_drift_floor :
+    ∀ current : Nat,
+      queueBoundary < current ->
+        lam - (mu + alpha current) <= -1) :
+  CountableAtomHittingBoundAtAtom
+      (queueKernel lam mu alpha)
+      queueAtom
+      queueBoundary := by
+  exact countableAtomHittingBoundAtAtom_of_minorization
+    (kernel := queueKernel lam mu alpha)
+    (atom := queueAtom)
+    (boundary := queueBoundary)
+    (smallSetEpsilon := 1)
+    (stepEpsilon := queueMinorizationFloor)
+    (h_small := by
+      simp [queueKernel, queueSmallSet])
+    (${theoremName}_small_set_minorized lam mu alpha)
+    (${theoremName}_uniformly_minorized lam mu alpha h_drift_floor)
+
+theorem ${theoremName}_geometric_envelope
+  (lam mu : Real)
+  (alpha : Nat -> Real)
+  (h_drift_floor :
+    ∀ current : Nat,
+      queueBoundary < current ->
+        lam - (mu + alpha current) <= -1) :
+  CountableGeometricEnvelopeAtAtom
+      (queueKernel lam mu alpha)
+      queueAtom
+      queueBoundary
+      1
+      queueMinorizationFloor := by
+  exact countableGeometricEnvelopeAtAtom_of_harrisPrelude_and_bound
+    (kernel := queueKernel lam mu alpha)
+    (atom := queueAtom)
+    (boundary := queueBoundary)
+    (smallSetEpsilon := 1)
+    (stepEpsilon := queueMinorizationFloor)
+    (${theoremName}_harris_prelude lam mu alpha h_drift_floor)
+    (${theoremName}_harris_recurrent_class lam mu alpha h_drift_floor)
+    (${theoremName}_atom_hitting_bound lam mu alpha h_drift_floor)
+
+theorem ${theoremName}_atom_hit_lower_bound
+  (lam mu : Real)
+  (alpha : Nat -> Real)
+  (h_drift_floor :
+    ∀ current : Nat,
+      queueBoundary < current ->
+        lam - (mu + alpha current) <= -1) :
+  CountableAtomGeometricHitLowerBoundAtAtom
+      (queueKernel lam mu alpha)
+      queueAtom
+      queueBoundary
+      1
+      queueMinorizationFloor := by
+  exact countableAtomGeometricHitLowerBoundAtAtom_of_minorization
+    (kernel := queueKernel lam mu alpha)
+    (atom := queueAtom)
+    (boundary := queueBoundary)
+    (smallSetEpsilon := 1)
+    (stepEpsilon := queueMinorizationFloor)
+    (h_small := by
+      simp [queueKernel, queueSmallSet])
+    (${theoremName}_small_set_minorized lam mu alpha)
+    (${theoremName}_uniformly_minorized lam mu alpha h_drift_floor)
+
+theorem ${theoremName}_quantitative_geometric_envelope
+  (lam mu : Real)
+  (alpha : Nat -> Real)
+  (h_drift_floor :
+    ∀ current : Nat,
+      queueBoundary < current ->
+        lam - (mu + alpha current) <= -1) :
+  CountableQuantitativeGeometricEnvelopeAtAtom
+      (queueKernel lam mu alpha)
+      queueAtom
+      queueBoundary
+      1
+      queueMinorizationFloor := by
+  exact countableQuantitativeGeometricEnvelopeAtAtom_of_components
+    (kernel := queueKernel lam mu alpha)
+    (atom := queueAtom)
+    (boundary := queueBoundary)
+    (smallSetEpsilon := 1)
+    (stepEpsilon := queueMinorizationFloor)
+    (${theoremName}_geometric_envelope lam mu alpha h_drift_floor)
+    (${theoremName}_atom_hit_lower_bound lam mu alpha h_drift_floor)
+
+theorem ${theoremName}_laminar_geometric_stable
+  (lam mu : Real)
+  (alpha : Nat -> Real)
+  (h_drift_floor :
+    ∀ current : Nat,
+      queueBoundary < current ->
+        lam - (mu + alpha current) <= -1) :
+  CountableLaminarGeometricStabilityAtAtom
+      (queueKernel lam mu alpha)
+      queueAtom
+      queueBoundary
+      1
+      queueMinorizationFloor := by
+  exact countableLaminarGeometricStabilityAtAtom_of_components
+    (kernel := queueKernel lam mu alpha)
+    (atom := queueAtom)
+    (boundary := queueBoundary)
+    (smallSetEpsilon := 1)
+    (stepEpsilon := queueMinorizationFloor)
+    (${theoremName}_geometric_envelope lam mu alpha h_drift_floor)
+    (${theoremName}_atom_hit_lower_bound lam mu alpha h_drift_floor)
+
+theorem ${theoremName}_measurable_harris_certified
+  (queueMeasurableKernel : ProbabilityTheory.Kernel Nat Nat)
+  (invariantMeasure minorizationMeasure : MeasureTheory.Measure Nat)
+  (queueEpsilon : ENNReal)
+  (h_atom_accessible : MeasurableAtomAccessible queueMeasurableKernel queueAtom)
+  (h_invariant : ProbabilityTheory.Kernel.Invariant queueMeasurableKernel invariantMeasure)
+  (h_small :
+    MeasurableSmallSetMinorized queueMeasurableKernel queueSmallSet minorizationMeasure queueEpsilon) :
+  MeasurableHarrisCertified
+      queueMeasurableKernel
+      (MeasureTheory.Measure.dirac queueAtom)
+      invariantMeasure
+      minorizationMeasure
+      queueSmallSet
+      queueEpsilon := by
+  exact measurableHarrisCertified_of_atomAccessible
+    queueMeasurableKernel
+    queueAtom
+    invariantMeasure
+    minorizationMeasure
+    queueSmallSet
+    queueEpsilon
+    (by simp [queueSmallSet, queueAtom, queueBoundary])
+    h_atom_accessible
+    h_invariant
+    h_small
+
+theorem ${theoremName}_measurable_small_set_accessible
+  (queueMeasurableKernel : ProbabilityTheory.Kernel Nat Nat)
+  (invariantMeasure minorizationMeasure : MeasureTheory.Measure Nat)
+  (queueEpsilon : ENNReal)
+  (h_atom_accessible : MeasurableAtomAccessible queueMeasurableKernel queueAtom)
+  (h_invariant : ProbabilityTheory.Kernel.Invariant queueMeasurableKernel invariantMeasure)
+  (h_small :
+    MeasurableSmallSetMinorized queueMeasurableKernel queueSmallSet minorizationMeasure queueEpsilon) :
+  MeasurableSmallSetAccessible queueMeasurableKernel queueSmallSet := by
+  exact measurableSmallSetAccessible_of_atomAccessible
+    queueMeasurableKernel
+    queueAtom
+    invariantMeasure
+    minorizationMeasure
+    queueSmallSet
+    queueEpsilon
+    (by simp [queueSmallSet, queueAtom, queueBoundary])
+    h_atom_accessible
+    h_invariant
+    h_small
+
+theorem ${theoremName}_measurable_containing_atom_accessible
+  (queueMeasurableKernel : ProbabilityTheory.Kernel Nat Nat)
+  (invariantMeasure minorizationMeasure : MeasureTheory.Measure Nat)
+  (queueEpsilon : ENNReal)
+  (measurableSet : Set Nat)
+  (h_atom_accessible : MeasurableAtomAccessible queueMeasurableKernel queueAtom)
+  (h_invariant : ProbabilityTheory.Kernel.Invariant queueMeasurableKernel invariantMeasure)
+  (h_small :
+    MeasurableSmallSetMinorized queueMeasurableKernel queueSmallSet minorizationMeasure queueEpsilon)
+  (h_measurableSet : MeasurableSet measurableSet)
+  (h_atom_mem : queueAtom ∈ measurableSet) :
+  forall current : Nat,
+    ∃ n : ℕ, (queueMeasurableKernel ^ n) current measurableSet > 0 := by
+  exact measurableContainingAtomAccessible_of_atomAccessible
+    queueMeasurableKernel
+    queueAtom
+    invariantMeasure
+    minorizationMeasure
+    queueSmallSet
+    measurableSet
+    queueEpsilon
+    (by simp [queueSmallSet, queueAtom, queueBoundary])
+    h_atom_accessible
+    h_invariant
+    h_small
+    h_measurableSet
+    h_atom_mem`,
+  };
+}
+
+function buildRecurrenceDefinitions(
+  nodeIds: readonly string[],
+  indexByNodeId: Map<string, number>,
+  stability: StabilityReport
+): {
+  definitions: string;
+  proof: string;
+} | null {
+  if (!stability.recurrence.finiteStateCertified) {
+    return null;
+  }
+
+  const recurrenceByNodeId = new Map(
+    stability.recurrence.steps.map((step) => [step.nodeId, step])
+  );
+  const smallSetIndices = stability.smallSetNodeIds
+    .map((nodeId) => indexByNodeId.get(nodeId))
+    .filter((index): index is number => index !== undefined);
+  const distanceValues = nodeIds.map(
+    (nodeId) => recurrenceByNodeId.get(nodeId)?.distanceToSmallSet ?? 0
+  );
+  const nextValues = nodeIds.map((nodeId) => {
+    const nextNodeId = recurrenceByNodeId.get(nodeId)?.nextNodeId ?? nodeId;
+    return indexByNodeId.get(nextNodeId) ?? 0;
+  });
+  const stepProofCases = nodeIds
+    .map((nodeId) => {
+      const step = recurrenceByNodeId.get(nodeId);
+      if (step?.distanceToSmallSet === 0) {
+        return `    · simp [smallSet, smallSetIndices] at h_not_small`;
+      }
+
+      return `    · simp [smallSet, smallSetIndices] at h_not_small
+      constructor
+      · norm_num [kernel, transition, transitionRat, nextTowardSmallSet]
+      · native_decide`;
+    })
+    .join('\n');
+
+  return {
+    definitions: `def smallSetIndices : List Nat := ${toLeanNatList(smallSetIndices)}
+
+def smallSet : Fin topologyNodeCount -> Prop :=
+  fun state => state.1 ∈ smallSetIndices
+
+instance : DecidablePred smallSet := by
+  intro state
+  unfold smallSet
+  infer_instance
+
+${buildNatMatchDefinition('distanceToSmallSet', distanceValues)}
+
+${buildFinMatchDefinition('nextTowardSmallSet', nextValues)}
+`,
+    proof: `have h_recurrence : FiniteSmallSetRecurrent kernelExpression smallSet := by
+  apply finiteSmallSetRecurrent_of_distanceWitness
+    (kernel := kernelExpression)
+    (smallSet := smallSet)
+    (distance := distanceToSmallSet)
+    (next := nextTowardSmallSet)
+  constructor
+  · intro state
+    fin_cases state <;> native_decide
+  constructor
+  · intro state
+    fin_cases state <;> native_decide
+  · intro state h_not_small
+    fin_cases state
+${stepProofCases}`,
+  };
+}
+
 function buildKernelDefinitions(
   ast: GraphAST,
   stability: StabilityReport,
@@ -359,6 +1090,15 @@ function buildKernelDefinitions(
   const spectralStrategy = buildSpectralProofStrategy(ast, nodeIds, indexedKernelEdges);
   const topologyNodes = toLeanStringList(nodeIds);
   const smallSetNodeIds = toLeanStringList(stability.smallSetNodeIds);
+  const recurrenceWitness = buildRecurrenceDefinitions(
+    nodeIds,
+    indexByNodeId,
+    stability
+  );
+  const countableQueueRecurrence = buildCountableQueueRecurrenceTheorem(
+    theoremName,
+    stability
+  );
   const topologyNodeCount = nodeIds.length;
   const spectralCeiling = formatLeanReal(stability.geometricCeiling ?? stability.spectralRadius ?? 0);
   const redline = formatLeanReal(stability.redline ?? 0);
@@ -376,11 +1116,29 @@ def topologyNodes : List NodeId := ${topologyNodes}
 def smallSetNodeIds : List NodeId := ${smallSetNodeIds}
 
 ${transitionDefinitions}
+
+${recurrenceWitness?.definitions ?? ''}
+${countableQueueRecurrence?.definitions ?? ''}
 `;
 
   if (stability.proof.kind === 'bounded-supremum') {
     const spectralWitness = buildSpectralWitness(spectralStrategy, 'kernel');
     const spectralProof = indentBlock(spectralWitness.proof, 2);
+    const recurrenceProof = recurrenceWitness
+      ? indentBlock(
+          recurrenceWitness.proof.replaceAll('kernelExpression', 'kernel'),
+          2
+        )
+      : '';
+    const recurrenceTheorem = recurrenceWitness
+      ? `
+
+theorem ${theoremName}_finitely_recurrent :
+  FiniteSmallSetRecurrent kernel smallSet := by
+${recurrenceProof}
+  exact h_recurrence`
+      : '';
+    const countableQueueTheorem = countableQueueRecurrence?.theorem ?? '';
     return {
       nodeIds,
       definitions: `${sharedDefinitions}
@@ -400,7 +1158,7 @@ noncomputable def kernel : CertifiedKernel topologyNodeCount := {
 ${spectralProof}
   apply certifiedKernel_stable_of_supremum (kernel := kernel)
   · exact h_spectral
-  · rfl`,
+  · rfl${recurrenceTheorem}${countableQueueTheorem}`,
     };
   }
 
@@ -412,6 +1170,21 @@ ${spectralProof}
 
     const spectralWitness = buildSpectralWitness(spectralStrategy, 'kernel');
     const spectralProof = indentBlock(spectralWitness.proof, 2);
+    const recurrenceProof = recurrenceWitness
+      ? indentBlock(
+          recurrenceWitness.proof.replaceAll('kernelExpression', 'kernel'),
+          2
+        )
+      : '';
+    const recurrenceTheorem = recurrenceWitness
+      ? `
+
+theorem ${theoremName}_finitely_recurrent :
+  FiniteSmallSetRecurrent kernel smallSet := by
+${recurrenceProof}
+  exact h_recurrence`
+      : '';
+    const countableQueueTheorem = countableQueueRecurrence?.theorem ?? '';
     return {
       nodeIds,
       definitions: `${sharedDefinitions}
@@ -447,7 +1220,7 @@ ${spectralProof}
   · exact h_spectral
   · norm_num [driftCertificate]
   · intro queueDepth
-    norm_num [driftAt, driftCertificate, lam, mu, alpha]`,
+    norm_num [driftAt, driftCertificate, lam, mu, alpha]${recurrenceTheorem}${countableQueueTheorem}`,
     };
   }
 
@@ -459,6 +1232,26 @@ ${spectralProof}
 
   const spectralWitness = buildSpectralWitness(spectralStrategy, '(kernel lam mu alpha)');
   const spectralProof = indentBlock(spectralWitness.proof, 2);
+  const recurrenceProof = recurrenceWitness
+    ? indentBlock(
+        recurrenceWitness.proof.replaceAll(
+          'kernelExpression',
+          '(kernel lam mu alpha)'
+        ),
+        2
+      )
+    : '';
+  const recurrenceTheorem = recurrenceWitness
+    ? `
+
+theorem ${theoremName}_finitely_recurrent
+  (lam mu : Real)
+  (alpha : Nat -> Real) :
+  FiniteSmallSetRecurrent (kernel lam mu alpha) smallSet := by
+${recurrenceProof}
+  exact h_recurrence`
+    : '';
+  const countableQueueTheorem = countableQueueRecurrence?.theorem ?? '';
   return {
     nodeIds,
     definitions: `${sharedDefinitions}
@@ -492,7 +1285,7 @@ ${spectralProof}
   · rfl
   · exact h_spectral
   · norm_num [driftCertificate]
-  · simpa [driftAt, driftCertificate] using h_drift_floor`,
+  · simpa [driftAt, driftCertificate] using h_drift_floor${recurrenceTheorem}${countableQueueTheorem}`,
   };
 }
 
@@ -509,6 +1302,7 @@ export function generateLeanFromGnosisAst(
   const theoremName =
     options.theoremName ?? sanitizeLeanIdentifier(stability.proof.theoremName);
   const { definitions, theorem } = buildKernelDefinitions(ast, stability, theoremName);
+  const countableQueueTheoremEnabled = stability.countableQueue !== null;
 
   const lean = `import GnosisProofs
 import Mathlib.Tactic
@@ -523,6 +1317,8 @@ ${definitions}
    proof-kind: ${stability.proof.kind}
    proof-summary: ${stability.proof.summary}
    harris-recurrent: ${stability.harrisRecurrent}
+   finite-state-recurrent: ${stability.recurrence.finiteStateCertified}
+   countable-queue-theorem: ${countableQueueTheoremEnabled}
    vent-isolation-ok: ${stability.ventIsolationOk}
 -/
 

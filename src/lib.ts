@@ -57,6 +57,8 @@ export type {
   StabilityProofAssumption,
   StabilityProofKind,
   StabilityProofObligation,
+  StabilityRecurrenceStep,
+  StabilityRecurrenceWitness,
   StabilityReport,
   StabilityStateAssessment,
 } from './betty/stability.js';

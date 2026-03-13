@@ -260,6 +260,23 @@ describe('BettyCompiler', () => {
 
     expect(stability?.proof.kind).toBe('symbolic-reneging');
     expect(stability?.metadata.redline).toBe(64);
+    expect(stability?.countableQueue?.predecessorStepMode).toBe('margin-predecessor');
+    expect(stability?.countableQueue?.queueBoundary).toBe(64);
+    expect(stability?.countableQueue?.laminarAtom).toBe(0);
+    expect(stability?.countableQueue?.arrivalExpression).toBe('lambda');
+    expect(stability?.countableQueue?.serviceExpression).toBe('mu');
+    expect(stability?.countableQueue?.ventExpression).toBe('alpha(n)');
+    expect(stability?.metadata.countableQueueCertified).toBe(true);
+    expect(stability?.metadata.queueBoundary).toBe(64);
+    expect(stability?.metadata.laminarAtom).toBe(0);
+    expect(stability?.metadata.queuePotential).toBe('beta1');
+    expect(stability?.metadata.laminarGeometricTheoremName).toBe(
+      'complete_is_geometrically_stable_laminar_geometric_stable'
+    );
+    expect(stability?.metadata.measurableHarrisTheoremName).toBe(
+      'complete_is_geometrically_stable_measurable_harris_certified'
+    );
+    expect(stability?.recurrence.finiteStateCertified).toBe(true);
     expect(
       diagnostics.some((diagnostic) => diagnostic.code === 'ERR_DRIFT_POSITIVE')
     ).toBe(false);
