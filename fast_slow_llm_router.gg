@@ -1,0 +1,4 @@
+// fast_slow_llm_router.gg — Cognitive Routing (Fast/Slow)
+
+(query: Text)-[:FORK]->(fast_lane: SmallLLM | slow_lane: LargeLLM)
+(fast_lane | slow_lane)-[:RACE { expect: 'adequate-quality' }]->(answer: Text)

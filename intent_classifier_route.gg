@@ -1,0 +1,4 @@
+// intent_classifier_route.gg — Intent Routing
+
+(user_msg: Text)-[:PROCESS]->(classifier: LLM)-[:FORK]->(tool_a: Action | tool_b: Action | fallback: Action)
+(tool_a | tool_b | fallback)-[:RACE { expect: 'highest-confidence' }]->(execution: Route)

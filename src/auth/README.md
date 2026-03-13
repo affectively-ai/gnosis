@@ -6,7 +6,8 @@ Native UCAN/ZK/custodial integration helpers for Gnosis runtime authorization.
 
 ## Files
 
-- [core.ts](./core.ts): UCAN issuance/verification/delegation and edge authorization helpers.
+- [core.ts](./core.ts): UCAN issuance/verification/delegation, execution-auth normalization, and capability authorization helpers for runtime edges plus steering/boundary-walk surfaces.
+- [bootstrap.ts](./bootstrap.ts): topology-local auth bootstrap pass that preflights native UCAN/value-shaping nodes to derive `executionAuth` before the main boundary-walk gate.
 - [handlers.ts](./handlers.ts): Built-in runtime handlers (`UCAN*`, `ZK*`, `CustodialSigner`, sync/materialization ZK envelopes).
 - [auto-zk.ts](./auto-zk.ts): automatic AST injection for sensitive sync/materialization ZK envelope nodes.
 - [tee-attestation.ts](./tee-attestation.ts): HALT attestation signing/verification, execution-envelope checks, and nonce replay protection.
@@ -36,6 +37,19 @@ Wildcard examples:
 
 - Action wildcard: `aeon/*`
 - Resource wildcard: `aeon://edge/vent/branch-a->*`
+
+## Steering Capability Contract
+
+Once a run has adopted `executionAuth.enforce=true`, boundary walks can also require steering-specific UCAN capabilities:
+
+- `gnosis/steering.run` -> `aeon://steering/topology/<topologyFingerprint>`
+- `gnosis/steering.trace.append` -> `aeon://steering-trace/cohort/<cohortKey>`
+- `gnosis/steering.relay.connect` -> `aeon://steering-relay/room/<roomName>`
+- `gnosis/steering.apply` -> `aeon://steering/topology/<topologyFingerprint>`
+
+The runtime now normalizes execution auth once and keeps it in engine/store context so payload-replacing handlers do not silently drop authorization mid-run.
+
+For CLI/REPL boundary walks, Gnosis also performs a narrow bootstrap preflight over root-connected native auth nodes (`UCAN*`, `Result`, `Option`, `Variant`, `Destructure`). That lets a topology issue/verify its own UCAN and still gate steering before the full run begins.
 
 ## ZK Policy
 

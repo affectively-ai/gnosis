@@ -5,6 +5,9 @@ NODES == {"request", "generic_plan", "profile_collector", "policy_model", "speci
 ROOTS == {"request"}
 TERMINALS == {"next_epoch"}
 FOLD_TARGETS == {"next_epoch"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

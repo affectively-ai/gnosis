@@ -1,0 +1,5 @@
+// flux_client_sync.gg — Aeon Flux Client Sync
+
+(ui_mutation: Event)-[:FORK]->(optimistic_update: DOM | server_sync: WSS)
+(server_sync)-[:PROCESS]->(ack: Network)
+(optimistic_update | ack)-[:FOLD { strategy: 'reconcile' }]->(confirmed_ui: DOM)

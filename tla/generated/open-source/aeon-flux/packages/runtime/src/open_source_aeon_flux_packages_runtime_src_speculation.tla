@@ -5,6 +5,9 @@ NODES == {"viewport_links", "hover_intent", "predictive_markov", "fetcher", "ran
 ROOTS == {"viewport_links", "hover_intent", "predictive_markov"}
 TERMINALS == {"dead_end", "evictor"}
 FOLD_TARGETS == {"cache_state"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

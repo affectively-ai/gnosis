@@ -5,6 +5,9 @@ NODES == {"doc", "content_layer", "edit_a", "ea", "edit_b", "eb", "content", "pr
 ROOTS == {"doc"}
 TERMINALS == {"cb"}
 FOLD_TARGETS == {"content"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

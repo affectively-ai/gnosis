@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { render, Text, Box, useApp } from 'ink';
 import TextInput from 'ink-text-input';
 import {
@@ -17,6 +17,7 @@ import {
 } from './repl-visualization.js';
 import {
   analyzeGnosisSource,
+  type GnosisComplexityReport,
   DEFAULT_GNOSIS_STEERING_MODE,
   finishSteeringTelemetry,
   startSteeringTelemetry,
@@ -26,6 +27,21 @@ import {
   type GnosisSteeringMode,
   type GnosisSteeringMetrics
 } from './analysis.js';
+import {
+  authorizeBoundaryWalkRun,
+  createSteeringTraceRecord,
+  DEFAULT_GNOSIS_STEERING_TRACE_WINDOW,
+  defaultSteeringTraceRoomName,
+  fingerprintSteeringTopology,
+  formatSteeringTraceAlert,
+  formatSteeringTraceStoreStatus,
+  formatSteeringTraceSummary,
+  GnosisSteeringTraceStore,
+} from './steering-trace.js';
+import type { QDocRelayConfig } from './crdt/index.js';
+import { authorizeSteeringApply } from './auth/index.js';
+import { bootstrapExecutionAuthFromTopology } from './auth/index.js';
+import type { GnosisExecutionAuthContext } from './auth/index.js';
 
 type HistoryEntry = {
   type: 'input' | 'output' | 'error';
@@ -35,6 +51,9 @@ type HistoryEntry = {
 type ReplOptions = {
   verbose?: boolean;
   steeringMode?: GnosisSteeringMode;
+  steeringTraceWindow?: number;
+  steeringRelayConfig?: QDocRelayConfig | null;
+  executionAuth?: GnosisExecutionAuthContext | null;
 };
 
 const MAX_HISTORY_ENTRIES = 80;
@@ -90,6 +109,54 @@ function formatError(error: unknown): string {
 
 function formatMottoError(error: unknown): string {
   return `${ERROR_MOTTO}: ${formatError(error)}`;
+}
+
+function assertBoundaryWalkAuthorized(
+  source: string,
+  steeringMode: GnosisSteeringMode,
+  executionAuth: GnosisExecutionAuthContext | null,
+): void {
+  if (!executionAuth || executionAuth.enforce !== true) {
+    return;
+  }
+
+  const runAuthorization = authorizeBoundaryWalkRun({
+    source,
+    executionAuth,
+  });
+  if (!runAuthorization.allowed) {
+    throw new Error(
+      `Boundary walk denied: ${runAuthorization.reason ?? 'missing gnosis/steering.run capability'}`
+    );
+  }
+
+  if (steeringMode !== 'apply') {
+    return;
+  }
+
+  const applyAuthorization = authorizeSteeringApply({
+    topologyFingerprint: fingerprintSteeringTopology(source),
+    auth: executionAuth,
+  });
+  if (!applyAuthorization.allowed) {
+    throw new Error(
+      `Boundary walk apply denied: ${applyAuthorization.reason ?? 'missing gnosis/steering.apply capability'}`
+    );
+  }
+}
+
+async function resolveBoundaryWalkExecutionAuth(
+  ast: GraphAST,
+  explicitExecutionAuth: GnosisExecutionAuthContext | null,
+): Promise<GnosisExecutionAuthContext | null> {
+  if (explicitExecutionAuth) {
+    return explicitExecutionAuth;
+  }
+
+  const bootstrap = await bootstrapExecutionAuthFromTopology(ast, {
+    initialPayload: 'REPL_INIT',
+  });
+  return bootstrap.executionAuth;
 }
 
 function formatDiagnostics(diagnostics: Diagnostic[]): string {
@@ -332,10 +399,12 @@ const MetricsPanel = React.memo(function MetricsPanel({
 const SteeringPanel = React.memo(function SteeringPanel({
   steering,
   steeringMode,
+  traceAlert,
   phase
 }: {
   steering: GnosisSteeringMetrics | null;
   steeringMode: GnosisSteeringMode;
+  traceAlert: string | null;
   phase: number;
 }) {
   if (!surfaceSteeringMetrics(steeringMode)) {
@@ -350,34 +419,66 @@ const SteeringPanel = React.memo(function SteeringPanel({
 
   if (!steering) {
     return (
-      <Box borderStyle="single" borderColor={rainbowColor(8)} paddingX={1} marginBottom={1}>
-        <Text color={spectrumColor(8, phase)}>
-          Steering idle. Draw topology to measure Wallace; execute to observe micro-Charleys.
+      <Box borderStyle="single" borderColor={traceAlert ? 'redBright' : rainbowColor(8)} paddingX={1} marginBottom={1}>
+        {traceAlert ? (
+          <Text color="redBright" bold>
+            {traceAlert}
+          </Text>
+        ) : null}
+        <Text color={traceAlert ? 'redBright' : spectrumColor(8, phase)}>
+          Steering idle. Draw topology to measure Wallace; execute to observe time in microCharleys.
         </Text>
       </Box>
     );
   }
 
   return (
-    <Box flexDirection="column" borderStyle="single" borderColor={rainbowColor(9)} paddingX={1} marginBottom={1}>
+    <Box flexDirection="column" borderStyle="single" borderColor={traceAlert ? 'redBright' : rainbowColor(9)} paddingX={1} marginBottom={1}>
       <Text bold color={rainbowColor(10)}>
         STEERING
       </Text>
+      {traceAlert ? (
+        <Text color="redBright" bold>
+          {traceAlert}
+        </Text>
+      ) : null}
       <Text color={spectrumColor(7, phase)}>
-        mode: {steering.mode} | Wallace: {steering.wallaceNumber} {steering.wallaceUnit} | frontier-fill: {steering.frontierFill}
+        mode: {steering.mode} | Wallace metric: {steering.wallaceNumber} wallys | frontier-fill: {steering.frontierFill}
       </Text>
       <Text color={spectrumColor(4, phase)}>
         topology-deficit: {steering.topologyDeficit} | regime: {steering.regime}
+        {' | '}bias: {steering.leanInBias} ({steering.boundaryWalkBias})
         {surfaceSteeringRecommendations(steering.mode) && steering.recommendedAction
           ? ` | action: ${steering.recommendedAction}`
           : ''}
       </Text>
+      {steering.failureBoundary.deterministicCollapseCandidate ||
+      steering.failureBoundary.contagiousRepairPressure ? (
+        <Text color={spectrumColor(5, phase)}>
+          collapse cost: {steering.failureBoundary.collapseCostAction}
+          {steering.failureBoundary.collapseCostFloor > 0
+            ? ` | floor: ${steering.failureBoundary.collapseCostFloor} | paid: ${steering.failureBoundary.totalPaidCost}`
+            : ''}
+          {steering.failureBoundary.paidStageCount > 0
+            ? ` | paid-stages: ${steering.failureBoundary.paidStageCount}`
+            : ''}
+          {steering.failureBoundary.zeroWasteCollapseRisk
+            ? ' | free collapse blocked'
+            : ''}
+          {steering.failureBoundary.freeCollapsePrefixRisk
+            ? ` | prefix deficit: ${steering.failureBoundary.prefixCostDeficit}`
+            : ''}
+          {steering.failureBoundary.contagiousRepairPressure
+            ? ' | zero-vent repair pressure'
+            : ''}
+        </Text>
+      ) : null}
       <Text color={spectrumColor(6, phase)}>
         frontier-median: {steering.eda.frontierWidths.summary.median.datum} | occupancy-median: {steering.eda.layerOccupancy.summary.median.datum} | graph-density: {steering.eda.graph.density} | outliers: {steering.eda.graphOutliers.length}
       </Text>
       {steering.telemetry.wallMicroCharleys !== null || steering.telemetry.cpuMicroCharleys !== null ? (
         <Text color={spectrumColor(2, phase)}>
-          wall-uCharleys: {steering.telemetry.wallMicroCharleys ?? 'n/a'} | cpu-uCharleys: {steering.telemetry.cpuMicroCharleys ?? 'n/a'} | wall/cpu: {steering.telemetry.wallToCpuRatio ?? 'n/a'}
+          wall time (uCharleys): {steering.telemetry.wallMicroCharleys ?? 'n/a'} | cpu time (uCharleys): {steering.telemetry.cpuMicroCharleys ?? 'n/a'} | wall/cpu: {steering.telemetry.wallToCpuRatio ?? 'n/a'}
         </Text>
       ) : null}
     </Box>
@@ -414,11 +515,51 @@ const HistoryPanel = React.memo(function HistoryPanel({
 export function startRepl(options: ReplOptions = {}) {
   const {
     verbose = false,
-    steeringMode = DEFAULT_GNOSIS_STEERING_MODE
+    steeringMode = DEFAULT_GNOSIS_STEERING_MODE,
+    steeringTraceWindow = DEFAULT_GNOSIS_STEERING_TRACE_WINDOW,
+    executionAuth = null,
+    steeringRelayConfig =
+      process.env.GNOSIS_STEERING_AEON_RELAY_URL ||
+      process.env.GNOSIS_STEERING_RELAY_URL ||
+      process.env.DASH_RELAY_WS_URL
+      ? {
+          url:
+            process.env.GNOSIS_STEERING_AEON_RELAY_URL ??
+            process.env.GNOSIS_STEERING_RELAY_URL ??
+            process.env.DASH_RELAY_WS_URL ??
+            '',
+          roomName:
+            process.env.GNOSIS_STEERING_AEON_RELAY_ROOM ??
+            process.env.GNOSIS_STEERING_RELAY_ROOM ??
+            defaultSteeringTraceRoomName(),
+          apiKey:
+            process.env.GNOSIS_STEERING_AEON_RELAY_API_KEY ??
+            process.env.GNOSIS_STEERING_RELAY_API_KEY,
+          clientId:
+            process.env.GNOSIS_STEERING_AEON_RELAY_CLIENT_ID ??
+            process.env.GNOSIS_STEERING_RELAY_CLIENT_ID,
+          protocol:
+            process.env.GNOSIS_STEERING_AEON_RELAY_PROTOCOL ??
+            process.env.GNOSIS_STEERING_RELAY_PROTOCOL,
+          joinMode:
+            process.env.GNOSIS_STEERING_AEON_RELAY_MODE ??
+            process.env.GNOSIS_STEERING_RELAY_MODE,
+          relayProduct:
+            process.env.GNOSIS_STEERING_AEON_RELAY_PRODUCT ??
+            process.env.GNOSIS_STEERING_RELAY_PRODUCT,
+        }
+      : null
   } = options;
   const betty = new BettyCompiler();
   const registry = new GnosisRegistry();
   const engine = new GnosisEngine(registry);
+  const steeringTraceStore = surfaceSteeringMetrics(steeringMode)
+    ? new GnosisSteeringTraceStore({
+        recentWindow: steeringTraceWindow,
+        relay: steeringRelayConfig,
+        executionAuth,
+      })
+    : null;
 
   // Register basic handlers for REPL testing
   registry.register('Codec', async (payload, props) => {
@@ -435,6 +576,14 @@ export function startRepl(options: ReplOptions = {}) {
     const [ast, setAst] = useState<GraphAST | null>(null);
     const [metrics, setMetrics] = useState({ b1: 0, paths: 1 });
     const [steering, setSteering] = useState<GnosisSteeringMetrics | null>(null);
+    const [analysisReport, setAnalysisReport] = useState<GnosisComplexityReport | null>(null);
+    const [steeringTraceAlert, setSteeringTraceAlert] = useState<string | null>(null);
+    const executionAuthRef = useRef<GnosisExecutionAuthContext | null>(
+      executionAuth
+    );
+    const bootstrapExecutionAuthRef = useRef<GnosisExecutionAuthContext | null>(
+      null
+    );
     const [visualization, setVisualization] = useState<ReplVisualizationState>(
       createInitialVisualization(null)
     );
@@ -459,12 +608,70 @@ export function startRepl(options: ReplOptions = {}) {
       };
     }, []);
 
+    useEffect(() => {
+      if (!steeringTraceStore) {
+        return undefined;
+      }
+
+      return () => {
+        steeringTraceStore.disconnect();
+      };
+    }, []);
+
+    const appendSteeringTraceHistory = async (
+      report: GnosisComplexityReport,
+      nextSteering: GnosisSteeringMetrics,
+      outcome: 'ok' | 'error',
+      errorMessage: string | null,
+    ): Promise<void> => {
+      if (!steeringTraceStore) {
+        return;
+      }
+
+      steeringTraceStore.setExecutionAuth(
+        executionAuthRef.current ?? bootstrapExecutionAuthRef.current
+      );
+      await steeringTraceStore.connect();
+
+      const traceRecord = createSteeringTraceRecord({
+        command: 'repl',
+        filePath: null,
+        source: sourceLines.join('\n'),
+        report,
+        steering: nextSteering,
+        payload: 'REPL_INIT',
+        outcome,
+        errorMessage,
+      });
+      steeringTraceStore.append(traceRecord);
+      const steeringTraceSummary = steeringTraceStore.summarize({
+        cohortKey: traceRecord.cohortKey,
+      });
+      const traceStatus = steeringTraceStore.status;
+      const traceAlert = formatSteeringTraceAlert(steeringTraceSummary, traceStatus);
+      setSteeringTraceAlert(traceAlert);
+
+      appendHistory({
+        type: outcome === 'error' ? 'error' : 'output',
+        text: `[Steering Trace] ${formatSteeringTraceStoreStatus(traceStatus)} ${formatSteeringTraceSummary(steeringTraceSummary)}`,
+      });
+
+      if (traceAlert) {
+        appendHistory({
+          type: 'error',
+          text: traceAlert,
+        });
+      }
+    };
+
     const applyCompiledSource = async (nextSourceLines: string[], inputLabel: string) => {
       if (nextSourceLines.length === 0) {
+        bootstrapExecutionAuthRef.current = null;
         setSourceLines([]);
         setAst(null);
         setMetrics({ b1: 0, paths: 1 });
         setSteering(null);
+        setAnalysisReport(null);
         setVisualization(createInitialVisualization(null));
         appendHistory(
           { type: 'input', text: inputLabel },
@@ -490,21 +697,44 @@ export function startRepl(options: ReplOptions = {}) {
 
         if (!surfaceSteeringMetrics(steeringMode)) {
           setSteering(null);
+          setAnalysisReport(null);
+          return;
+        }
+
+        if (!parsedAst) {
+          bootstrapExecutionAuthRef.current = null;
+          setSteering(null);
+          setAnalysisReport(null);
           return;
         }
 
         try {
+          const boundaryWalkExecutionAuth = await resolveBoundaryWalkExecutionAuth(
+            parsedAst,
+            executionAuthRef.current
+          );
+          bootstrapExecutionAuthRef.current = boundaryWalkExecutionAuth;
+          assertBoundaryWalkAuthorized(
+            source,
+            steeringMode,
+            boundaryWalkExecutionAuth
+          );
           const report = await analyzeGnosisSource(source, { steeringMode });
+          setAnalysisReport(report);
           setSteering(report.steering);
         } catch (error: unknown) {
+          bootstrapExecutionAuthRef.current = null;
           setSteering(null);
+          setAnalysisReport(null);
           appendHistory({
             type: 'error',
             text: `[Analysis Crash] ${formatMottoError(error)}`
           });
         }
       } catch (error: unknown) {
+        bootstrapExecutionAuthRef.current = null;
         setSteering(null);
+        setAnalysisReport(null);
         appendHistory(
           { type: 'input', text: inputLabel },
           { type: 'error', text: `[Compiler Crash] ${formatMottoError(error)}` }
@@ -526,11 +756,13 @@ export function startRepl(options: ReplOptions = {}) {
       }
 
       if (upperQuery === 'CLEAR') {
+        bootstrapExecutionAuthRef.current = null;
         setHistory([]);
         setSourceLines([]);
         setAst(null);
         setMetrics({ b1: 0, paths: 1 });
         setSteering(null);
+        setAnalysisReport(null);
         setVisualization(createInitialVisualization(null));
         setQuery('');
         return;
@@ -575,23 +807,88 @@ export function startRepl(options: ReplOptions = {}) {
 
         try {
           const steeringStopwatch = startSteeringTelemetry();
-          const executionOutput = await engine.execute(ast, 'REPL_INIT');
-          const runtimeTelemetry = finishSteeringTelemetry(steeringStopwatch);
-          const waveState = buildVisualizationFromExecution(ast, executionOutput);
-          setVisualization(waveState);
-          setSteering((previousSteering) =>
-            previousSteering
-              ? withSteeringTelemetry(previousSteering, runtimeTelemetry)
-              : previousSteering
-          );
-          appendHistory(
-            { type: 'input', text: 'EXECUTE' },
-            { type: 'output', text: executionOutput }
-          );
+          try {
+            const executionOutput = await engine.execute(ast, 'REPL_INIT', {
+              executionAuth: executionAuthRef.current,
+            });
+            executionAuthRef.current =
+              engine.executionAuth ?? executionAuthRef.current;
+            const runtimeTelemetry = finishSteeringTelemetry(steeringStopwatch);
+            const waveState = buildVisualizationFromExecution(ast, executionOutput);
+            const executedSteering =
+              steering && analysisReport
+                ? withSteeringTelemetry(steering, runtimeTelemetry)
+                : null;
+            setVisualization(waveState);
+            setSteering(executedSteering);
+            appendHistory(
+              { type: 'input', text: 'EXECUTE' },
+              { type: 'output', text: executionOutput }
+            );
+            if (executedSteering && analysisReport) {
+              try {
+                await appendSteeringTraceHistory(
+                  analysisReport,
+                  executedSteering,
+                  'ok',
+                  null
+                );
+              } catch (traceError: unknown) {
+                const alert = `STEERING ALERT level=CRITICAL relay=disconnected room=${steeringRelayConfig?.roomName ?? 'unknown'} relay-error="${formatMottoError(traceError)}"`;
+                setSteeringTraceAlert(alert);
+                appendHistory(
+                  {
+                    type: 'error',
+                    text: `[STEERING TRACE RELAY FAILURE] ${formatMottoError(traceError)}`,
+                  },
+                  {
+                    type: 'error',
+                    text: alert,
+                  }
+                );
+              }
+            }
+          } catch (error: unknown) {
+            executionAuthRef.current =
+              engine.executionAuth ?? executionAuthRef.current;
+            const runtimeTelemetry = finishSteeringTelemetry(steeringStopwatch);
+            const failedSteering =
+              steering && analysisReport
+                ? withSteeringTelemetry(steering, runtimeTelemetry)
+                : null;
+            appendHistory(
+              { type: 'input', text: 'EXECUTE' },
+              { type: 'error', text: `[Engine Crash] ${formatMottoError(error)}` }
+            );
+            if (failedSteering && analysisReport) {
+              setSteering(failedSteering);
+              try {
+                await appendSteeringTraceHistory(
+                  analysisReport,
+                  failedSteering,
+                  'error',
+                  formatError(error)
+                );
+              } catch (traceError: unknown) {
+                const alert = `STEERING ALERT level=CRITICAL relay=disconnected room=${steeringRelayConfig?.roomName ?? 'unknown'} relay-error="${formatMottoError(traceError)}"`;
+                setSteeringTraceAlert(alert);
+                appendHistory(
+                  {
+                    type: 'error',
+                    text: `[STEERING TRACE RELAY FAILURE] ${formatMottoError(traceError)}`,
+                  },
+                  {
+                    type: 'error',
+                    text: alert,
+                  }
+                );
+              }
+            }
+          }
         } catch (error: unknown) {
           appendHistory(
             { type: 'input', text: 'EXECUTE' },
-            { type: 'error', text: `[Engine Crash] ${formatMottoError(error)}` }
+            { type: 'error', text: `[Steering Crash] ${formatMottoError(error)}` }
           );
         }
 
@@ -617,6 +914,7 @@ export function startRepl(options: ReplOptions = {}) {
         <SteeringPanel
           steering={steering}
           steeringMode={steeringMode}
+          traceAlert={steeringTraceAlert}
           phase={phase}
         />
 

@@ -1,4 +1,7 @@
-import type { GnosisRegistry } from '../runtime/registry.js';
+import type {
+  GnosisHandlerContext,
+  GnosisRegistry,
+} from '../runtime/registry.js';
 import {
   checkGrantedCapability,
   delegateGranularUcan,
@@ -966,16 +969,19 @@ export function registerCoreAuthHandlers(registry: GnosisRegistry): void {
 
   registry.register(
     GNOSIS_CORE_AUTH_LABELS.UCAN_REQUIRE,
-    async (payload, props) => {
+    async (payload, props, context?: GnosisHandlerContext) => {
       const input = asRecord(payload);
-      const executionAuth = asRecord(input.executionAuth);
+      const payloadExecutionAuth = asRecord(input.executionAuth);
+      const contextExecutionAuth = asRecord(context?.executionAuth);
       const required = parseRequiredCapability(input, props);
 
       if (!required) {
         throw new Error('UCANRequire requires can+with (props or payload.requiredCapability).');
       }
 
-      const capabilities = parseCapabilities(executionAuth.capabilities);
+      const capabilities = parseCapabilities(
+        payloadExecutionAuth.capabilities ?? contextExecutionAuth.capabilities
+      );
       const granted = checkGrantedCapability(capabilities, required);
       if (!granted) {
         throw new Error(
@@ -985,6 +991,8 @@ export function registerCoreAuthHandlers(registry: GnosisRegistry): void {
 
       return {
         ...input,
+        executionAuth:
+          input.executionAuth ?? context?.executionAuth ?? undefined,
         requiredCapability: required,
         requiredCapabilityGranted: true,
       };

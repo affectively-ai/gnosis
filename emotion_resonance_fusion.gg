@@ -1,0 +1,4 @@
+// emotion_resonance_fusion.gg — Emotional Resonance Calculation
+
+(input: Multimodal)-[:FORK]->(facial_cvm: Vision | vocal_prosody: Audio | semantic_text: NLP)
+(facial_cvm | vocal_prosody | semantic_text)-[:FOLD { strategy: 'vector-fusion' }]->(affect_state: State)

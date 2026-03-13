@@ -1,0 +1,22 @@
+// aeon_apps.test.gg — Verification harness for aeon apps
+(test_suite: TestSuite { name: 'aeon_apps' })
+
+(cli_command_parser: Verify { module: './cli_command_parser.gg', beta1_max: '6' })
+(forge_build_pipeline: Verify { module: './forge_build_pipeline.gg', beta1_max: '6' })
+(foundation_did_resolver: Verify { module: './foundation_did_resolver.gg', beta1_max: '6' })
+(inference_service_load_balancer: Verify { module: './inference_service_load_balancer.gg', beta1_max: '6' })
+(publisher_content_syndication: Verify { module: './publisher_content_syndication.gg', beta1_max: '6' })
+(flux_state_reconciliation: Verify { module: './flux_state_reconciliation.gg', beta1_max: '6' })
+(logic_theorem_prover: Verify { module: './logic_theorem_prover.gg', beta1_max: '6' })
+
+(test_suite)-[:FORK]->(cli_command_parser | forge_build_pipeline | foundation_did_resolver | inference_service_load_balancer | publisher_content_syndication | flux_state_reconciliation | logic_theorem_prover)
+
+(cli_command_parser)-[:RACE { expect: 'safe' }]->(cli_command_parser_res: Result)
+(forge_build_pipeline)-[:RACE { expect: 'safe' }]->(forge_build_pipeline_res: Result)
+(foundation_did_resolver)-[:RACE { expect: 'safe' }]->(foundation_did_resolver_res: Result)
+(inference_service_load_balancer)-[:RACE { expect: 'safe' }]->(inference_service_load_balancer_res: Result)
+(publisher_content_syndication)-[:RACE { expect: 'safe' }]->(publisher_content_syndication_res: Result)
+(flux_state_reconciliation)-[:RACE { expect: 'safe' }]->(flux_state_reconciliation_res: Result)
+(logic_theorem_prover)-[:RACE { expect: 'safe' }]->(logic_theorem_prover_res: Result)
+
+(cli_command_parser_res | forge_build_pipeline_res | foundation_did_resolver_res | inference_service_load_balancer_res | publisher_content_syndication_res | flux_state_reconciliation_res | logic_theorem_prover_res)-[:FOLD { strategy: 'all-pass' }]->(verdict: Verdict)

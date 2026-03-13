@@ -5,6 +5,9 @@ NODES == {"data", "eda", "outlier_detector", "result"}
 ROOTS == {"data"}
 TERMINALS == {"result"}
 FOLD_TARGETS == {"result"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

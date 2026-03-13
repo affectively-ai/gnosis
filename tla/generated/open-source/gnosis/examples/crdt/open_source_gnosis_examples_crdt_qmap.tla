@@ -5,6 +5,9 @@ NODES == {"map", "write_name", "wn", "write_age", "wa", "resolved"}
 ROOTS == {"map"}
 TERMINALS == {"resolved"}
 FOLD_TARGETS == {"resolved"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

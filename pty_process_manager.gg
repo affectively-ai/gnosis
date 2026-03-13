@@ -1,0 +1,4 @@
+// pty_process_manager.gg — PTY Process management
+
+(spawn_cmd: Command)-[:FORK]->(pty_stdout: Stream | pty_stderr: Stream)
+(pty_stdout | pty_stderr)-[:FOLD { strategy: 'multiplex' }]->(terminal: TTY)

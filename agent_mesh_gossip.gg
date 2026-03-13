@@ -1,0 +1,4 @@
+// agent_mesh_gossip.gg — Agent mesh gossip protocol
+
+(event: Gossip)-[:FORK]->(peer_1: Agent | peer_2: Agent)
+(peer_1 | peer_2)-[:FOLD { strategy: 'consensus' }]->(global_state: State)

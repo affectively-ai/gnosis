@@ -5,6 +5,9 @@ NODES == {"gate", "attack", "decay", "sustain", "release", "silence", "env_out",
 ROOTS == {"gate"}
 TERMINALS == {"silence", "env_out: Amplitude", "env_out"}
 FOLD_TARGETS == {}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

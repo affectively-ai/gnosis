@@ -5,6 +5,9 @@ NODES == {"input_sequence", "qkv_projection", "head_1", "head_2", "head_3", "hea
 ROOTS == {"input_sequence"}
 TERMINALS == {"transformer_out"}
 FOLD_TARGETS == {"multi_head_out"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

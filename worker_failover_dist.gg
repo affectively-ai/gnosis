@@ -1,0 +1,4 @@
+// worker_failover_dist.gg — Distributed Worker Fallover
+
+(task: Job)-[:FORK]->(primary: Worker | secondary: Worker)
+(primary | secondary)-[:RACE { expect: 'success' }]->(result: Output)

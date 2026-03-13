@@ -5,6 +5,9 @@ NODES == {"request", "poisoned_cache", "cold_compute", "validator", "first_reply
 ROOTS == {"request"}
 TERMINALS == {"final_answer"}
 FOLD_TARGETS == {"final_answer"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

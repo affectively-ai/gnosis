@@ -1,0 +1,4 @@
+// speculative_ui_render.gg — Speculative UI Rendering
+
+(intent: Action)-[:FORK]->(render_spec: UI | fetch_data: API)
+(render_spec | fetch_data)-[:FOLD { strategy: 'verify' }]->(final_ui: UI)

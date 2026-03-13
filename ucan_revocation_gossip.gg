@@ -1,0 +1,4 @@
+// ucan_revocation_gossip.gg — UCAN Revocation Propagation
+
+(revoke: Cmd)-[:FORK]->(edge_a: Cache | edge_b: Cache)
+(edge_a | edge_b)-[:FOLD { strategy: 'gossip-sync' }]->(global_ban: List)

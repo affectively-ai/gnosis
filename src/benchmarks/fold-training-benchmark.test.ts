@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 
 import {
   DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES,
+  renderGnosisFoldTrainingBenchmarkMarkdown,
   runGnosisFoldTrainingBenchmark,
 } from './fold-training-benchmark.js';
 import { runGGTestFile } from '../gg-test-runner.js';
@@ -16,6 +17,7 @@ describe('gnosis fold training benchmark', () => {
     expect(report.topology.branchCount).toBe(2);
     expect(report.topology.structuralBeta1).toBe(1);
     expect(report.strategies.linear.meanEvalMeanSquaredError).toBeLessThan(0.01);
+    expect(report.strategies.linear.evalMeanSquaredErrorCi95.high).toBeLessThan(0.01);
     expect(report.strategies['winner-take-all'].meanEvalMeanSquaredError).toBeGreaterThan(
       report.strategies.linear.meanEvalMeanSquaredError,
     );
@@ -54,5 +56,15 @@ describe('gnosis fold training benchmark', () => {
         'fold-training-early-stop.gg',
       ),
     ).toBe(true);
+  });
+
+  test('renders a markdown report with learned intervals', async () => {
+    const markdown = renderGnosisFoldTrainingBenchmarkMarkdown(
+      await runGnosisFoldTrainingBenchmark(),
+    );
+
+    expect(markdown).toContain('# Gnosis Fold Training Benchmark');
+    expect(markdown).toContain('Eval MSE 95% CI');
+    expect(markdown).toContain('Cancellation 95% CI');
   });
 });

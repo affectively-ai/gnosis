@@ -2,11 +2,21 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 import { parseGgProgram } from '@affectively/aeon-logic';
+import { lowerUfcsSource } from '../ufcs.js';
+
+import {
+  bootstrapMeanConfidenceInterval,
+  createDeterministicRandom,
+  mean,
+  shuffleInPlace,
+  stdev,
+  type ConfidenceInterval,
+} from './statistics.js';
 
 export type FoldTrainingStrategy = 'linear' | 'winner-take-all' | 'early-stop';
 
 export interface FoldTrainingConfig {
-  readonly label: 'gnosis-fold-training-benchmark-v1';
+  readonly label: 'gnosis-fold-training-benchmark-v2';
   readonly seedCount: number;
   readonly epochs: number;
   readonly learningRate: number;
@@ -43,10 +53,13 @@ export interface FoldTrainingStrategyReport {
   readonly meanTrainMeanSquaredError: number;
   readonly stdevTrainMeanSquaredError: number;
   readonly meanEvalMeanSquaredError: number;
+  readonly evalMeanSquaredErrorCi95: ConfidenceInterval;
   readonly stdevEvalMeanSquaredError: number;
   readonly meanExactWithinToleranceFraction: number;
+  readonly exactWithinToleranceFractionCi95: ConfidenceInterval;
   readonly stdevExactWithinToleranceFraction: number;
   readonly meanCancellationLineMeanAbsoluteError: number;
+  readonly cancellationLineMeanAbsoluteErrorCi95: ConfidenceInterval;
   readonly stdevCancellationLineMeanAbsoluteError: number;
   readonly samplePredictions: readonly FoldTrainingSamplePrediction[];
 }
@@ -104,21 +117,35 @@ interface PredictionResult {
 }
 
 const DEFAULT_FOLD_TRAINING_TOPOLOGY_URLS: Record<FoldTrainingStrategy, URL> = {
-  linear: new URL('../../examples/benchmarks/fold-training-linear.gg', import.meta.url),
+  linear: new URL(
+    '../../examples/benchmarks/fold-training-linear.gg',
+    import.meta.url
+  ),
   'winner-take-all': new URL(
     '../../examples/benchmarks/fold-training-winner-take-all.gg',
-    import.meta.url,
+    import.meta.url
   ),
-  'early-stop': new URL('../../examples/benchmarks/fold-training-early-stop.gg', import.meta.url),
+  'early-stop': new URL(
+    '../../examples/benchmarks/fold-training-early-stop.gg',
+    import.meta.url
+  ),
 };
 
 export const DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES = Object.fromEntries(
-  (Object.entries(DEFAULT_FOLD_TRAINING_TOPOLOGY_URLS) as Array<
-    readonly [FoldTrainingStrategy, URL]
-  >).map(([strategy, url]) => [strategy, fileURLToPath(url)]),
+  (
+    Object.entries(DEFAULT_FOLD_TRAINING_TOPOLOGY_URLS) as Array<
+      readonly [FoldTrainingStrategy, URL]
+    >
+  ).map(([strategy, url]) => [strategy, fileURLToPath(url)])
 ) as Record<FoldTrainingStrategy, string>;
 
-function countConnectedComponents(nodeIds: readonly string[], edges: readonly { sourceIds: readonly string[]; targetIds: readonly string[] }[]): number {
+function countConnectedComponents(
+  nodeIds: readonly string[],
+  edges: readonly {
+    sourceIds: readonly string[];
+    targetIds: readonly string[];
+  }[]
+): number {
   const neighbors = new Map<string, Set<string>>();
   for (const nodeId of nodeIds) {
     neighbors.set(nodeId, new Set<string>());
@@ -167,53 +194,21 @@ function countConnectedComponents(nodeIds: readonly string[], edges: readonly { 
 
 function structuralBeta1(
   nodeIds: readonly string[],
-  edges: readonly { sourceIds: readonly string[]; targetIds: readonly string[] }[],
+  edges: readonly {
+    sourceIds: readonly string[];
+    targetIds: readonly string[];
+  }[]
 ): number {
   const expandedEdgeCount = edges.reduce(
     (sum, edge) => sum + edge.sourceIds.length * edge.targetIds.length,
-    0,
+    0
   );
-  return Math.max(0, expandedEdgeCount - nodeIds.length + countConnectedComponents(nodeIds, edges));
-}
-
-function mean(values: readonly number[]): number {
-  if (values.length === 0) {
-    return 0;
-  }
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
-}
-
-function stdev(values: readonly number[]): number {
-  if (values.length <= 1) {
-    return 0;
-  }
-  const center = mean(values);
-  const variance = mean(values.map((value) => {
-    const delta = value - center;
-    return delta * delta;
-  }));
-  return Math.sqrt(variance);
-}
-
-function createDeterministicRandom(seed: number): () => number {
-  let state = seed >>> 0;
-  if (state === 0) {
-    state = 0x6d2b79f5;
-  }
-
-  return () => {
-    state = (1664525 * state + 1013904223) >>> 0;
-    return state / 0x100000000;
-  };
-}
-
-function shuffleInPlace<T>(values: T[], random: () => number): void {
-  for (let index = values.length - 1; index > 0; index--) {
-    const swapIndex = Math.floor(random() * (index + 1));
-    const currentValue = values[index];
-    values[index] = values[swapIndex] as T;
-    values[swapIndex] = currentValue as T;
-  }
+  return Math.max(
+    0,
+    expandedEdgeCount -
+      nodeIds.length +
+      countConnectedComponents(nodeIds, edges)
+  );
 }
 
 function buildSamples(axis: readonly number[]): FoldTrainingSample[] {
@@ -222,7 +217,7 @@ function buildSamples(axis: readonly number[]): FoldTrainingSample[] {
       leftInput,
       rightInput,
       target: leftInput - rightInput,
-    })),
+    }))
   );
 }
 
@@ -241,10 +236,12 @@ function initializeParameters(seed: number): FoldTrainingParameters {
 function predict(
   strategy: FoldTrainingStrategy,
   parameters: FoldTrainingParameters,
-  sample: FoldTrainingSample,
+  sample: FoldTrainingSample
 ): PredictionResult {
-  const leftValue = parameters.leftWeight * sample.leftInput + parameters.leftBias;
-  const rightValue = parameters.rightWeight * sample.rightInput + parameters.rightBias;
+  const leftValue =
+    parameters.leftWeight * sample.leftInput + parameters.leftBias;
+  const rightValue =
+    parameters.rightWeight * sample.rightInput + parameters.rightBias;
 
   if (strategy === 'linear') {
     return {
@@ -264,7 +261,8 @@ function predict(
     };
   }
 
-  const selectedBranch = Math.abs(leftValue) >= Math.abs(rightValue) ? 'left' : 'right';
+  const selectedBranch =
+    Math.abs(leftValue) >= Math.abs(rightValue) ? 'left' : 'right';
   return {
     leftValue,
     rightValue,
@@ -277,7 +275,7 @@ function updateParameters(
   strategy: FoldTrainingStrategy,
   parameters: FoldTrainingParameters,
   sample: FoldTrainingSample,
-  learningRate: number,
+  learningRate: number
 ): void {
   const result = predict(strategy, parameters, sample);
   const error = result.prediction - sample.target;
@@ -304,7 +302,7 @@ function evaluateSamples(
   strategy: FoldTrainingStrategy,
   parameters: FoldTrainingParameters,
   samples: readonly FoldTrainingSample[],
-  tolerance: number,
+  tolerance: number
 ): {
   readonly meanSquaredError: number;
   readonly exactWithinToleranceFraction: number;
@@ -346,7 +344,7 @@ function evaluateSamples(
 }
 
 function summarizeSeedMetrics(
-  metrics: readonly FoldTrainingSeedMetrics[],
+  metrics: readonly FoldTrainingSeedMetrics[]
 ): Omit<
   FoldTrainingStrategyReport,
   | 'topologyPath'
@@ -359,21 +357,41 @@ function summarizeSeedMetrics(
 > {
   return {
     seedMetrics: metrics,
-    meanTrainMeanSquaredError: mean(metrics.map((entry) => entry.trainMeanSquaredError)),
-    stdevTrainMeanSquaredError: stdev(metrics.map((entry) => entry.trainMeanSquaredError)),
-    meanEvalMeanSquaredError: mean(metrics.map((entry) => entry.evalMeanSquaredError)),
-    stdevEvalMeanSquaredError: stdev(metrics.map((entry) => entry.evalMeanSquaredError)),
+    meanTrainMeanSquaredError: mean(
+      metrics.map((entry) => entry.trainMeanSquaredError)
+    ),
+    stdevTrainMeanSquaredError: stdev(
+      metrics.map((entry) => entry.trainMeanSquaredError)
+    ),
+    meanEvalMeanSquaredError: mean(
+      metrics.map((entry) => entry.evalMeanSquaredError)
+    ),
+    evalMeanSquaredErrorCi95: bootstrapMeanConfidenceInterval(
+      metrics.map((entry) => entry.evalMeanSquaredError),
+      { seed: 0x11223344 }
+    ),
+    stdevEvalMeanSquaredError: stdev(
+      metrics.map((entry) => entry.evalMeanSquaredError)
+    ),
     meanExactWithinToleranceFraction: mean(
+      metrics.map((entry) => entry.exactWithinToleranceFraction)
+    ),
+    exactWithinToleranceFractionCi95: bootstrapMeanConfidenceInterval(
       metrics.map((entry) => entry.exactWithinToleranceFraction),
+      { seed: 0x22334455 }
     ),
     stdevExactWithinToleranceFraction: stdev(
-      metrics.map((entry) => entry.exactWithinToleranceFraction),
+      metrics.map((entry) => entry.exactWithinToleranceFraction)
     ),
     meanCancellationLineMeanAbsoluteError: mean(
+      metrics.map((entry) => entry.cancellationLineMeanAbsoluteError)
+    ),
+    cancellationLineMeanAbsoluteErrorCi95: bootstrapMeanConfidenceInterval(
       metrics.map((entry) => entry.cancellationLineMeanAbsoluteError),
+      { seed: 0x33445566 }
     ),
     stdevCancellationLineMeanAbsoluteError: stdev(
-      metrics.map((entry) => entry.cancellationLineMeanAbsoluteError),
+      metrics.map((entry) => entry.cancellationLineMeanAbsoluteError)
     ),
   };
 }
@@ -381,7 +399,7 @@ function summarizeSeedMetrics(
 function samplePredictions(
   strategy: FoldTrainingStrategy,
   parameterSets: readonly FoldTrainingParameters[],
-  samplePoints: readonly (readonly [number, number])[],
+  samplePoints: readonly (readonly [number, number])[]
 ): FoldTrainingSamplePrediction[] {
   return samplePoints.map(([leftInput, rightInput]) => {
     const sample: FoldTrainingSample = {
@@ -389,7 +407,9 @@ function samplePredictions(
       rightInput,
       target: leftInput - rightInput,
     };
-    const predictions = parameterSets.map((parameters) => predict(strategy, parameters, sample).prediction);
+    const predictions = parameterSets.map(
+      (parameters) => predict(strategy, parameters, sample).prediction
+    );
     return {
       leftInput,
       rightInput,
@@ -402,7 +422,7 @@ function samplePredictions(
 
 export function makeDefaultFoldTrainingConfig(): FoldTrainingConfig {
   return {
-    label: 'gnosis-fold-training-benchmark-v1',
+    label: 'gnosis-fold-training-benchmark-v2',
     seedCount: 8,
     epochs: 720,
     learningRate: 0.035,
@@ -418,21 +438,31 @@ export function makeDefaultFoldTrainingConfig(): FoldTrainingConfig {
   };
 }
 
-async function loadTopology(strategy: FoldTrainingStrategy): Promise<ParsedTopology> {
+async function loadTopology(
+  strategy: FoldTrainingStrategy
+): Promise<ParsedTopology> {
   const path = DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES[strategy];
   const source = await readFile(path, 'utf8');
-  const program = parseGgProgram(source);
-  const foldEdges = program.edges.filter((edge) => edge.type.toUpperCase() === 'FOLD');
+  const program = parseGgProgram(lowerUfcsSource(source));
+  const foldEdges = program.edges.filter(
+    (edge) => edge.type.toUpperCase() === 'FOLD'
+  );
   if (foldEdges.length !== 1) {
     throw new Error(`Expected exactly one FOLD edge in ${path}`);
   }
 
   const foldStrategy = foldEdges[0]?.properties.strategy;
   if (foldStrategy !== strategy) {
-    throw new Error(`Expected FOLD strategy "${strategy}" in ${path}, found "${foldStrategy ?? 'missing'}"`);
+    throw new Error(
+      `Expected FOLD strategy "${strategy}" in ${path}, found "${
+        foldStrategy ?? 'missing'
+      }"`
+    );
   }
 
-  const branchNodes = program.nodes.filter((node) => node.labels.includes('AffineBranch'));
+  const branchNodes = program.nodes.filter((node) =>
+    node.labels.includes('AffineBranch')
+  );
   if (branchNodes.length !== 2) {
     throw new Error(`Expected exactly two AffineBranch nodes in ${path}`);
   }
@@ -445,7 +475,7 @@ async function loadTopology(strategy: FoldTrainingStrategy): Promise<ParsedTopol
       program.edges.map((edge) => ({
         sourceIds: edge.sourceIds,
         targetIds: edge.targetIds,
-      })),
+      }))
     ),
     branchCount: branchNodes.length,
     parameterCount: branchNodes.length * 2,
@@ -459,17 +489,26 @@ async function loadTopology(strategy: FoldTrainingStrategy): Promise<ParsedTopol
   };
 }
 
-async function loadDefaultTopologySuite(): Promise<Record<FoldTrainingStrategy, ParsedTopology>> {
+async function loadDefaultTopologySuite(): Promise<
+  Record<FoldTrainingStrategy, ParsedTopology>
+> {
   const entries = await Promise.all(
-    (Object.keys(DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES) as FoldTrainingStrategy[]).map(
-      async (strategy) => [strategy, await loadTopology(strategy)] as const,
-    ),
+    (
+      Object.keys(
+        DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES
+      ) as FoldTrainingStrategy[]
+    ).map(async (strategy) => [strategy, await loadTopology(strategy)] as const)
   );
 
-  return Object.fromEntries(entries) as Record<FoldTrainingStrategy, ParsedTopology>;
+  return Object.fromEntries(entries) as Record<
+    FoldTrainingStrategy,
+    ParsedTopology
+  >;
 }
 
-function assertSharedTopology(topologies: Record<FoldTrainingStrategy, ParsedTopology>): FoldTrainingTopologyMetrics {
+function assertSharedTopology(
+  topologies: Record<FoldTrainingStrategy, ParsedTopology>
+): FoldTrainingTopologyMetrics {
   const baseline = topologies.linear.metrics;
   for (const strategy of Object.keys(topologies) as FoldTrainingStrategy[]) {
     const metrics = topologies[strategy].metrics;
@@ -480,7 +519,9 @@ function assertSharedTopology(topologies: Record<FoldTrainingStrategy, ParsedTop
       metrics.branchCount === baseline.branchCount &&
       metrics.parameterCount === baseline.parameterCount;
     if (!isShared) {
-      throw new Error(`Topology mismatch for ${strategy}; benchmark is not parameter-matched`);
+      throw new Error(
+        `Topology mismatch for ${strategy}; benchmark is not parameter-matched`
+      );
     }
   }
   return baseline;
@@ -490,7 +531,7 @@ function trainStrategy(
   strategy: FoldTrainingStrategy,
   config: FoldTrainingConfig,
   trainSamples: readonly FoldTrainingSample[],
-  evalSamples: readonly FoldTrainingSample[],
+  evalSamples: readonly FoldTrainingSample[]
 ): {
   readonly seedMetrics: readonly FoldTrainingSeedMetrics[];
   readonly trainedParameters: readonly FoldTrainingParameters[];
@@ -515,13 +556,13 @@ function trainStrategy(
       strategy,
       parameters,
       trainSamples,
-      config.exactPredictionTolerance,
+      config.exactPredictionTolerance
     );
     const evalEvaluation = evaluateSamples(
       strategy,
       parameters,
       evalSamples,
-      config.exactPredictionTolerance,
+      config.exactPredictionTolerance
     );
 
     trainedParameters.push({ ...parameters });
@@ -530,7 +571,8 @@ function trainStrategy(
       trainMeanSquaredError: trainEvaluation.meanSquaredError,
       evalMeanSquaredError: evalEvaluation.meanSquaredError,
       exactWithinToleranceFraction: evalEvaluation.exactWithinToleranceFraction,
-      cancellationLineMeanAbsoluteError: evalEvaluation.cancellationLineMeanAbsoluteError,
+      cancellationLineMeanAbsoluteError:
+        evalEvaluation.cancellationLineMeanAbsoluteError,
     });
   }
 
@@ -541,14 +583,17 @@ function trainStrategy(
 }
 
 export async function runGnosisFoldTrainingBenchmark(
-  config: FoldTrainingConfig = makeDefaultFoldTrainingConfig(),
+  config: FoldTrainingConfig = makeDefaultFoldTrainingConfig()
 ): Promise<GnosisFoldTrainingBenchmarkReport> {
   const topologies = await loadDefaultTopologySuite();
   const sharedTopology = assertSharedTopology(topologies);
   const trainSamples = buildSamples(config.trainAxis);
   const evalSamples = buildSamples(config.evalAxis);
 
-  const strategies = {} as Record<FoldTrainingStrategy, FoldTrainingStrategyReport>;
+  const strategies = {} as Record<
+    FoldTrainingStrategy,
+    FoldTrainingStrategyReport
+  >;
   for (const strategy of Object.keys(topologies) as FoldTrainingStrategy[]) {
     const trained = trainStrategy(strategy, config, trainSamples, evalSamples);
     const summary = summarizeSeedMetrics(trained.seedMetrics);
@@ -563,16 +608,18 @@ export async function runGnosisFoldTrainingBenchmark(
       samplePredictions: samplePredictions(
         strategy,
         trained.trainedParameters,
-        config.samplePoints,
+        config.samplePoints
       ),
     };
   }
 
-  const rankingByEvalMeanSquaredError = (Object.keys(strategies) as FoldTrainingStrategy[])
-    .sort(
-      (left, right) =>
-        strategies[left].meanEvalMeanSquaredError - strategies[right].meanEvalMeanSquaredError,
-    );
+  const rankingByEvalMeanSquaredError = (
+    Object.keys(strategies) as FoldTrainingStrategy[]
+  ).sort(
+    (left, right) =>
+      strategies[left].meanEvalMeanSquaredError -
+      strategies[right].meanEvalMeanSquaredError
+  );
 
   return {
     label: config.label,
@@ -600,7 +647,7 @@ function formatSamplePair(sample: FoldTrainingSamplePrediction): string {
 }
 
 export function renderGnosisFoldTrainingBenchmarkMarkdown(
-  report: GnosisFoldTrainingBenchmarkReport,
+  report: GnosisFoldTrainingBenchmarkReport
 ): string {
   const lines: string[] = [];
   lines.push('# Gnosis Fold Training Benchmark');
@@ -614,37 +661,67 @@ export function renderGnosisFoldTrainingBenchmarkMarkdown(
   lines.push(`- Eval samples: \`${report.config.evalSampleCount}\``);
   lines.push(`- Shared parameter count: \`${report.topology.parameterCount}\``);
   lines.push(`- Shared structural β₁: \`${report.topology.structuralBeta1}\``);
-  lines.push(`- Predicted ranking recovered: \`${report.predictedRankingMatches ? 'yes' : 'no'}\``);
+  lines.push(
+    `- Predicted ranking recovered: \`${
+      report.predictedRankingMatches ? 'yes' : 'no'
+    }\``
+  );
   lines.push('');
   lines.push('## Aggregated Metrics');
   lines.push('');
-  lines.push('| Strategy | Mean eval MSE | Eval MSE σ | Exact-within-tolerance | Cancellation-line abs error |');
-  lines.push('|---|---:|---:|---:|---:|');
+  lines.push(
+    '| Strategy | Mean eval MSE | Eval MSE 95% CI | Eval MSE σ | Exact-within-tolerance | Exact 95% CI | Cancellation-line abs error | Cancellation 95% CI |'
+  );
+  lines.push('|---|---:|---:|---:|---:|---:|---:|---:|');
 
   for (const strategy of report.rankingByEvalMeanSquaredError) {
     const metrics = report.strategies[strategy];
     lines.push(
-      `| \`${strategy}\` | ${metrics.meanEvalMeanSquaredError.toFixed(3)} | ${metrics.stdevEvalMeanSquaredError.toFixed(3)} | ${metrics.meanExactWithinToleranceFraction.toFixed(3)} | ${metrics.meanCancellationLineMeanAbsoluteError.toFixed(3)} |`,
+      `| \`${strategy}\` | ${metrics.meanEvalMeanSquaredError.toFixed(
+        3
+      )} | [${metrics.evalMeanSquaredErrorCi95.low.toFixed(
+        3
+      )}, ${metrics.evalMeanSquaredErrorCi95.high.toFixed(
+        3
+      )}] | ${metrics.stdevEvalMeanSquaredError.toFixed(
+        3
+      )} | ${metrics.meanExactWithinToleranceFraction.toFixed(
+        3
+      )} | [${metrics.exactWithinToleranceFractionCi95.low.toFixed(
+        3
+      )}, ${metrics.exactWithinToleranceFractionCi95.high.toFixed(
+        3
+      )}] | ${metrics.meanCancellationLineMeanAbsoluteError.toFixed(
+        3
+      )} | [${metrics.cancellationLineMeanAbsoluteErrorCi95.low.toFixed(
+        3
+      )}, ${metrics.cancellationLineMeanAbsoluteErrorCi95.high.toFixed(3)}] |`
     );
   }
 
   lines.push('');
   lines.push('## Sample Predictions');
   lines.push('');
-  lines.push('| Strategy | Input pair | Target | Mean prediction | Prediction σ |');
+  lines.push(
+    '| Strategy | Input pair | Target | Mean prediction | Prediction σ |'
+  );
   lines.push('|---|---|---:|---:|---:|');
 
   for (const strategy of report.rankingByEvalMeanSquaredError) {
     for (const sample of report.strategies[strategy].samplePredictions) {
       lines.push(
-        `| \`${strategy}\` | ${formatSamplePair(sample)} | ${sample.target.toFixed(3)} | ${sample.meanPrediction.toFixed(3)} | ${sample.predictionStddev.toFixed(3)} |`,
+        `| \`${strategy}\` | ${formatSamplePair(
+          sample
+        )} | ${sample.target.toFixed(3)} | ${sample.meanPrediction.toFixed(
+          3
+        )} | ${sample.predictionStddev.toFixed(3)} |`
       );
     }
   }
 
   lines.push('');
   lines.push(
-    'Interpretation: the topology, parameter count, and data are held fixed across three Gnosis programs; only the fold strategy changes. Linear recombination learns the cancellation-sensitive target family, while nonlinear selection leaves a persistent recombination error floor.',
+    'Interpretation: the topology, parameter count, and data are held fixed across three Gnosis programs; only the fold strategy changes. Linear recombination learns the cancellation-sensitive target family, while nonlinear selection leaves a persistent recombination error floor.'
   );
   lines.push('');
   return `${lines.join('\n')}\n`;

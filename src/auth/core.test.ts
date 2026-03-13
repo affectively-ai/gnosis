@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'bun:test';
-import { authorizeTopologyEdge } from './core.js';
+import {
+  authorizeSteeringRelayConnect,
+  authorizeSteeringRun,
+  authorizeSteeringTraceAppend,
+  authorizeTopologyEdge,
+  buildSteeringTopologyResource,
+  normalizeExecutionAuthContext,
+} from './core.js';
 
 describe('authorizeTopologyEdge', () => {
   it('allows edge when matching capability exists', () => {
@@ -53,5 +60,78 @@ describe('authorizeTopologyEdge', () => {
     });
 
     expect(result.allowed).toBe(true);
+  });
+
+  it('normalizes execution auth envelopes', () => {
+    const normalized = normalizeExecutionAuthContext({
+      enforce: true,
+      principal: 'did:key:alice',
+      token: 'ucan-token',
+      capabilities: [{ can: 'gnosis/steering.run', with: '*' }],
+    });
+
+    expect(normalized).toEqual({
+      enforce: true,
+      principal: 'did:key:alice',
+      token: 'ucan-token',
+      capabilities: [{ can: 'gnosis/steering.run', with: '*' }],
+    });
+  });
+
+  it('authorizes boundary-walk steering capabilities with scoped resources', () => {
+    const auth = {
+      enforce: true,
+      capabilities: [
+        {
+          can: 'gnosis/steering.run',
+          with: buildSteeringTopologyResource('abc123'),
+        },
+        {
+          can: 'gnosis/steering.trace.append',
+          with: 'aeon://steering-trace/cohort/*',
+        },
+        {
+          can: 'gnosis/steering.relay.connect',
+          with: 'aeon://steering-relay/room/*',
+        },
+      ],
+    };
+
+    expect(
+      authorizeSteeringRun({
+        topologyFingerprint: 'abc123',
+        auth,
+      }).allowed
+    ).toBe(true);
+    expect(
+      authorizeSteeringTraceAppend({
+        cohortKey: 'cohort-a',
+        auth,
+      }).allowed
+    ).toBe(true);
+    expect(
+      authorizeSteeringRelayConnect({
+        roomName: 'room-a',
+        auth,
+      }).allowed
+    ).toBe(true);
+  });
+
+  it('denies boundary-walk steering capabilities when the grant is missing', () => {
+    const result = authorizeSteeringRun({
+      topologyFingerprint: 'missing',
+      auth: {
+        enforce: true,
+        capabilities: [
+          {
+            can: 'gnosis/steering.trace.append',
+            with: '*',
+          },
+        ],
+      },
+    });
+
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toContain('Missing capability');
   });
 });

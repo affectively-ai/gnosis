@@ -5,6 +5,9 @@ NODES == {"request", "router", "context", "tree", "decision", "render", "routed_
 ROOTS == {"request"}
 TERMINALS == {"response"}
 FOLD_TARGETS == {"routed_request"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

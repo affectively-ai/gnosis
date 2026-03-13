@@ -1,0 +1,5 @@
+// cyrano_shadow_mode.gg — Cyrano Shadow Mode
+
+(user_action: Event)-[:FORK]->(live_ui: View | shadow_agent: Observer)
+(shadow_agent)-[:PROCESS]->(insight: Memory)
+(live_ui | insight)-[:FOLD { strategy: 'async-collect' }]->(done: End)

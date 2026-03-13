@@ -1,0 +1,3 @@
+// aic_fusion_engine.gg — AIC Fusion Engine processing
+
+(text_cvm: Vector | audio_cvm: Vector | visual_cvm: Vector)-[:FOLD { strategy: 'attention-weights' }]->(fused_state: State)

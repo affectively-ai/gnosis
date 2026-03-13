@@ -5,6 +5,9 @@ NODES == {"register", "write_a", "write_b", "write_c", "observed"}
 ROOTS == {"register"}
 TERMINALS == {"observed"}
 FOLD_TARGETS == {"observed"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

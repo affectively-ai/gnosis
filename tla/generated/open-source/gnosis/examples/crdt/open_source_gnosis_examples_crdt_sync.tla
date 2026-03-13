@@ -5,6 +5,9 @@ NODES == {"network", "replica_a", "ra", "replica_b", "rb", "replica_c", "rc", "s
 ROOTS == {"network"}
 TERMINALS == {"synced_all"}
 FOLD_TARGETS == {"synced_ab", "synced_all"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

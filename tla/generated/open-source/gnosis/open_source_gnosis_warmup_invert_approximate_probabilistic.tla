@@ -5,6 +5,9 @@ NODES == {"query", "unstable_sketch", "maybe_hit", "false_positive", "exact_look
 ROOTS == {"query"}
 TERMINALS == {"waste_heat"}
 FOLD_TARGETS == {"overworked_answer"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

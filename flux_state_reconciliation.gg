@@ -1,0 +1,3 @@
+// flux_state_reconciliation.gg — State Reconciliation in Flux
+
+(local_state: Graph | remote_state: Graph)-[:FOLD { strategy: 'reconcile-diff' }]->(merged_state: Graph)

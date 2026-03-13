@@ -5,6 +5,9 @@ NODES == {"write_stream", "memtable", "compaction", "sorted_run", "point_query",
 ROOTS == {"write_stream", "point_query"}
 TERMINALS == {"answer: Result"}
 FOLD_TARGETS == {"answer: Result"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

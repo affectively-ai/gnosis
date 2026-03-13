@@ -5,6 +5,9 @@ NODES == {"set", "add_branch", "added", "remove_branch", "removed", "resolved"}
 ROOTS == {"set"}
 TERMINALS == {"resolved"}
 FOLD_TARGETS == {"resolved"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

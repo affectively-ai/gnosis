@@ -13,12 +13,6 @@ export {
   renderMGG,
 } from './mod/loader.js';
 export {
-  DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES,
-  makeDefaultFoldTrainingConfig,
-  renderGnosisFoldTrainingBenchmarkMarkdown,
-  runGnosisFoldTrainingBenchmark,
-} from './benchmarks/fold-training-benchmark.js';
-export {
   analyzeGnosisSource,
   classifySteeringBias,
   createEmptySteeringTelemetry,
@@ -34,6 +28,18 @@ export {
   surfaceSteeringRecommendations,
   withSteeringTelemetry,
 } from './analysis.js';
+export {
+  authorizeBoundaryWalkRun,
+  DEFAULT_GNOSIS_STEERING_TRACE_GUID,
+  createSteeringTraceRecord,
+  fingerprintSteeringTopology,
+  formatSteeringTraceAlert,
+  defaultSteeringTraceRoomName,
+  formatSteeringTraceStoreStatus,
+  formatSteeringTraceSummary,
+  GnosisSteeringTraceStore,
+  summarizeSteeringTraceRecords,
+} from './steering-trace.js';
 
 export type { GnosisHandler } from './runtime/registry.js';
 export type { GraphAST, ASTNode, ASTEdge } from './betty/compiler.js';
@@ -47,18 +53,11 @@ export type {
   GnosisModuleResolver,
 } from './mod/loader.js';
 export type {
-  FoldTrainingConfig,
-  FoldTrainingSamplePrediction,
-  FoldTrainingSeedMetrics,
-  FoldTrainingStrategy,
-  FoldTrainingStrategyReport,
-  FoldTrainingTopologyMetrics,
-  GnosisFoldTrainingBenchmarkReport,
-} from './benchmarks/fold-training-benchmark.js';
-export type {
   GnosisAnalyzeOptions,
   GnosisCapabilityReport,
+  GnosisCollapseCostAction,
   GnosisComplexityReport,
+  GnosisFailureTrilemmaMetrics,
   GnosisLineMetrics,
   GnosisQuantumMetrics,
   GnosisSteeringAction,
@@ -71,6 +70,17 @@ export type {
   GnosisSteeringTelemetry,
   GnosisTopologyMetrics,
 } from './analysis.js';
+export type {
+  CreateGnosisSteeringTraceRecordOptions,
+  GnosisSteeringTraceCommand,
+  GnosisSteeringTraceDataset,
+  GnosisSteeringTraceEnvironment,
+  GnosisSteeringTraceOutcome,
+  GnosisSteeringTraceRecord,
+  GnosisSteeringTraceStoreConfig,
+  GnosisSteeringTraceStoreStatus,
+  GnosisSteeringTraceSummary,
+} from './steering-trace.js';
 
 export { generateTlaFromGnosisSource } from './tla-bridge.js';
 export type {
@@ -88,7 +98,9 @@ export {
   QArray,
   QText,
   QCounter,
+  QDocAeonRelay,
   QDocRelay,
+  createQDocAeonRelayJoinEnvelope,
 } from './crdt/index.js';
 export {
   Doc,
@@ -116,8 +128,25 @@ export type {
   QDocUpdateHandler,
   QDocObserveHandler,
   QDocEvent,
+  QDocAeonRelayAttributes,
+  QDocAeonRelayAttributeValue,
+  QDocAeonRelayConfig,
+  QDocAeonRelayJoinEnvelope,
+  QDocAeonRelayReadyStrategy,
+  QDocAeonRelaySpan,
+  QDocAeonRelayStatus,
+  QDocAeonRelayTelemetry,
+  QDocAeonRelayTelemetryEvent,
+  QDocAeonRelayTelemetryStage,
+  QDocRelayAttributes,
+  QDocRelayAttributeValue,
   QDocRelayConfig,
+  QDocRelayReadyStrategy,
+  QDocRelaySpan,
   QDocRelayStatus,
+  QDocRelayTelemetry,
+  QDocRelayTelemetryEvent,
+  QDocRelayTelemetryStage,
 } from './crdt/index.js';
 
 // Test harness & runner

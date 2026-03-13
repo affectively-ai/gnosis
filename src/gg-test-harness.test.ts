@@ -1,14 +1,21 @@
 import { describe, test, expect } from 'bun:test';
+import { parseGgProgram } from '@affectively/aeon-logic';
 import { ggTest, ggQuickCheck, ggAssert } from './gg-test-harness.js';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { lowerUfcsSource } from './ufcs.js';
 
+const EXAMPLES_DIR = resolve(__dirname, '../examples');
 const SYNTH_DIR = resolve(__dirname, '../examples/synth');
 const TRANSFORMER_DIR = resolve(__dirname, '../examples/transformer');
 const CRDT_DIR = resolve(__dirname, '../examples/crdt');
 
 function readGG(dir: string, name: string): string {
   return readFileSync(resolve(dir, name), 'utf-8');
+}
+
+function parseGG(dir: string, name: string) {
+  return parseGgProgram(lowerUfcsSource(readGG(dir, name)));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -248,6 +255,105 @@ describe('quantum CRDT formal proofs', () => {
 
     expect(result.ok).toBe(true);
     expect(result.program.terminalNodes).toContain('synced_all');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Aeon-Inspired Formal Proofs
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('aeon-inspired formal proofs', () => {
+  test('edge-pipeline-parallelism.gg — bounded failover pipeline stays within shard capacity', async () => {
+    const result = await ggTest(readGG(EXAMPLES_DIR, 'edge-pipeline-parallelism.gg'))
+      .safe()
+      .beta1Bounded(8)
+      .reachable('response_out')
+      .run();
+
+    expect(result.ok).toBe(true);
+    expect(result.program.terminalNodes).toContain('response_out');
+
+    const program = parseGG(EXAMPLES_DIR, 'edge-pipeline-parallelism.gg');
+    const shardNodes = program.nodes.filter((node) =>
+      node.labels.some((label) => label === 'WorkerShard' || label === 'WarmStandby')
+    );
+
+    expect(shardNodes).toHaveLength(3);
+    for (const shardNode of shardNodes) {
+      const capacity = Number(shardNode.properties.capacity_gb);
+      const footprint = Number(shardNode.properties.footprint_gb);
+      expect(Number.isFinite(capacity)).toBe(true);
+      expect(Number.isFinite(footprint)).toBe(true);
+      expect(footprint).toBeLessThan(capacity);
+    }
+
+    expect(
+      program.edges.some(
+        (edge) => edge.type === 'RACE' && edge.properties.strategy === 'first-healthy'
+      )
+    ).toBe(true);
+  });
+
+  test('audio-token-privacy.gg — identity lane is noised before public fold', async () => {
+    const result = await ggTest(readGG(EXAMPLES_DIR, 'audio-token-privacy.gg'))
+      .safe()
+      .beta1Bounded(8)
+      .reachable('public_mesh')
+      .run();
+
+    expect(result.ok).toBe(true);
+    expect(result.program.terminalNodes).toContain('public_mesh');
+
+    const program = parseGG(EXAMPLES_DIR, 'audio-token-privacy.gg');
+    const noiseNode = program.nodes.find((node) => node.id === 'identity_noise');
+    const publicMeshNode = program.nodes.find((node) => node.id === 'public_mesh');
+
+    expect(noiseNode?.properties.target_layers).toBe('5-8');
+    expect(publicMeshNode?.properties.voiceprint_recoverable).toBe('false');
+  });
+
+  test('crdt-split-brain-prevention.gg — replay-guarded writes converge deterministically', async () => {
+    const result = await ggTest(readGG(EXAMPLES_DIR, 'crdt-split-brain-prevention.gg'))
+      .safe()
+      .beta1Bounded(8)
+      .reachable('canonical_state')
+      .run();
+
+    expect(result.ok).toBe(true);
+    expect(result.program.terminalNodes).toContain('canonical_state');
+
+    const program = parseGG(EXAMPLES_DIR, 'crdt-split-brain-prevention.gg');
+    const guardedWest = program.nodes.find((node) => node.id === 'guarded_west');
+    const guardedEast = program.nodes.find((node) => node.id === 'guarded_east');
+    const canonicalState = program.nodes.find((node) => node.id === 'canonical_state');
+    const observeEdge = program.edges.find((edge) => edge.type === 'OBSERVE');
+
+    expect(guardedWest?.properties.nonce).toBe('west-41');
+    expect(guardedEast?.properties.nonce).toBe('east-77');
+    expect(guardedWest?.properties.nonce).not.toBe(guardedEast?.properties.nonce);
+    expect(observeEdge?.properties.strategy).toBe('deterministic-crdt');
+    expect(canonicalState?.properties.split_brain).toBe('false');
+  });
+
+  test('webgpu-graph-flattening.gg — contiguous Float32Array path races the scattered walk', async () => {
+    const result = await ggTest(readGG(EXAMPLES_DIR, 'webgpu-graph-flattening.gg'))
+      .safe()
+      .beta1Bounded(8)
+      .reachable('prediction_out')
+      .run();
+
+    expect(result.ok).toBe(true);
+    expect(result.program.terminalNodes).toContain('prediction_out');
+
+    const program = parseGG(EXAMPLES_DIR, 'webgpu-graph-flattening.gg');
+    const objectGraph = program.nodes.find((node) => node.id === 'object_graph');
+    const flattenBuffer = program.nodes.find((node) => node.id === 'flatten_buffer');
+    const raceEdge = program.edges.find((edge) => edge.type === 'RACE');
+
+    expect(objectGraph?.properties.layout).toBe('pointer-chasing');
+    expect(flattenBuffer?.properties.buffer).toBe('Float32Array');
+    expect(flattenBuffer?.properties.layout).toBe('contiguous');
+    expect(raceEdge?.properties.strategy).toBe('lowest-latency');
   });
 });
 

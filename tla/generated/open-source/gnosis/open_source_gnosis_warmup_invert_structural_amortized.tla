@@ -5,6 +5,9 @@ NODES == {"write_stream", "memtable", "run_a", "run_b", "compaction_backlog", "p
 ROOTS == {"write_stream", "point_query", "compaction_backlog"}
 TERMINALS == {"delayed_answer"}
 FOLD_TARGETS == {"fragmented_answer"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

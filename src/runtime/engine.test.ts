@@ -3,6 +3,7 @@ import { describe, it, expect, mock } from 'bun:test';
 import { GnosisEngine } from './engine.js';
 import { GnosisRegistry } from './registry.js';
 import { BettyCompiler } from '../betty/compiler.js';
+import { registerCoreAuthHandlers } from '../auth/handlers.js';
 
 describe('GnosisEngine', () => {
   const compiler = new BettyCompiler();
@@ -463,5 +464,79 @@ describe('GnosisEngine', () => {
 
     await engine.execute(ast!, 'input');
     expect(seenEdges).toEqual(['FORK', 'FOLD']);
+  });
+
+  it('fails closed on authorized runs even when handlers replace the payload', async () => {
+    const registry = new GnosisRegistry();
+    registry.register('Strip', async () => 'stripped');
+    registry.register('Worker', async (payload) => payload);
+
+    const engine = new GnosisEngine(registry);
+    const { ast } = compiler.parse(`
+            (seed:Strip)-[:FORK]->(left:Worker|right:Worker)
+            (left|right)-[:FOLD]->(sink:Worker)
+        `);
+
+    const result = await engine.execute(ast!, {
+      executionAuth: {
+        enforce: true,
+        capabilities: [
+          {
+            can: 'aeon/fold',
+            with: 'aeon://edge/fold/left->sink',
+          },
+          {
+            can: 'aeon/fold',
+            with: 'aeon://edge/fold/right->sink',
+          },
+        ],
+      },
+    });
+
+    expect(result).toContain('[AUTH] Denied FORK');
+  });
+
+  it('surfaces execution auth to UCANRequire after payload-replacing handlers', async () => {
+    const registry = new GnosisRegistry();
+    registerCoreAuthHandlers(registry);
+    registry.register('Source', async () => ({
+      executionAuth: {
+        enforce: true,
+        principal: 'did:key:alice',
+        capabilities: [
+          {
+            can: 'aeon/process',
+            with: 'aeon://edge/process/src->strip',
+          },
+          {
+            can: 'aeon/process',
+            with: 'aeon://edge/process/strip->require',
+          },
+          {
+            can: 'aeon/process',
+            with: 'aeon://edge/process/require->sink',
+          },
+          {
+            can: 'gnosis/steering.run',
+            with: 'aeon://steering/topology/test-topology',
+          },
+        ],
+      },
+      message: 'seed',
+    }));
+    registry.register('Strip', async () => ({ message: 'stripped' }));
+    registry.register('Sink', async (payload) => payload);
+
+    const engine = new GnosisEngine(registry);
+    const { ast } = compiler.parse(`
+            (src:Source)-[:PROCESS]->(strip:Strip)
+            (strip)-[:PROCESS]->(require:UCANRequire { can: "gnosis/steering.run", with: "aeon://steering/topology/test-topology" })
+            (require)-[:PROCESS]->(sink:Sink)
+        `);
+
+    const result = await engine.execute(ast!);
+
+    expect(result).toContain('"requiredCapabilityGranted":true');
+    expect(result).toContain('"principal":"did:key:alice"');
   });
 });

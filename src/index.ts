@@ -3,7 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { Pipeline } from '@affectively/aeon-pipelines';
 import * as twokeys from 'twokeys';
-import { BettyCompiler } from './betty/compiler.js';
+import { BettyCompiler, type GraphAST } from './betty/compiler.js';
 import { GnosisRegistry } from './runtime/registry.js';
 import { GnosisEngine } from './runtime/engine.js';
 import { GnosisNativeRuntime } from './runtime/native-runtime.js';
@@ -24,6 +24,17 @@ import {
   VALID_GNOSIS_STEERING_MODES,
   withSteeringTelemetry,
 } from './analysis.js';
+import {
+  authorizeBoundaryWalkRun,
+  createSteeringTraceRecord,
+  DEFAULT_GNOSIS_STEERING_TRACE_WINDOW,
+  defaultSteeringTraceRoomName,
+  fingerprintSteeringTopology,
+  formatSteeringTraceAlert,
+  formatSteeringTraceStoreStatus,
+  formatSteeringTraceSummary,
+  GnosisSteeringTraceStore,
+} from './steering-trace.js';
 import type { GnosisSteeringMetrics, GnosisSteeringMode } from './analysis.js';
 import type { RuntimeTarget } from './capabilities/index.js';
 import {
@@ -36,7 +47,13 @@ import { generateTlaFromGnosisSource } from './tla-bridge.js';
 import { GnosisNeo4jBridge } from './neo4j-bridge.js';
 import { GnosisFormatter } from './formatter.js';
 import { renderWithTopologyCompat } from './runtime/renderer-compat.js';
-import { registerCoreAuthHandlers } from './auth/index.js';
+import {
+  authorizeSteeringApply,
+  bootstrapExecutionAuthFromTopology,
+  normalizeExecutionAuthContext,
+  registerCoreAuthHandlers,
+} from './auth/index.js';
+import type { GnosisExecutionAuthContext } from './auth/index.js';
 import {
   NeuralEngine,
   GPUEngine,
@@ -50,12 +67,6 @@ import {
   getTopicDomainTransformerTopologySource,
   init as initNeuralEngine,
 } from './neural-compat.js';
-import {
-  DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES,
-  makeDefaultFoldTrainingConfig,
-  renderGnosisFoldTrainingBenchmarkMarkdown,
-  runGnosisFoldTrainingBenchmark,
-} from './benchmarks/fold-training-benchmark.js';
 import type {
   Neuron,
   Synapse,
@@ -63,15 +74,6 @@ import type {
   NeuralGraphData,
   LoadTopologyOptions,
 } from './neural-compat.js';
-import type {
-  FoldTrainingConfig,
-  FoldTrainingSamplePrediction,
-  FoldTrainingSeedMetrics,
-  FoldTrainingStrategy,
-  FoldTrainingStrategyReport,
-  FoldTrainingTopologyMetrics,
-  GnosisFoldTrainingBenchmarkReport,
-} from './benchmarks/fold-training-benchmark.js';
 
 export {
   GnosisNeo4jBridge,
@@ -104,25 +106,12 @@ export {
   initNeuralEngine as init,
   initNeuralEngine,
 };
-export {
-  DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES,
-  makeDefaultFoldTrainingConfig,
-  renderGnosisFoldTrainingBenchmarkMarkdown,
-  runGnosisFoldTrainingBenchmark,
-};
 export type {
   Neuron,
   Synapse,
   AdapterTrainingConfig,
   NeuralGraphData,
   LoadTopologyOptions,
-  FoldTrainingConfig,
-  FoldTrainingSamplePrediction,
-  FoldTrainingSeedMetrics,
-  FoldTrainingStrategy,
-  FoldTrainingStrategyReport,
-  FoldTrainingTopologyMetrics,
-  GnosisFoldTrainingBenchmarkReport,
 };
 export type {
   GnosisModuleImport,
@@ -150,7 +139,9 @@ export {
   QArray,
   QText,
   QCounter,
+  QDocAeonRelay,
   QDocRelay,
+  createQDocAeonRelayJoinEnvelope,
 } from './crdt/index.js';
 export {
   Doc,
@@ -175,8 +166,25 @@ export type {
   QDocUpdateHandler,
   QDocObserveHandler,
   QDocEvent,
+  QDocAeonRelayAttributes,
+  QDocAeonRelayAttributeValue,
+  QDocAeonRelayConfig,
+  QDocAeonRelayJoinEnvelope,
+  QDocAeonRelayReadyStrategy,
+  QDocAeonRelaySpan,
+  QDocAeonRelayStatus,
+  QDocAeonRelayTelemetry,
+  QDocAeonRelayTelemetryEvent,
+  QDocAeonRelayTelemetryStage,
+  QDocRelayAttributes,
+  QDocRelayAttributeValue,
   QDocRelayConfig,
+  QDocRelayReadyStrategy,
+  QDocRelaySpan,
   QDocRelayStatus,
+  QDocRelayTelemetry,
+  QDocRelayTelemetryEvent,
+  QDocRelayTelemetryStage,
 } from './crdt/index.js';
 
 // Test harness & runner
@@ -196,6 +204,10 @@ export {
 
 const args = process.argv.slice(2);
 const verboseMode = args.includes('--verbose');
+
+function formatError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
 function resolveTopologyPath(rawPath: string): string {
   return path.resolve(process.cwd(), rawPath);
@@ -273,6 +285,100 @@ function parseFlagValue(rawArgs: string[], flagName: string): string | null {
   return rawValue;
 }
 
+function parseExecutionAuthPayload(
+  rawValue: string
+): GnosisExecutionAuthContext {
+  const parsed = JSON.parse(rawValue) as unknown;
+  const candidate =
+    parsed && typeof parsed === 'object' && 'executionAuth' in parsed
+      ? (parsed as { executionAuth?: unknown }).executionAuth
+      : parsed;
+  const executionAuth = normalizeExecutionAuthContext(candidate);
+  if (!executionAuth) {
+    throw new Error(
+      'Execution auth must be a JSON object or { executionAuth } envelope.'
+    );
+  }
+  return executionAuth;
+}
+
+function parseExecutionAuth(
+  rawArgs: string[]
+): GnosisExecutionAuthContext | null {
+  const inlineJson =
+    parseFlagValue(rawArgs, '--execution-auth-json') ??
+    process.env.GNOSIS_EXECUTION_AUTH_JSON ??
+    null;
+  if (inlineJson) {
+    return parseExecutionAuthPayload(inlineJson);
+  }
+
+  const filePath =
+    parseFlagValue(rawArgs, '--execution-auth-file') ??
+    process.env.GNOSIS_EXECUTION_AUTH_FILE ??
+    null;
+  if (!filePath) {
+    return null;
+  }
+
+  const resolvedPath = path.resolve(process.cwd(), filePath);
+  return parseExecutionAuthPayload(fs.readFileSync(resolvedPath, 'utf-8'));
+}
+
+function assertBoundaryWalkAuthorized(options: {
+  source: string;
+  steeringMode: GnosisSteeringMode;
+  executionAuth: GnosisExecutionAuthContext | null;
+}): void {
+  const { source, steeringMode, executionAuth } = options;
+  if (!executionAuth || executionAuth.enforce !== true) {
+    return;
+  }
+
+  const runAuthorization = authorizeBoundaryWalkRun({
+    source,
+    executionAuth,
+  });
+  if (!runAuthorization.allowed) {
+    throw new Error(
+      `Boundary walk denied: ${
+        runAuthorization.reason ?? 'missing gnosis/steering.run capability'
+      }`
+    );
+  }
+
+  if (steeringMode !== 'apply') {
+    return;
+  }
+
+  const applyAuthorization = authorizeSteeringApply({
+    topologyFingerprint: fingerprintSteeringTopology(source),
+    auth: executionAuth,
+  });
+  if (!applyAuthorization.allowed) {
+    throw new Error(
+      `Boundary walk apply denied: ${
+        applyAuthorization.reason ?? 'missing gnosis/steering.apply capability'
+      }`
+    );
+  }
+}
+
+async function resolveBoundaryWalkExecutionAuth(options: {
+  ast: GraphAST;
+  initialPayload: unknown;
+  explicitExecutionAuth: GnosisExecutionAuthContext | null;
+}): Promise<GnosisExecutionAuthContext | null> {
+  if (options.explicitExecutionAuth) {
+    return options.explicitExecutionAuth;
+  }
+
+  const bootstrap = await bootstrapExecutionAuthFromTopology(options.ast, {
+    initialPayload: options.initialPayload,
+  });
+  return bootstrap.executionAuth;
+}
+
 interface TlaWritePaths {
   tlaFilePath: string;
   cfgFilePath: string;
@@ -312,6 +418,83 @@ function parseSteeringMode(rawArgs: string[]): GnosisSteeringMode | null {
   return normalized;
 }
 
+function steeringTraceEnabled(rawArgs: string[]): boolean {
+  return !rawArgs.includes('--no-steering-trace');
+}
+
+function parsePositiveIntegerFlag(
+  rawArgs: string[],
+  flagName: string
+): number | null {
+  const rawValue = parseFlagValue(rawArgs, flagName);
+  if (!rawValue) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(rawValue, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function parseSteeringTraceWindow(rawArgs: string[]): number {
+  return (
+    parsePositiveIntegerFlag(rawArgs, '--steering-trace-window') ??
+    DEFAULT_GNOSIS_STEERING_TRACE_WINDOW
+  );
+}
+
+function parseSteeringRelayConfig(rawArgs: string[]) {
+  const url =
+    parseFlagValue(rawArgs, '--steering-aeon-relay-url') ??
+    parseFlagValue(rawArgs, '--steering-relay-url') ??
+    process.env.GNOSIS_STEERING_AEON_RELAY_URL ??
+    process.env.GNOSIS_STEERING_RELAY_URL ??
+    process.env.DASH_RELAY_WS_URL ??
+    null;
+  if (!url) {
+    return null;
+  }
+
+  return {
+    url,
+    roomName:
+      parseFlagValue(rawArgs, '--steering-aeon-relay-room') ??
+      parseFlagValue(rawArgs, '--steering-relay-room') ??
+      process.env.GNOSIS_STEERING_AEON_RELAY_ROOM ??
+      process.env.GNOSIS_STEERING_RELAY_ROOM ??
+      defaultSteeringTraceRoomName(),
+    apiKey:
+      parseFlagValue(rawArgs, '--steering-aeon-relay-key') ??
+      parseFlagValue(rawArgs, '--steering-relay-key') ??
+      process.env.GNOSIS_STEERING_AEON_RELAY_API_KEY ??
+      process.env.GNOSIS_STEERING_RELAY_API_KEY ??
+      undefined,
+    clientId:
+      parseFlagValue(rawArgs, '--steering-aeon-relay-client-id') ??
+      parseFlagValue(rawArgs, '--steering-relay-client-id') ??
+      process.env.GNOSIS_STEERING_AEON_RELAY_CLIENT_ID ??
+      process.env.GNOSIS_STEERING_RELAY_CLIENT_ID ??
+      undefined,
+    protocol:
+      parseFlagValue(rawArgs, '--steering-aeon-relay-protocol') ??
+      parseFlagValue(rawArgs, '--steering-relay-protocol') ??
+      process.env.GNOSIS_STEERING_AEON_RELAY_PROTOCOL ??
+      process.env.GNOSIS_STEERING_RELAY_PROTOCOL ??
+      undefined,
+    joinMode:
+      parseFlagValue(rawArgs, '--steering-aeon-relay-mode') ??
+      parseFlagValue(rawArgs, '--steering-relay-mode') ??
+      process.env.GNOSIS_STEERING_AEON_RELAY_MODE ??
+      process.env.GNOSIS_STEERING_RELAY_MODE ??
+      undefined,
+    relayProduct:
+      parseFlagValue(rawArgs, '--steering-aeon-relay-product') ??
+      parseFlagValue(rawArgs, '--steering-relay-product') ??
+      process.env.GNOSIS_STEERING_AEON_RELAY_PRODUCT ??
+      process.env.GNOSIS_STEERING_RELAY_PRODUCT ??
+      undefined,
+  };
+}
+
 function formatSteeringSummary(steering: GnosisSteeringMetrics): string {
   const parts = [
     `mode=${steering.mode}`,
@@ -335,6 +518,25 @@ function formatSteeringSummary(steering: GnosisSteeringMetrics): string {
 
   if (steering.recommendedAction) {
     parts.push(`action=${steering.recommendedAction}`);
+  }
+
+  if (steering.failureBoundary.deterministicCollapseCandidate) {
+    parts.push(`collapse=${steering.failureBoundary.collapseCostAction}`);
+    parts.push(`paid-cost=${steering.failureBoundary.totalPaidCost}`);
+    parts.push(`paid-stages=${steering.failureBoundary.paidStageCount}`);
+    parts.push(`cost-floor=${steering.failureBoundary.collapseCostFloor}`);
+  }
+
+  if (steering.failureBoundary.zeroWasteCollapseRisk) {
+    parts.push('free-collapse-risk=true');
+  }
+
+  if (steering.failureBoundary.freeCollapsePrefixRisk) {
+    parts.push('prefix-risk=true');
+  }
+
+  if (steering.failureBoundary.contagiousRepairPressure) {
+    parts.push('zero-vent-repair=true');
   }
 
   if (steering.telemetry.wallMicroCharleys !== null) {
@@ -361,6 +563,61 @@ function formatSteeringEdaSummary(steering: GnosisSteeringMetrics): string {
     `graph-diameter=${steering.eda.graph.diameter}`,
     `outlier-nodes=${steering.eda.graphOutliers.length}`,
   ].join(' ');
+}
+
+function formatWallaceMetric(value: number): string {
+  return `${value} wally${value === 1 ? '' : 's'}`;
+}
+
+function formatBuleyMetric(value: number): string {
+  return `${value} bule${value === 1 ? '' : 's'}`;
+}
+
+function formatFailureBoundaryNarrative(
+  steering: GnosisSteeringMetrics
+): string | null {
+  const { failureBoundary } = steering;
+  if (
+    !failureBoundary.deterministicCollapseCandidate &&
+    !failureBoundary.contagiousRepairPressure
+  ) {
+    return null;
+  }
+
+  const parts = [`collapse cost: ${failureBoundary.collapseCostAction}`];
+
+  if (failureBoundary.collapseCostFloor > 0) {
+    parts.push(`floor=${failureBoundary.collapseCostFloor}`);
+    parts.push(`paid=${failureBoundary.totalPaidCost}`);
+  }
+
+  if (failureBoundary.paidStageCount > 0) {
+    parts.push(`paid-stages=${failureBoundary.paidStageCount}`);
+  }
+
+  if (failureBoundary.zeroWasteCollapseRisk) {
+    parts.push('free collapse blocked');
+  }
+
+  if (failureBoundary.freeCollapsePrefixRisk) {
+    parts.push(`prefix deficit=${failureBoundary.prefixCostDeficit}`);
+  }
+
+  if (failureBoundary.contagiousRepairPressure) {
+    parts.push('zero-vent repair pressure');
+  }
+
+  return parts.join(' | ');
+}
+
+function emitSteeringTraceAlert(
+  summary: Parameters<typeof formatSteeringTraceAlert>[0],
+  status: Parameters<typeof formatSteeringTraceAlert>[1]
+): void {
+  const alert = formatSteeringTraceAlert(summary, status);
+  if (alert) {
+    console.error(`[Gnosis] ${alert}`);
+  }
 }
 
 async function main() {
@@ -582,8 +839,16 @@ async function main() {
         if (wallaceOnly) {
           console.log(`[Gnosis crank] ${filePath}`);
           console.log(
-            `  wallace-number: ${report.steering.wallaceNumber} ${report.steering.wallaceUnit}`
+            `  Wallace metric: ${formatWallaceMetric(
+              report.steering.wallaceNumber
+            )}`
           );
+          const failureBoundary = formatFailureBoundaryNarrative(
+            report.steering
+          );
+          if (failureBoundary) {
+            console.log(`  failure boundary: ${failureBoundary}`);
+          }
           console.log(`  steering: ${formatSteeringSummary(report.steering)}`);
           console.log(
             `  steering-eda: ${formatSteeringEdaSummary(report.steering)}`
@@ -598,7 +863,7 @@ async function main() {
         } else if (buleyOnly) {
           console.log(`[Gnosis stank] ${filePath}`);
           console.log(
-            `  buley-number: ${report.buleyNumber} bules${
+            `  Buley metric: ${formatBuleyMetric(report.buleyNumber)}${
               maxBuley !== null ? ` (max=${maxBuley})` : ''
             }`
           );
@@ -635,7 +900,7 @@ async function main() {
             }
           }
           console.log(
-            `  buley-number: ${report.buleyNumber}${
+            `  Buley metric: ${formatBuleyMetric(report.buleyNumber)}${
               maxBuley !== null ? ` (max=${maxBuley})` : ''
             }`
           );
@@ -656,9 +921,20 @@ async function main() {
             `  quantum-index: ${report.quantum.quantumIndex} beta-pressure=${report.quantum.betaPressure} beta-headroom=${report.quantum.betaHeadroom}`
           );
           if (surfaceSteeringMetrics(report.steering.mode)) {
+            const failureBoundary = formatFailureBoundaryNarrative(
+              report.steering
+            );
+            console.log(
+              `  Wallace metric: ${formatWallaceMetric(
+                report.steering.wallaceNumber
+              )}`
+            );
             console.log(
               `  steering: ${formatSteeringSummary(report.steering)}`
             );
+            if (failureBoundary) {
+              console.log(`  failure boundary: ${failureBoundary}`);
+            }
             console.log(
               `  steering-eda: ${formatSteeringEdaSummary(report.steering)}`
             );
@@ -777,10 +1053,39 @@ async function main() {
       process.exit(1);
     }
     const useNativeRuntime = args[0] === 'native' || args.includes('--native');
+    const shouldPersistSteeringTrace = steeringTraceEnabled(args);
+    const steeringTraceWindow = parseSteeringTraceWindow(args);
+    const steeringRelayConfig = parseSteeringRelayConfig(args);
+    const explicitExecutionAuth = parseExecutionAuth(args);
+    const initialPayload =
+      args[1] === 'betti.gg' ? 'transformer.gg' : 'GPT_INIT';
+    const steeringTraceStore = shouldPersistSteeringTrace
+      ? new GnosisSteeringTraceStore({
+          recentWindow: steeringTraceWindow,
+          relay: steeringRelayConfig,
+          executionAuth: explicitExecutionAuth,
+        })
+      : null;
 
     console.log(`[Gnosis] Reading topology from ${filePath}...`);
     const loadedTopology = await loadCliTopologySource(filePath);
     const content = loadedTopology.source;
+    const betty = new BettyCompiler();
+    const { ast, output } = betty.parse(content);
+    if (!ast) {
+      console.error(`[Gnosis Error] Failed to parse AST.`);
+      process.exit(1);
+    }
+    const boundaryWalkExecutionAuth = await resolveBoundaryWalkExecutionAuth({
+      ast,
+      initialPayload,
+      explicitExecutionAuth,
+    });
+    assertBoundaryWalkAuthorized({
+      source: content,
+      steeringMode,
+      executionAuth: boundaryWalkExecutionAuth,
+    });
 
     const runtimeReport = await analyzeGnosisSource(content, { steeringMode });
     if (!runtimeReport.correctness.ok) {
@@ -804,17 +1109,51 @@ async function main() {
       );
     }
 
-    const betty = new BettyCompiler();
-    const { ast, output } = betty.parse(content);
     console.log(output);
-
-    if (!ast) {
-      console.error(`[Gnosis Error] Failed to parse AST.`);
-      process.exit(1);
-    }
 
     console.log(`\n[Gnosis] Executing topology...`);
     try {
+      const persistSteeringTrace = async (
+        steering: GnosisSteeringMetrics,
+        outcome: 'ok' | 'error',
+        errorMessage: string | null,
+        activeExecutionAuth: GnosisExecutionAuthContext | null
+      ): Promise<void> => {
+        if (!steeringTraceStore) {
+          return;
+        }
+
+        steeringTraceStore.setExecutionAuth(activeExecutionAuth);
+        await steeringTraceStore.connect();
+
+        const traceRecord = createSteeringTraceRecord({
+          command: useNativeRuntime ? 'native' : 'run',
+          filePath,
+          source: content,
+          report: runtimeReport,
+          steering,
+          payload: initialPayload,
+          outcome,
+          errorMessage,
+        });
+        steeringTraceStore.append(traceRecord);
+        const steeringTraceSummary = steeringTraceStore.summarize({
+          cohortKey: traceRecord.cohortKey,
+        });
+        const traceStatus = steeringTraceStore.status;
+        const prefix =
+          outcome === 'error' ? 'STEERING FAILURES' : 'Steering Trace';
+        const printer = outcome === 'error' ? console.error : console.log;
+        printer(
+          `[Gnosis] ${prefix}: ${formatSteeringTraceStoreStatus(
+            traceStatus
+          )} ${formatSteeringTraceSummary(steeringTraceSummary)}${
+            errorMessage ? ` latest="${errorMessage}"` : ''
+          }`
+        );
+        emitSteeringTraceAlert(steeringTraceSummary, traceStatus);
+      };
+
       const registry = new GnosisRegistry();
       registerCoreAuthHandlers(registry);
 
@@ -1142,50 +1481,104 @@ async function main() {
             }
           : undefined,
       });
-      const initialPayload =
-        args[1] === 'betti.gg' ? 'transformer.gg' : 'GPT_INIT';
 
       const steeringStopwatch = startSteeringTelemetry();
-      const execOutput = await engine.execute(ast, initialPayload);
-      const executedSteering = withSteeringTelemetry(
-        runtimeReport.steering,
-        finishSteeringTelemetry(steeringStopwatch)
-      );
-      console.log(execOutput);
-      if (surfaceSteeringMetrics(executedSteering.mode)) {
-        console.log(
-          `[Gnosis] Runtime Steering: ${formatSteeringSummary(
-            executedSteering
-          )}`
+      try {
+        const execOutput = await engine.execute(ast, initialPayload, {
+          executionAuth: explicitExecutionAuth,
+        });
+        const executedSteering = withSteeringTelemetry(
+          runtimeReport.steering,
+          finishSteeringTelemetry(steeringStopwatch)
         );
-      }
-      if (nativeRuntime) {
-        const runtimeSnapshot = nativeRuntime.snapshot();
-        console.log(
-          `[Gnosis Native Runtime] wasm=${runtimeSnapshot.wasmEnabled} edges=${runtimeSnapshot.edgesProcessed}`
-        );
-        console.log(`[Gnosis Native Runtime] ${runtimeSnapshot.metrics}`);
-        if (runtimeSnapshot.trace.trim().length > 0) {
-          console.log('[Gnosis Native Runtime] Trace:');
-          console.log(runtimeSnapshot.trace);
+        const activeExecutionAuth =
+          engine.executionAuth ??
+          explicitExecutionAuth ??
+          boundaryWalkExecutionAuth;
+        console.log(execOutput);
+        if (surfaceSteeringMetrics(executedSteering.mode)) {
+          console.log(
+            `[Gnosis] Runtime Steering: ${formatSteeringSummary(
+              executedSteering
+            )}`
+          );
+          await persistSteeringTrace(
+            executedSteering,
+            'ok',
+            null,
+            activeExecutionAuth
+          );
         }
+        if (nativeRuntime) {
+          const runtimeSnapshot = nativeRuntime.snapshot();
+          console.log(
+            `[Gnosis Native Runtime] wasm=${runtimeSnapshot.wasmEnabled} edges=${runtimeSnapshot.edgesProcessed}`
+          );
+          console.log(`[Gnosis Native Runtime] ${runtimeSnapshot.metrics}`);
+          if (runtimeSnapshot.trace.trim().length > 0) {
+            console.log('[Gnosis Native Runtime] Trace:');
+            console.log(runtimeSnapshot.trace);
+          }
+        }
+        process.exit(0);
+      } catch (executionError) {
+        const failedSteering = withSteeringTelemetry(
+          runtimeReport.steering,
+          finishSteeringTelemetry(steeringStopwatch)
+        );
+        const activeExecutionAuth =
+          engine.executionAuth ??
+          explicitExecutionAuth ??
+          boundaryWalkExecutionAuth;
+        const message =
+          executionError instanceof Error
+            ? executionError.message
+            : String(executionError);
+
+        if (surfaceSteeringMetrics(failedSteering.mode)) {
+          console.error(
+            `[Gnosis] STEERING FAILURE: ${formatSteeringSummary(
+              failedSteering
+            )}`
+          );
+          if (steeringTraceStore) {
+            try {
+              await persistSteeringTrace(
+                failedSteering,
+                'error',
+                message,
+                activeExecutionAuth
+              );
+            } catch (traceError) {
+              console.error(
+                `[Gnosis] STEERING TRACE FAILURE: ${formatError(traceError)}`
+              );
+            }
+          }
+        }
+        throw executionError;
       }
-      process.exit(0);
     } catch (err: any) {
       console.error(`[Execution Error] ${err.message}`);
       process.exit(1);
     }
   } else if (args[0] === 'run' || args[0] === 'native') {
     console.error(
-      '[Gnosis] Usage: gnosis run <topology.gg|topology.mgg> [--native] [--steering-mode <off|report|suggest|apply>]'
+      '[Gnosis] Usage: gnosis run <topology.gg|topology.mgg> [--native] [--steering-mode <off|report|suggest|apply>] [--steering-trace-window <n>] [--steering-relay-url <wss://...>] [--steering-relay-room <room>] [--steering-relay-key <key>] [--steering-relay-client-id <id>] [--steering-relay-protocol <protocol>] [--steering-relay-mode <mode>] [--steering-relay-product <label>] [--execution-auth-json <json> | --execution-auth-file <path>] [--no-steering-trace]'
     );
     console.error(
-      '[Gnosis] Usage: gnosis native <topology.gg|topology.mgg> [--steering-mode <off|report|suggest|apply>]'
+      '[Gnosis] Usage: gnosis native <topology.gg|topology.mgg> [--steering-mode <off|report|suggest|apply>] [--steering-trace-window <n>] [--steering-relay-url <wss://...>] [--steering-relay-room <room>] [--steering-relay-key <key>] [--steering-relay-client-id <id>] [--steering-relay-protocol <protocol>] [--steering-relay-mode <mode>] [--steering-relay-product <label>] [--execution-auth-json <json> | --execution-auth-file <path>] [--no-steering-trace]'
     );
     process.exit(1);
   } else {
     const { startRepl } = await import('./repl.js');
-    startRepl({ verbose: verboseMode, steeringMode });
+    startRepl({
+      verbose: verboseMode,
+      steeringMode,
+      steeringTraceWindow: parseSteeringTraceWindow(args),
+      steeringRelayConfig: parseSteeringRelayConfig(args),
+      executionAuth: parseExecutionAuth(args),
+    });
   }
 }
 

@@ -5,6 +5,10 @@ NODES == {"source_reader", "strip_comments", "node_lexer", "edge_lexer", "proper
 ROOTS == {"source_code"}
 TERMINALS == {"binary_output", "compile_halt"}
 FOLD_TARGETS == {"raw_ast"}
+EFFECTS == {"fs.local"}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {"fs.local"}
+\* EFFECT_NODE source_reader declared={} inferred={"fs.local"}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

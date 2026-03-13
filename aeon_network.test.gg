@@ -1,0 +1,26 @@
+// aeon_network.test.gg — Verification harness for aeon network
+(test_suite: TestSuite { name: 'aeon_network' })
+
+(ucan_capability_auth: Verify { module: './ucan_capability_auth.gg', beta1_max: '6' })
+(d1_database_sync: Verify { module: './d1_database_sync.gg', beta1_max: '6' })
+(edge_cache_fallback: Verify { module: './edge_cache_fallback.gg', beta1_max: '6' })
+(agent_mesh_gossip: Verify { module: './agent_mesh_gossip.gg', beta1_max: '6' })
+(crdt_sync_conflict: Verify { module: './crdt_sync_conflict.gg', beta1_max: '6' })
+(worker_failover_dist: Verify { module: './worker_failover_dist.gg', beta1_max: '6' })
+(ucan_revocation_gossip: Verify { module: './ucan_revocation_gossip.gg', beta1_max: '6' })
+(edge_queue_batcher: Verify { module: './edge_queue_batcher.gg', beta1_max: '6' })
+(flux_client_sync: Verify { module: './flux_client_sync.gg', beta1_max: '6' })
+
+(test_suite)-[:FORK]->(ucan_capability_auth | d1_database_sync | edge_cache_fallback | agent_mesh_gossip | crdt_sync_conflict | worker_failover_dist | ucan_revocation_gossip | edge_queue_batcher | flux_client_sync)
+
+(ucan_capability_auth)-[:RACE { expect: 'safe' }]->(ucan_capability_auth_res: Result)
+(d1_database_sync)-[:RACE { expect: 'safe' }]->(d1_database_sync_res: Result)
+(edge_cache_fallback)-[:RACE { expect: 'safe' }]->(edge_cache_fallback_res: Result)
+(agent_mesh_gossip)-[:RACE { expect: 'safe' }]->(agent_mesh_gossip_res: Result)
+(crdt_sync_conflict)-[:RACE { expect: 'safe' }]->(crdt_sync_conflict_res: Result)
+(worker_failover_dist)-[:RACE { expect: 'safe' }]->(worker_failover_dist_res: Result)
+(ucan_revocation_gossip)-[:RACE { expect: 'safe' }]->(ucan_revocation_gossip_res: Result)
+(edge_queue_batcher)-[:RACE { expect: 'safe' }]->(edge_queue_batcher_res: Result)
+(flux_client_sync)-[:RACE { expect: 'safe' }]->(flux_client_sync_res: Result)
+
+(ucan_capability_auth_res | d1_database_sync_res | edge_cache_fallback_res | agent_mesh_gossip_res | crdt_sync_conflict_res | worker_failover_dist_res | ucan_revocation_gossip_res | edge_queue_batcher_res | flux_client_sync_res)-[:FOLD { strategy: 'all-pass' }]->(verdict: Verdict)

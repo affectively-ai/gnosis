@@ -5,6 +5,9 @@ NODES == {"team", "shared_vocab", "rapport", "turn_taking", "alignment", "collab
 ROOTS == {"team"}
 TERMINALS == {"collaboration: Outcome"}
 FOLD_TARGETS == {"alignment"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

@@ -1,0 +1,4 @@
+// inference_service_load_balancer.gg — Load balancing for inference requests
+
+(req: Payload)-[:FORK]->(worker_1: GPU | worker_2: GPU)
+(worker_1 | worker_2)-[:RACE { expect: 'fastest-availability' }]->(assigned_worker: Worker)

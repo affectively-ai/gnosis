@@ -5,6 +5,9 @@ NODES == {"fx_input", "dry_mix", "dry", "delay", "reverb", "chorus", "fx_out"}
 ROOTS == {"fx_input"}
 TERMINALS == {"fx_out"}
 FOLD_TARGETS == {"fx_out"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

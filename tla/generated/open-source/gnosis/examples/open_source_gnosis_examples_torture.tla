@@ -5,6 +5,9 @@ NODES == {"source", "a1", "a2", "a3", "a4", "b1", "b2", "winner", "void_1", "voi
 ROOTS == {"source"}
 TERMINALS == {"sink"}
 FOLD_TARGETS == {"sink"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

@@ -1,0 +1,4 @@
+// pensieve_memory_compaction.gg — Pensieve memory compaction
+
+(trigger: Cron)-[:FORK]->(scan_old: GC | scan_redundant: GC)
+(scan_old | scan_redundant)-[:FOLD { strategy: 'union' }]->(compact: Action)

@@ -5,6 +5,9 @@ NODES == {"filter_input", "cutoff", "resonance", "integrator_1", "integrator_2",
 ROOTS == {"filter_input", "cutoff", "resonance"}
 TERMINALS == {"filter_out"}
 FOLD_TARGETS == {}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

@@ -5,6 +5,9 @@ NODES == {"query", "sketch_gate", "definite_miss", "maybe_hit", "exact_lookup", 
 ROOTS == {"query"}
 TERMINALS == {"wasted_scan", "answer"}
 FOLD_TARGETS == {}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

@@ -7,7 +7,7 @@ Runtime execution surfaces for graph traversal and handler dispatch.
 ## Files
 
 - [registry.ts](./registry.ts): Label-to-handler registration map.
-- [engine.ts](./engine.ts): Topology execution engine for `FORK/RACE/FOLD/VENT` graphs with optional UCAN edge authorization, case-aware routing from native `.gg` payloads, and structured cancellation/timeout semantics for concurrent collapse edges.
+- [engine.ts](./engine.ts): Topology execution engine for `FORK/RACE/FOLD/VENT` graphs with persistent execution-auth context, fail-closed UCAN edge authorization, case-aware routing from native `.gg` payloads, structured cancellation/timeout semantics for concurrent collapse edges, and programmatic `executeWithResult()` access to final payloads for internal GG-native subsystems.
 - [core-handlers.ts](./core-handlers.ts): Built-in `Result`, `Option`, `Variant`, `Destructure`, `Delay`, quantum, and differentiable handlers for native `.gg` data-shaping and execution, including path-aware record destructuring and explicit tuple unpacking.
 - [native-runtime.ts](./native-runtime.ts): Native `.gg` frame runtime adapter over `gnosis_runtime` WASM, with deterministic fallback metrics when WASM is unavailable.
 - [renderer-compat.ts](./renderer-compat.ts): 3D renderer compatibility layer targeting `@affectively/aeon-3d` with local fallback.
@@ -103,3 +103,7 @@ Structured concurrency also has a native runtime surface:
 (seed:Scalar { value: '0' })-[:FORK]->(fast:Delay { ms: '1', emit: 'ready' } | slow:Delay { ms: '25', emit: 'late' })
 (fast | slow)-[:FOLD { timeoutMs: '5', failure: 'shield' }]->(sink)
 ```
+
+When a run enters enforced UCAN mode, the engine now retains `executionAuth` outside the payload and passes it through `GnosisHandlerContext`, so labels like `UCANRequire` continue to work even after intermediate handlers replace the payload entirely.
+
+For internal GG-native orchestration that needs more than log text, the engine also exposes `executeWithResult()`, which returns both the execution log and the final payload so host shims can delegate real control flow to `.gg` topologies without scraping strings back into data.

@@ -1,0 +1,4 @@
+// reality_branch_fork.gg — Reality Forking
+
+(base_state: Graph)-[:FORK]->(branch_a: Simulation | branch_b: Simulation)
+(branch_a | branch_b)-[:FOLD { strategy: 'wisdom-merge' }]->(next_state: Graph)

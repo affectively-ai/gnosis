@@ -5,6 +5,9 @@ NODES == {"request", "generic_plan", "noisy_telemetry", "policy_model", "drifted
 ROOTS == {"request"}
 TERMINALS == {"final_result"}
 FOLD_TARGETS == {"final_result"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

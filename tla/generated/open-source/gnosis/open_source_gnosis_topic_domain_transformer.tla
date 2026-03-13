@@ -5,6 +5,9 @@ NODES == {"topic_tokens", "topic_embedding", "query", "key", "value", "head_a", 
 ROOTS == {"topic_tokens"}
 TERMINALS == {"topic_distribution"}
 FOLD_TARGETS == {"attention_mix"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

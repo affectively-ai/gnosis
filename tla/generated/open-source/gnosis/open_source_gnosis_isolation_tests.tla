@@ -5,6 +5,9 @@ NODES == {"discovery", "test_path", "raw_outcome", "total_summary", "verified_st
 ROOTS == {"discovery", "test_path", "raw_outcome", "total_summary", "verified_state"}
 TERMINALS == {"test_path:IsolatedPath", "raw_outcome:Outcome", "total_summary:Summary", "verified_state:FinalState", "exit:SystemExit"}
 FOLD_TARGETS == {"total_summary:Summary"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

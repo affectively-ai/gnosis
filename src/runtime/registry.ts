@@ -1,7 +1,10 @@
+import type { GnosisExecutionAuthContext } from '../auth/core.js';
+
 export interface GnosisHandlerContext {
   nodeId?: string;
   sharedState?: unknown;
   signal?: AbortSignal;
+  executionAuth?: GnosisExecutionAuthContext;
 }
 
 export type GnosisHandler = (

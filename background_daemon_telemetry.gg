@@ -1,0 +1,4 @@
+// background_daemon_telemetry.gg — Background Daemon Telemetry
+
+(tick: Timer)-[:FORK]->(cpu_stat: Metric | mem_stat: Metric)
+(cpu_stat | mem_stat)-[:FOLD { strategy: 'batch' }]->(log_sink: Storage)

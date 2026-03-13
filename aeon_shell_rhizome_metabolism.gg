@@ -1,0 +1,36 @@
+// aeon_shell_rhizome_metabolism.gg — Rhizome Information Metabolism
+//
+// Document: aeon-shell/docs/rhizome-philosophy.md
+// Layer: aeon-shell (Rhizome)
+// 
+// Models the metabolic flow of knowledge through the Rhizome system where 
+// raw information is not hoarded, but actively decayed and compressed.
+//
+// FORK: Raw signals split into parallel ingestion routes (salience vs structural).
+// RACE: Competing forces (Focus/Activity vs Decay/Entropy) establish node heat.
+// COLLAPSE: Heat resolves into a metabolic state (Active vs Archive).
+
+(raw_signal: Source { type: 'shell_event' })
+(amygdala_ingest: Processor { mode: 'salience_heat' })
+(hippocampus_ingest: Processor { mode: 'structural_embed' })
+(node_state: State { entity: 'rhizome_node' })
+
+(focus_pressure: Heat { source: 'user_attention', strength: 'high' })
+(decay_pressure: Entropy { source: 'time_elapsed', strength: 'continuous' })
+
+(active_pool: Cache { metabolic_stage: 'warm' })
+(archive_pool: Storage { metabolic_stage: 'stale' })
+(world_model: Result)
+
+// 1. DualIndex Ingestion
+(raw_signal)-[:FORK]->(amygdala_ingest | hippocampus_ingest)
+(amygdala_ingest)-[:PROCESS]->(node_state)
+(hippocampus_ingest)-[:PROCESS]->(node_state)
+
+// 2. The Metabolic Race
+(node_state)-[:FORK]->(focus_pressure | decay_pressure)
+(focus_pressure)-[:RACE { expect: 'highest-heat' }]->(active_pool)
+(decay_pressure)-[:RACE { expect: 'highest-entropy' }]->(archive_pool)
+
+// 3. Compression and State Collapse
+(active_pool | archive_pool)-[:FOLD { strategy: 'metabolic_balance' }]->(world_model)

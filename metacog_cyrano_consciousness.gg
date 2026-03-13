@@ -1,0 +1,4 @@
+// metacog_cyrano_consciousness.gg — Cyrano Consciousness Loop
+
+(user_action: Event)-[:FORK]->(self_evaluator: Logic | user_feedback: Logic)
+(self_evaluator | user_feedback)-[:FOLD { strategy: 'reconcile' }]->(agent_growth: State)

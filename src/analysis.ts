@@ -1,6 +1,7 @@
 import { performance } from 'node:perf_hooks';
 import {
   checkGgProgram,
+  getGgTerminalNodeIds,
   parseGgProgram,
   type CheckerResult,
   type GgTopologyState,
@@ -74,6 +75,7 @@ export type GnosisSteeringMode = (typeof VALID_GNOSIS_STEERING_MODES)[number];
 export const DEFAULT_GNOSIS_STEERING_MODE: GnosisSteeringMode = 'suggest';
 
 export type GnosisSteeringRegime = 'laminar' | 'transitional' | 'turbulent';
+export type GnosisSteeringBias = 'lean-in' | 'neutral' | 'pull-back';
 
 export type GnosisSteeringAction =
   | 'expand'
@@ -82,16 +84,42 @@ export type GnosisSteeringAction =
   | 'multiplex'
   | 'constrain';
 
+export type GnosisCollapseCostAction =
+  | 'none'
+  | 'keep-multiplicity'
+  | 'pay-vent'
+  | 'pay-repair'
+  | 'pay-vent-or-repair';
+
 export interface GnosisSteeringTelemetry {
   /**
-   * Observed wall-clock time in micro-Charleys.
-   * A micro-Charley is one millisecond.
+   * Observed wall-clock time in microCharleys.
+   * A microCharley is one millisecond.
    */
   wallMicroCharleys: number | null;
-  /** Observed CPU time in micro-Charleys. */
+  /** Observed CPU time in microCharleys. */
   cpuMicroCharleys: number | null;
   /** wall / cpu, when both are available. */
   wallToCpuRatio: number | null;
+}
+
+export interface GnosisFailureTrilemmaMetrics {
+  nontrivialFork: boolean;
+  deterministicCollapseCandidate: boolean;
+  singleTerminalObserved: boolean;
+  ventCostEdges: number;
+  repairCostEdges: number;
+  totalVentCost: number;
+  totalRepairDebt: number;
+  totalPaidCost: number;
+  paidStageCount: number;
+  collapseCostFloor: number;
+  collapseCostMargin: number;
+  prefixCostDeficit: number;
+  zeroWasteCollapseRisk: boolean;
+  contagiousRepairPressure: boolean;
+  collapseCostAction: GnosisCollapseCostAction;
+  freeCollapsePrefixRisk: boolean;
 }
 
 export interface GnosisSteeringStopwatch {
@@ -115,14 +143,20 @@ export interface GnosisSteeringMetrics {
   /** Primary scalar statistic for frontier pessimism / underfill; canonical Wallace surface. */
   wallaceNumber: number;
   wallaceUnit: 'wally';
-  /** Short-form alias for Wallace output. Legacy `charleyNumber` is removed. */
+  /** Short-form alias for Wallace output. */
   wally: number;
   topologyDeficit: number;
   frontierFill: number;
   /** Descriptive underfill field kept alongside the canonical Wallace surface. */
   frontierDeficit: number;
   regime: GnosisSteeringRegime;
+  /** Signed boundary-walk bias. Positive = lean into concurrency, negative = pull back. */
+  boundaryWalkBias: number;
+  /** Human-readable steering posture derived from the boundary walk. */
+  leanInBias: GnosisSteeringBias;
   recommendedAction: GnosisSteeringAction | null;
+  /** Deterministic collapse is never free: vent, pay repair, or keep multiplicity alive. */
+  failureBoundary: GnosisFailureTrilemmaMetrics;
   eda: GnosisSteeringEda;
   telemetry: GnosisSteeringTelemetry;
 }
@@ -173,6 +207,12 @@ function buildLineMetrics(source: string): GnosisLineMetrics {
 }
 
 type ParsedGgProgram = ReturnType<typeof parseGgProgram>;
+
+interface GnosisLayeredStageCost {
+  ventCost: number;
+  repairDebt: number;
+  collapseEdges: number;
+}
 
 function expandGraphEdges(program: ParsedGgProgram): GraphEdge<string>[] {
   const expandedEdges: GraphEdge<string>[] = [];
@@ -250,6 +290,66 @@ function countConnectedComponents(program: ParsedGgProgram): number {
   return Math.max(1, components);
 }
 
+function buildNodeLayerIndex(program: ParsedGgProgram): Map<string, number> {
+  const indegreeByNodeId = new Map<string, number>();
+  const outgoingByNodeId = new Map<string, Set<string>>();
+
+  for (const node of program.nodes) {
+    indegreeByNodeId.set(node.id, 0);
+    outgoingByNodeId.set(node.id, new Set<string>());
+  }
+
+  for (const edge of program.edges) {
+    for (const sourceId of edge.sourceIds) {
+      const outgoing = outgoingByNodeId.get(sourceId);
+      if (!outgoing) {
+        continue;
+      }
+
+      for (const targetId of edge.targetIds) {
+        outgoing.add(targetId);
+        indegreeByNodeId.set(
+          targetId,
+          (indegreeByNodeId.get(targetId) ?? 0) + 1
+        );
+      }
+    }
+  }
+
+  const rootNodeIds = [...indegreeByNodeId.entries()]
+    .filter(([, indegree]) => indegree === 0)
+    .map(([nodeId]) => nodeId);
+  const frontier =
+    rootNodeIds.length > 0
+      ? rootNodeIds.map((nodeId) => ({ nodeId, layer: 0 }))
+      : program.nodes.map((node) => ({ nodeId: node.id, layer: 0 }));
+  const layerByNodeId = new Map<string, number>();
+
+  while (frontier.length > 0) {
+    const current = frontier.shift();
+    if (!current) {
+      continue;
+    }
+
+    const knownLayer = layerByNodeId.get(current.nodeId);
+    if (knownLayer !== undefined && knownLayer <= current.layer) {
+      continue;
+    }
+
+    layerByNodeId.set(current.nodeId, current.layer);
+    const outgoing = outgoingByNodeId.get(current.nodeId);
+    if (!outgoing) {
+      continue;
+    }
+
+    for (const targetId of outgoing) {
+      frontier.push({ nodeId: targetId, layer: current.layer + 1 });
+    }
+  }
+
+  return layerByNodeId;
+}
+
 function buildTopologyMetrics(program: ParsedGgProgram): GnosisTopologyMetrics {
   const edgeTypes = program.edges.map((edge) => edge.type.toUpperCase());
   const forkEdgeCount = edgeTypes.filter((type) => type === 'FORK').length;
@@ -313,11 +413,13 @@ function buildTopologyMetrics(program: ParsedGgProgram): GnosisTopologyMetrics {
   };
 }
 
-export function classifySteeringRegime(wally: number): GnosisSteeringRegime {
-  if (wally >= 0.4) {
+export function classifySteeringRegime(
+  wallaceNumber: number
+): GnosisSteeringRegime {
+  if (wallaceNumber >= 0.4) {
     return 'turbulent';
   }
-  if (wally >= 0.15) {
+  if (wallaceNumber >= 0.15) {
     return 'transitional';
   }
   return 'laminar';
@@ -341,22 +443,71 @@ function resolveSteeringMode(
 
 export function recommendSteeringAction(
   topologyDeficit: number,
-  wally: number,
+  wallaceNumber: number,
   regime: GnosisSteeringRegime
 ): GnosisSteeringAction {
-  if (topologyDeficit > 0.5 && wally >= 0.25) {
+  if (topologyDeficit > 0.5 && wallaceNumber >= 0.25) {
     return 'staggered-expand';
   }
   if (topologyDeficit > 0.5) {
     return 'expand';
   }
-  if (topologyDeficit < -0.5 && wally >= 0.25) {
+  if (topologyDeficit < -0.5 && wallaceNumber >= 0.25) {
     return 'constrain';
   }
   if (regime === 'turbulent') {
     return 'multiplex';
   }
   return 'hold';
+}
+
+function clampBias(value: number): number {
+  return round2(Math.max(-1, Math.min(1, value)));
+}
+
+export function deriveBoundaryWalkBias(
+  topologyDeficit: number,
+  wallaceNumber: number,
+  recommendedAction: GnosisSteeringAction
+): number {
+  let bias = 0;
+
+  if (topologyDeficit > 0) {
+    bias += Math.min(0.6, topologyDeficit * 0.5);
+  } else if (topologyDeficit < 0) {
+    bias -= Math.min(0.6, Math.abs(topologyDeficit) * 0.5);
+  }
+
+  switch (recommendedAction) {
+    case 'expand':
+      bias += 0.25;
+      break;
+    case 'staggered-expand':
+      bias += 0.15;
+      break;
+    case 'multiplex':
+      bias += Math.max(0.2, Math.min(0.45, wallaceNumber));
+      break;
+    case 'constrain':
+      bias -= 0.25;
+      break;
+    default:
+      break;
+  }
+
+  return clampBias(bias);
+}
+
+export function classifySteeringBias(
+  boundaryWalkBias: number
+): GnosisSteeringBias {
+  if (boundaryWalkBias >= 0.2) {
+    return 'lean-in';
+  }
+  if (boundaryWalkBias <= -0.2) {
+    return 'pull-back';
+  }
+  return 'neutral';
 }
 
 function buildSteeringEda(
@@ -383,6 +534,155 @@ function buildSteeringEda(
     wavefrontShape: new Points({ data: wavefrontPoints }).describe(),
     graph: graphEda(nodes, edges, { directed: true }),
     graphOutliers: graphOutliers(nodes, edges, { method: 'combined' }),
+  };
+}
+
+function buildFailureTrilemmaMetrics(
+  program: ParsedGgProgram,
+  topology: GnosisTopologyMetrics,
+  correctness: CheckerResult<GgTopologyState>
+): GnosisFailureTrilemmaMetrics {
+  const frontierByLayer =
+    correctness.topology.frontierByLayer.length > 0
+      ? [...correctness.topology.frontierByLayer]
+      : [1];
+  const layerByNodeId = buildNodeLayerIndex(program);
+  const stageCosts = Array.from(
+    {
+      length: Math.max(0, frontierByLayer.length - 1),
+    },
+    (): GnosisLayeredStageCost => ({
+      ventCost: 0,
+      repairDebt: 0,
+      collapseEdges: 0,
+    })
+  );
+  const maxStageIndex = Math.max(0, stageCosts.length - 1);
+
+  for (const edge of program.edges) {
+    const expandedWeight = edge.sourceIds.length * edge.targetIds.length;
+    const sourceLayer = Math.min(
+      maxStageIndex,
+      Math.max(
+        0,
+        ...edge.sourceIds.map((sourceId) => layerByNodeId.get(sourceId) ?? 0)
+      )
+    );
+    const stage = stageCosts[sourceLayer];
+    if (!stage) {
+      continue;
+    }
+
+    switch (edge.type.toUpperCase()) {
+      case 'VENT':
+      case 'TUNNEL':
+        stage.ventCost += expandedWeight;
+        break;
+      case 'INTERFERE':
+        stage.repairDebt += expandedWeight;
+        break;
+      case 'FOLD':
+      case 'COLLAPSE':
+      case 'RACE':
+        stage.collapseEdges += expandedWeight;
+        break;
+      default:
+        break;
+    }
+  }
+
+  const terminalNodeCount = getGgTerminalNodeIds(program).length;
+  const nontrivialFork =
+    topology.forkEdgeCount > 0 && topology.maxBranchFactor > 1;
+  const deterministicCollapseCandidate =
+    nontrivialFork &&
+    (topology.foldEdgeCount > 0 || topology.raceEdgeCount > 0);
+  const singleTerminalObserved = terminalNodeCount <= 1;
+  const ventCostEdges = topology.ventEdgeCount;
+  const repairCostEdges = topology.interfereEdgeCount;
+  const totalVentCost = stageCosts.reduce(
+    (sum, stage) => sum + stage.ventCost,
+    0
+  );
+  const totalRepairDebt = stageCosts.reduce(
+    (sum, stage) => sum + stage.repairDebt,
+    0
+  );
+  const totalPaidCost = totalVentCost + totalRepairDebt;
+  const paidStageCount = stageCosts.filter(
+    (stage) => stage.ventCost > 0 || stage.repairDebt > 0
+  ).length;
+  const zeroWasteCollapseRisk =
+    deterministicCollapseCandidate &&
+    singleTerminalObserved &&
+    ventCostEdges === 0 &&
+    repairCostEdges === 0;
+  const contagiousRepairPressure =
+    nontrivialFork && ventCostEdges === 0 && repairCostEdges > 0;
+  const maxFrontier = Math.max(1, ...frontierByLayer);
+  const collapseCostFloor =
+    deterministicCollapseCandidate
+      ? Math.max(0, maxFrontier - 1)
+      : 0;
+  let cumulativePaidCost = 0;
+  let peakFrontier = Math.max(1, frontierByLayer[0] ?? 1);
+  let prefixCostDeficit = 0;
+
+  for (let stageIndex = 0; stageIndex < stageCosts.length; stageIndex += 1) {
+    const stage = stageCosts[stageIndex];
+    const currentFrontier = frontierByLayer[stageIndex] ?? peakFrontier;
+    const nextFrontier =
+      frontierByLayer[stageIndex + 1] ?? frontierByLayer[stageIndex] ?? 1;
+    peakFrontier = Math.max(peakFrontier, currentFrontier);
+    cumulativePaidCost += stage.ventCost + stage.repairDebt;
+
+    const collapsePressure =
+      stage.collapseEdges > 0 || nextFrontier < peakFrontier;
+    if (!collapsePressure) {
+      continue;
+    }
+
+    const requiredPrefixCost = Math.max(0, peakFrontier - nextFrontier);
+    prefixCostDeficit = Math.max(
+      prefixCostDeficit,
+      requiredPrefixCost - cumulativePaidCost
+    );
+  }
+
+  const collapseCostMargin = totalPaidCost - collapseCostFloor;
+  const freeCollapsePrefixRisk =
+    deterministicCollapseCandidate && prefixCostDeficit > 0;
+
+  let collapseCostAction: GnosisCollapseCostAction = 'none';
+  if (deterministicCollapseCandidate) {
+    if (ventCostEdges === 0 && repairCostEdges === 0) {
+      collapseCostAction = 'keep-multiplicity';
+    } else if (ventCostEdges > 0 && repairCostEdges > 0) {
+      collapseCostAction = 'pay-vent-or-repair';
+    } else if (ventCostEdges > 0) {
+      collapseCostAction = 'pay-vent';
+    } else {
+      collapseCostAction = 'pay-repair';
+    }
+  }
+
+  return {
+    nontrivialFork,
+    deterministicCollapseCandidate,
+    singleTerminalObserved,
+    ventCostEdges,
+    repairCostEdges,
+    totalVentCost,
+    totalRepairDebt,
+    totalPaidCost,
+    paidStageCount,
+    collapseCostFloor,
+    collapseCostMargin,
+    prefixCostDeficit,
+    zeroWasteCollapseRisk,
+    contagiousRepairPressure,
+    collapseCostAction,
+    freeCollapsePrefixRisk,
   };
 }
 
@@ -440,35 +740,52 @@ function buildSteeringMetrics(
   const frontierFill = round2(correctness.topology.frontierFill);
   const checkerTopology =
     correctness.topology as typeof correctness.topology & {
+      wallaceNumber?: number;
       wally?: number;
     };
-  const wally = round2(
-    checkerTopology.wally ?? correctness.topology.frontierDeficit
+  const wallaceNumber = round2(
+    checkerTopology.wallaceNumber ??
+      checkerTopology.wally ??
+      correctness.topology.frontierDeficit
   );
   const topologyDeficit = round2(
     topology.structuralBeta1 - correctness.topology.beta1
   );
-  const regime = classifySteeringRegime(wally);
+  const regime = classifySteeringRegime(wallaceNumber);
   const recommendedAction = recommendSteeringAction(
     topologyDeficit,
-    wally,
+    wallaceNumber,
     regime
+  );
+  const boundaryWalkBias = deriveBoundaryWalkBias(
+    topologyDeficit,
+    wallaceNumber,
+    recommendedAction
+  );
+  const leanInBias = classifySteeringBias(boundaryWalkBias);
+  const failureBoundary = buildFailureTrilemmaMetrics(
+    program,
+    topology,
+    correctness
   );
 
   return {
     mode,
     autoApplyEnabled: mode === 'apply',
     applySupported: false,
-    wallaceNumber: wally,
+    wallaceNumber,
     wallaceUnit: 'wally',
-    wally,
+    wally: wallaceNumber,
     topologyDeficit,
     frontierFill,
-    frontierDeficit: wally,
+    frontierDeficit: wallaceNumber,
     regime,
+    boundaryWalkBias,
+    leanInBias,
     recommendedAction: surfaceSteeringRecommendations(mode)
       ? recommendedAction
       : null,
+    failureBoundary,
     eda: buildSteeringEda(program, correctness),
     telemetry: createEmptySteeringTelemetry(),
   };

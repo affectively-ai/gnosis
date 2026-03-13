@@ -16,8 +16,32 @@ export type {
   QDocObserveHandler,
   QDocEvent,
 } from './qdoc.js';
-export { QDocRelay } from './dashrelay-adapter.js';
-export type { QDocRelayConfig, QDocRelayStatus } from './dashrelay-adapter.js';
+export {
+  QDocAeonRelay,
+  QDocRelay,
+  createQDocAeonRelayJoinEnvelope,
+} from './aeon-relay.js';
+export type {
+  QDocAeonRelayAttributes,
+  QDocAeonRelayAttributeValue,
+  QDocAeonRelayConfig,
+  QDocAeonRelayJoinEnvelope,
+  QDocAeonRelayReadyStrategy,
+  QDocAeonRelaySpan,
+  QDocAeonRelayStatus,
+  QDocAeonRelayTelemetry,
+  QDocAeonRelayTelemetryEvent,
+  QDocAeonRelayTelemetryStage,
+  QDocRelayAttributes,
+  QDocRelayAttributeValue,
+  QDocRelayConfig,
+  QDocRelayReadyStrategy,
+  QDocRelaySpan,
+  QDocRelayStatus,
+  QDocRelayTelemetry,
+  QDocRelayTelemetryEvent,
+  QDocRelayTelemetryStage,
+} from './aeon-relay.js';
 export {
   Doc,
   Map,

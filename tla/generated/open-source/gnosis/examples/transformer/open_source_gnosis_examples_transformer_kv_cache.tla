@@ -5,6 +5,9 @@ NODES == {"new_token", "cached_keys", "cached_values", "fresh_key", "fresh_value
 ROOTS == {"new_token", "cached_keys", "fresh_key", "cached_values", "fresh_value", "query"}
 TERMINALS == {"fresh_key: Projection { role: 'K' }", "fresh_value: Projection { role: 'V' }", "query: Projection { role: 'Q' }", "attn: ScaledDotProduct { causal: 'true' }", "kv_out"}
 FOLD_TARGETS == {"full_keys", "full_values"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

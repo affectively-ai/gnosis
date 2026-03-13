@@ -5,6 +5,9 @@ NODES == {"query", "key", "value", "input", "head_0", "head_1", "head_2", "head_
 ROOTS == {"input: Tensor"}
 TERMINALS == {"attention_out"}
 FOLD_TARGETS == {"concat_heads"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

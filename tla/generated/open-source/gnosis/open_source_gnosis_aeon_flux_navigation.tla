@@ -5,6 +5,9 @@ NODES == {"nav_event", "url_parser", "history_manager", "route_matcher", "preloa
 ROOTS == {"nav_event"}
 TERMINALS == {"app_state"}
 FOLD_TARGETS == {"nav_complete"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

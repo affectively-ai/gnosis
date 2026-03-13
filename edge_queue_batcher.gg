@@ -1,0 +1,4 @@
+// edge_queue_batcher.gg — Edge Queue Batching
+
+(trigger: Time)-[:FORK]->(event1: Log | event2: Log | event3: Log)
+(event1 | event2 | event3)-[:FOLD { strategy: 'size-trigger' }]->(batch: Array)-[:PROCESS]->(warehouse: DB)

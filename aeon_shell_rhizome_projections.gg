@@ -1,0 +1,40 @@
+// aeon_shell_rhizome_projections.gg — Rhizome Interchangable Cameras
+//
+// Document: aeon-shell/docs/rhizome-philosophy.md
+// Layer: aeon-shell (Rhizome)
+//
+// One canonical world model rendered through three interchangeable views.
+// 
+// FORK: The underlying graph snapshot forks into three projection engines.
+// RACE: Each projection attempts to calculate placement (civic address, 
+//       latent similarity, or transport flow).
+// COLLAPSE: A locus statement merges the active view context.
+
+(shell_runtime: Workload { type: 'graph_snapshot' })
+
+(project_globe: Processor { view: 'globe', logic: 'civic_address' })
+(project_constellation: Processor { view: 'constellation', logic: 'latent_similarity' })
+(project_mold: Processor { view: 'mold', logic: 'transport_flow' })
+
+(rendered_globe: State)
+(rendered_constellation: State)
+(rendered_mold: State)
+
+(active_camera: Parameter { selected: 'mold' })
+(locus_statement: Result)
+
+// 1. One world, many cameras
+(shell_runtime)-[:FORK]->(project_globe | project_constellation | project_mold)
+
+// 2. Projection Generation
+(project_globe)-[:PROCESS]->(rendered_globe)
+(project_constellation)-[:PROCESS]->(rendered_constellation)
+(project_mold)-[:PROCESS]->(rendered_mold)
+
+// 3. Race against user's active camera selection
+(rendered_globe | active_camera)-[:RACE { expect: 'fastest-safe' }]->(locus_statement)
+(rendered_constellation | active_camera)-[:RACE { expect: 'fastest-safe' }]->(locus_statement)
+(rendered_mold | active_camera)-[:RACE { expect: 'fastest-safe' }]->(locus_statement)
+
+// 4. Collapse into final locus description (Where am I?)
+(rendered_globe | rendered_constellation | rendered_mold | locus_statement)-[:FOLD { strategy: 'active_view_only' }]->(locus_statement)

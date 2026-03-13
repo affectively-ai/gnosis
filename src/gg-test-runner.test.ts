@@ -25,7 +25,8 @@ afterEach(async () => {
 describe('gg test runner — auto-discovery', () => {
   test('discovers all .test.gg files', () => {
     const files = discoverTestFiles(EXAMPLES_DIR);
-    expect(files.length).toBeGreaterThanOrEqual(3); // synth, transformer, crdt
+    expect(files.length).toBeGreaterThanOrEqual(4); // synth, transformer, crdt, impossible systems
+    expect(files).toContain(resolve(EXAMPLES_DIR, 'impossible-systems.test.gg'));
     for (const f of files) {
       expect(f).toMatch(/\.test\.gg$/);
     }
@@ -35,7 +36,7 @@ describe('gg test runner — auto-discovery', () => {
     const result = await runGGTestSuite(EXAMPLES_DIR);
 
     expect(result.ok).toBe(true);
-    expect(result.suites.length).toBeGreaterThanOrEqual(3);
+    expect(result.suites.length).toBeGreaterThanOrEqual(4);
     expect(result.totalFailed).toBe(0);
     expect(result.totalPassed).toBe(result.totalModules);
 
@@ -93,6 +94,19 @@ describe('gg test runner — individual suites', () => {
 
     expect(result.ok).toBe(true);
     expect(result.modules.length).toBe(7);
+    for (const mod of result.modules) {
+      expect(mod.ok).toBe(true);
+    }
+    expect(result.composition.ok).toBe(true);
+  });
+
+  test('impossible-systems.test.gg — all aeon-inspired modules pass', async () => {
+    const result = await runGGTestFile(
+      resolve(EXAMPLES_DIR, 'impossible-systems.test.gg')
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.modules.length).toBe(4);
     for (const mod of result.modules) {
       expect(mod.ok).toBe(true);
     }

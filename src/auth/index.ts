@@ -1,6 +1,16 @@
 export {
+  authorizeSteeringApply,
+  authorizeSteeringCapability,
+  authorizeSteeringRelayConnect,
+  authorizeSteeringRun,
+  authorizeSteeringTraceAppend,
   authorizeTopologyEdge,
   buildEdgeResource,
+  buildSteeringRelayResource,
+  buildSteeringTopologyResource,
+  buildSteeringTraceResource,
+  mergeExecutionAuthContexts,
+  normalizeExecutionAuthContext,
   topologyActionForEdge,
   generateUcanIdentity,
   issueGranularUcan,
@@ -13,6 +23,9 @@ export {
 
 export type {
   GnosisExecutionAuthContext,
+  GnosisSteeringAuthorizationInput,
+  GnosisSteeringAuthorizationResult,
+  GnosisSteeringCapabilityAction,
   TopologyEdgeAuthorizationInput,
   TopologyEdgeAuthorizationResult,
 } from './core.js';
@@ -50,6 +63,13 @@ export type {
   ZkProofVerifier,
   ZkProofVerifierInput,
 } from './tee-attestation.js';
+export {
+  bootstrapExecutionAuthFromTopology,
+} from './bootstrap.js';
+export type {
+  GnosisExecutionAuthBootstrapOptions,
+  GnosisExecutionAuthBootstrapResult,
+} from './bootstrap.js';
 
 export {
   buildVerifyExecutionCalldata,

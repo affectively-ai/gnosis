@@ -1,0 +1,16 @@
+// shared_ui_metacognition.test.gg — Verification harness for shared ui metacognition
+(test_suite: TestSuite { name: 'shared_ui_metacognition' })
+
+(metacog_cyrano_consciousness: Verify { module: './metacog_cyrano_consciousness.gg', beta1_max: '6' })
+(metacog_ombuds_mode: Verify { module: './metacog_ombuds_mode.gg', beta1_max: '6' })
+(metacog_halogram_bridge: Verify { module: './metacog_halogram_bridge.gg', beta1_max: '6' })
+(metacog_personality_calibration: Verify { module: './metacog_personality_calibration.gg', beta1_max: '6' })
+
+(test_suite)-[:FORK]->(metacog_cyrano_consciousness | metacog_ombuds_mode | metacog_halogram_bridge | metacog_personality_calibration)
+
+(metacog_cyrano_consciousness)-[:RACE { expect: 'safe' }]->(metacog_cyrano_consciousness_res: Result)
+(metacog_ombuds_mode)-[:RACE { expect: 'safe' }]->(metacog_ombuds_mode_res: Result)
+(metacog_halogram_bridge)-[:RACE { expect: 'safe' }]->(metacog_halogram_bridge_res: Result)
+(metacog_personality_calibration)-[:RACE { expect: 'safe' }]->(metacog_personality_calibration_res: Result)
+
+(metacog_cyrano_consciousness_res | metacog_ombuds_mode_res | metacog_halogram_bridge_res | metacog_personality_calibration_res)-[:FOLD { strategy: 'all-pass' }]->(verdict: Verdict)

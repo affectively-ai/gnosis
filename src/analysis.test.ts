@@ -1,8 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import {
   analyzeGnosisSource,
+  classifySteeringBias,
   classifySteeringRegime,
   createEmptySteeringTelemetry,
+  deriveBoundaryWalkBias,
   recommendSteeringAction,
   withSteeringTelemetry,
 } from './analysis.js';
@@ -22,7 +24,27 @@ describe('Gnosis analysis steering', () => {
       frontierFill: 1,
       frontierDeficit: 0,
       regime: 'laminar',
+      boundaryWalkBias: 0,
+      leanInBias: 'neutral',
       recommendedAction: 'hold',
+      failureBoundary: {
+        nontrivialFork: false,
+        deterministicCollapseCandidate: false,
+        singleTerminalObserved: true,
+        ventCostEdges: 0,
+        repairCostEdges: 0,
+        totalVentCost: 0,
+        totalRepairDebt: 0,
+        totalPaidCost: 0,
+        paidStageCount: 0,
+        collapseCostFloor: 0,
+        collapseCostMargin: 0,
+        prefixCostDeficit: 0,
+        zeroWasteCollapseRisk: false,
+        contagiousRepairPressure: false,
+        collapseCostAction: 'none',
+        freeCollapsePrefixRisk: false,
+      },
       telemetry: createEmptySteeringTelemetry(),
     });
     expect('charleyNumber' in report.steering).toBe(false);
@@ -48,7 +70,22 @@ describe('Gnosis analysis steering', () => {
     expect(report.steering.frontierDeficit).toBe(0.33);
     expect(report.steering.topologyDeficit).toBe(0);
     expect(report.steering.regime).toBe('transitional');
+    expect(report.steering.boundaryWalkBias).toBe(0);
+    expect(report.steering.leanInBias).toBe('neutral');
     expect(report.steering.recommendedAction).toBe('hold');
+    expect(report.steering.failureBoundary.nontrivialFork).toBe(true);
+    expect(report.steering.failureBoundary.deterministicCollapseCandidate).toBe(
+      true
+    );
+    expect(report.steering.failureBoundary.totalPaidCost).toBe(0);
+    expect(report.steering.failureBoundary.collapseCostFloor).toBe(1);
+    expect(report.steering.failureBoundary.collapseCostMargin).toBe(-1);
+    expect(report.steering.failureBoundary.prefixCostDeficit).toBe(1);
+    expect(report.steering.failureBoundary.freeCollapsePrefixRisk).toBe(true);
+    expect(report.steering.failureBoundary.zeroWasteCollapseRisk).toBe(true);
+    expect(report.steering.failureBoundary.collapseCostAction).toBe(
+      'keep-multiplicity'
+    );
     expect(report.steering.eda.frontierWidths.summary.median.datum).toBe(1);
     expect(report.steering.eda.graph.edgeCount).toBe(4);
     expect(Array.isArray(report.steering.eda.graphOutliers)).toBe(true);
@@ -93,6 +130,87 @@ describe('Gnosis analysis steering', () => {
     expect(withTelemetry.wallaceNumber).toBe(report.steering.wallaceNumber);
   });
 
+  test('distinguishes vent-paid and repair-paid collapse paths', async () => {
+    const ventPaid = await analyzeGnosisSource(
+      [
+        '(start)-[:FORK]->(left|right)',
+        '(right)-[:VENT]->(spill)',
+        '(left)-[:FOLD]->(finish)',
+      ].join('\n')
+    );
+    const repairPaid = await analyzeGnosisSource(
+      [
+        '(start)-[:FORK]->(left|right)',
+        '(left)-[:INTERFERE]->(repair)',
+        '(repair|right)-[:FOLD]->(finish)',
+      ].join('\n')
+    );
+
+    expect(ventPaid.steering.failureBoundary.collapseCostAction).toBe(
+      'pay-vent'
+    );
+    expect(ventPaid.steering.failureBoundary.totalVentCost).toBe(1);
+    expect(ventPaid.steering.failureBoundary.totalRepairDebt).toBe(0);
+    expect(ventPaid.steering.failureBoundary.paidStageCount).toBe(1);
+    expect(ventPaid.steering.failureBoundary.collapseCostFloor).toBe(1);
+    expect(ventPaid.steering.failureBoundary.collapseCostMargin).toBe(0);
+    expect(ventPaid.steering.failureBoundary.freeCollapsePrefixRisk).toBe(
+      false
+    );
+    expect(ventPaid.steering.failureBoundary.zeroWasteCollapseRisk).toBe(false);
+    expect(repairPaid.steering.failureBoundary.collapseCostAction).toBe(
+      'pay-repair'
+    );
+    expect(repairPaid.steering.failureBoundary.totalVentCost).toBe(0);
+    expect(repairPaid.steering.failureBoundary.totalRepairDebt).toBe(1);
+    expect(repairPaid.steering.failureBoundary.paidStageCount).toBe(1);
+    expect(repairPaid.steering.failureBoundary.collapseCostFloor).toBe(1);
+    expect(repairPaid.steering.failureBoundary.collapseCostMargin).toBe(0);
+    expect(repairPaid.steering.failureBoundary.freeCollapsePrefixRisk).toBe(
+      false
+    );
+    expect(repairPaid.steering.failureBoundary.contagiousRepairPressure).toBe(
+      true
+    );
+  });
+
+  test('tracks exact collapse floor and paid stages on a three-branch witness', async () => {
+    const report = await analyzeGnosisSource(
+      [
+        '(start)-[:FORK]->(left|middle|right)',
+        '(middle)-[:VENT]->(spill_middle)',
+        '(right)-[:VENT]->(spill_right)',
+        '(left)-[:FOLD]->(finish)',
+      ].join('\n')
+    );
+
+    expect(report.steering.failureBoundary.totalVentCost).toBe(2);
+    expect(report.steering.failureBoundary.totalRepairDebt).toBe(0);
+    expect(report.steering.failureBoundary.totalPaidCost).toBe(2);
+    expect(report.steering.failureBoundary.paidStageCount).toBe(1);
+    expect(report.steering.failureBoundary.collapseCostFloor).toBe(2);
+    expect(report.steering.failureBoundary.collapseCostMargin).toBe(0);
+    expect(report.steering.failureBoundary.prefixCostDeficit).toBe(0);
+    expect(report.steering.failureBoundary.freeCollapsePrefixRisk).toBe(false);
+  });
+
+  test('flags unpaid multi-stage collapse prefixes before the final fold', async () => {
+    const report = await analyzeGnosisSource(
+      [
+        '(start)-[:FORK]->(left|right)',
+        '(left)-[:PROCESS]->(left_stage)',
+        '(right)-[:PROCESS]->(right_stage)',
+        '(left_stage)-[:FOLD]->(finish)',
+        '(right_stage)-[:FOLD]->(finish)',
+      ].join('\n')
+    );
+
+    expect(report.steering.failureBoundary.totalPaidCost).toBe(0);
+    expect(report.steering.failureBoundary.collapseCostFloor).toBe(1);
+    expect(report.steering.failureBoundary.prefixCostDeficit).toBe(1);
+    expect(report.steering.failureBoundary.freeCollapsePrefixRisk).toBe(true);
+  });
+
   test('accepts UFCS source by lowering it before analysis', async () => {
     const report = await analyzeGnosisSource('start.finish()');
 
@@ -117,5 +235,24 @@ describe('Gnosis steering policy', () => {
     expect(recommendSteeringAction(-1, 0.3, 'transitional')).toBe('constrain');
     expect(recommendSteeringAction(0, 0.45, 'turbulent')).toBe('multiplex');
     expect(recommendSteeringAction(0, 0.05, 'laminar')).toBe('hold');
+  });
+
+  test('derives a boundary-walk bias for lean-in and pull-back postures', () => {
+    expect(deriveBoundaryWalkBias(1, 0.1, 'expand')).toBeGreaterThan(0.2);
+    expect(classifySteeringBias(deriveBoundaryWalkBias(1, 0.1, 'expand'))).toBe(
+      'lean-in'
+    );
+
+    expect(deriveBoundaryWalkBias(0, 0.45, 'multiplex')).toBeGreaterThan(0.2);
+    expect(
+      classifySteeringBias(deriveBoundaryWalkBias(0, 0.45, 'multiplex'))
+    ).toBe('lean-in');
+
+    expect(deriveBoundaryWalkBias(-1, 0.3, 'constrain')).toBeLessThan(-0.2);
+    expect(
+      classifySteeringBias(deriveBoundaryWalkBias(-1, 0.3, 'constrain'))
+    ).toBe('pull-back');
+
+    expect(classifySteeringBias(0)).toBe('neutral');
   });
 });

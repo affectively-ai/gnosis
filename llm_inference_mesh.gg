@@ -1,0 +1,4 @@
+// llm_inference_mesh.gg — LLM Distributed Inference Mesh
+
+(prompt: Prompt)-[:FORK]->(node_a: GPU | node_b: GPU | node_c: GPU)
+(node_a | node_b | node_c)-[:RACE { expect: 'fastest-chunk' }]->(stream: Output)

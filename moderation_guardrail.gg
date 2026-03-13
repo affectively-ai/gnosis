@@ -1,0 +1,4 @@
+// moderation_guardrail.gg — Moderation Shield
+
+(output: Text)-[:FORK]->(pii_check: Guard | toxicity_check: Guard)
+(pii_check | toxicity_check)-[:FOLD { strategy: 'all-pass' }]->(safe_output: Text)

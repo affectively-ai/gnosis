@@ -5,6 +5,9 @@ NODES == {"counter", "inc_a", "inc_b", "dec_c", "total"}
 ROOTS == {"counter"}
 TERMINALS == {"total"}
 FOLD_TARGETS == {"total"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

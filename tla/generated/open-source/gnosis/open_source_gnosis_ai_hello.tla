@@ -5,6 +5,9 @@ NODES == {"input", "encoder", "relu", "head1", "head2", "decoder", "output", "co
 ROOTS == {"input"}
 TERMINALS == {"prediction"}
 FOLD_TARGETS == {"context"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

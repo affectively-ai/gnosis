@@ -5,6 +5,9 @@ NODES == {"nav_context", "route_predictor", "wrong_css", "wrong_data", "wrong_fo
 ROOTS == {"nav_context", "route_request", "misroute"}
 TERMINALS == {"misroute: Candidate", "settled_route"}
 FOLD_TARGETS == {"wrong_bundle", "settled_route"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

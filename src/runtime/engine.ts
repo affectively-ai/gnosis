@@ -3,7 +3,11 @@ import { GraphAST, ASTEdge, ASTNode } from '../betty/compiler.js';
 import { GnosisRegistry } from './registry.js';
 import { QuantumWasmBridge } from '../betty/quantum/bridge.js';
 import type { GnosisExecutionAuthContext } from '../auth/core.js';
-import { authorizeTopologyEdge } from '../auth/core.js';
+import {
+  authorizeTopologyEdge,
+  mergeExecutionAuthContexts,
+  normalizeExecutionAuthContext,
+} from '../auth/core.js';
 import { registerCoreAuthHandlers } from '../auth/handlers.js';
 import { registerCoreRuntimeHandlers } from './core-handlers.js';
 import { injectSensitiveZkEnvelopes } from '../auth/auto-zk.js';
@@ -11,6 +15,10 @@ import type { GnosisHandler, GnosisHandlerContext } from './registry.js';
 
 export interface GnosisEngineOptions {
   onEdgeEvaluated?: (edge: ASTEdge) => Promise<void> | void;
+}
+
+export interface GnosisEngineExecuteOptions {
+  executionAuth?: GnosisExecutionAuthContext | null;
 }
 
 export interface GnosisEngineExecutionResult {
@@ -55,6 +63,7 @@ export class GnosisEngine {
   private bridge: QuantumWasmBridge;
   private tracker: ReynoldsTracker;
   private onEdgeEvaluated: ((edge: ASTEdge) => Promise<void> | void) | null;
+  private runtimeExecutionAuth: GnosisExecutionAuthContext | null = null;
 
   constructor(registry?: GnosisRegistry, options: GnosisEngineOptions = {}) {
     this.registry = registry || new GnosisRegistry();
@@ -67,15 +76,17 @@ export class GnosisEngine {
 
   public async execute(
     ast: GraphAST,
-    initialPayload: any = null
+    initialPayload: any = null,
+    options: GnosisEngineExecuteOptions = {}
   ): Promise<string> {
-    const result = await this.executeWithResult(ast, initialPayload);
+    const result = await this.executeWithResult(ast, initialPayload, options);
     return result.logs;
   }
 
   public async executeWithResult(
     ast: GraphAST,
-    initialPayload: any = null
+    initialPayload: any = null,
+    options: GnosisEngineExecuteOptions = {}
   ): Promise<GnosisEngineExecutionResult> {
     if (ast.edges.length === 0) {
       return {
@@ -83,6 +94,11 @@ export class GnosisEngine {
         payload: initialPayload,
       };
     }
+
+    this.initializeExecutionAuthState(
+      initialPayload,
+      options.executionAuth ?? null
+    );
 
     const autoInjected = injectSensitiveZkEnvelopes(ast);
     const activeAst = autoInjected.ast;
@@ -125,6 +141,7 @@ export class GnosisEngine {
       currentNodeId = currentNodeId.trim();
       const sid = streamCounter++;
       this.tracker.updateStream(sid, 'active');
+      this.syncExecutionAuthFromPayload(currentPayload);
 
       if (visited.has(currentNodeId)) {
         execLogs.push(`Cycle detected at ${currentNodeId}. Breaking.`);
@@ -142,7 +159,9 @@ export class GnosisEngine {
           );
           currentPayload = await handler(currentPayload, node.properties, {
             nodeId: currentNodeId,
+            executionAuth: this.executionAuth ?? undefined,
           });
+          this.syncExecutionAuthFromPayload(currentPayload);
           this.tracker.updateStream(sid, 'completed');
         } else {
           execLogs.push(`  -> Skipping [${currentNodeId}] (No handler)`);
@@ -356,6 +375,7 @@ export class GnosisEngine {
           execLogs,
         });
         currentPayload = concurrentResult.payload;
+        this.syncExecutionAuthFromPayload(currentPayload);
         streamCounter = concurrentResult.streamCounter;
         currentNodeId = collapseEdge.targetIds[0].trim();
         continue;
@@ -374,6 +394,12 @@ export class GnosisEngine {
       logs: execLogs.join('\n'),
       payload: currentPayload,
     };
+  }
+
+  public get executionAuth(): GnosisExecutionAuthContext | null {
+    return this.runtimeExecutionAuth
+      ? this.cloneExecutionAuth(this.runtimeExecutionAuth)
+      : null;
   }
 
   private async executeConcurrentBlock({
@@ -534,6 +560,7 @@ export class GnosisEngine {
       nodeId: targetId,
       sharedState,
       signal: controller.signal,
+      executionAuth: this.executionAuth ?? undefined,
     };
     const handlerPromise = Promise.resolve(
       handler(payload, node.properties, context)
@@ -564,6 +591,7 @@ export class GnosisEngine {
         clearTimeout(timeoutId);
       }
 
+      this.syncExecutionAuthFromPayload(result);
       this.tracker.updateStream(sid, 'completed');
       return finish('success', result);
     } catch (error) {
@@ -971,6 +999,57 @@ export class GnosisEngine {
     return String(error);
   }
 
+  private cloneExecutionAuth(
+    auth: GnosisExecutionAuthContext
+  ): GnosisExecutionAuthContext {
+    return {
+      enforce: auth.enforce === true,
+      principal: auth.principal,
+      token: auth.token,
+      capabilities: auth.capabilities.map((capability) => ({
+        ...capability,
+        constraints: capability.constraints
+          ? { ...capability.constraints }
+          : undefined,
+      })),
+    };
+  }
+
+  private initializeExecutionAuthState(
+    initialPayload: unknown,
+    executionAuth: GnosisExecutionAuthContext | null
+  ): void {
+    this.runtimeExecutionAuth = null;
+    this.syncExecutionAuthFromPayload(initialPayload);
+    if (executionAuth) {
+      this.adoptExecutionAuth(executionAuth);
+    }
+  }
+
+  private adoptExecutionAuth(candidate: unknown): void {
+    const normalized = normalizeExecutionAuthContext(candidate);
+    if (!normalized) {
+      return;
+    }
+
+    if (!this.runtimeExecutionAuth) {
+      this.runtimeExecutionAuth = this.cloneExecutionAuth(normalized);
+      return;
+    }
+
+    this.runtimeExecutionAuth = this.mergeExecutionAuth(
+      this.runtimeExecutionAuth,
+      normalized
+    );
+  }
+
+  private mergeExecutionAuth(
+    current: GnosisExecutionAuthContext,
+    incoming: GnosisExecutionAuthContext
+  ): GnosisExecutionAuthContext {
+    return mergeExecutionAuthContexts(current, incoming);
+  }
+
   private findHandler(node: ASTNode): GnosisHandler | null {
     for (const label of node.labels) {
       const handler = this.registry.getHandler(label);
@@ -987,30 +1066,16 @@ export class GnosisEngine {
     }
 
     const record = payload as Record<string, unknown>;
-    if (
-      typeof record.executionAuth !== 'object' ||
-      record.executionAuth === null
-    ) {
-      return null;
+    return normalizeExecutionAuthContext(record.executionAuth);
+  }
+
+  private syncExecutionAuthFromPayload(payload: unknown): void {
+    const executionAuth = this.extractExecutionAuth(payload);
+    if (!executionAuth) {
+      return;
     }
 
-    const executionAuth = record.executionAuth as Record<string, unknown>;
-    const capabilities = Array.isArray(executionAuth.capabilities)
-      ? (executionAuth.capabilities as GnosisExecutionAuthContext['capabilities'])
-      : [];
-
-    return {
-      enforce: executionAuth.enforce === true,
-      principal:
-        typeof executionAuth.principal === 'string'
-          ? executionAuth.principal
-          : undefined,
-      token:
-        typeof executionAuth.token === 'string'
-          ? executionAuth.token
-          : undefined,
-      capabilities,
-    };
+    this.adoptExecutionAuth(executionAuth);
   }
 
   private authorizeEdge(
@@ -1018,7 +1083,8 @@ export class GnosisEngine {
     currentNodeId: string,
     payload: unknown
   ): { allowed: boolean; reason?: string } {
-    const executionAuth = this.extractExecutionAuth(payload);
+    this.syncExecutionAuthFromPayload(payload);
+    const executionAuth = this.runtimeExecutionAuth;
     if (!executionAuth || executionAuth.enforce !== true) {
       return { allowed: true };
     }

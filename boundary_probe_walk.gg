@@ -1,0 +1,4 @@
+// boundary_probe_walk.gg — Boundary Walk Probing
+
+(probe: Test)-[:FORK]->(model_a: Target | model_b: Target)
+(model_a | model_b)-[:FOLD { strategy: 'compare-drift' }]->(report: Diff)

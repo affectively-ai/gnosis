@@ -5,6 +5,9 @@ NODES == {"primary_reality", "speculative_path_a", "speculative_path_b", "merge_
 ROOTS == {"primary_reality"}
 TERMINALS == {"ui_update"}
 FOLD_TARGETS == {"new_reality"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

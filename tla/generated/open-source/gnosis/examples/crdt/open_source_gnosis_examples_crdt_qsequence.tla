@@ -5,6 +5,9 @@ NODES == {"seq", "edit_a", "ea", "edit_b", "eb", "merged"}
 ROOTS == {"seq"}
 TERMINALS == {"merged"}
 FOLD_TARGETS == {"merged"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

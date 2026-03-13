@@ -1,0 +1,4 @@
+// crdt_sync_conflict.gg — CRDT synchronization and conflict resolution
+
+(sync_event: Trigger)-[:FORK]->(apply_local: State | merge_remote: State)
+(apply_local | merge_remote)-[:FOLD { strategy: 'lww' }]->(converged: State)

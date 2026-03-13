@@ -1,0 +1,4 @@
+// context_rag_injector.gg — Context Injection
+
+(prompt: Text)-[:FORK]->(fetch_history: RAG | fetch_profile: DB)
+(fetch_history | fetch_profile)-[:FOLD { strategy: 'concat' }]->(enriched_prompt: Text)

@@ -79,6 +79,24 @@ export interface TopologyEdgeAuthorizationResult {
   required?: GnosisCapability;
 }
 
+export type GnosisSteeringCapabilityAction =
+  | 'gnosis/steering.run'
+  | 'gnosis/steering.trace.append'
+  | 'gnosis/steering.relay.connect'
+  | 'gnosis/steering.apply';
+
+export interface GnosisSteeringAuthorizationInput {
+  action: GnosisSteeringCapabilityAction;
+  resource: string;
+  auth: GnosisExecutionAuthContext;
+}
+
+export interface GnosisSteeringAuthorizationResult {
+  allowed: boolean;
+  reason?: string;
+  required?: GnosisCapability;
+}
+
 interface AuthRuntimeModule {
   generateIdentity?: (options?: {
     displayName?: string;
@@ -196,6 +214,67 @@ function capabilityResourceMatches(granted: string, required: string): boolean {
   return false;
 }
 
+export function normalizeExecutionAuthContext(
+  candidate: unknown
+): GnosisExecutionAuthContext | null {
+  if (typeof candidate !== 'object' || candidate === null) {
+    return null;
+  }
+
+  const record = candidate as Record<string, unknown>;
+  const capabilities = Array.isArray(record.capabilities)
+    ? (record.capabilities as GnosisExecutionAuthContext['capabilities'])
+    : [];
+
+  return {
+    enforce: record.enforce === true,
+    principal:
+      typeof record.principal === 'string' ? record.principal : undefined,
+    token: typeof record.token === 'string' ? record.token : undefined,
+    capabilities,
+  };
+}
+
+export function mergeExecutionAuthContexts(
+  current: GnosisExecutionAuthContext,
+  incoming: GnosisExecutionAuthContext
+): GnosisExecutionAuthContext {
+  const currentPrincipal = current.principal ?? null;
+  const incomingPrincipal = incoming.principal ?? null;
+  const currentToken = current.token ?? null;
+  const incomingToken = incoming.token ?? null;
+
+  if (
+    currentPrincipal !== null &&
+    incomingPrincipal !== null &&
+    currentPrincipal !== incomingPrincipal
+  ) {
+    throw new Error(
+      'Conflicting execution auth principals encountered during merge.'
+    );
+  }
+
+  if (
+    currentToken !== null &&
+    incomingToken !== null &&
+    currentToken !== incomingToken
+  ) {
+    throw new Error('Conflicting execution auth tokens encountered during merge.');
+  }
+
+  const mergedCapabilities = new Map<string, GnosisCapability>();
+  for (const capability of [...current.capabilities, ...incoming.capabilities]) {
+    mergedCapabilities.set(`${capability.can}:${capability.with}`, capability);
+  }
+
+  return {
+    enforce: current.enforce === true || incoming.enforce === true,
+    principal: current.principal ?? incoming.principal,
+    token: current.token ?? incoming.token,
+    capabilities: [...mergedCapabilities.values()],
+  };
+}
+
 export function checkGrantedCapability(
   granted: readonly GnosisCapability[],
   required: GnosisCapability
@@ -236,22 +315,51 @@ export function buildEdgeResource(
   return `aeon://edge/${action}/${sourceId}->${targetId}`;
 }
 
-export function authorizeTopologyEdge(
-  input: TopologyEdgeAuthorizationInput
-): TopologyEdgeAuthorizationResult {
-  const shouldEnforce = input.auth.enforce === true;
-  if (!shouldEnforce) {
+export function buildSteeringTopologyResource(
+  topologyFingerprint: string
+): string {
+  return `aeon://steering/topology/${topologyFingerprint}`;
+}
+
+export function buildSteeringTraceResource(cohortKey: string): string {
+  return `aeon://steering-trace/cohort/${cohortKey}`;
+}
+
+export function buildSteeringRelayResource(roomName: string): string {
+  return `aeon://steering-relay/room/${roomName}`;
+}
+
+function authorizeCapability(
+  auth: GnosisExecutionAuthContext,
+  required: GnosisCapability,
+  deniedPrefix: string
+): GnosisSteeringAuthorizationResult {
+  if (auth.enforce !== true) {
     return { allowed: true };
   }
 
-  if (input.auth.capabilities.length === 0) {
+  if (auth.capabilities.length === 0) {
     return {
       allowed: false,
-      reason:
-        'No UCAN capabilities available for enforced topology authorization.',
+      reason: `No UCAN capabilities available for enforced ${deniedPrefix} authorization.`,
+      required,
     };
   }
 
+  if (!checkGrantedCapability(auth.capabilities, required)) {
+    return {
+      allowed: false,
+      reason: `Missing capability ${required.can} on ${required.with}`,
+      required,
+    };
+  }
+
+  return { allowed: true };
+}
+
+export function authorizeTopologyEdge(
+  input: TopologyEdgeAuthorizationInput
+): TopologyEdgeAuthorizationResult {
   const action = topologyActionForEdge(input.edgeType);
 
   for (const rawTargetId of input.targetIds) {
@@ -261,16 +369,74 @@ export function authorizeTopologyEdge(
       with: buildEdgeResource(input.edgeType, input.sourceId, targetId),
     };
 
-    if (!checkGrantedCapability(input.auth.capabilities, required)) {
-      return {
-        allowed: false,
-        reason: `Missing capability aeon/${action} on ${required.with}`,
-        required,
-      };
+    const authorization = authorizeCapability(
+      input.auth,
+      required,
+      'topology edge'
+    );
+    if (!authorization.allowed) {
+      return authorization;
     }
   }
 
   return { allowed: true };
+}
+
+export function authorizeSteeringCapability(
+  input: GnosisSteeringAuthorizationInput
+): GnosisSteeringAuthorizationResult {
+  return authorizeCapability(
+    input.auth,
+    {
+      can: input.action,
+      with: input.resource,
+    },
+    'steering'
+  );
+}
+
+export function authorizeSteeringRun(options: {
+  topologyFingerprint: string;
+  auth: GnosisExecutionAuthContext;
+}): GnosisSteeringAuthorizationResult {
+  return authorizeSteeringCapability({
+    action: 'gnosis/steering.run',
+    resource: buildSteeringTopologyResource(options.topologyFingerprint),
+    auth: options.auth,
+  });
+}
+
+export function authorizeSteeringTraceAppend(options: {
+  cohortKey: string;
+  auth: GnosisExecutionAuthContext;
+}): GnosisSteeringAuthorizationResult {
+  return authorizeSteeringCapability({
+    action: 'gnosis/steering.trace.append',
+    resource: buildSteeringTraceResource(options.cohortKey),
+    auth: options.auth,
+  });
+}
+
+export function authorizeSteeringRelayConnect(options: {
+  roomName: string;
+  auth: GnosisExecutionAuthContext;
+}): GnosisSteeringAuthorizationResult {
+  return authorizeSteeringCapability({
+    action: 'gnosis/steering.relay.connect',
+    resource: buildSteeringRelayResource(options.roomName),
+    auth: options.auth,
+  });
+}
+
+export function authorizeSteeringApply(options: {
+  topologyFingerprint: string;
+  auth: GnosisExecutionAuthContext;
+}): GnosisSteeringAuthorizationResult {
+  return authorizeSteeringCapability({
+    action: 'gnosis/steering.apply',
+    resource: buildSteeringTopologyResource(options.topologyFingerprint),
+    auth: options.auth,
+  });
 }
 
 export async function generateUcanIdentity(options: {

@@ -5,6 +5,9 @@ NODES == {"nav_context", "route_predictor", "css_prefetch", "data_prefetch", "fo
 ROOTS == {"nav_context", "route_request"}
 TERMINALS == {"route_ready: Ready"}
 FOLD_TARGETS == {"warmed_bundle"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

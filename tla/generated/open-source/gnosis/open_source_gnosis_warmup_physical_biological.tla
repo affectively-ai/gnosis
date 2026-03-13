@@ -5,6 +5,9 @@ NODES == {"body", "circulation", "temperature", "coordination", "heat_loss", "re
 ROOTS == {"body"}
 TERMINALS == {"performance: Output", "heat_loss"}
 FOLD_TARGETS == {"readiness"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

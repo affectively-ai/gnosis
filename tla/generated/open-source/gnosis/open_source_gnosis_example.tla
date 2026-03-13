@@ -5,6 +5,9 @@ NODES == {"raw_codec", "brotli_codec", "input", "winner"}
 ROOTS == {"input"}
 TERMINALS == {"winner"}
 FOLD_TARGETS == {}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

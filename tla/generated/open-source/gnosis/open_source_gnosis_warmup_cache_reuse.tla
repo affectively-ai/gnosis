@@ -5,6 +5,9 @@ NODES == {"request", "index_lookup", "cold_compute", "cache_write", "candidate",
 ROOTS == {"request", "candidate"}
 TERMINALS == {"candidate: Candidate", "answer: Result"}
 FOLD_TARGETS == {"answer: Result"}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

@@ -5,6 +5,9 @@ NODES == {"norm_input", "statistics", "normalize", "scale", "norm_out"}
 ROOTS == {"norm_input"}
 TERMINALS == {"norm_out"}
 FOLD_TARGETS == {}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>

@@ -5,6 +5,9 @@ NODES == {"freq", "phase", "sine", "saw", "square", "triangle", "osc_out"}
 ROOTS == {"freq"}
 TERMINALS == {"osc_out"}
 FOLD_TARGETS == {}
+EFFECTS == {}
+DECLARED_EFFECTS == {}
+INFERRED_EFFECTS == {}
 
 VARIABLES active, beta1, payloadPresent, consensusReached
 vars == <<active, beta1, payloadPresent, consensusReached>>
