@@ -10,12 +10,13 @@ This directory contains the Gnosis compiler, runtime, and execution tooling.
 - CLI easter eggs: `crank` = Wallace check, `stank` = Buley check.
 - `lib.ts`: Package main entry used by `@affectively/gnosis` imports.
 - `cli.ts`: CLI entrypoint used by `bin/gnosis.js`.
-- `analysis.ts`: Formal complexity/steering analysis for `.gg` topologies, including Buley, frontier fill, Charley (`charley`, compatibility aliases `frontierDeficit` and `wally`), and steering modes.
+- `analysis.ts`: Formal complexity/steering analysis for `.gg` topologies, including Buley, Wallace/Wally frontier diagnostics, `twokeys` EDA summaries, micro-Charley wall/CPU telemetry, and steering modes.
 - `neural-compat.ts`: `.gg`-native neural runtime exposing [`@affectively/neural`](https://github.com/affectively-ai/neural/)'s `NeuralEngine` interface, including `GPUEngine`, `WebNNEngine`, canonical topic-domain module constants, and neural graph repositories/types.
 
 ## Subdirectories
 
 - [auth](./auth): Native UCAN/ZK/custodial runtime integration, HALT attestation verification, and execution-envelope authorization helpers.
+- [benchmarks](./benchmarks/README.md): seeded benchmark helpers for parameter-matched `.gg` topologies, including the learned linear-vs-selection fold ablation used by the Chapter 17 companion artifacts.
 - [betty](./betty): Betty bootstrap compiler, parser, and quantum bridge.
 - [capabilities](./capabilities): Runtime capability profiles and target validation (`workers`, `node`, `bun`).
 - [mod](./mod): `gnosis mod` package manager commands.

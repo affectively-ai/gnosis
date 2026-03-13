@@ -34,6 +34,12 @@ Quantum value primitives are also built in:
 - `PauliX`: flips `|0>` and `|1>`
 - `Measure`: collapses to `{ kind: "zero" | "one", value, probabilities }`
 
+Differentiable value primitives are also built in:
+
+- `Parameter`: creates or forwards a differentiable scalar parameter
+- `Gradient`: creates or forwards a scalar gradient
+- `GradientStep`: applies gradient descent using `learningRate`, `parameterKey`, and `gradientKey`
+
 ```gg
 (source:Source)-[:PROCESS]->(decision:Result { kind: 'ok' })
 (decision)-[:PROCESS { case: 'ok' }]->(extract:Destructure { from: 'value', fields: 'user,score' })
@@ -49,4 +55,9 @@ Quantum value primitives are also built in:
 (seed:Qubit { state: '0' })-[:PROCESS]->(superposed:Hadamard)-[:PROCESS]->(collapse:Measure { force: '1' })
 (collapse)-[:PROCESS { case: 'one' }]->(accept)
 (collapse)-[:PROCESS { case: 'zero' }]->(retry)
+```
+
+```gg
+(seed:Parameter { value: '2.0' })-[:FORK]->(param:Parameter | grad:Gradient { value: '1.5' })
+(param | grad)-[:FOLD]->(update:GradientStep { learningRate: '0.1', parameterKey: 'param', gradientKey: 'grad' })
 ```

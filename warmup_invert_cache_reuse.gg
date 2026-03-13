@@ -1,0 +1,18 @@
+// warmup_invert_cache_reuse.gg — Reuse becomes stale-cache poisoning
+//
+// Inversion: the warmed artifact is still fast, but it is now wrong enough to
+// interfere with the fresh computation before the repair fold settles.
+
+(request: Query { workload: 'emotion-lookup' })
+(poisoned_cache: Cache { state: 'stale-hit' })
+(cold_compute: Compute { mode: 'rebuild-truth' })
+(validator: Guard { rule: 'checksum' })
+(first_reply: Candidate)
+(unstable_reply: Candidate)
+(final_answer: Result)
+
+(request)-[:FORK]->(poisoned_cache | cold_compute)
+(poisoned_cache)-[:PROCESS]->(validator)
+(poisoned_cache | cold_compute)-[:RACE { expect: 'first-arrival' }]->(first_reply)
+(first_reply | validator)-[:INTERFERE { mode: 'destructive' }]->(unstable_reply)
+(unstable_reply | cold_compute)-[:FOLD { strategy: 'repair-or-recompute' }]->(final_answer)

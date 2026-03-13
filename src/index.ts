@@ -8,7 +8,20 @@ import { GnosisRegistry } from './runtime/registry.js';
 import { GnosisEngine } from './runtime/engine.js';
 import { GnosisNativeRuntime } from './runtime/native-runtime.js';
 import { ModManager } from './mod/manager.js';
-import { analyzeGnosisSource, formatGnosisViolations } from './analysis.js';
+import {
+    analyzeGnosisSource,
+    finishSteeringTelemetry,
+    DEFAULT_GNOSIS_STEERING_MODE,
+    formatGnosisViolations,
+    startSteeringTelemetry,
+    surfaceSteeringMetrics,
+    VALID_GNOSIS_STEERING_MODES,
+    withSteeringTelemetry,
+} from './analysis.js';
+import type {
+    GnosisSteeringMetrics,
+    GnosisSteeringMode,
+} from './analysis.js';
 import type { RuntimeTarget } from './capabilities/index.js';
 import {
     analyzeTypeScriptTargets,
@@ -34,6 +47,12 @@ import {
   getTopicDomainTransformerTopologySource,
   init as initNeuralEngine,
 } from './neural-compat.js';
+import {
+  DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES,
+  makeDefaultFoldTrainingConfig,
+  renderGnosisFoldTrainingBenchmarkMarkdown,
+  runGnosisFoldTrainingBenchmark,
+} from './benchmarks/fold-training-benchmark.js';
 import type {
   Neuron,
   Synapse,
@@ -41,6 +60,15 @@ import type {
   NeuralGraphData,
   LoadTopologyOptions,
 } from './neural-compat.js';
+import type {
+  FoldTrainingConfig,
+  FoldTrainingSamplePrediction,
+  FoldTrainingSeedMetrics,
+  FoldTrainingStrategy,
+  FoldTrainingStrategyReport,
+  FoldTrainingTopologyMetrics,
+  GnosisFoldTrainingBenchmarkReport,
+} from './benchmarks/fold-training-benchmark.js';
 
 export {
     GnosisNeo4jBridge,
@@ -63,12 +91,25 @@ export {
   initNeuralEngine as init,
   initNeuralEngine,
 };
+export {
+  DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES,
+  makeDefaultFoldTrainingConfig,
+  renderGnosisFoldTrainingBenchmarkMarkdown,
+  runGnosisFoldTrainingBenchmark,
+};
 export type {
   Neuron,
   Synapse,
   AdapterTrainingConfig,
   NeuralGraphData,
   LoadTopologyOptions,
+  FoldTrainingConfig,
+  FoldTrainingSamplePrediction,
+  FoldTrainingSeedMetrics,
+  FoldTrainingStrategy,
+  FoldTrainingStrategyReport,
+  FoldTrainingTopologyMetrics,
+  GnosisFoldTrainingBenchmarkReport,
 };
 export type { GnosisHandler } from './runtime/registry.js';
 export type { GraphAST, ASTNode, ASTEdge } from './betty/compiler.js';
@@ -156,6 +197,69 @@ function parseRuntimeTarget(rawArgs: string[]): RuntimeTarget | null {
     return normalized;
 }
 
+function parseSteeringMode(rawArgs: string[]): GnosisSteeringMode | null {
+    const steeringModeRaw = parseFlagValue(rawArgs, '--steering-mode');
+    if (!steeringModeRaw) {
+        return DEFAULT_GNOSIS_STEERING_MODE;
+    }
+
+    const normalized = steeringModeRaw.trim().toLowerCase() as GnosisSteeringMode;
+    if (!VALID_GNOSIS_STEERING_MODES.includes(normalized)) {
+        return null;
+    }
+
+    return normalized;
+}
+
+function formatSteeringSummary(steering: GnosisSteeringMetrics): string {
+    const parts = [
+        `mode=${steering.mode}`,
+        `apply-enabled=${steering.autoApplyEnabled}`,
+        `apply-supported=${steering.applySupported}`,
+    ];
+
+    if (!surfaceSteeringMetrics(steering.mode)) {
+        return parts.join(' ');
+    }
+
+    parts.push(
+        `topology-deficit=${steering.topologyDeficit}`,
+        `frontier-fill=${steering.frontierFill}`,
+        `wallace=${steering.wallaceNumber}`,
+        `unit=${steering.wallaceUnit}`,
+        `regime=${steering.regime}`,
+    );
+
+    if (steering.recommendedAction) {
+        parts.push(`action=${steering.recommendedAction}`);
+    }
+
+    if (steering.telemetry.wallMicroCharleys !== null) {
+        parts.push(`wall-uCharleys=${steering.telemetry.wallMicroCharleys}`);
+    }
+
+    if (steering.telemetry.cpuMicroCharleys !== null) {
+        parts.push(`cpu-uCharleys=${steering.telemetry.cpuMicroCharleys}`);
+    }
+
+    if (steering.telemetry.wallToCpuRatio !== null) {
+        parts.push(`wall/cpu=${steering.telemetry.wallToCpuRatio}`);
+    }
+
+    return parts.join(' ');
+}
+
+function formatSteeringEdaSummary(steering: GnosisSteeringMetrics): string {
+    return [
+        `frontier-median=${steering.eda.frontierWidths.summary.median.datum}`,
+        `frontier-iqr=${steering.eda.frontierWidths.summary.iqr}`,
+        `occupancy-median=${steering.eda.layerOccupancy.summary.median.datum}`,
+        `graph-density=${steering.eda.graph.density}`,
+        `graph-diameter=${steering.eda.graph.diameter}`,
+        `outlier-nodes=${steering.eda.graphOutliers.length}`,
+    ].join(' ');
+}
+
 async function main() {
     // --fix flag: Global auto-format
     if (args.includes('--fix')) {
@@ -172,6 +276,14 @@ async function main() {
                 process.exit(0);
             }
         }
+    }
+
+    const steeringMode = parseSteeringMode(args);
+    if (!steeringMode) {
+        console.error(
+            `[Gnosis Error] Invalid --steering-mode value. Use one of: ${VALID_GNOSIS_STEERING_MODES.join(', ')}`
+        );
+        process.exit(1);
     }
 
     if (args[0] === 'neo4j' && args[1]) {
@@ -221,7 +333,7 @@ async function main() {
             console.log(formatGGTestResults(result));
         }
         process.exit(result.ok ? 0 : 1);
-    } else if ((args[0] === 'lint' || args[0] === 'verify' || args[0] === 'analyze') && args[1]) {
+    } else if ((args[0] === 'lint' || args[0] === 'verify' || args[0] === 'build' || args[0] === 'analyze' || args[0] === 'crank' || args[0] === 'stank') && args[1]) {
         const filePath = resolveTopologyPath(args[1]);
         if (!fs.existsSync(filePath)) {
             console.error(`[Gnosis Error] File not found: ${filePath}`);
@@ -237,19 +349,26 @@ async function main() {
 
         const sarifOutput = args.includes('--sarif');
         const jsonOutput = !sarifOutput && args.includes('--json');
+        const wallaceOnly = args[0] === 'crank';
+        const buleyOnly = args[0] === 'stank';
         if (isGgTarget(filePath)) {
             const maxBuley = parseMaxBuley(args);
             const source = fs.readFileSync(filePath, 'utf-8');
-            const report = await analyzeGnosisSource(source, { target: runtimeTarget });
+            const report = await analyzeGnosisSource(source, {
+                target: runtimeTarget,
+                steeringMode,
+            });
             const violations = formatGnosisViolations(report.correctness);
             const buleyExceeded = maxBuley !== null && report.buleyNumber > maxBuley;
             const capabilityErrors = report.capabilities.issues.filter(
                 (issue) => issue.severity === 'error'
             );
             const ok = report.correctness.ok && !buleyExceeded && capabilityErrors.length === 0;
-            const shouldGenerateTla = args[0] === 'verify';
+            const shouldGenerateTla = args[0] === 'verify' || args[0] === 'build';
             const shouldPrintTla = shouldGenerateTla && args.includes('--tla');
-            const tlaOutputDir = shouldGenerateTla ? parseFlagValue(args, '--tla-out') : null;
+            const tlaOutputDir = shouldGenerateTla
+                ? parseFlagValue(args, '--tla-out') ?? (args[0] === 'build' ? path.join('tla', 'generated') : null)
+                : null;
             const tlaModuleOverride = shouldGenerateTla ? parseFlagValue(args, '--tla-module') : null;
             const tlaBridge = shouldGenerateTla
                 ? generateTlaFromGnosisSource(source, {
@@ -277,13 +396,17 @@ async function main() {
             } else if (jsonOutput) {
                 const basePayload: Record<string, unknown> = {
                     filePath,
-                    mode: 'gg',
+                    mode: wallaceOnly ? 'wallace-check' : buleyOnly ? 'buley-check' : args[0] === 'build' ? 'build' : 'gg',
                     ok,
                     buleyNumber: report.buleyNumber,
+                    wallaceNumber: report.steering.wallaceNumber,
+                    wallaceUnit: report.steering.wallaceUnit,
+                    buleyUnit: 'bule',
                     maxBuley,
                     line: report.line,
                     topology: report.topology,
                     quantum: report.quantum,
+                    steering: report.steering,
                     capabilities: report.capabilities,
                     correctness: {
                         ok: report.correctness.ok,
@@ -306,15 +429,32 @@ async function main() {
 
                 console.log(JSON.stringify(basePayload, null, 2));
             } else {
-                console.log(`[Gnosis ${args[0]}] ${filePath}`);
-                console.log(`  correctness: ${report.correctness.ok ? 'PASS' : 'FAIL'} (states=${report.correctness.stateCount}, beta1=${report.correctness.topology.beta1})`);
-                console.log(`  buley-number: ${report.buleyNumber}${maxBuley !== null ? ` (max=${maxBuley})` : ''}`);
-                console.log(`  runtime-target: ${report.capabilities.target}`);
-                console.log(`  lines: total=${report.line.totalLines} non-empty=${report.line.nonEmptyLines} comments=${report.line.commentLines} topology=${report.line.topologyLines}`);
-                console.log(`  topology: nodes=${report.topology.nodeCount} functions=${report.topology.functionNodeCount} edges=${report.topology.edgeCount} forks=${report.topology.forkEdgeCount} races=${report.topology.raceEdgeCount} folds=${report.topology.foldEdgeCount} vents=${report.topology.ventEdgeCount} interfere=${report.topology.interfereEdgeCount}`);
-                console.log(`  complexity: max-branch=${report.topology.maxBranchFactor} avg-branch=${report.topology.avgBranchFactor} cyclomatic≈${report.topology.cyclomaticApprox}`);
-                console.log(`  quantum: superposition=${report.quantum.superpositionEdgeCount} collapse=${report.quantum.collapseEdgeCount} coverage=${report.quantum.collapseCoverage} deficit=${report.quantum.collapseDeficit} interference-density=${report.quantum.interferenceDensity}`);
-                console.log(`  quantum-index: ${report.quantum.quantumIndex} beta-pressure=${report.quantum.betaPressure} beta-headroom=${report.quantum.betaHeadroom}`);
+                if (wallaceOnly) {
+                    console.log(`[Gnosis crank] ${filePath}`);
+                    console.log(`  wallace-number: ${report.steering.wallaceNumber} ${report.steering.wallaceUnit}`);
+                    console.log(`  steering: ${formatSteeringSummary(report.steering)}`);
+                    console.log(`  steering-eda: ${formatSteeringEdaSummary(report.steering)}`);
+                    console.log(`  correctness: ${report.correctness.ok ? 'PASS' : 'FAIL'} (states=${report.correctness.stateCount}, beta1=${report.correctness.topology.beta1})`);
+                } else if (buleyOnly) {
+                    console.log(`[Gnosis stank] ${filePath}`);
+                    console.log(`  buley-number: ${report.buleyNumber} bules${maxBuley !== null ? ` (max=${maxBuley})` : ''}`);
+                    console.log(`  quantum-index: ${report.quantum.quantumIndex}`);
+                    console.log(`  beta-pressure: ${report.quantum.betaPressure}`);
+                    console.log(`  beta-headroom: ${report.quantum.betaHeadroom}`);
+                    console.log(`  correctness: ${report.correctness.ok ? 'PASS' : 'FAIL'} (states=${report.correctness.stateCount}, beta1=${report.correctness.topology.beta1})`);
+                } else {
+                    console.log(`[Gnosis ${args[0]}] ${filePath}`);
+                    console.log(`  correctness: ${report.correctness.ok ? 'PASS' : 'FAIL'} (states=${report.correctness.stateCount}, beta1=${report.correctness.topology.beta1})`);
+                    console.log(`  buley-number: ${report.buleyNumber}${maxBuley !== null ? ` (max=${maxBuley})` : ''}`);
+                    console.log(`  runtime-target: ${report.capabilities.target}`);
+                    console.log(`  lines: total=${report.line.totalLines} non-empty=${report.line.nonEmptyLines} comments=${report.line.commentLines} topology=${report.line.topologyLines}`);
+                    console.log(`  topology: nodes=${report.topology.nodeCount} functions=${report.topology.functionNodeCount} edges=${report.topology.edgeCount} forks=${report.topology.forkEdgeCount} races=${report.topology.raceEdgeCount} folds=${report.topology.foldEdgeCount} vents=${report.topology.ventEdgeCount} interfere=${report.topology.interfereEdgeCount}`);
+                    console.log(`  complexity: max-branch=${report.topology.maxBranchFactor} avg-branch=${report.topology.avgBranchFactor} cyclomatic≈${report.topology.cyclomaticApprox}`);
+                    console.log(`  quantum: superposition=${report.quantum.superpositionEdgeCount} collapse=${report.quantum.collapseEdgeCount} coverage=${report.quantum.collapseCoverage} deficit=${report.quantum.collapseDeficit} interference-density=${report.quantum.interferenceDensity}`);
+                    console.log(`  quantum-index: ${report.quantum.quantumIndex} beta-pressure=${report.quantum.betaPressure} beta-headroom=${report.quantum.betaHeadroom}`);
+                    console.log(`  steering: ${formatSteeringSummary(report.steering)}`);
+                    console.log(`  steering-eda: ${formatSteeringEdaSummary(report.steering)}`);
+                }
                 if (report.capabilities.requiredUnique.length > 0) {
                     console.log(`  required-capabilities: ${report.capabilities.requiredUnique.join(', ')}`);
                 }
@@ -376,8 +516,8 @@ async function main() {
         }
 
         process.exit(tsReport.ok ? 0 : 1);
-    } else if (args[0] === 'lint' || args[0] === 'verify' || args[0] === 'analyze') {
-        console.error(`[Gnosis] Usage: gnosis ${args[0]} <target> [--target <agnostic|workers|node|bun>] [--max-buley <number>] [--max-file-lines <number>] [--max-function-lines <number>] [--max-cyclomatic <number>] [--max-cognitive <number>] [--max-nesting <number>] [--json] [--sarif] [--tla] [--tla-out <dir>] [--tla-module <name>]`);
+    } else if (args[0] === 'lint' || args[0] === 'verify' || args[0] === 'build' || args[0] === 'analyze' || args[0] === 'crank' || args[0] === 'stank') {
+        console.error(`[Gnosis] Usage: gnosis ${args[0]} <target> [--target <agnostic|workers|node|bun>] [--steering-mode <off|report|suggest|apply>] [--max-buley <number>] [--max-file-lines <number>] [--max-function-lines <number>] [--max-cyclomatic <number>] [--max-cognitive <number>] [--max-nesting <number>] [--json] [--sarif] [--tla] [--tla-out <dir>] [--tla-module <name>]`);
         process.exit(1);
     } else if ((args[0] === 'run' || args[0] === 'native') && args[1]) {
         const filePath = resolveTopologyPath(args[1]);
@@ -390,7 +530,7 @@ async function main() {
         console.log(`[Gnosis] Reading topology from ${filePath}...`);
         const content = fs.readFileSync(filePath, 'utf-8');
 
-        const runtimeReport = await analyzeGnosisSource(content);
+        const runtimeReport = await analyzeGnosisSource(content, { steeringMode });
         if (!runtimeReport.correctness.ok) {
             console.error(`[Gnosis] Formal verification failed before execution.`);
             formatGnosisViolations(runtimeReport.correctness).forEach((line) => {
@@ -399,6 +539,8 @@ async function main() {
             process.exit(1);
         }
         console.log(`[Gnosis] Formal check passed. Buley Number: ${runtimeReport.buleyNumber}, Quantum Index: ${runtimeReport.quantum.quantumIndex}`);
+        console.log(`[Gnosis] Steering: ${formatSteeringSummary(runtimeReport.steering)}`);
+        console.log(`[Gnosis] Steering EDA: ${formatSteeringEdaSummary(runtimeReport.steering)}`);
         
         const betty = new BettyCompiler();
         const { ast, output } = betty.parse(content);
@@ -578,21 +720,22 @@ async function main() {
                     })
                     .join('\n');
 
-                const report = await analyzeGnosisSource(ggSource);
+                const report = await analyzeGnosisSource(ggSource, { steeringMode });
                 if (!report.correctness.ok) {
                     const [firstViolation] = formatGnosisViolations(report.correctness);
                     console.error(`[Betti:Topology] Verification Failed: ${firstViolation || 'Unknown violation'}`);
                     return { ...payload, verified: false, errors: report.correctness.violations, buleyNumber: report.buleyNumber };
                 }
 
-                console.log(`[Betti:Topology] Verified! States explored: ${report.correctness.stateCount}, Beta1: ${report.correctness.topology.beta1}, Buley Number: ${report.buleyNumber}, Quantum Index: ${report.quantum.quantumIndex}`);
+                console.log(`[Betti:Topology] Verified! States explored: ${report.correctness.stateCount}, Beta1: ${report.correctness.topology.beta1}, Buley Number: ${report.buleyNumber}, Quantum Index: ${report.quantum.quantumIndex}, Steering: ${formatSteeringSummary(report.steering)}`);
                 return {
                     ...payload,
                     verified: true,
                     stats: report.correctness.topology,
                     buleyNumber: report.buleyNumber,
                     quantum: report.quantum,
-                    complexity: report.topology
+                    complexity: report.topology,
+                    steering: report.steering,
                 };
             });
 
@@ -676,9 +819,15 @@ async function main() {
                     : undefined,
             });
             const initialPayload = args[1] === 'betti.gg' ? 'transformer.gg' : 'GPT_INIT';
-            
+
+            const steeringStopwatch = startSteeringTelemetry();
             const execOutput = await engine.execute(ast, initialPayload);
+            const executedSteering = withSteeringTelemetry(
+                runtimeReport.steering,
+                finishSteeringTelemetry(steeringStopwatch),
+            );
             console.log(execOutput);
+            console.log(`[Gnosis] Runtime Steering: ${formatSteeringSummary(executedSteering)}`);
             if (nativeRuntime) {
                 const runtimeSnapshot = nativeRuntime.snapshot();
                 console.log(
@@ -696,12 +845,12 @@ async function main() {
             process.exit(1);
         }
     } else if (args[0] === 'run' || args[0] === 'native') {
-        console.error('[Gnosis] Usage: gnosis run <topology.gg> [--native]');
-        console.error('[Gnosis] Usage: gnosis native <topology.gg>');
+        console.error('[Gnosis] Usage: gnosis run <topology.gg> [--native] [--steering-mode <off|report|suggest|apply>]');
+        console.error('[Gnosis] Usage: gnosis native <topology.gg> [--steering-mode <off|report|suggest|apply>]');
         process.exit(1);
     } else {
         const { startRepl } = await import('./repl.js');
-        startRepl({ verbose: verboseMode });
+        startRepl({ verbose: verboseMode, steeringMode });
     }
 }
 

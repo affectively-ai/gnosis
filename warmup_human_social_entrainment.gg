@@ -1,0 +1,14 @@
+// warmup_human_social_entrainment.gg — Coordination improves with shared rhythm
+//
+// Warm-up mechanism: teams build shared vocabulary, trust, and turn-taking.
+// Once aligned, collaboration gets faster and lower-friction.
+
+(team: Group { mode: 'pair-design' })
+(shared_vocab: SocialState { metric: 'shared-vocabulary' })
+(rapport: SocialState { metric: 'trust' })
+(turn_taking: SocialState { metric: 'cadence' })
+(alignment: SocialState { phase: 'entrained' })
+
+(team)-[:FORK]->(shared_vocab | rapport | turn_taking)
+(shared_vocab | rapport | turn_taking)-[:FOLD { strategy: 'entrain' }]->(alignment)
+(alignment)-[:PROCESS]->(collaboration: Outcome)

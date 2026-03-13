@@ -1,0 +1,26 @@
+// warmup_taxonomy.test.gg — Verification harness for warm-up mechanisms
+//
+// Each module is a toy topology for "improves after initial use".
+// The harness keeps them comparable and ready for inversion work.
+
+(test_suite: TestSuite { name: 'warmup-taxonomy' })
+
+(cache_reuse: Verify { module: './warmup_cache_reuse.gg', beta1_max: '4' })
+(prefetch: Verify { module: './warmup_precompute_prefetch.gg', beta1_max: '6' })
+(adaptive: Verify { module: './warmup_adaptive_optimization.gg', beta1_max: '4' })
+(probabilistic: Verify { module: './warmup_approximate_probabilistic.gg', beta1_max: '4' })
+(amortized: Verify { module: './warmup_structural_amortized.gg', beta1_max: '4' })
+(physical: Verify { module: './warmup_physical_biological.gg', beta1_max: '4' })
+(entrainment: Verify { module: './warmup_human_social_entrainment.gg', beta1_max: '4' })
+
+(test_suite)-[:FORK]->(cache_reuse | prefetch | adaptive | probabilistic | amortized | physical | entrainment)
+
+(cache_reuse)-[:RACE { expect: 'safe' }]->(cache_result: Result)
+(prefetch)-[:RACE { expect: 'safe' }]->(prefetch_result: Result)
+(adaptive)-[:RACE { expect: 'safe' }]->(adaptive_result: Result)
+(probabilistic)-[:RACE { expect: 'safe' }]->(probabilistic_result: Result)
+(amortized)-[:RACE { expect: 'safe' }]->(amortized_result: Result)
+(physical)-[:RACE { expect: 'safe' }]->(physical_result: Result)
+(entrainment)-[:RACE { expect: 'safe' }]->(entrainment_result: Result)
+
+(cache_result | prefetch_result | adaptive_result | probabilistic_result | amortized_result | physical_result | entrainment_result)-[:FOLD { strategy: 'all-pass' }]->(verdict: Verdict)

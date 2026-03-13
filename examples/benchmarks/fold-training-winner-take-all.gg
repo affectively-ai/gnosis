@@ -1,0 +1,11 @@
+// fold-training-winner-take-all.gg — nonlinear winner-selection ablation
+
+(pair: Tensor { role: 'input-pair' })
+(left_branch: AffineBranch { channel: 'left', bias: '0.0', parameters: '2' })
+(right_branch: AffineBranch { channel: 'right', bias: '0.0', parameters: '2' })
+(recombine: FoldOperator { role: 'winner' })
+(prediction: Tensor { role: 'output' })
+
+(pair)-[:FORK]->(left_branch | right_branch)
+(left_branch | right_branch)-[:FOLD { strategy: 'winner-take-all' }]->(recombine)
+(recombine)-[:PROCESS]->(prediction)

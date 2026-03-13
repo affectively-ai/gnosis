@@ -1,0 +1,25 @@
+// warmup_invert_precompute_prefetch.gg — Prediction warms the wrong future
+//
+// Inversion: staged-ahead work is still parallel, but the warmed bundle points
+// at the wrong route and must be folded back into the cold origin path.
+
+(nav_context: Session { route: '/journal' })
+(route_predictor: Predictor { horizon: '1-hop', drift: 'high' })
+(wrong_css: Fetch { asset: 'calendar.css' })
+(wrong_data: Fetch { asset: 'calendar-grid.json' })
+(wrong_font: Fetch { asset: 'calendar.woff2' })
+(wrong_bundle: Bundle { mode: 'misprefetched' })
+(route_request: Request { target: '/journal' })
+(origin_fetch: Fetch { asset: 'journal-route' })
+(route_validator: Guard { rule: 'route-match' })
+(first_route: Ready)
+(settled_route: Ready)
+
+(nav_context)-[:PROCESS]->(route_predictor)
+(route_predictor)-[:FORK]->(wrong_css | wrong_data | wrong_font)
+(wrong_css | wrong_data | wrong_font)-[:FOLD { strategy: 'bundle' }]->(wrong_bundle)
+(wrong_bundle)-[:PROCESS]->(route_validator)
+(route_request)-[:FORK]->(wrong_bundle | origin_fetch)
+(wrong_bundle | origin_fetch)-[:RACE { expect: 'first-arrival' }]->(first_route)
+(first_route | route_validator)-[:INTERFERE { mode: 'destructive' }]->(misroute: Candidate)
+(misroute | origin_fetch)-[:FOLD { strategy: 'fallback-origin' }]->(settled_route)

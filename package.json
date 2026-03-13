@@ -1,6 +1,7 @@
 {
   "name": "@affectively/gnosis",
   "version": "1.0.0",
+  "license": "MPL-2.0",
   "description": "Ink-based TUI REPL for the gnosis functional logic-based programming language",
   "type": "module",
   "main": "./src/lib.ts",
@@ -10,9 +11,12 @@
   },
   "scripts": {
     "build": "tsc",
+    "build:toy-tla": "bun ./build-toy-tla.ts",
     "dev": "tsc -w",
     "start": "node ./bin/gnosis.js",
-    "check:formal": "bun ./bin/gnosis.js lint betti.gg && bun ./bin/gnosis.js lint transformer.gg && bun ./bin/gnosis.js lint ai_hello.gg && bun ./bin/gnosis.js lint example.gg && bun ./bin/gnosis.js lint topic_domain_transformer.gg && bun ./bin/gnosis.js test topic_domain_transformer.test.gg"
+    "check:formal": "bun ./bin/gnosis.js lint betti.gg && bun ./bin/gnosis.js lint transformer.gg && bun ./bin/gnosis.js lint ai_hello.gg && bun ./bin/gnosis.js lint example.gg && bun ./bin/gnosis.js lint topic_domain_transformer.gg && bun ./bin/gnosis.js lint warmup_cache_reuse.gg && bun ./bin/gnosis.js lint warmup_precompute_prefetch.gg && bun ./bin/gnosis.js lint warmup_adaptive_optimization.gg && bun ./bin/gnosis.js lint warmup_approximate_probabilistic.gg && bun ./bin/gnosis.js lint warmup_structural_amortized.gg && bun ./bin/gnosis.js lint warmup_physical_biological.gg && bun ./bin/gnosis.js lint warmup_human_social_entrainment.gg && bun ./bin/gnosis.js lint warmup_invert_cache_reuse.gg && bun ./bin/gnosis.js lint warmup_invert_precompute_prefetch.gg && bun ./bin/gnosis.js lint warmup_invert_adaptive_optimization.gg && bun ./bin/gnosis.js lint warmup_invert_approximate_probabilistic.gg && bun ./bin/gnosis.js lint warmup_invert_structural_amortized.gg && bun ./bin/gnosis.js lint warmup_invert_physical_biological.gg && bun ./bin/gnosis.js lint warmup_invert_human_social_entrainment.gg && bun ./bin/gnosis.js lint examples/benchmarks/fold-training-linear.gg && bun ./bin/gnosis.js lint examples/benchmarks/fold-training-winner-take-all.gg && bun ./bin/gnosis.js lint examples/benchmarks/fold-training-early-stop.gg && bun ./bin/gnosis.js test topic_domain_transformer.test.gg && bun ./bin/gnosis.js test warmup_taxonomy.test.gg && bun ./bin/gnosis.js test warmup_inversion.test.gg && bun ./bin/gnosis.js test examples/benchmarks/fold-training.test.gg",
+    "test:fold-training": "bun test src/benchmarks/fold-training-benchmark.test.ts && bun ./bin/gnosis.js test examples/benchmarks/fold-training.test.gg",
+    "warmup:diff": "bun ./warmup_differential.ts"
   },
   "dependencies": {
     "@affectively/auth": "workspace:*",

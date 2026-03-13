@@ -1,0 +1,21 @@
+// warmup_invert_physical_biological.gg — Warm-up crosses into fatigue
+//
+// Inversion: the same substrate variables rise, but heat and fatigue interfere
+// with readiness, so the system overshoots the efficient operating point.
+
+(body: System { mode: 'sprinter' })
+(circulation: Physiology { metric: 'blood-flow' })
+(temperature: Physiology { metric: 'muscle-temp' })
+(coordination: Motor { metric: 'recruitment' })
+(fatigue: Physiology { metric: 'lactate' })
+(readiness: State { phase: 'primed' })
+(heat_debt: Debt { type: 'overwarm' })
+(strained_state: State { phase: 'fatigued' })
+(cooldown: WasteHeat)
+
+(body)-[:FORK]->(circulation | temperature | coordination | fatigue)
+(circulation | temperature | coordination)-[:FOLD { strategy: 'readiness' }]->(readiness)
+(temperature | fatigue)-[:INTERFERE { mode: 'destructive' }]->(heat_debt)
+(readiness | heat_debt)-[:FOLD { strategy: 'subtract-fatigue' }]->(strained_state)
+(strained_state)-[:PROCESS]->(performance: Output)
+(performance)-[:VENT { on: 'shutdown' }]->(cooldown)

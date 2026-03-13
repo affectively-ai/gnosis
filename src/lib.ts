@@ -2,9 +2,53 @@ export { GnosisNeo4jBridge } from './neo4j-bridge.js';
 export { GnosisRegistry } from './runtime/registry.js';
 export { GnosisEngine } from './runtime/engine.js';
 export { BettyCompiler } from './betty/compiler.js';
+export {
+  DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES,
+  makeDefaultFoldTrainingConfig,
+  renderGnosisFoldTrainingBenchmarkMarkdown,
+  runGnosisFoldTrainingBenchmark,
+} from './benchmarks/fold-training-benchmark.js';
+export {
+  analyzeGnosisSource,
+  createEmptySteeringTelemetry,
+  formatGnosisViolations,
+  DEFAULT_GNOSIS_STEERING_MODE,
+  finishSteeringTelemetry,
+  startSteeringTelemetry,
+  VALID_GNOSIS_STEERING_MODES,
+  classifySteeringRegime,
+  recommendSteeringAction,
+  surfaceSteeringMetrics,
+  surfaceSteeringRecommendations,
+  withSteeringTelemetry,
+} from './analysis.js';
 
 export type { GnosisHandler } from './runtime/registry.js';
 export type { GraphAST, ASTNode, ASTEdge } from './betty/compiler.js';
+export type {
+  FoldTrainingConfig,
+  FoldTrainingSamplePrediction,
+  FoldTrainingSeedMetrics,
+  FoldTrainingStrategy,
+  FoldTrainingStrategyReport,
+  FoldTrainingTopologyMetrics,
+  GnosisFoldTrainingBenchmarkReport,
+} from './benchmarks/fold-training-benchmark.js';
+export type {
+  GnosisAnalyzeOptions,
+  GnosisCapabilityReport,
+  GnosisComplexityReport,
+  GnosisLineMetrics,
+  GnosisQuantumMetrics,
+  GnosisSteeringAction,
+  GnosisSteeringEda,
+  GnosisSteeringMetrics,
+  GnosisSteeringMode,
+  GnosisSteeringRegime,
+  GnosisSteeringStopwatch,
+  GnosisSteeringTelemetry,
+  GnosisTopologyMetrics,
+} from './analysis.js';
 
 export { generateTlaFromGnosisSource } from './tla-bridge.js';
 export type {

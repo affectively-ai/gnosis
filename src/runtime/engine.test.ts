@@ -151,6 +151,23 @@ describe('GnosisEngine', () => {
     expect(result).not.toContain('Executing [zero_path]');
   });
 
+  it('executes native differentiable gradient steps from .gg files', async () => {
+    const registry = new GnosisRegistry();
+    registry.register('Sink', async (payload) => payload);
+
+    const engine = new GnosisEngine(registry);
+    const source = readFileSync(
+      new URL('../../gradient_step.gg', import.meta.url),
+      'utf-8'
+    );
+    const { ast } = compiler.parse(source);
+
+    const result = await engine.execute(ast!);
+    expect(result).toContain('"type":"parameter"');
+    expect(result).toContain('"value":1.85');
+    expect(result).toContain('"gradient":1.5');
+  });
+
   it('should handle MEASURE and HALT edges', async () => {
     const registry = new GnosisRegistry();
     registry.register('Step', async (p) => p);

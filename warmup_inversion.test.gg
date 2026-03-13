@@ -1,0 +1,26 @@
+// warmup_inversion.test.gg — Verification harness for subverted warm-up logic
+//
+// These modules invert the original classes without leaving Gnosis form.
+// Each one still collapses, but only after the wrong local shape shows up.
+
+(test_suite: TestSuite { name: 'warmup-inversion' })
+
+(cache_poison: Verify { module: './warmup_invert_cache_reuse.gg', beta1_max: '4' })
+(misprefetch: Verify { module: './warmup_invert_precompute_prefetch.gg', beta1_max: '6' })
+(policy_drift: Verify { module: './warmup_invert_adaptive_optimization.gg', beta1_max: '4' })
+(false_positive: Verify { module: './warmup_invert_approximate_probabilistic.gg', beta1_max: '4' })
+(compaction_debt: Verify { module: './warmup_invert_structural_amortized.gg', beta1_max: '5' })
+(overwarm: Verify { module: './warmup_invert_physical_biological.gg', beta1_max: '5' })
+(misalignment: Verify { module: './warmup_invert_human_social_entrainment.gg', beta1_max: '4' })
+
+(test_suite)-[:FORK]->(cache_poison | misprefetch | policy_drift | false_positive | compaction_debt | overwarm | misalignment)
+
+(cache_poison)-[:RACE { expect: 'safe' }]->(cache_result: Result)
+(misprefetch)-[:RACE { expect: 'safe' }]->(prefetch_result: Result)
+(policy_drift)-[:RACE { expect: 'safe' }]->(adaptive_result: Result)
+(false_positive)-[:RACE { expect: 'safe' }]->(probabilistic_result: Result)
+(compaction_debt)-[:RACE { expect: 'safe' }]->(amortized_result: Result)
+(overwarm)-[:RACE { expect: 'safe' }]->(physical_result: Result)
+(misalignment)-[:RACE { expect: 'safe' }]->(entrainment_result: Result)
+
+(cache_result | prefetch_result | adaptive_result | probabilistic_result | amortized_result | physical_result | entrainment_result)-[:FOLD { strategy: 'all-pass' }]->(verdict: Verdict)

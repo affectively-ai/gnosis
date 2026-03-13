@@ -18,6 +18,17 @@ interface GnosisQubitState {
   basis: '0' | '1' | '+' | '-';
 }
 
+interface GnosisParameterState {
+  type: 'parameter';
+  value: number;
+  differentiable: true;
+}
+
+interface GnosisGradientState {
+  type: 'gradient';
+  value: number;
+}
+
 const SQRT1_2 = Math.SQRT1_2;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -75,6 +86,22 @@ function isQubitState(payload: unknown): payload is GnosisQubitState {
     payload.type === 'qubit' &&
     typeof payload.alpha === 'number' &&
     typeof payload.beta === 'number'
+  );
+}
+
+function isParameterState(payload: unknown): payload is GnosisParameterState {
+  return (
+    isRecord(payload) &&
+    payload.type === 'parameter' &&
+    typeof payload.value === 'number'
+  );
+}
+
+function isGradientState(payload: unknown): payload is GnosisGradientState {
+  return (
+    isRecord(payload) &&
+    payload.type === 'gradient' &&
+    typeof payload.value === 'number'
   );
 }
 
@@ -299,6 +326,15 @@ function collapseMeasurement(
     : { kind: 'zero', value: 0, probabilities };
 }
 
+function parseNumericValue(raw: string | undefined, fallback: number): number {
+  if (!raw) {
+    return fallback;
+  }
+
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 export function registerCoreRuntimeHandlers(registry: GnosisRegistry): void {
   registry.register('Result', async (payload, props) => {
     const derivedKind = deriveTaggedKindFromField(
@@ -418,5 +454,67 @@ export function registerCoreRuntimeHandlers(registry: GnosisRegistry): void {
   registry.register('Measure', async (payload, props) => {
     const qubit = normalizeQubitState(payload, props.state ?? props.basis);
     return collapseMeasurement(qubit, props.force ?? props.outcome);
+  });
+
+  registry.register('Parameter', async (payload, props) => {
+    if (isParameterState(payload) && !props.value) {
+      return payload;
+    }
+
+    return {
+      type: 'parameter',
+      value: parseNumericValue(
+        props.value,
+        isParameterState(payload) ? payload.value : 0
+      ),
+      differentiable: true,
+    } satisfies GnosisParameterState;
+  });
+
+  registry.register('Gradient', async (payload, props) => {
+    if (isGradientState(payload) && !props.value) {
+      return payload;
+    }
+
+    return {
+      type: 'gradient',
+      value: parseNumericValue(
+        props.value,
+        isGradientState(payload) ? payload.value : 0
+      ),
+    } satisfies GnosisGradientState;
+  });
+
+  registry.register('GradientStep', async (payload, props) => {
+    const learningRate = parseNumericValue(props.learningRate, 0.1);
+    const parameterKey = props.parameterKey ?? 'parameter';
+    const gradientKey = props.gradientKey ?? 'gradient';
+
+    const parameterPayload = isRecord(payload)
+      ? payload[parameterKey]
+      : payload;
+    const gradientPayload = isRecord(payload) ? payload[gradientKey] : payload;
+    if (!isParameterState(parameterPayload)) {
+      throw new Error(
+        `GradientStep expected parameter payload at "${parameterKey}".`
+      );
+    }
+    if (!isGradientState(gradientPayload)) {
+      throw new Error(
+        `GradientStep expected gradient payload at "${gradientKey}".`
+      );
+    }
+
+    const nextValue =
+      parameterPayload.value - gradientPayload.value * learningRate;
+
+    return {
+      type: 'parameter',
+      value: Math.round(nextValue * 1000) / 1000,
+      differentiable: true,
+      previousValue: parameterPayload.value,
+      gradient: gradientPayload.value,
+      learningRate,
+    };
   });
 }

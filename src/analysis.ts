@@ -1,3 +1,4 @@
+import { performance } from 'node:perf_hooks';
 import {
   checkGgProgram,
   parseGgProgram,
@@ -12,6 +13,17 @@ import {
   type HostCapability,
   type RuntimeTarget,
 } from './capabilities/index.js';
+import {
+  Points,
+  Series,
+  graphEda,
+  graphOutliers,
+  type GraphEdaSummary,
+  type GraphEdge,
+  type GraphOutlierResult,
+  type PointsDescription,
+  type SeriesDescription,
+} from 'twokeys';
 
 export interface GnosisLineMetrics {
   totalLines: number;
@@ -24,6 +36,8 @@ export interface GnosisTopologyMetrics {
   nodeCount: number;
   functionNodeCount: number;
   edgeCount: number;
+  expandedEdgeCount: number;
+  structuralBeta1: number;
   forkEdgeCount: number;
   raceEdgeCount: number;
   foldEdgeCount: number;
@@ -47,11 +61,78 @@ export interface GnosisQuantumMetrics {
   quantumIndex: number;
 }
 
+export const VALID_GNOSIS_STEERING_MODES = [
+  'off',
+  'report',
+  'suggest',
+  'apply',
+] as const;
+
+export type GnosisSteeringMode =
+  (typeof VALID_GNOSIS_STEERING_MODES)[number];
+
+export const DEFAULT_GNOSIS_STEERING_MODE: GnosisSteeringMode = 'suggest';
+
+export type GnosisSteeringRegime = 'laminar' | 'transitional' | 'turbulent';
+
+export type GnosisSteeringAction =
+  | 'expand'
+  | 'staggered-expand'
+  | 'hold'
+  | 'multiplex'
+  | 'constrain';
+
+export interface GnosisSteeringTelemetry {
+  /**
+   * Observed wall-clock time in micro-Charleys.
+   * A micro-Charley is one millisecond.
+   */
+  wallMicroCharleys: number | null;
+  /** Observed CPU time in micro-Charleys. */
+  cpuMicroCharleys: number | null;
+  /** wall / cpu, when both are available. */
+  wallToCpuRatio: number | null;
+}
+
+export interface GnosisSteeringStopwatch {
+  wallStartedAtMs: number;
+  cpuStartedAt: NodeJS.CpuUsage;
+}
+
+export interface GnosisSteeringEda {
+  frontierWidths: SeriesDescription;
+  layerOccupancy: SeriesDescription;
+  wavefrontShape: PointsDescription;
+  graph: GraphEdaSummary<string>;
+  graphOutliers: GraphOutlierResult<string>[];
+}
+
+export interface GnosisSteeringMetrics {
+  mode: GnosisSteeringMode;
+  autoApplyEnabled: boolean;
+  /** Steering actuators are not wired yet; `apply` is contract-only for now. */
+  applySupported: boolean;
+  /** Primary scalar statistic for frontier pessimism / underfill. */
+  wallaceNumber: number;
+  wallaceUnit: 'wally';
+  /** Short-form alias for Wallace output. */
+  wally: number;
+  topologyDeficit: number;
+  frontierFill: number;
+  /** Descriptive underfill field. */
+  frontierDeficit: number;
+  regime: GnosisSteeringRegime;
+  recommendedAction: GnosisSteeringAction | null;
+  eda: GnosisSteeringEda;
+  telemetry: GnosisSteeringTelemetry;
+}
+
 export interface GnosisComplexityReport {
   fileCount: number;
   line: GnosisLineMetrics;
   topology: GnosisTopologyMetrics;
   quantum: GnosisQuantumMetrics;
+  steering: GnosisSteeringMetrics;
   buleyNumber: number;
   correctness: CheckerResult<GgTopologyState>;
   capabilities: GnosisCapabilityReport;
@@ -67,6 +148,7 @@ export interface GnosisCapabilityReport {
 
 export interface GnosisAnalyzeOptions {
   target?: RuntimeTarget;
+  steeringMode?: GnosisSteeringMode;
 }
 
 function round2(value: number): number {
@@ -88,8 +170,85 @@ function buildLineMetrics(source: string): GnosisLineMetrics {
   };
 }
 
-function buildTopologyMetrics(source: string): GnosisTopologyMetrics {
-  const program = parseGgProgram(source);
+type ParsedGgProgram = ReturnType<typeof parseGgProgram>;
+
+function expandGraphEdges(program: ParsedGgProgram): GraphEdge<string>[] {
+  const expandedEdges: GraphEdge<string>[] = [];
+
+  for (const edge of program.edges) {
+    for (const sourceId of edge.sourceIds) {
+      for (const targetId of edge.targetIds) {
+        expandedEdges.push({
+          from: sourceId,
+          to: targetId,
+          weight: 1,
+        });
+      }
+    }
+  }
+
+  return expandedEdges;
+}
+
+function countConnectedComponents(program: ParsedGgProgram): number {
+  const neighbors = new Map<string, Set<string>>();
+
+  for (const node of program.nodes) {
+    neighbors.set(node.id, new Set<string>());
+  }
+
+  for (const edge of program.edges) {
+    for (const sourceId of edge.sourceIds) {
+      const sourceNeighbors = neighbors.get(sourceId);
+      if (!sourceNeighbors) {
+        continue;
+      }
+
+      for (const targetId of edge.targetIds) {
+        sourceNeighbors.add(targetId);
+        const targetNeighbors = neighbors.get(targetId);
+        if (targetNeighbors) {
+          targetNeighbors.add(sourceId);
+        }
+      }
+    }
+  }
+
+  let components = 0;
+  const visited = new Set<string>();
+
+  for (const nodeId of neighbors.keys()) {
+    if (visited.has(nodeId)) {
+      continue;
+    }
+
+    components += 1;
+    const frontier = [nodeId];
+
+    while (frontier.length > 0) {
+      const currentNodeId = frontier.pop();
+      if (!currentNodeId || visited.has(currentNodeId)) {
+        continue;
+      }
+
+      visited.add(currentNodeId);
+      const currentNeighbors = neighbors.get(currentNodeId);
+      if (!currentNeighbors) {
+        continue;
+      }
+
+      for (const neighborId of currentNeighbors) {
+        if (!visited.has(neighborId)) {
+          frontier.push(neighborId);
+        }
+      }
+    }
+  }
+
+  return Math.max(1, components);
+}
+
+function buildTopologyMetrics(program: ParsedGgProgram): GnosisTopologyMetrics {
   const edgeTypes = program.edges.map((edge) => edge.type.toUpperCase());
   const forkEdgeCount = edgeTypes.filter((type) => type === 'FORK').length;
   const raceEdgeCount = edgeTypes.filter((type) => type === 'RACE').length;
@@ -109,11 +268,22 @@ function buildTopologyMetrics(source: string): GnosisTopologyMetrics {
     forkWidths.length === 0
       ? 1
       : round2(forkWidths.reduce((sum, width) => sum + width, 0) / forkWidths.length);
+  const expandedEdgeCount = program.edges.reduce(
+    (sum, edge) => sum + edge.sourceIds.length * edge.targetIds.length,
+    0,
+  );
+  const connectedComponents = countConnectedComponents(program);
+  const structuralBeta1 = Math.max(
+    0,
+    expandedEdgeCount - program.nodes.length + connectedComponents,
+  );
 
   return {
     nodeCount: program.nodes.length,
     functionNodeCount: program.nodes.filter((node) => node.labels.length > 0).length,
     edgeCount: program.edges.length,
+    expandedEdgeCount,
+    structuralBeta1,
     forkEdgeCount,
     raceEdgeCount,
     foldEdgeCount,
@@ -125,6 +295,164 @@ function buildTopologyMetrics(source: string): GnosisTopologyMetrics {
     avgBranchFactor,
     // McCabe-style approximation for directed graph workflows.
     cyclomaticApprox: Math.max(1, program.edges.length - program.nodes.length + 2),
+  };
+}
+
+export function classifySteeringRegime(wally: number): GnosisSteeringRegime {
+  if (wally >= 0.4) {
+    return 'turbulent';
+  }
+  if (wally >= 0.15) {
+    return 'transitional';
+  }
+  return 'laminar';
+}
+
+export function surfaceSteeringMetrics(mode: GnosisSteeringMode): boolean {
+  return mode !== 'off';
+}
+
+export function surfaceSteeringRecommendations(
+  mode: GnosisSteeringMode,
+): boolean {
+  return mode === 'suggest' || mode === 'apply';
+}
+
+function resolveSteeringMode(
+  steeringMode?: GnosisSteeringMode,
+): GnosisSteeringMode {
+  return steeringMode ?? DEFAULT_GNOSIS_STEERING_MODE;
+}
+
+export function recommendSteeringAction(
+  topologyDeficit: number,
+  wally: number,
+  regime: GnosisSteeringRegime,
+): GnosisSteeringAction {
+  if (topologyDeficit > 0.5 && wally >= 0.25) {
+    return 'staggered-expand';
+  }
+  if (topologyDeficit > 0.5) {
+    return 'expand';
+  }
+  if (topologyDeficit < -0.5 && wally >= 0.25) {
+    return 'constrain';
+  }
+  if (regime === 'turbulent') {
+    return 'multiplex';
+  }
+  return 'hold';
+}
+
+function buildSteeringEda(
+  program: ParsedGgProgram,
+  correctness: CheckerResult<GgTopologyState>,
+): GnosisSteeringEda {
+  const frontierWidths =
+    correctness.topology.frontierByLayer.length > 0
+      ? [...correctness.topology.frontierByLayer]
+      : [0];
+  const peakFrontier = Math.max(1, ...frontierWidths);
+  const occupancyByLayer = frontierWidths.map((width) => width / peakFrontier);
+  const wavefrontPoints = frontierWidths.map((width, index) => [
+    index + 1,
+    width,
+    occupancyByLayer[index] ?? 0,
+  ]);
+  const nodes = program.nodes.map((node) => ({ id: node.id }));
+  const edges = expandGraphEdges(program);
+
+  return {
+    frontierWidths: new Series({ data: frontierWidths }).describe(),
+    layerOccupancy: new Series({ data: occupancyByLayer }).describe(),
+    wavefrontShape: new Points({ data: wavefrontPoints }).describe(),
+    graph: graphEda(nodes, edges, { directed: true }),
+    graphOutliers: graphOutliers(nodes, edges, { method: 'combined' }),
+  };
+}
+
+export function createEmptySteeringTelemetry(): GnosisSteeringTelemetry {
+  return {
+    wallMicroCharleys: null,
+    cpuMicroCharleys: null,
+    wallToCpuRatio: null,
+  };
+}
+
+export function startSteeringTelemetry(): GnosisSteeringStopwatch {
+  return {
+    wallStartedAtMs: performance.now(),
+    cpuStartedAt: process.cpuUsage(),
+  };
+}
+
+export function finishSteeringTelemetry(
+  stopwatch: GnosisSteeringStopwatch,
+): GnosisSteeringTelemetry {
+  const wallMicroCharleys = round2(performance.now() - stopwatch.wallStartedAtMs);
+  const cpuUsage = process.cpuUsage(stopwatch.cpuStartedAt);
+  const cpuMicroCharleys = round2((cpuUsage.user + cpuUsage.system) / 1000);
+
+  return {
+    wallMicroCharleys,
+    cpuMicroCharleys,
+    wallToCpuRatio:
+      cpuMicroCharleys === 0
+        ? null
+        : round2(wallMicroCharleys / cpuMicroCharleys),
+  };
+}
+
+export function withSteeringTelemetry(
+  steering: GnosisSteeringMetrics,
+  telemetry: GnosisSteeringTelemetry,
+): GnosisSteeringMetrics {
+  return {
+    ...steering,
+    telemetry,
+  };
+}
+
+function buildSteeringMetrics(
+  program: ParsedGgProgram,
+  topology: GnosisTopologyMetrics,
+  correctness: CheckerResult<GgTopologyState>,
+  steeringMode?: GnosisSteeringMode,
+): GnosisSteeringMetrics {
+  const mode = resolveSteeringMode(steeringMode);
+  const frontierFill = round2(correctness.topology.frontierFill);
+  const checkerTopology = correctness.topology as typeof correctness.topology & {
+    wally?: number;
+  };
+  const wally = round2(
+    checkerTopology.wally ?? correctness.topology.frontierDeficit,
+  );
+  const topologyDeficit = round2(
+    topology.structuralBeta1 - correctness.topology.beta1,
+  );
+  const regime = classifySteeringRegime(wally);
+  const recommendedAction = recommendSteeringAction(
+    topologyDeficit,
+    wally,
+    regime,
+  );
+
+  return {
+    mode,
+    autoApplyEnabled: mode === 'apply',
+    applySupported: false,
+    wallaceNumber: wally,
+    wallaceUnit: 'wally',
+    wally,
+    topologyDeficit,
+    frontierFill,
+    frontierDeficit: wally,
+    regime,
+    recommendedAction: surfaceSteeringRecommendations(mode)
+      ? recommendedAction
+      : null,
+    eda: buildSteeringEda(program, correctness),
+    telemetry: createEmptySteeringTelemetry(),
   };
 }
 
@@ -212,7 +540,8 @@ export async function analyzeGnosisSource(
   options: GnosisAnalyzeOptions = {},
 ): Promise<GnosisComplexityReport> {
   const line = buildLineMetrics(source);
-  const topology = buildTopologyMetrics(source);
+  const program = parseGgProgram(source);
+  const topology = buildTopologyMetrics(program);
   const target = options.target ?? 'agnostic';
   const correctness = await checkGgProgram(source, {
     defaults: {
@@ -221,6 +550,12 @@ export async function analyzeGnosisSource(
     },
   });
   const quantum = buildQuantumMetrics(topology, correctness);
+  const steering = buildSteeringMetrics(
+    program,
+    topology,
+    correctness,
+    options.steeringMode,
+  );
   const capabilityRequirements = inferCapabilitiesFromGgSource(source);
   const capabilityValidation = validateCapabilitiesForTarget(
     capabilityRequirements,
@@ -232,6 +567,7 @@ export async function analyzeGnosisSource(
     line,
     topology,
     quantum,
+    steering,
     buleyNumber: computeBuleyNumber(line, topology),
     correctness,
     capabilities: {

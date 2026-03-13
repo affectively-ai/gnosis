@@ -15,6 +15,17 @@ import {
   type ReplVisualizationState,
   type VisualNodeStatus
 } from './repl-visualization.js';
+import {
+  analyzeGnosisSource,
+  DEFAULT_GNOSIS_STEERING_MODE,
+  finishSteeringTelemetry,
+  startSteeringTelemetry,
+  surfaceSteeringRecommendations,
+  surfaceSteeringMetrics,
+  withSteeringTelemetry,
+  type GnosisSteeringMode,
+  type GnosisSteeringMetrics
+} from './analysis.js';
 
 type HistoryEntry = {
   type: 'input' | 'output' | 'error';
@@ -23,6 +34,7 @@ type HistoryEntry = {
 
 type ReplOptions = {
   verbose?: boolean;
+  steeringMode?: GnosisSteeringMode;
 };
 
 const MAX_HISTORY_ENTRIES = 80;
@@ -317,6 +329,61 @@ const MetricsPanel = React.memo(function MetricsPanel({
   );
 });
 
+const SteeringPanel = React.memo(function SteeringPanel({
+  steering,
+  steeringMode,
+  phase
+}: {
+  steering: GnosisSteeringMetrics | null;
+  steeringMode: GnosisSteeringMode;
+  phase: number;
+}) {
+  if (!surfaceSteeringMetrics(steeringMode)) {
+    return (
+      <Box borderStyle="single" borderColor={rainbowColor(8)} paddingX={1} marginBottom={1}>
+        <Text color={spectrumColor(8, phase)}>
+          Steering disabled. Mode: {steeringMode}.
+        </Text>
+      </Box>
+    );
+  }
+
+  if (!steering) {
+    return (
+      <Box borderStyle="single" borderColor={rainbowColor(8)} paddingX={1} marginBottom={1}>
+        <Text color={spectrumColor(8, phase)}>
+          Steering idle. Draw topology to measure Wallace; execute to observe micro-Charleys.
+        </Text>
+      </Box>
+    );
+  }
+
+  return (
+    <Box flexDirection="column" borderStyle="single" borderColor={rainbowColor(9)} paddingX={1} marginBottom={1}>
+      <Text bold color={rainbowColor(10)}>
+        STEERING
+      </Text>
+      <Text color={spectrumColor(7, phase)}>
+        mode: {steering.mode} | Wallace: {steering.wallaceNumber} {steering.wallaceUnit} | frontier-fill: {steering.frontierFill}
+      </Text>
+      <Text color={spectrumColor(4, phase)}>
+        topology-deficit: {steering.topologyDeficit} | regime: {steering.regime}
+        {surfaceSteeringRecommendations(steering.mode) && steering.recommendedAction
+          ? ` | action: ${steering.recommendedAction}`
+          : ''}
+      </Text>
+      <Text color={spectrumColor(6, phase)}>
+        frontier-median: {steering.eda.frontierWidths.summary.median.datum} | occupancy-median: {steering.eda.layerOccupancy.summary.median.datum} | graph-density: {steering.eda.graph.density} | outliers: {steering.eda.graphOutliers.length}
+      </Text>
+      {steering.telemetry.wallMicroCharleys !== null || steering.telemetry.cpuMicroCharleys !== null ? (
+        <Text color={spectrumColor(2, phase)}>
+          wall-uCharleys: {steering.telemetry.wallMicroCharleys ?? 'n/a'} | cpu-uCharleys: {steering.telemetry.cpuMicroCharleys ?? 'n/a'} | wall/cpu: {steering.telemetry.wallToCpuRatio ?? 'n/a'}
+        </Text>
+      ) : null}
+    </Box>
+  );
+});
+
 const HistoryPanel = React.memo(function HistoryPanel({
   history
 }: {
@@ -345,7 +412,10 @@ const HistoryPanel = React.memo(function HistoryPanel({
 });
 
 export function startRepl(options: ReplOptions = {}) {
-  const { verbose = false } = options;
+  const {
+    verbose = false,
+    steeringMode = DEFAULT_GNOSIS_STEERING_MODE
+  } = options;
   const betty = new BettyCompiler();
   const registry = new GnosisRegistry();
   const engine = new GnosisEngine(registry);
@@ -364,6 +434,7 @@ export function startRepl(options: ReplOptions = {}) {
     const [sourceLines, setSourceLines] = useState<string[]>([]);
     const [ast, setAst] = useState<GraphAST | null>(null);
     const [metrics, setMetrics] = useState({ b1: 0, paths: 1 });
+    const [steering, setSteering] = useState<GnosisSteeringMetrics | null>(null);
     const [visualization, setVisualization] = useState<ReplVisualizationState>(
       createInitialVisualization(null)
     );
@@ -388,11 +459,12 @@ export function startRepl(options: ReplOptions = {}) {
       };
     }, []);
 
-    const applyCompiledSource = (nextSourceLines: string[], inputLabel: string) => {
+    const applyCompiledSource = async (nextSourceLines: string[], inputLabel: string) => {
       if (nextSourceLines.length === 0) {
         setSourceLines([]);
         setAst(null);
         setMetrics({ b1: 0, paths: 1 });
+        setSteering(null);
         setVisualization(createInitialVisualization(null));
         appendHistory(
           { type: 'input', text: inputLabel },
@@ -415,7 +487,24 @@ export function startRepl(options: ReplOptions = {}) {
           { type: 'input', text: inputLabel },
           { type: 'output', text: formatCompilationMessage(output, diagnostics) }
         );
+
+        if (!surfaceSteeringMetrics(steeringMode)) {
+          setSteering(null);
+          return;
+        }
+
+        try {
+          const report = await analyzeGnosisSource(source, { steeringMode });
+          setSteering(report.steering);
+        } catch (error: unknown) {
+          setSteering(null);
+          appendHistory({
+            type: 'error',
+            text: `[Analysis Crash] ${formatMottoError(error)}`
+          });
+        }
       } catch (error: unknown) {
+        setSteering(null);
         appendHistory(
           { type: 'input', text: inputLabel },
           { type: 'error', text: `[Compiler Crash] ${formatMottoError(error)}` }
@@ -441,6 +530,7 @@ export function startRepl(options: ReplOptions = {}) {
         setSourceLines([]);
         setAst(null);
         setMetrics({ b1: 0, paths: 1 });
+        setSteering(null);
         setVisualization(createInitialVisualization(null));
         setQuery('');
         return;
@@ -464,7 +554,7 @@ export function startRepl(options: ReplOptions = {}) {
           );
         } else {
           const nextSourceLines = sourceLines.slice(0, -1);
-          applyCompiledSource(nextSourceLines, `UNDO (${sourceLines[sourceLines.length - 1]})`);
+          await applyCompiledSource(nextSourceLines, `UNDO (${sourceLines[sourceLines.length - 1]})`);
         }
         setQuery('');
         return;
@@ -484,9 +574,16 @@ export function startRepl(options: ReplOptions = {}) {
         }
 
         try {
+          const steeringStopwatch = startSteeringTelemetry();
           const executionOutput = await engine.execute(ast, 'REPL_INIT');
+          const runtimeTelemetry = finishSteeringTelemetry(steeringStopwatch);
           const waveState = buildVisualizationFromExecution(ast, executionOutput);
           setVisualization(waveState);
+          setSteering((previousSteering) =>
+            previousSteering
+              ? withSteeringTelemetry(previousSteering, runtimeTelemetry)
+              : previousSteering
+          );
           appendHistory(
             { type: 'input', text: 'EXECUTE' },
             { type: 'output', text: executionOutput }
@@ -503,7 +600,7 @@ export function startRepl(options: ReplOptions = {}) {
       }
 
       const nextSourceLines = [...sourceLines, submittedQuery];
-      applyCompiledSource(nextSourceLines, submittedQuery);
+      await applyCompiledSource(nextSourceLines, submittedQuery);
       setQuery('');
     };
 
@@ -515,6 +612,11 @@ export function startRepl(options: ReplOptions = {}) {
           beta1={metrics.b1}
           paths={metrics.paths}
           activeWaveCount={visualization.activeWaveFunction.length}
+          phase={phase}
+        />
+        <SteeringPanel
+          steering={steering}
+          steeringMode={steeringMode}
           phase={phase}
         />
 
