@@ -2,12 +2,18 @@ import { parseGgProgram } from '@affectively/aeon-logic';
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   BettyCompiler,
   type ASTEdge,
   type ASTNode,
   type GraphAST,
 } from '../betty/compiler.js';
+import {
+  GnosisEngine,
+  type GnosisEngineExecutionResult,
+} from '../runtime/engine.js';
+import { GnosisRegistry } from '../runtime/registry.js';
 import { ModManager, type ModDependency } from './manager.js';
 import { lowerUfcsSource } from '../ufcs.js';
 
@@ -66,6 +72,23 @@ interface WorkspaceDependencyResolution {
   subpath: string;
 }
 
+interface ModuleLoaderState {
+  modulePath: string;
+  source: string;
+  parsed?: ParsedGnosisModule;
+  resolvedImports?: GnosisResolvedImport[];
+  localTopology?: CompiledTopology;
+  mergedTopology?: CompiledTopology;
+  explicitExports?: string[];
+}
+
+const MODULE_LOADER_TOPOLOGY_URL_CANDIDATES = [
+  new URL('./loader.gg', import.meta.url),
+  new URL('../../src/mod/loader.gg', import.meta.url),
+];
+
+let moduleLoaderTopologyAst: GraphAST | null = null;
+
 function materializeImplicitNodes(ast: GraphAST): GraphAST {
   const nodes = new Map(ast.nodes);
 
@@ -100,6 +123,74 @@ function sortStrings(values: Iterable<string>): string[] {
 
 function fileExists(filePath: string): boolean {
   return fsSync.existsSync(filePath);
+}
+
+function readBundledTopologySource(urlCandidates: readonly URL[]): string {
+  for (const candidate of urlCandidates) {
+    const filePath = fileURLToPath(candidate);
+    if (fileExists(filePath)) {
+      return fsSync.readFileSync(filePath, 'utf-8');
+    }
+  }
+
+  throw new Error('Unable to locate bundled .gg topology asset.');
+}
+
+function getModuleLoaderTopologyAst(): GraphAST {
+  if (moduleLoaderTopologyAst) {
+    return moduleLoaderTopologyAst;
+  }
+
+  const topologySource = readBundledTopologySource(
+    MODULE_LOADER_TOPOLOGY_URL_CANDIDATES
+  );
+  const compiler = new BettyCompiler();
+  const { ast, diagnostics } = compiler.parse(lowerUfcsSource(topologySource));
+  const errors = diagnostics
+    .filter((diagnostic) => diagnostic.severity === 'error')
+    .map((diagnostic) => diagnostic.message);
+
+  if (errors.length > 0 || !ast) {
+    throw new Error(
+      errors.length > 0
+        ? errors.join('; ')
+        : 'Failed to compile bundled module loader topology.'
+    );
+  }
+
+  moduleLoaderTopologyAst = materializeImplicitNodes(ast);
+  return moduleLoaderTopologyAst;
+}
+
+function requireModuleLoaderState(payload: unknown): ModuleLoaderState {
+  if (
+    !payload ||
+    typeof payload !== 'object' ||
+    typeof (payload as { modulePath?: unknown }).modulePath !== 'string' ||
+    typeof (payload as { source?: unknown }).source !== 'string'
+  ) {
+    throw new Error(
+      'Module loader pipeline received an invalid state payload.'
+    );
+  }
+
+  return payload as ModuleLoaderState;
+}
+
+function requireLoadedModule(payload: unknown): LoadedGnosisModule {
+  if (
+    !payload ||
+    typeof payload !== 'object' ||
+    typeof (payload as { id?: unknown }).id !== 'string' ||
+    typeof (payload as { format?: unknown }).format !== 'string' ||
+    !('ast' in payload)
+  ) {
+    throw new Error(
+      'Module loader pipeline did not return a valid loaded module.'
+    );
+  }
+
+  return payload as LoadedGnosisModule;
 }
 
 function findWorkspaceRoot(
@@ -724,66 +815,151 @@ export class GnosisModuleLoader {
     source: string,
     importChain: readonly string[]
   ): Promise<LoadedGnosisModule> {
-    const parsed = parseMGG(source);
-    const resolvedImports: GnosisResolvedImport[] = [];
+    return this.runModuleLoaderTopology(
+      {
+        modulePath,
+        source,
+      },
+      importChain
+    );
+  }
 
-    for (const declaration of parsed.imports) {
-      const resolved = await this.resolver(declaration.source, modulePath);
-      if (!resolved.resolved) {
-        throw new Error(
-          `Cannot resolve import '${declaration.source}' from '${modulePath}': ${resolved.error}`
+  private async runModuleLoaderTopology(
+    initialState: ModuleLoaderState,
+    importChain: readonly string[]
+  ): Promise<LoadedGnosisModule> {
+    const registry = new GnosisRegistry();
+    this.registerModuleLoaderHandlers(registry, importChain);
+
+    const engine = new GnosisEngine(registry);
+    const result: GnosisEngineExecutionResult = await engine.executeWithResult(
+      getModuleLoaderTopologyAst(),
+      initialState
+    );
+
+    return requireLoadedModule(result.payload);
+  }
+
+  private registerModuleLoaderHandlers(
+    registry: GnosisRegistry,
+    importChain: readonly string[]
+  ): void {
+    registry.register('ModuleParse', async (payload) => {
+      const state = requireModuleLoaderState(payload);
+      return {
+        ...state,
+        parsed: parseMGG(state.source),
+      } satisfies ModuleLoaderState;
+    });
+
+    registry.register('ModuleResolveImports', async (payload) => {
+      const state = requireModuleLoaderState(payload);
+      const parsed = state.parsed ?? parseMGG(state.source);
+      const resolvedImports: GnosisResolvedImport[] = [];
+
+      for (const declaration of parsed.imports) {
+        const resolved = await this.resolver(
+          declaration.source,
+          state.modulePath
         );
+        if (!resolved.resolved) {
+          throw new Error(
+            `Cannot resolve import '${declaration.source}' from '${state.modulePath}': ${resolved.error}`
+          );
+        }
+
+        const importedModule = await this.loadResolved(
+          resolved.path,
+          resolved.source,
+          [...importChain, state.modulePath]
+        );
+        for (const name of declaration.names) {
+          if (!importedModule.exports.includes(name)) {
+            throw new Error(
+              `'${name}' is not exported from '${
+                declaration.source
+              }'. Available exports: ${importedModule.exports.join(', ')}`
+            );
+          }
+        }
+
+        resolvedImports.push({
+          declaration,
+          module: importedModule,
+        });
       }
 
-      const importedModule = await this.loadResolved(
-        resolved.path,
-        resolved.source,
-        [...importChain, modulePath]
-      );
-      for (const name of declaration.names) {
-        if (!importedModule.exports.includes(name)) {
+      return {
+        ...state,
+        parsed,
+        resolvedImports,
+      } satisfies ModuleLoaderState;
+    });
+
+    registry.register('ModuleCompileTopology', async (payload) => {
+      const state = requireModuleLoaderState(payload);
+      const parsed = state.parsed ?? parseMGG(state.source);
+
+      return {
+        ...state,
+        parsed,
+        localTopology: compileTopology(parsed.topologySource),
+        explicitExports: parsed.exports.flatMap(
+          (declaration) => declaration.names
+        ),
+      } satisfies ModuleLoaderState;
+    });
+
+    registry.register('ModuleMergeTopology', async (payload) => {
+      const state = requireModuleLoaderState(payload);
+      const localTopology =
+        state.localTopology ??
+        compileTopology(
+          (state.parsed ?? parseMGG(state.source)).topologySource
+        );
+
+      return {
+        ...state,
+        localTopology,
+        mergedTopology: mergeTopologies(
+          localTopology,
+          state.resolvedImports ?? []
+        ),
+      } satisfies ModuleLoaderState;
+    });
+
+    registry.register('ModuleFinalize', async (payload) => {
+      const state = requireModuleLoaderState(payload);
+      const parsed = state.parsed ?? parseMGG(state.source);
+      const localTopology =
+        state.localTopology ?? compileTopology(parsed.topologySource);
+      const mergedTopology =
+        state.mergedTopology ??
+        mergeTopologies(localTopology, state.resolvedImports ?? []);
+      const exports =
+        state.explicitExports && state.explicitExports.length > 0
+          ? sortStrings(state.explicitExports)
+          : sortStrings(localTopology.ast.nodes.keys());
+
+      for (const exportedName of exports) {
+        if (!mergedTopology.ast.nodes.has(exportedName)) {
           throw new Error(
-            `'${name}' is not exported from '${
-              declaration.source
-            }'. Available exports: ${importedModule.exports.join(', ')}`
+            `Cannot export '${exportedName}' from '${state.modulePath}' because no such topology node exists after import resolution.`
           );
         }
       }
 
-      resolvedImports.push({
-        declaration,
-        module: importedModule,
-      });
-    }
-
-    const localTopology = compileTopology(parsed.topologySource);
-    const mergedTopology = mergeTopologies(localTopology, resolvedImports);
-    const explicitExports = parsed.exports.flatMap(
-      (declaration) => declaration.names
-    );
-    const exports =
-      explicitExports.length > 0
-        ? sortStrings(explicitExports)
-        : sortStrings(localTopology.ast.nodes.keys());
-
-    for (const exportedName of exports) {
-      if (!mergedTopology.ast.nodes.has(exportedName)) {
-        throw new Error(
-          `Cannot export '${exportedName}' from '${modulePath}' because no such topology node exists after import resolution.`
-        );
-      }
-    }
-
-    return {
-      id: modulePath,
-      format: 'mgg',
-      source,
-      topologySource: parsed.topologySource,
-      mergedSource: renderGraphAst(mergedTopology.ast),
-      ast: mergedTopology.ast,
-      b1: mergedTopology.b1,
-      exports,
-      imports: resolvedImports,
-    };
+      return {
+        id: state.modulePath,
+        format: 'mgg',
+        source: state.source,
+        topologySource: parsed.topologySource,
+        mergedSource: renderGraphAst(mergedTopology.ast),
+        ast: mergedTopology.ast,
+        b1: mergedTopology.b1,
+        exports,
+        imports: state.resolvedImports ?? [],
+      } satisfies LoadedGnosisModule;
+    });
   }
 }

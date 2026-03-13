@@ -20,6 +20,19 @@ describe('GnosisEngine', () => {
     expect(mockHandler).toHaveBeenCalledTimes(2);
   });
 
+  it('returns the final payload for programmatic graph execution', async () => {
+    const registry = new GnosisRegistry();
+    registry.register('Step', async (payload) => `${String(payload)} -> next`);
+
+    const engine = new GnosisEngine(registry);
+    const { ast } = compiler.parse('(a:Step)-[:PROCESS]->(b:Step)');
+
+    const result = await engine.executeWithResult(ast!, 'start');
+
+    expect(result.logs).toContain('start -> next -> next');
+    expect(result.payload).toBe('start -> next -> next');
+  });
+
   it('should execute parallel topologies with FORK/FOLD', async () => {
     const registry = new GnosisRegistry();
     registry.register('Forker', async (payload) => [payload, payload]);

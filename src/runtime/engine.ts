@@ -13,6 +13,11 @@ export interface GnosisEngineOptions {
   onEdgeEvaluated?: (edge: ASTEdge) => Promise<void> | void;
 }
 
+export interface GnosisEngineExecutionResult {
+  logs: string;
+  payload: unknown;
+}
+
 type StructuredConcurrencyFailureMode = 'cancel' | 'vent' | 'shield';
 type StructuredBranchStatus =
   | 'success'
@@ -64,7 +69,20 @@ export class GnosisEngine {
     ast: GraphAST,
     initialPayload: any = null
   ): Promise<string> {
-    if (ast.edges.length === 0) return '[Engine] No graph to execute.';
+    const result = await this.executeWithResult(ast, initialPayload);
+    return result.logs;
+  }
+
+  public async executeWithResult(
+    ast: GraphAST,
+    initialPayload: any = null
+  ): Promise<GnosisEngineExecutionResult> {
+    if (ast.edges.length === 0) {
+      return {
+        logs: '[Engine] No graph to execute.',
+        payload: initialPayload,
+      };
+    }
 
     const autoInjected = injectSensitiveZkEnvelopes(ast);
     const activeAst = autoInjected.ast;
@@ -352,7 +370,10 @@ export class GnosisEngine {
     }
 
     execLogs.push(`Final System Result: ${JSON.stringify(currentPayload)}`);
-    return execLogs.join('\n');
+    return {
+      logs: execLogs.join('\n'),
+      payload: currentPayload,
+    };
   }
 
   private async executeConcurrentBlock({

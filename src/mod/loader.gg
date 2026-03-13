@@ -1,0 +1,4 @@
+(parse:ModuleParse)-[:PROCESS]->(resolve:ModuleResolveImports)
+(resolve)-[:PROCESS]->(compile:ModuleCompileTopology)
+(compile)-[:PROCESS]->(merge:ModuleMergeTopology)
+(merge)-[:PROCESS]->(finalize:ModuleFinalize)
