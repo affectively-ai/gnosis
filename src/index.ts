@@ -452,8 +452,10 @@ async function main() {
                     console.log(`  complexity: max-branch=${report.topology.maxBranchFactor} avg-branch=${report.topology.avgBranchFactor} cyclomatic≈${report.topology.cyclomaticApprox}`);
                     console.log(`  quantum: superposition=${report.quantum.superpositionEdgeCount} collapse=${report.quantum.collapseEdgeCount} coverage=${report.quantum.collapseCoverage} deficit=${report.quantum.collapseDeficit} interference-density=${report.quantum.interferenceDensity}`);
                     console.log(`  quantum-index: ${report.quantum.quantumIndex} beta-pressure=${report.quantum.betaPressure} beta-headroom=${report.quantum.betaHeadroom}`);
-                    console.log(`  steering: ${formatSteeringSummary(report.steering)}`);
-                    console.log(`  steering-eda: ${formatSteeringEdaSummary(report.steering)}`);
+                    if (surfaceSteeringMetrics(report.steering.mode)) {
+                        console.log(`  steering: ${formatSteeringSummary(report.steering)}`);
+                        console.log(`  steering-eda: ${formatSteeringEdaSummary(report.steering)}`);
+                    }
                 }
                 if (report.capabilities.requiredUnique.length > 0) {
                     console.log(`  required-capabilities: ${report.capabilities.requiredUnique.join(', ')}`);
@@ -539,8 +541,10 @@ async function main() {
             process.exit(1);
         }
         console.log(`[Gnosis] Formal check passed. Buley Number: ${runtimeReport.buleyNumber}, Quantum Index: ${runtimeReport.quantum.quantumIndex}`);
-        console.log(`[Gnosis] Steering: ${formatSteeringSummary(runtimeReport.steering)}`);
-        console.log(`[Gnosis] Steering EDA: ${formatSteeringEdaSummary(runtimeReport.steering)}`);
+        if (surfaceSteeringMetrics(runtimeReport.steering.mode)) {
+            console.log(`[Gnosis] Steering: ${formatSteeringSummary(runtimeReport.steering)}`);
+            console.log(`[Gnosis] Steering EDA: ${formatSteeringEdaSummary(runtimeReport.steering)}`);
+        }
         
         const betty = new BettyCompiler();
         const { ast, output } = betty.parse(content);
@@ -827,7 +831,9 @@ async function main() {
                 finishSteeringTelemetry(steeringStopwatch),
             );
             console.log(execOutput);
-            console.log(`[Gnosis] Runtime Steering: ${formatSteeringSummary(executedSteering)}`);
+            if (surfaceSteeringMetrics(executedSteering.mode)) {
+                console.log(`[Gnosis] Runtime Steering: ${formatSteeringSummary(executedSteering)}`);
+            }
             if (nativeRuntime) {
                 const runtimeSnapshot = nativeRuntime.snapshot();
                 console.log(
