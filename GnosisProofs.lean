@@ -1466,6 +1466,53 @@ def MeasurableQuantitativeHarrisCertified
     epsilon ∧
       MeasurableReferencePositiveHittingBound kernel reference hitBound
 
+def MeasurableRealObservableWitness
+    {state : Type*}
+    [MeasurableSpace state]
+    (observable : state -> Real)
+    (smallSet : Set state) : Prop :=
+  Measurable observable ∧ MeasurableSet smallSet
+
+def MeasurableLyapunovDriftWitness
+    {state : Type*}
+    [MeasurableSpace state]
+    (expectedObservable lyapunov : state -> Real)
+    (smallSet : Set state)
+    (driftGap : Real) : Prop :=
+  Measurable expectedObservable ∧
+    Measurable lyapunov ∧
+      MeasurableSet smallSet ∧
+        0 < driftGap ∧
+          ∀ current : state,
+            current ∉ smallSet ->
+              expectedObservable current <= lyapunov current - driftGap
+
+/-
+Packages the measurable queue-Harris surface used by Betti's emitted
+observable/Lyapunov certificates: quantitative Harris recurrence together with
+a measurable observable and a measurable drift witness.
+-/
+def MeasurableContinuousHarrisWitness
+    {state : Type*}
+    [MeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference invariantMeasure minorizationMeasure : MeasureTheory.Measure state)
+    (observable expectedObservable lyapunov : state -> Real)
+    (smallSet : Set state)
+    (epsilon : ℝ≥0∞)
+    (hitBound : state -> Nat)
+    (driftGap : Real) : Prop :=
+  MeasurableQuantitativeHarrisCertified
+    kernel
+    reference
+    invariantMeasure
+    minorizationMeasure
+    smallSet
+    epsilon
+    hitBound ∧
+      MeasurableRealObservableWitness observable smallSet ∧
+        MeasurableLyapunovDriftWitness expectedObservable lyapunov smallSet driftGap
+
 def MeasurableReferencePositiveRecurrent
     {state : Type*}
     [MeasurableSpace state]
@@ -2206,6 +2253,46 @@ theorem measurableQuantitativeHarrisCertified_of_quantitativeLaminarCertifiedAtA
       h_certified
   ⟩
 
+theorem measurableContinuousHarrisWitness_of_components
+    {state : Type*}
+    [MeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference invariantMeasure minorizationMeasure : MeasureTheory.Measure state)
+    (observable expectedObservable lyapunov : state -> Real)
+    (smallSet : Set state)
+    (epsilon : ℝ≥0∞)
+    (hitBound : state -> Nat)
+    (driftGap : Real)
+    (h_harris :
+      MeasurableQuantitativeHarrisCertified
+        kernel
+        reference
+        invariantMeasure
+        minorizationMeasure
+        smallSet
+        epsilon
+        hitBound)
+    (h_observable : MeasurableRealObservableWitness observable smallSet)
+    (h_drift :
+      MeasurableLyapunovDriftWitness
+        expectedObservable
+        lyapunov
+        smallSet
+        driftGap) :
+    MeasurableContinuousHarrisWitness
+      kernel
+      reference
+      invariantMeasure
+      minorizationMeasure
+      observable
+      expectedObservable
+      lyapunov
+      smallSet
+      epsilon
+      hitBound
+      driftGap := by
+  exact ⟨h_harris, h_observable, h_drift⟩
+
 theorem measurableQuantitativeReferencePositiveRecurrent_of_quantitativeHarrisCertified
     {state : Type*}
     [MeasurableSpace state]
@@ -2784,6 +2871,286 @@ theorem natMeasurableQuantitativeHarrisCertified_of_queueStep
     (fun current : Nat => current - boundary + 1)
     (natMeasurableQuantitativeLaminarCertified_of_queueStep boundary atom h_atom_small)
 
+def natQueueAffineObservable
+    (scale offset : Real) :
+    Nat -> Real :=
+  fun current => scale * current + offset
+
+def natQueueAffineExpectedObservable
+    (boundary atom : Nat)
+    (scale offset : Real) :
+    Nat -> Real :=
+  fun current =>
+    if current <= boundary then
+      scale * atom + offset
+    else
+      scale * current + offset - scale
+
+theorem natMeasurableRealObservableWitness_of_queueStep
+    (boundary : Nat)
+    (scale offset : Real) :
+    MeasurableRealObservableWitness
+      (natQueueAffineObservable scale offset)
+      {current : Nat | current <= boundary} := by
+  constructor
+  · exact measurable_of_countable _
+  · exact (Set.to_countable _).measurableSet
+
+theorem natMeasurableLyapunovDriftWitness_of_queueStep_with_gap
+    (boundary atom : Nat)
+    (scale : Real)
+    (offset : Real)
+    (driftGap : Real)
+    (h_driftGap : 0 < driftGap)
+    (h_driftGap_le_scale : driftGap <= scale) :
+    MeasurableLyapunovDriftWitness
+      (natQueueAffineExpectedObservable boundary atom scale offset)
+      (natQueueAffineObservable scale offset)
+      {current : Nat | current <= boundary}
+      driftGap := by
+  constructor
+  · exact measurable_of_countable _
+  constructor
+  · exact measurable_of_countable _
+  constructor
+  · exact (Set.to_countable _).measurableSet
+  constructor
+  · exact h_driftGap
+  · intro current h_not_small
+    have h_current_gt : boundary < current := Nat.lt_of_not_ge h_not_small
+    have h_current_not_le : ¬ current ≤ boundary := Nat.not_le_of_gt h_current_gt
+    calc
+      natQueueAffineExpectedObservable boundary atom scale offset current
+          = natQueueAffineObservable scale offset current - scale := by
+            simp [
+              natQueueAffineExpectedObservable,
+              natQueueAffineObservable,
+              h_current_not_le,
+            ]
+      _ <= natQueueAffineObservable scale offset current - driftGap := by
+        linarith
+
+theorem natMeasurableLyapunovDriftWitness_of_queueStep
+    (boundary atom : Nat)
+    (scale : Real)
+    (offset : Real)
+    (h_scale : 0 < scale) :
+    MeasurableLyapunovDriftWitness
+      (natQueueAffineExpectedObservable boundary atom scale offset)
+      (natQueueAffineObservable scale offset)
+      {current : Nat | current <= boundary}
+      scale := by
+  exact natMeasurableLyapunovDriftWitness_of_queueStep_with_gap
+    boundary
+    atom
+    scale
+    offset
+    scale
+    h_scale
+    le_rfl
+
+/-
+The deterministic queue support kernel admits a bounded affine observable /
+Lyapunov witness whenever the drift gap stays within the one-step affine drop:
+0 < driftGap <= scale.
+-/
+theorem natMeasurableContinuousHarrisWitness_of_queueStep_with_gap
+    (boundary atom : Nat)
+    (h_atom_small : atom <= boundary)
+    (scale : Real)
+    (offset : Real)
+    (driftGap : Real)
+    (h_driftGap : 0 < driftGap)
+    (h_driftGap_le_scale : driftGap <= scale) :
+    MeasurableContinuousHarrisWitness
+      (ProbabilityTheory.Kernel.deterministic
+        (fun current : Nat => if current <= boundary then atom else current - 1)
+        (measurable_of_countable _))
+      (MeasureTheory.Measure.dirac atom)
+      (MeasureTheory.Measure.dirac atom)
+      (MeasureTheory.Measure.dirac atom)
+      (natQueueAffineObservable scale offset)
+      (natQueueAffineExpectedObservable boundary atom scale offset)
+      (natQueueAffineObservable scale offset)
+      {current : Nat | current <= boundary}
+      1
+      (fun current : Nat => current - boundary + 1)
+      driftGap := by
+  exact measurableContinuousHarrisWitness_of_components
+    (ProbabilityTheory.Kernel.deterministic
+      (fun current : Nat => if current <= boundary then atom else current - 1)
+      (measurable_of_countable _))
+    (MeasureTheory.Measure.dirac atom)
+    (MeasureTheory.Measure.dirac atom)
+    (MeasureTheory.Measure.dirac atom)
+    (natQueueAffineObservable scale offset)
+    (natQueueAffineExpectedObservable boundary atom scale offset)
+    (natQueueAffineObservable scale offset)
+    {current : Nat | current <= boundary}
+    1
+    (fun current : Nat => current - boundary + 1)
+    driftGap
+    (natMeasurableQuantitativeHarrisCertified_of_queueStep boundary atom h_atom_small)
+    (natMeasurableRealObservableWitness_of_queueStep boundary scale offset)
+    (natMeasurableLyapunovDriftWitness_of_queueStep_with_gap
+      boundary
+      atom
+      scale
+      offset
+      driftGap
+      h_driftGap
+      h_driftGap_le_scale)
+
+theorem natMeasurableContinuousHarrisWitness_of_queueStep
+    (boundary atom : Nat)
+    (h_atom_small : atom <= boundary)
+    (scale : Real)
+    (offset : Real)
+    (h_scale : 0 < scale) :
+    MeasurableContinuousHarrisWitness
+      (ProbabilityTheory.Kernel.deterministic
+        (fun current : Nat => if current <= boundary then atom else current - 1)
+        (measurable_of_countable _))
+      (MeasureTheory.Measure.dirac atom)
+      (MeasureTheory.Measure.dirac atom)
+      (MeasureTheory.Measure.dirac atom)
+      (natQueueAffineObservable scale offset)
+      (natQueueAffineExpectedObservable boundary atom scale offset)
+      (natQueueAffineObservable scale offset)
+      {current : Nat | current <= boundary}
+      1
+      (fun current : Nat => current - boundary + 1)
+      scale := by
+  exact natMeasurableContinuousHarrisWitness_of_queueStep_with_gap
+    boundary
+    atom
+    h_atom_small
+    scale
+    offset
+    scale
+    h_scale
+    le_rfl
+
+def realQueueLinearObservable
+    (scale : Real) :
+    Real -> Real :=
+  fun current => scale * current
+
+noncomputable def realQueueLinearExpectedObservable
+    (boundary atom step scale : Real) :
+    Real -> Real :=
+  fun current => if current <= boundary then scale * atom else scale * current - scale * step
+
+theorem realMeasurableRealObservableWitness_of_queueStep
+    (boundary scale : Real) :
+    MeasurableRealObservableWitness
+      (realQueueLinearObservable scale)
+      (Set.Iic boundary) := by
+  constructor
+  · simpa [realQueueLinearObservable] using (measurable_const.mul measurable_id)
+  · exact measurableSet_Iic
+
+theorem realMeasurableLyapunovDriftWitness_of_queueStep
+    (boundary atom step scale : Real)
+    (h_step : 0 < step)
+    (h_scale : 0 < scale) :
+    MeasurableLyapunovDriftWitness
+      (realQueueLinearExpectedObservable boundary atom step scale)
+      (realQueueLinearObservable scale)
+      (Set.Iic boundary)
+      (scale * step) := by
+  constructor
+  · exact Measurable.ite measurableSet_Iic
+      measurable_const
+      (by
+        simpa [realQueueLinearObservable] using
+          ((measurable_const.mul measurable_id).sub measurable_const))
+  constructor
+  · simpa [realQueueLinearObservable] using (measurable_const.mul measurable_id)
+  constructor
+  · exact measurableSet_Iic
+  constructor
+  · positivity
+  · intro current h_not_small
+    have h_current_gt : boundary < current := lt_of_not_ge h_not_small
+    have h_current_not_le : ¬ current ≤ boundary := not_le_of_gt h_current_gt
+    rw [show realQueueLinearExpectedObservable boundary atom step scale current =
+        realQueueLinearObservable scale current - scale * step by
+          simp [realQueueLinearExpectedObservable, realQueueLinearObservable, h_current_not_le]]
+
+/-! ### Continuous-state level-set Lyapunov witnesses
+
+    For continuous observables (fluid-backlog, thermal-load, etc.) where the state
+    is real-valued, the small set is C = {x | V(x) <= boundary} (level set)
+    and V(x) = scale * observable(x) + offset is the Lyapunov function.
+    The drift condition is: E[V(X') | X=x] <= V(x) - gap for x outside C. -/
+
+/-- Affine Lyapunov function for continuous observables: V(x) = scale * x + offset. -/
+noncomputable def realContinuousAffineV
+    (scale offset : Real) : Real -> Real :=
+  fun x => scale * x + offset
+
+/-- Expected Lyapunov after one step for continuous affine observables.
+    Inside the level set, the expected value is bounded by the boundary value.
+    Outside, V decreases by the drift gap. -/
+noncomputable def realContinuousAffineExpectedV
+    (boundary scale offset gap : Real) : Real -> Real :=
+  fun x => if scale * x + offset ≤ boundary then boundary else scale * x + offset - gap
+
+/-- Measurability of the affine Lyapunov function and level-set small set. -/
+theorem realMeasurableObservable_of_continuousAffine
+    (scale offset boundary : Real) :
+    MeasurableRealObservableWitness
+      (realContinuousAffineV scale offset)
+      {x | realContinuousAffineV scale offset x ≤ boundary} := by
+  constructor
+  · exact (measurable_const.mul measurable_id).add measurable_const
+  · exact measurableSet_le ((measurable_const.mul measurable_id).add measurable_const) measurable_const
+
+/-- Drift witness for continuous affine observables with level-set small sets. -/
+theorem realMeasurableLyapunovDriftWitness_of_continuousAffineStep
+    (boundary scale offset gap : Real)
+    (h_gap : 0 < gap)
+    (h_scale : 0 < scale) :
+    MeasurableLyapunovDriftWitness
+      (realContinuousAffineExpectedV boundary scale offset gap)
+      (realContinuousAffineV scale offset)
+      {x | realContinuousAffineV scale offset x ≤ boundary}
+      gap := by
+  constructor
+  · exact Measurable.ite
+      (measurableSet_le ((measurable_const.mul measurable_id).add measurable_const)
+        measurable_const)
+      measurable_const
+      (((measurable_const.mul measurable_id).add measurable_const).sub measurable_const)
+  constructor
+  · exact (measurable_const.mul measurable_id).add measurable_const
+  constructor
+  · exact measurableSet_le ((measurable_const.mul measurable_id).add measurable_const)
+      measurable_const
+  constructor
+  · exact h_gap
+  · intro current h_not_small
+    have h_gt : boundary < realContinuousAffineV scale offset current := lt_of_not_ge h_not_small
+    have h_not_le : ¬ (scale * current + offset ≤ boundary) := by
+      simpa [realContinuousAffineV] using not_le_of_gt h_gt
+    show realContinuousAffineExpectedV boundary scale offset gap current ≤
+        realContinuousAffineV scale offset current - gap
+    simp only [realContinuousAffineExpectedV, realContinuousAffineV, h_not_le, ite_false]
+
+open Lean Elab Tactic in
+elab "derive_gnosis_drift" : tactic => do
+  evalTactic (← `(tactic|
+    first
+    | refine realMeasurableLyapunovDriftWitness_of_continuousAffineStep _ _ _ _ ?_ ?_
+      · positivity
+      · positivity
+    | refine realMeasurableLyapunovDriftWitness_of_queueStep _ _ _ _ ?_ ?_
+      · positivity
+      · positivity
+    | refine natMeasurableLyapunovDriftWitness_of_queueStep _ _ _ ?_
+      positivity))
+
 theorem natMeasurableHarrisCertified_of_queueWitnessKernel
     (boundary atom : Nat)
     (h_atom_small : atom <= boundary) :
@@ -2941,6 +3308,108 @@ theorem certifiedKernel_stable_of_drift_certificate
   apply certifiedKernel_stable
   · exact h_spectral
   · simpa [HasNegativeDrift, h_kernel] using And.intro h_gamma h_floor
+
+def coupledArrivalCertificate
+    (certificate : DriftCertificate)
+    (arrivalPressure : Real) : DriftCertificate where
+  gamma := certificate.gamma - arrivalPressure
+  arrivalRate := certificate.arrivalRate + arrivalPressure
+  serviceRate := certificate.serviceRate
+  ventRate := certificate.ventRate
+
+def coupledCertifiedKernel
+    (kernel : CertifiedKernel nodeCount)
+    (arrivalPressure : Real) : CertifiedKernel nodeCount :=
+  match kernel.drift with
+  | none => kernel
+  | some certificate =>
+      { kernel with
+        drift := some (coupledArrivalCertificate certificate arrivalPressure) }
+
+theorem driftAt_coupledArrivalCertificate
+    (certificate : DriftCertificate)
+    (arrivalPressure : Real)
+    (queueDepth : Nat) :
+    driftAt (coupledArrivalCertificate certificate arrivalPressure) queueDepth =
+      driftAt certificate queueDepth + arrivalPressure := by
+  simp [coupledArrivalCertificate, driftAt]
+  ring
+
+theorem coupledArrivalCertificate_negative_drift
+    (certificate : DriftCertificate)
+    (arrivalPressure : Real)
+    (h_arrival_nonnegative : 0 ≤ arrivalPressure)
+    (h_arrival_lt_gamma : arrivalPressure < certificate.gamma)
+    (h_floor : forall queueDepth : Nat, driftAt certificate queueDepth <= -certificate.gamma) :
+    0 ≤ arrivalPressure ∧
+      0 < (coupledArrivalCertificate certificate arrivalPressure).gamma ∧
+        forall queueDepth : Nat,
+          driftAt (coupledArrivalCertificate certificate arrivalPressure) queueDepth <=
+            -(coupledArrivalCertificate certificate arrivalPressure).gamma := by
+  constructor
+  · exact h_arrival_nonnegative
+  constructor
+  · simp [coupledArrivalCertificate]
+    linarith [h_arrival_nonnegative, h_arrival_lt_gamma]
+  · intro queueDepth
+    rw [driftAt_coupledArrivalCertificate]
+    simp [coupledArrivalCertificate]
+    have h_base := h_floor queueDepth
+    linarith [h_base, h_arrival_nonnegative]
+
+theorem coupledCertifiedKernel_stable
+    [NeZero nodeCount]
+    (kernel : CertifiedKernel nodeCount)
+    (certificate : DriftCertificate)
+    (arrivalPressure : Real)
+    (h_kernel : kernel.drift = some certificate)
+    (h_spectral : SpectrallyStable kernel)
+    (h_arrival_nonnegative : 0 ≤ arrivalPressure)
+    (h_arrival_lt_gamma : arrivalPressure < certificate.gamma)
+    (h_floor : forall queueDepth : Nat, driftAt certificate queueDepth <= -certificate.gamma) :
+    GeometricStability (coupledCertifiedKernel kernel arrivalPressure) := by
+  have h_coupled_drift :=
+    coupledArrivalCertificate_negative_drift
+      certificate
+      arrivalPressure
+      h_arrival_nonnegative
+      h_arrival_lt_gamma
+      h_floor
+  apply certifiedKernel_stable_of_drift_certificate
+    (kernel := coupledCertifiedKernel kernel arrivalPressure)
+    (certificate := coupledArrivalCertificate certificate arrivalPressure)
+  · simp [coupledCertifiedKernel, h_kernel, coupledArrivalCertificate]
+  · simpa [coupledCertifiedKernel, h_kernel, coupledArrivalCertificate, SpectrallyStable] using h_spectral
+  · exact h_coupled_drift.2.1
+  · exact h_coupled_drift.2.2
+
+theorem tetheredCertifiedKernels_stable
+    [NeZero upstreamCount]
+    [NeZero downstreamCount]
+    (upstream : CertifiedKernel upstreamCount)
+    (downstream : CertifiedKernel downstreamCount)
+    (certificate : DriftCertificate)
+    (arrivalPressure : Real)
+    (h_upstream : GeometricStability upstream)
+    (h_downstream : downstream.drift = some certificate)
+    (h_downstream_spectral : SpectrallyStable downstream)
+    (h_arrival_nonnegative : 0 ≤ arrivalPressure)
+    (h_arrival_lt_gamma : arrivalPressure < certificate.gamma)
+    (h_floor : forall queueDepth : Nat, driftAt certificate queueDepth <= -certificate.gamma) :
+    GeometricStability upstream ∧
+      GeometricStability (coupledCertifiedKernel downstream arrivalPressure) := by
+  constructor
+  · exact h_upstream
+  · exact
+      coupledCertifiedKernel_stable
+        downstream
+        certificate
+        arrivalPressure
+        h_downstream
+        h_downstream_spectral
+        h_arrival_nonnegative
+        h_arrival_lt_gamma
+        h_floor
 
 def WorkspaceReady : Prop := True
 

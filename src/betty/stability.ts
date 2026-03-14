@@ -18,6 +18,11 @@ const THERMODYNAMIC_PROPERTIES = new Set([
   'drift_coefficient',
   'repair_debt',
   'supremum_bound',
+  'observable',
+  'observable_kind',
+  'observable_scale',
+  'observable_offset',
+  'drift_gap',
 ]);
 const FORK_EDGE_TYPES = new Set(['FORK', 'EVOLVE', 'SUPERPOSE', 'ENTANGLE']);
 const COLLAPSE_EDGE_TYPES = new Set(['FOLD', 'COLLAPSE', 'OBSERVE']);
@@ -91,6 +96,29 @@ export interface StabilityCountableQueueWitness {
   smallSetKind: 'queue-boundary';
 }
 
+export type StabilityContinuousObservableKind =
+  | 'queue-depth'
+  | 'fluid-backlog'
+  | 'fractional-retry'
+  | 'thermal-load'
+  | 'custom-potential';
+
+export interface StabilityContinuousHarrisWitness {
+  stateNodeId: string;
+  observableKind: StabilityContinuousObservableKind;
+  observableExpression: string;
+  lyapunovExpression: string;
+  expectedObservableExpression: string;
+  driftGapExpression: string;
+  observableScale: number;
+  observableOffset: number;
+  driftGap: number;
+  smallSetKind: 'queue-boundary' | 'level-set';
+  smallSetBoundary: number;
+  observableDriftTheoremName: string;
+  continuousHarrisTheoremName: string;
+}
+
 export interface StabilityMetadata {
   redline: number | null;
   geometricCeiling: number | null;
@@ -117,6 +145,7 @@ export interface StabilityMetadata {
   queueBoundary: number | null;
   laminarAtom: number | null;
   queuePotential: string | null;
+  continuousHarris: StabilityContinuousHarrisWitness | null;
 }
 
 export interface StabilityReport {
@@ -127,6 +156,7 @@ export interface StabilityReport {
   stateAssessments: StabilityStateAssessment[];
   smallSetNodeIds: string[];
   countableQueue: StabilityCountableQueueWitness | null;
+  continuousHarris: StabilityContinuousHarrisWitness | null;
   recurrence: StabilityRecurrenceWitness;
   harrisRecurrent: boolean;
   ventIsolationOk: boolean;
@@ -1139,6 +1169,309 @@ function buildCountableQueueWitness(
   };
 }
 
+function normalizeObservableKind(
+  raw: string | undefined
+): StabilityContinuousObservableKind | null {
+  switch (raw?.trim().toLowerCase()) {
+    case 'queue-depth':
+      return 'queue-depth';
+    case 'fluid-backlog':
+      return 'fluid-backlog';
+    case 'fractional-retry':
+      return 'fractional-retry';
+    case 'thermal-load':
+      return 'thermal-load';
+    case 'custom-potential':
+      return 'custom-potential';
+    default:
+      return null;
+  }
+}
+
+function formatObservableNumber(value: number): string {
+  const rounded = round3(value);
+  return `${rounded}`;
+}
+
+function formatAffineObservableExpression(
+  baseLabel: string,
+  scale: number,
+  offset: number
+): string {
+  const normalizedBaseLabel = baseLabel.trim() || 'queue_depth';
+  const normalizedScale = round3(scale);
+  const normalizedOffset = round3(offset);
+  const scaledTerm =
+    Math.abs(normalizedScale - 1) <= EPSILON
+      ? normalizedBaseLabel
+      : `${formatObservableNumber(normalizedScale)} * ${normalizedBaseLabel}`;
+
+  if (Math.abs(normalizedOffset) <= EPSILON) {
+    return scaledTerm;
+  }
+
+  if (normalizedOffset > 0) {
+    return `${scaledTerm} + ${formatObservableNumber(normalizedOffset)}`;
+  }
+
+  return `${scaledTerm} - ${formatObservableNumber(Math.abs(normalizedOffset))}`;
+}
+
+function buildObservableBaseLabel(
+  stateNode: ASTNode | undefined,
+  potential: string,
+  observableKind: StabilityContinuousObservableKind
+): string {
+  const explicitObservable = stateNode?.properties.observable?.trim();
+  if (explicitObservable) {
+    return explicitObservable;
+  }
+
+  switch (observableKind) {
+    case 'fluid-backlog':
+      return 'fluid_backlog';
+    case 'fractional-retry':
+      return 'fractional_retry';
+    case 'thermal-load':
+      return 'thermal_load';
+    case 'custom-potential':
+    case 'queue-depth':
+      return potential;
+  }
+}
+
+function inferContinuousObservableKind(
+  stateNode: ASTNode | undefined,
+  potential: string
+): StabilityContinuousObservableKind {
+  const explicitKind = normalizeObservableKind(stateNode?.properties.observable_kind);
+  if (explicitKind) {
+    return explicitKind;
+  }
+
+  const descriptor = [
+    stateNode?.properties.observable,
+    stateNode?.properties.lyapunov,
+    potential,
+  ]
+    .filter((value): value is string => typeof value === 'string')
+    .join(' ')
+    .toLowerCase();
+
+  if (
+    descriptor.includes('temperature') ||
+    descriptor.includes('thermal') ||
+    descriptor.includes('heat')
+  ) {
+    return 'thermal-load';
+  }
+
+  if (descriptor.includes('retry')) {
+    return 'fractional-retry';
+  }
+
+  if (
+    descriptor.includes('fluid') ||
+    descriptor.includes('backlog') ||
+    descriptor.includes('buffer') ||
+    descriptor.includes('pressure')
+  ) {
+    return 'fluid-backlog';
+  }
+
+  if (
+    descriptor.includes('queue') ||
+    descriptor.includes('depth') ||
+    potential.trim().toLowerCase() === 'beta1'
+  ) {
+    return 'queue-depth';
+  }
+
+  return 'custom-potential';
+}
+
+function buildContinuousHarrisWitness(
+  ast: GraphAST,
+  countableQueue: StabilityCountableQueueWitness | null,
+  theoremName: string
+): {
+  witness: StabilityContinuousHarrisWitness | null;
+  diagnostics: Diagnostic[];
+} {
+  const diagnostics: Diagnostic[] = [];
+
+  // If no countable queue witness, try direct continuous synthesis
+  // for nodes that declare observable_kind explicitly
+  if (!countableQueue) {
+    const continuousStateNode = [...ast.nodes.values()].find(
+      (node) =>
+        node.properties.observable_kind &&
+        ['fluid-backlog', 'fractional-retry', 'thermal-load', 'custom-potential'].includes(
+          normalizeObservableKind(node.properties.observable_kind) ?? ''
+        ) &&
+        node.properties.drift_gap
+    );
+    if (!continuousStateNode) {
+      return { witness: null, diagnostics };
+    }
+    const obsKind = normalizeObservableKind(continuousStateNode.properties.observable_kind)!;
+    const scale = parseFinite(continuousStateNode.properties.observable_scale) ?? 1;
+    const offset = parseFinite(continuousStateNode.properties.observable_offset) ?? 0;
+    const driftGap = parseFinite(continuousStateNode.properties.drift_gap);
+    if (!driftGap || driftGap <= 0 || scale <= 0) {
+      return { witness: null, diagnostics };
+    }
+    const baseLabel = buildObservableBaseLabel(
+      continuousStateNode,
+      continuousStateNode.properties.potential ?? 'x',
+      obsKind
+    );
+    const obsExpr = formatAffineObservableExpression(baseLabel, scale, offset);
+    const expectedObsExpr = formatAffineObservableExpression(baseLabel, scale, offset - scale);
+    const smallSetBoundary = Math.max(1, Math.ceil(offset / driftGap));
+    return {
+      witness: {
+        stateNodeId: continuousStateNode.id,
+        observableKind: obsKind,
+        observableExpression: obsExpr,
+        lyapunovExpression: obsExpr,
+        expectedObservableExpression: expectedObsExpr,
+        driftGapExpression: formatObservableNumber(driftGap),
+        observableScale: round3(scale),
+        observableOffset: round3(offset),
+        driftGap: round3(driftGap),
+        smallSetKind: 'level-set',
+        smallSetBoundary,
+        observableDriftTheoremName: `${theoremName}_measurable_observable_drift`,
+        continuousHarrisTheoremName: `${theoremName}_measurable_continuous_harris_certified`,
+      },
+      diagnostics,
+    };
+  }
+
+  const stateNode = ast.nodes.get(countableQueue.stateNodeId);
+  const rawObservableKind = stateNode?.properties.observable_kind;
+  const observableKind = rawObservableKind
+    ? normalizeObservableKind(rawObservableKind)
+    : inferContinuousObservableKind(stateNode, countableQueue.potential);
+  if (!observableKind) {
+    diagnostics.push(
+      createDiagnostic(
+        'ERR_CONTINUOUS_WITNESS_INVALID',
+        `State '${countableQueue.stateNodeId}' declares unsupported observable_kind='${rawObservableKind}'. Betti currently supports queue-depth, fluid-backlog, fractional-retry, thermal-load, and custom-potential.`,
+        'error'
+      )
+    );
+    return {
+      witness: null,
+      diagnostics,
+    };
+  }
+
+  const rawScale = stateNode?.properties.observable_scale;
+  const observableScale =
+    rawScale === undefined ? 1 : parseFinite(rawScale);
+  if (observableScale === null || observableScale <= 0) {
+    diagnostics.push(
+      createDiagnostic(
+        'ERR_CONTINUOUS_WITNESS_INVALID',
+        `State '${countableQueue.stateNodeId}' requires observable_scale to be a positive number, got '${rawScale ?? 'undefined'}'.`,
+        'error'
+      )
+    );
+    return {
+      witness: null,
+      diagnostics,
+    };
+  }
+
+  const rawOffset = stateNode?.properties.observable_offset;
+  const observableOffset =
+    rawOffset === undefined ? 0 : parseFinite(rawOffset);
+  if (observableOffset === null) {
+    diagnostics.push(
+      createDiagnostic(
+        'ERR_CONTINUOUS_WITNESS_INVALID',
+        `State '${countableQueue.stateNodeId}' requires observable_offset to be numeric, got '${rawOffset}'.`,
+        'error'
+      )
+    );
+    return {
+      witness: null,
+      diagnostics,
+    };
+  }
+
+  const rawDriftGap = stateNode?.properties.drift_gap;
+  const explicitDriftGap =
+    rawDriftGap === undefined ? null : parseFinite(rawDriftGap);
+  if (rawDriftGap !== undefined && (explicitDriftGap === null || explicitDriftGap <= 0)) {
+    diagnostics.push(
+      createDiagnostic(
+        'ERR_CONTINUOUS_WITNESS_INVALID',
+        `State '${countableQueue.stateNodeId}' requires drift_gap to be a positive number, got '${rawDriftGap}'.`,
+        'error'
+      )
+    );
+    return {
+      witness: null,
+      diagnostics,
+    };
+  }
+
+  const driftGap = explicitDriftGap ?? observableScale;
+  if (driftGap - observableScale > EPSILON) {
+    diagnostics.push(
+      createDiagnostic(
+        'ERR_CONTINUOUS_WITNESS_INVALID',
+        `State '${countableQueue.stateNodeId}' sets drift_gap='${rawDriftGap}', but the current affine queue witness only supports 0 < drift_gap <= observable_scale = ${formatObservableNumber(
+          observableScale
+        )}.`,
+        'error'
+      )
+    );
+    return {
+      witness: null,
+      diagnostics,
+    };
+  }
+
+  const observableBaseLabel = buildObservableBaseLabel(
+    stateNode,
+    countableQueue.potential,
+    observableKind
+  );
+  const observableExpression = formatAffineObservableExpression(
+    observableBaseLabel,
+    observableScale,
+    observableOffset
+  );
+  const expectedObservableExpression = formatAffineObservableExpression(
+    observableBaseLabel,
+    observableScale,
+    observableOffset - observableScale
+  );
+
+  return {
+    witness: {
+      stateNodeId: countableQueue.stateNodeId,
+      observableKind,
+      observableExpression,
+      lyapunovExpression: observableExpression,
+      expectedObservableExpression,
+      driftGapExpression: formatObservableNumber(driftGap),
+      observableScale: round3(observableScale),
+      observableOffset: round3(observableOffset),
+      driftGap: round3(driftGap),
+      smallSetKind: countableQueue.smallSetKind,
+      smallSetBoundary: countableQueue.queueBoundary,
+      observableDriftTheoremName: `${theoremName}_measurable_observable_drift`,
+      continuousHarrisTheoremName: `${theoremName}_measurable_continuous_harris_certified`,
+    },
+    diagnostics,
+  };
+}
+
 export function analyzeTopologyStability(
   ast: GraphAST,
   currentBettiNumber: number
@@ -1259,6 +1592,13 @@ export function analyzeTopologyStability(
     driftAssessment.assessments,
     redline
   );
+  const continuousHarrisResult = buildContinuousHarrisWitness(
+    ast,
+    countableQueue,
+    theoremName
+  );
+  diagnostics.push(...continuousHarrisResult.diagnostics);
+  const continuousHarris = continuousHarrisResult.witness;
   const proofAssumptions =
     driftAssessment.proofAssumptions.length > 0
       ? driftAssessment.proofAssumptions
@@ -1350,6 +1690,7 @@ export function analyzeTopologyStability(
     queueBoundary: countableQueue?.queueBoundary ?? null,
     laminarAtom: countableQueue?.laminarAtom ?? null,
     queuePotential: countableQueue?.potential ?? null,
+    continuousHarris,
   };
 
   return {
@@ -1360,6 +1701,7 @@ export function analyzeTopologyStability(
     stateAssessments: driftAssessment.assessments,
     smallSetNodeIds: sinkNodeIds,
     countableQueue,
+    continuousHarris,
     recurrence,
     harrisRecurrent,
     ventIsolationOk: ventIsolation.ok,
