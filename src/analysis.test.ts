@@ -91,6 +91,48 @@ describe('Gnosis analysis steering', () => {
     expect(Array.isArray(report.steering.eda.graphOutliers)).toBe(true);
   });
 
+  test('serializes Wallace metrics canonically while preserving aliases', async () => {
+    const report = await analyzeGnosisSource(
+      [
+        '(start)-[:FORK]->(left|right)',
+        '(left)-[:FOLD]->(finish)',
+        '(right)-[:FOLD]->(finish)',
+      ].join('\n')
+    );
+
+    const serializedTopology = JSON.parse(
+      JSON.stringify(report.correctness.topology)
+    ) as Record<string, unknown>;
+    const serializedSteering = JSON.parse(
+      JSON.stringify(report.steering)
+    ) as Record<string, unknown>;
+
+    expect(report.correctness.topology.wally).toBe(
+      report.correctness.topology.wallaceNumber
+    );
+    expect(report.correctness.topology.frontierDeficit).toBe(
+      report.correctness.topology.wallaceNumber
+    );
+    expect(report.steering.wally).toBe(report.steering.wallaceNumber);
+    expect(report.steering.frontierDeficit).toBe(report.steering.wallaceNumber);
+    expect(serializedTopology.wallaceNumber).toBe(
+      report.correctness.topology.wallaceNumber
+    );
+    expect(serializedSteering.wallaceNumber).toBe(report.steering.wallaceNumber);
+    expect(
+      Object.prototype.hasOwnProperty.call(serializedTopology, 'wally')
+    ).toBe(false);
+    expect(
+      Object.prototype.hasOwnProperty.call(serializedTopology, 'frontierDeficit')
+    ).toBe(false);
+    expect(
+      Object.prototype.hasOwnProperty.call(serializedSteering, 'wally')
+    ).toBe(false);
+    expect(
+      Object.prototype.hasOwnProperty.call(serializedSteering, 'frontierDeficit')
+    ).toBe(false);
+  });
+
   test('supports report and apply steering modes explicitly', async () => {
     const source = [
       '(start)-[:FORK]->(left|right)',

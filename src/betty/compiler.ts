@@ -185,6 +185,15 @@ export class BettyCompiler {
               labels: label ? [label] : [],
               properties,
             });
+            continue;
+          }
+
+          const existing = this.ast.nodes.get(id)!;
+          if (label && existing.labels.length === 0) {
+            existing.labels = [label];
+          }
+          if (Object.keys(properties).length > 0) {
+            existing.properties = { ...existing.properties, ...properties };
           }
         }
       }

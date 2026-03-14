@@ -79,7 +79,7 @@ export interface RegimeSweepFamilyReport {
 }
 
 export interface GnosisFoldBoundaryRegimeSweepReport {
-  readonly label: 'gnosis-fold-boundary-regime-sweep-v1';
+  readonly label: string;
   readonly config: {
     readonly affineSeedCount: number;
     readonly affineEpochs: number;
@@ -100,7 +100,7 @@ export interface GnosisFoldBoundaryRegimeSweepReport {
   readonly predictedBoundaryRecovered: boolean;
 }
 
-interface AffineSweepConfig {
+export interface AffineSweepConfig {
   readonly seedCount: number;
   readonly epochs: number;
   readonly learningRate: number;
@@ -112,7 +112,7 @@ interface AffineSweepConfig {
   readonly monotonicSlack: number;
 }
 
-interface RoutedSweepConfig {
+export interface RoutedSweepConfig {
   readonly seedCount: number;
   readonly epochs: number;
   readonly learningRate: number;
@@ -174,6 +174,11 @@ interface RoutedPrediction {
   readonly prediction: number;
   readonly selectedExpertIndex: number;
   readonly expertActivations: readonly ExpertActivation[];
+}
+
+export interface RegimeSweepRunConfig {
+  readonly affine: AffineSweepConfig;
+  readonly routed: RoutedSweepConfig;
 }
 
 const regimeSweepStrategies = Object.keys(
@@ -792,10 +797,7 @@ function checkMonotonicAdvantage(
   return true;
 }
 
-export function makeDefaultRegimeSweepConfig(): {
-  readonly affine: AffineSweepConfig;
-  readonly routed: RoutedSweepConfig;
-} {
+export function makeDefaultRegimeSweepConfig(): RegimeSweepRunConfig {
   const regimeValues = [0, 0.25, 0.5, 0.75, 1] as const;
   return {
     affine: {
@@ -823,8 +825,10 @@ export function makeDefaultRegimeSweepConfig(): {
   };
 }
 
-export async function runGnosisFoldBoundaryRegimeSweep(): Promise<GnosisFoldBoundaryRegimeSweepReport> {
-  const config = makeDefaultRegimeSweepConfig();
+export async function buildGnosisFoldBoundaryRegimeSweepReport(
+  config: RegimeSweepRunConfig,
+  label = 'gnosis-fold-boundary-regime-sweep-v1',
+): Promise<GnosisFoldBoundaryRegimeSweepReport> {
   const [affineTopology, routedTopology] = await Promise.all([
     loadAffineTopologyMetrics(),
     loadRoutedTopologyMetrics(),
@@ -863,7 +867,7 @@ export async function runGnosisFoldBoundaryRegimeSweep(): Promise<GnosisFoldBoun
     routedFirstSeparated !== null;
 
   return {
-    label: 'gnosis-fold-boundary-regime-sweep-v1',
+    label,
     config: {
       affineSeedCount: config.affine.seedCount,
       affineEpochs: config.affine.epochs,
@@ -923,6 +927,10 @@ export async function runGnosisFoldBoundaryRegimeSweep(): Promise<GnosisFoldBoun
       checkMonotonicAdvantage(affinePoints, config.affine.monotonicSlack) &&
       checkMonotonicAdvantage(routedPoints, config.routed.monotonicSlack),
   };
+}
+
+export async function runGnosisFoldBoundaryRegimeSweep(): Promise<GnosisFoldBoundaryRegimeSweepReport> {
+  return buildGnosisFoldBoundaryRegimeSweepReport(makeDefaultRegimeSweepConfig());
 }
 
 function renderFamilyMarkdown(

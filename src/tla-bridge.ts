@@ -1,4 +1,3 @@
-import path from 'path';
 import {
   getGgRootNodeIds,
   getGgTerminalNodeIds,
@@ -12,6 +11,18 @@ import {
   type CapabilityContractSummary,
 } from './capabilities/index.js';
 import { lowerUfcsSource } from './ufcs.js';
+
+function basenameLike(filePath: string): string {
+  const normalized = filePath.replace(/\\/g, '/').replace(/\/+$/, '');
+  const segments = normalized.split('/');
+  return segments[segments.length - 1] ?? normalized;
+}
+
+function extnameLike(filePath: string): string {
+  const baseName = basenameLike(filePath);
+  const extensionStart = baseName.lastIndexOf('.');
+  return extensionStart > 0 ? baseName.slice(extensionStart) : '';
+}
 
 export interface GnosisTlaBridgeOptions {
   readonly moduleName?: string;
@@ -66,8 +77,12 @@ function deriveModuleName(
   }
 
   if (options.sourceFilePath && options.sourceFilePath.trim().length > 0) {
-    const parsed = path.parse(options.sourceFilePath);
-    return sanitizeModuleName(parsed.name);
+    const extension = extnameLike(options.sourceFilePath);
+    const baseName = basenameLike(options.sourceFilePath);
+    const moduleSource = extension
+      ? baseName.slice(0, Math.max(0, baseName.length - extension.length))
+      : baseName;
+    return sanitizeModuleName(moduleSource);
   }
 
   const rootNode = getResolvedRoots(program)[0];

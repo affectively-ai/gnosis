@@ -1,0 +1,19 @@
+// warmup_invert_keep_multiplicity.gg — Ambiguity stays live instead of counterfeiting certainty
+//
+// Semantic void witness: forcing a single warmed winner would be counterfeit,
+// so the legal move is to preserve multiplicity instead of collapsing for free.
+
+(observation: Phenomenon { type: 'dual-valid-signal' })
+(fast_hypothesis: Hypothesis { role: 'cached' })
+(safe_hypothesis: Hypothesis { role: 'live' })
+(conflict_witness: Evidence { type: 'non-cancellable' })
+(proposed_winner: Candidate)
+(survivor_set: SurvivorSet { survivors: '2' })
+(boundary: Impossibility { reason: 'forced single winner is counterfeit' })
+(result: Result { action: 'keep-multiplicity' })
+
+(observation)-[:FORK]->(fast_hypothesis | safe_hypothesis | conflict_witness)
+(fast_hypothesis | safe_hypothesis)-[:RACE { expect: 'force-single-winner' }]->(proposed_winner)
+(proposed_winner | conflict_witness)-[:INTERFERE { mode: 'destructive' }]->(boundary)
+(fast_hypothesis | safe_hypothesis)-[:FOLD { strategy: 'preserve-multiplicity' }]->(survivor_set)
+(boundary | survivor_set)-[:FOLD { strategy: 'legalize-ambiguity' }]->(result)

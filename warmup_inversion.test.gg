@@ -2,8 +2,12 @@
 //
 // These modules invert the original classes without leaving Gnosis form.
 // Each one still collapses, but only after the wrong local shape shows up.
+// The suite also carries semantic-void witnesses that go beyond the standard
+// poisoned-fast-path pattern.
 
 (test_suite: TestSuite { name: 'warmup-inversion' })
+(core_suite: SuiteGroup { scope: 'classic-inversions' })
+(void_suite: SuiteGroup { scope: 'semantic-voids' })
 
 (cache_poison: Verify { module: './warmup_invert_cache_reuse.gg', beta1_max: '4' })
 (misprefetch: Verify { module: './warmup_invert_precompute_prefetch.gg', beta1_max: '6' })
@@ -14,8 +18,16 @@
 (misalignment: Verify { module: './warmup_invert_human_social_entrainment.gg', beta1_max: '4' })
 (concept_drift: Verify { module: './warmup_invert_bayesian_classifier.gg', beta1_max: '4' })
 (mixed_jit_poison: Verify { module: './warmup_invert_mixed_jit_compiler.gg', beta1_max: '4' })
+(counterfeit_alignment: Verify { module: './warmup_invert_counterfeit_alignment.gg', beta1_max: '4' })
+(keep_multiplicity: Verify { module: './warmup_invert_keep_multiplicity.gg', beta1_max: '4' })
+(debt_spiral: Verify { module: './warmup_invert_debt_spiral.gg', beta1_max: '4' })
+(contagious_warmup: Verify { module: './warmup_invert_contagious_warmup.gg', beta1_max: '4' })
+(observer_harm: Verify { module: './warmup_invert_observer_harm.gg', beta1_max: '4' })
+(unfair_repair: Verify { module: './warmup_invert_unfair_repair.gg', beta1_max: '4' })
 
-(test_suite)-[:FORK]->(cache_poison | misprefetch | policy_drift | false_positive | compaction_debt | overwarm | misalignment | concept_drift | mixed_jit_poison)
+(test_suite)-[:FORK]->(core_suite | void_suite)
+(core_suite)-[:FORK]->(cache_poison | misprefetch | policy_drift | false_positive | compaction_debt | overwarm | misalignment | concept_drift | mixed_jit_poison)
+(void_suite)-[:FORK]->(counterfeit_alignment | keep_multiplicity | debt_spiral | contagious_warmup | observer_harm | unfair_repair)
 
 (cache_poison)-[:RACE { expect: 'safe' }]->(cache_result: Result)
 (misprefetch)-[:RACE { expect: 'safe' }]->(prefetch_result: Result)
@@ -26,5 +38,11 @@
 (misalignment)-[:RACE { expect: 'safe' }]->(entrainment_result: Result)
 (concept_drift)-[:RACE { expect: 'safe' }]->(concept_drift_result: Result)
 (mixed_jit_poison)-[:RACE { expect: 'safe' }]->(mixed_jit_poison_result: Result)
+(counterfeit_alignment)-[:RACE { expect: 'safe' }]->(counterfeit_alignment_result: Result)
+(keep_multiplicity)-[:RACE { expect: 'safe' }]->(keep_multiplicity_result: Result)
+(debt_spiral)-[:RACE { expect: 'safe' }]->(debt_spiral_result: Result)
+(contagious_warmup)-[:RACE { expect: 'safe' }]->(contagious_warmup_result: Result)
+(observer_harm)-[:RACE { expect: 'safe' }]->(observer_harm_result: Result)
+(unfair_repair)-[:RACE { expect: 'safe' }]->(unfair_repair_result: Result)
 
-(cache_result | prefetch_result | adaptive_result | probabilistic_result | amortized_result | physical_result | entrainment_result | concept_drift_result | mixed_jit_poison_result)-[:FOLD { strategy: 'all-pass' }]->(verdict: Verdict)
+(cache_result | prefetch_result | adaptive_result | probabilistic_result | amortized_result | physical_result | entrainment_result | concept_drift_result | mixed_jit_poison_result | counterfeit_alignment_result | keep_multiplicity_result | debt_spiral_result | contagious_warmup_result | observer_harm_result | unfair_repair_result)-[:FOLD { strategy: 'all-pass' }]->(verdict: Verdict)

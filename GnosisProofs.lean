@@ -2,8 +2,11 @@ import Mathlib.Tactic
 import Mathlib.Analysis.Matrix.Normed
 import Mathlib.Analysis.Normed.Algebra.Spectrum
 import Mathlib.LinearAlgebra.Matrix.Integer
+import Mathlib.Probability.Kernel.Basic
+import Mathlib.Probability.Kernel.Composition.CompMap
 import Mathlib.Probability.Kernel.Irreducible
 import Mathlib.Probability.Kernel.Invariance
+import Mathlib.MeasureTheory.Measure.LevyProkhorovMetric
 
 open scoped BigOperators ENNReal MeasureTheory ProbabilityTheory
 
@@ -339,6 +342,69 @@ def CountableSmallSetRecurrent
     ∃ steps target,
       CountableSupportPath kernel current target steps ∧
         target ∈ kernel.smallSet
+
+def CountableAtomicSmallSetMinorizedAt
+    {state : Type} [Countable state]
+    (kernel : CountableCertifiedKernel state)
+    (atom : state)
+    (epsilon : Real) : Prop :=
+  atom ∈ kernel.smallSet ∧
+    0 < epsilon ∧
+      forall current : state,
+        current ∈ kernel.smallSet ->
+          epsilon <= kernel.transition current atom
+
+def CountableAtomAccessibleAt
+    {state : Type} [Countable state]
+    (kernel : CountableCertifiedKernel state)
+    (atom : state) : Prop :=
+  forall current : state,
+    ∃ steps : Nat, CountableSupportPath kernel current atom steps
+
+def CountablePsiIrreducibleAt
+    {state : Type} [Countable state]
+    (kernel : CountableCertifiedKernel state)
+    (atom : state) : Prop :=
+  forall current : state, forall targetSet : Set state,
+    atom ∈ targetSet ->
+      ∃ steps target,
+        CountableSupportPath kernel current target steps ∧
+          target ∈ targetSet
+
+def CountableHarrisPreludeAt
+    {state : Type} [Countable state]
+    (kernel : CountableCertifiedKernel state)
+    (atom : state)
+    (smallSetEpsilon : Real) : Prop :=
+  CountableAtomicSmallSetMinorizedAt kernel atom smallSetEpsilon ∧
+    CountablePsiIrreducibleAt kernel atom
+
+def CountableHarrisRecurrentClassAt
+    {state : Type} [Countable state]
+    (kernel : CountableCertifiedKernel state)
+    (atom : state) : Prop :=
+  CountableSmallSetRecurrent kernel ∧
+    CountablePsiIrreducibleAt kernel atom
+
+def CountableAtomHittingBoundAt
+    {state : Type} [Countable state]
+    (kernel : CountableCertifiedKernel state)
+    (atom : state)
+    (hitBound : state -> Nat) : Prop :=
+  forall current : state,
+    ∃ steps : Nat,
+      steps <= hitBound current ∧
+        CountableSupportPath kernel current atom steps
+
+def CountableGeometricEnvelopeAt
+    {state : Type} [Countable state]
+    (kernel : CountableCertifiedKernel state)
+    (atom : state)
+    (smallSetEpsilon : Real)
+    (hitBound : state -> Nat) : Prop :=
+  CountableHarrisPreludeAt kernel atom smallSetEpsilon ∧
+    CountableHarrisRecurrentClassAt kernel atom ∧
+      CountableAtomHittingBoundAt kernel atom hitBound
 
 def CountableUniformPredecessorMinorized
     (kernel : CountableCertifiedKernel Nat)
@@ -734,6 +800,70 @@ theorem natSmallSetRecurrent_of_uniformPredecessorMinorization
     · exact lt_of_lt_of_le h_epsilon_pos (h_lower current h_current_gt)
     · omega
 
+theorem countableAtomAccessibleAt_of_smallSetRecurrence_and_atomicMinorization
+    {state : Type} [Countable state]
+    (kernel : CountableCertifiedKernel state)
+    (atom : state)
+    (epsilon : Real)
+    (h_recurrent : CountableSmallSetRecurrent kernel)
+    (h_minorized : CountableAtomicSmallSetMinorizedAt kernel atom epsilon) :
+    CountableAtomAccessibleAt kernel atom := by
+  rcases h_minorized with ⟨_, h_epsilon_pos, h_small_step⟩
+  intro current
+  rcases h_recurrent current with ⟨steps, target, h_path, h_target_small⟩
+  have h_edge_lower : epsilon <= kernel.transition target atom := h_small_step target h_target_small
+  have h_edge_pos : 0 < kernel.transition target atom := lt_of_lt_of_le h_epsilon_pos h_edge_lower
+  let h_atom_path : CountableSupportPath kernel target atom 1 :=
+    CountableSupportPath.step
+      (kernel := kernel)
+      h_edge_pos
+      (CountableSupportPath.zero (kernel := kernel) atom)
+  use steps + 1
+  simpa [h_atom_path] using
+    countableSupportPath_append (kernel := kernel) h_path h_atom_path
+
+theorem countablePsiIrreducibleAt_of_atomAccessible
+    {state : Type} [Countable state]
+    (kernel : CountableCertifiedKernel state)
+    (atom : state)
+    (h_accessible : CountableAtomAccessibleAt kernel atom) :
+    CountablePsiIrreducibleAt kernel atom := by
+  intro current targetSet h_atom_mem
+  rcases h_accessible current with ⟨steps, h_path⟩
+  exact ⟨steps, atom, h_path, h_atom_mem⟩
+
+theorem countableHarrisPreludeAt_of_components
+    {state : Type} [Countable state]
+    (kernel : CountableCertifiedKernel state)
+    (atom : state)
+    (smallSetEpsilon : Real)
+    (h_small : CountableAtomicSmallSetMinorizedAt kernel atom smallSetEpsilon)
+    (h_psi : CountablePsiIrreducibleAt kernel atom) :
+    CountableHarrisPreludeAt kernel atom smallSetEpsilon := by
+  exact ⟨h_small, h_psi⟩
+
+theorem countableHarrisRecurrentClassAt_of_recurrence_and_prelude
+    {state : Type} [Countable state]
+    (kernel : CountableCertifiedKernel state)
+    (atom : state)
+    (smallSetEpsilon : Real)
+    (h_recurrent : CountableSmallSetRecurrent kernel)
+    (h_prelude : CountableHarrisPreludeAt kernel atom smallSetEpsilon) :
+    CountableHarrisRecurrentClassAt kernel atom := by
+  exact ⟨h_recurrent, h_prelude.2⟩
+
+theorem countableGeometricEnvelopeAt_of_harrisPrelude_and_bound
+    {state : Type} [Countable state]
+    (kernel : CountableCertifiedKernel state)
+    (atom : state)
+    (smallSetEpsilon : Real)
+    (hitBound : state -> Nat)
+    (h_prelude : CountableHarrisPreludeAt kernel atom smallSetEpsilon)
+    (h_class : CountableHarrisRecurrentClassAt kernel atom)
+    (h_bound : CountableAtomHittingBoundAt kernel atom hitBound) :
+    CountableGeometricEnvelopeAt kernel atom smallSetEpsilon hitBound := by
+  exact ⟨h_prelude, h_class, h_bound⟩
+
 theorem countableAtomicSmallSetMinorized_one_of_collapse
     (kernel : CountableCertifiedKernel Nat)
     (atom : Nat)
@@ -1005,6 +1135,266 @@ def MeasurableAtomAccessible
   forall current : state,
     ∃ n : ℕ, (kernel ^ n) current ({atom} : Set state) > 0
 
+def MeasurableAtomHittingBoundAtAtom
+    {state : Type*}
+    [MeasurableSpace state]
+    [MeasurableSingletonClass state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (atom : state)
+    (hitBound : state -> Nat) : Prop :=
+  forall current : state,
+    ∃ n : ℕ, n <= hitBound current ∧ (kernel ^ n) current ({atom} : Set state) > 0
+
+def MeasurableReferencePositiveHittingBound
+    {state : Type*}
+    [MeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference : MeasureTheory.Measure state)
+    (hitBound : state -> Nat) : Prop :=
+  forall measurableSet : Set state,
+    MeasurableSet measurableSet ->
+      reference measurableSet > 0 ->
+        forall current : state,
+          ∃ n : ℕ, n <= hitBound current ∧ (kernel ^ n) current measurableSet > 0
+
+theorem deterministic_pow_eq_deterministic_iterate
+    {state : Type*}
+    [MeasurableSpace state]
+    [Countable state]
+    [MeasurableSingletonClass state]
+    (step : state -> state) :
+    forall n : ℕ,
+      (ProbabilityTheory.Kernel.deterministic step (measurable_of_countable step) ^ n) =
+        ProbabilityTheory.Kernel.deterministic
+          (step^[n])
+          (measurable_of_countable (step^[n])) := by
+  intro n
+  induction n with
+  | zero =>
+      ext current measurableSet h_measurableSet
+      change ProbabilityTheory.Kernel.id current measurableSet =
+        (ProbabilityTheory.Kernel.deterministic
+          (step^[0])
+          (measurable_of_countable (step^[0])) current) measurableSet
+      rw [ProbabilityTheory.Kernel.id_apply, ProbabilityTheory.Kernel.deterministic_apply]
+      simp
+  | succ n ih =>
+      simpa [pow_succ, ih, Function.iterate_succ, Function.comp] using
+        (ProbabilityTheory.Kernel.deterministic_comp_deterministic
+          (f := step)
+          (g := step^[n])
+          (hf := measurable_of_countable step)
+          (hg := measurable_of_countable (step^[n])))
+
+theorem measurableAtomAccessible_of_deterministic_hit
+    {state : Type*}
+    [MeasurableSpace state]
+    [Countable state]
+    [MeasurableSingletonClass state]
+    (step : state -> state)
+    (atom : state)
+    (h_hit : forall current : state, ∃ n : ℕ, (step^[n]) current = atom) :
+    MeasurableAtomAccessible
+      (ProbabilityTheory.Kernel.deterministic step (measurable_of_countable step))
+      atom := by
+  intro current
+  rcases h_hit current with ⟨n, h_step⟩
+  refine ⟨n, ?_⟩
+  rw [deterministic_pow_eq_deterministic_iterate (step := step) n]
+  simp [ProbabilityTheory.Kernel.deterministic_apply, h_step]
+
+theorem nat_iterate_queueStep_hits_atom
+    (boundary atom : Nat) :
+    forall current : Nat,
+      ((fun step : Nat => if step <= boundary then atom else step - 1)^[current - boundary + 1])
+        current = atom := by
+  intro current
+  induction h_distance : current - boundary generalizing current with
+  | zero =>
+      have h_current_le : current <= boundary := Nat.sub_eq_zero_iff_le.mp h_distance
+      simp [h_current_le]
+  | succ remaining ih =>
+      have h_current_gt : boundary < current := by
+        omega
+      have h_current_not_le : ¬ current ≤ boundary := Nat.not_le_of_gt h_current_gt
+      have h_predecessor_distance : current - 1 - boundary = remaining := by
+        omega
+      calc
+        ((fun step : Nat => if step <= boundary then atom else step - 1)^[remaining + 1 + 1])
+            current
+            =
+          ((fun step : Nat => if step <= boundary then atom else step - 1)^[remaining + 1])
+            ((fun step : Nat => if step <= boundary then atom else step - 1) current) := by
+              rw [Function.iterate_succ_apply]
+        _ =
+          ((fun step : Nat => if step <= boundary then atom else step - 1)^[remaining + 1])
+            (current - 1) := by
+              simp [h_current_not_le]
+        _ = atom := ih (current - 1) h_predecessor_distance
+
+theorem natMeasurableAtomAccessible_of_queueStep
+    (boundary atom : Nat) :
+    MeasurableAtomAccessible
+      (ProbabilityTheory.Kernel.deterministic
+        (fun current : Nat => if current <= boundary then atom else current - 1)
+        (measurable_of_countable _))
+      atom := by
+  apply measurableAtomAccessible_of_deterministic_hit
+  intro current
+  exact ⟨current - boundary + 1, nat_iterate_queueStep_hits_atom boundary atom current⟩
+
+theorem natMeasurableAtomHittingBound_of_queueStep
+    (boundary atom : Nat) :
+    MeasurableAtomHittingBoundAtAtom
+      (ProbabilityTheory.Kernel.deterministic
+        (fun current : Nat => if current <= boundary then atom else current - 1)
+        (measurable_of_countable _))
+      atom
+      (fun current : Nat => current - boundary + 1) := by
+  intro current
+  refine ⟨current - boundary + 1, le_rfl, ?_⟩
+  have h_hit :
+      ((fun current : Nat => if current <= boundary then atom else current - 1)^[current - boundary + 1])
+        current = atom :=
+    nat_iterate_queueStep_hits_atom boundary atom current
+  rw [deterministic_pow_eq_deterministic_iterate
+    (step := fun current : Nat => if current <= boundary then atom else current - 1)
+    (n := current - boundary + 1)]
+  rw [ProbabilityTheory.Kernel.deterministic_apply]
+  simp [h_hit]
+
+theorem natQueueSupportInvariantAtAtom
+    (boundary atom : Nat)
+    (h_atom_small : atom <= boundary) :
+    ProbabilityTheory.Kernel.Invariant
+      (ProbabilityTheory.Kernel.deterministic
+        (fun current : Nat => if current <= boundary then atom else current - 1)
+        (measurable_of_countable _))
+      (MeasureTheory.Measure.dirac atom) := by
+  unfold ProbabilityTheory.Kernel.Invariant
+  rw [MeasureTheory.Measure.dirac_bind (ProbabilityTheory.Kernel.measurable _)]
+  rw [ProbabilityTheory.Kernel.deterministic_apply]
+  simp [h_atom_small]
+
+theorem natQueueSupportSmallSetMinorized
+    (boundary atom : Nat) :
+    MeasurableSmallSetMinorized
+      (ProbabilityTheory.Kernel.deterministic
+        (fun current : Nat => if current <= boundary then atom else current - 1)
+        (measurable_of_countable _))
+      {current : Nat | current <= boundary}
+      (MeasureTheory.Measure.dirac atom)
+      1 := by
+  refine ⟨by simp, by norm_num, ?_⟩
+  intro current h_current_small
+  have h_current_le : current <= boundary := h_current_small
+  simp [one_smul, ProbabilityTheory.Kernel.deterministic_apply, h_current_le]
+
+noncomputable def natQueueWitnessKernel
+    (boundary atom : Nat) :
+    ProbabilityTheory.Kernel Nat Nat :=
+  ProbabilityTheory.Kernel.ofFunOfCountable (fun current : Nat =>
+    if current <= boundary then
+      MeasureTheory.Measure.dirac atom
+    else
+      ((1 / 2 : ℝ≥0∞) • MeasureTheory.Measure.dirac (current - 1)) +
+        ((1 / 2 : ℝ≥0∞) • MeasureTheory.Measure.dirac atom))
+
+theorem natQueueWitnessAtomMassPos
+    (boundary atom current : Nat) :
+    0 < natQueueWitnessKernel boundary atom current ({atom} : Set Nat) := by
+  by_cases h_current : current <= boundary
+  · change
+      0 <
+        (if current <= boundary then
+          MeasureTheory.Measure.dirac atom
+        else
+          ((1 / 2 : ℝ≥0∞) • MeasureTheory.Measure.dirac (current - 1)) +
+            ((1 / 2 : ℝ≥0∞) • MeasureTheory.Measure.dirac atom))
+          ({atom} : Set Nat)
+    simp [h_current]
+  · by_cases h_pred_atom : current - 1 = atom
+    · change
+        0 <
+          (if current <= boundary then
+            MeasureTheory.Measure.dirac atom
+          else
+            ((1 / 2 : ℝ≥0∞) • MeasureTheory.Measure.dirac (current - 1)) +
+              ((1 / 2 : ℝ≥0∞) • MeasureTheory.Measure.dirac atom))
+            ({atom} : Set Nat)
+      norm_num [h_current, h_pred_atom]
+    · change
+        0 <
+          (if current <= boundary then
+            MeasureTheory.Measure.dirac atom
+          else
+            ((1 / 2 : ℝ≥0∞) • MeasureTheory.Measure.dirac (current - 1)) +
+              ((1 / 2 : ℝ≥0∞) • MeasureTheory.Measure.dirac atom))
+            ({atom} : Set Nat)
+      norm_num [h_current, h_pred_atom]
+
+theorem natMeasurableAtomAccessible_of_queueWitnessKernel
+    (boundary atom : Nat) :
+    MeasurableAtomAccessible
+      (natQueueWitnessKernel boundary atom)
+      atom := by
+  intro current
+  refine ⟨1, ?_⟩
+  simpa using natQueueWitnessAtomMassPos boundary atom current
+
+theorem natMeasurableAtomHittingBound_of_queueWitnessKernel
+    (boundary atom : Nat) :
+    MeasurableAtomHittingBoundAtAtom
+      (natQueueWitnessKernel boundary atom)
+      atom
+      (fun _ : Nat => 1) := by
+  intro current
+  refine ⟨1, le_rfl, ?_⟩
+  simpa using natQueueWitnessAtomMassPos boundary atom current
+
+theorem natQueueWitnessInvariantAtAtom
+    (boundary atom : Nat)
+    (h_atom_small : atom <= boundary) :
+    ProbabilityTheory.Kernel.Invariant
+      (natQueueWitnessKernel boundary atom)
+      (MeasureTheory.Measure.dirac atom) := by
+  unfold ProbabilityTheory.Kernel.Invariant
+  rw [MeasureTheory.Measure.dirac_bind (ProbabilityTheory.Kernel.measurable _)]
+  have h_kernel_atom :
+      (natQueueWitnessKernel boundary atom) atom = MeasureTheory.Measure.dirac atom := by
+    change
+      (if atom <= boundary then
+        MeasureTheory.Measure.dirac atom
+      else
+        ((1 / 2 : ℝ≥0∞) • MeasureTheory.Measure.dirac (atom - 1)) +
+          ((1 / 2 : ℝ≥0∞) • MeasureTheory.Measure.dirac atom)) =
+        MeasureTheory.Measure.dirac atom
+    simp [h_atom_small]
+  ext measurableSet h_measurableSet
+  rw [h_kernel_atom]
+
+theorem natQueueWitnessSmallSetMinorized
+    (boundary atom : Nat) :
+    MeasurableSmallSetMinorized
+      (natQueueWitnessKernel boundary atom)
+      {current : Nat | current <= boundary}
+      (MeasureTheory.Measure.dirac atom)
+      1 := by
+  refine ⟨by simp, by norm_num, ?_⟩
+  intro current h_current_small
+  have h_current_le : current <= boundary := h_current_small
+  have h_kernel_current :
+      (natQueueWitnessKernel boundary atom) current = MeasureTheory.Measure.dirac atom := by
+    change
+      (if current <= boundary then
+        MeasureTheory.Measure.dirac atom
+      else
+        ((1 / 2 : ℝ≥0∞) • MeasureTheory.Measure.dirac (current - 1)) +
+          ((1 / 2 : ℝ≥0∞) • MeasureTheory.Measure.dirac atom)) =
+        MeasureTheory.Measure.dirac atom
+    simp [h_current_le]
+  simp [one_smul, h_kernel_current]
+
 def MeasurableHarrisCertified
     {state : Type*}
     [MeasurableSpace state]
@@ -1021,6 +1411,222 @@ def MeasurableHarrisCertified
     epsilon ∧
       MeasurableSmallSetAccessible kernel smallSet ∧
         MeasurableReferencePositiveAccessible kernel reference
+
+def MeasurableLaminarCertifiedAtAtom
+    {state : Type*}
+    [MeasurableSpace state]
+    [MeasurableSingletonClass state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (atom : state)
+    (invariantMeasure minorizationMeasure : MeasureTheory.Measure state)
+    (smallSet : Set state)
+    (epsilon : ℝ≥0∞) : Prop :=
+  MeasurableHarrisCertified
+    kernel
+    (MeasureTheory.Measure.dirac atom)
+    invariantMeasure
+    minorizationMeasure
+    smallSet
+    epsilon ∧
+      MeasurableAtomAccessible kernel atom
+
+def MeasurableQuantitativeLaminarCertifiedAtAtom
+    {state : Type*}
+    [MeasurableSpace state]
+    [MeasurableSingletonClass state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (atom : state)
+    (invariantMeasure minorizationMeasure : MeasureTheory.Measure state)
+    (smallSet : Set state)
+    (epsilon : ℝ≥0∞)
+    (hitBound : state -> Nat) : Prop :=
+  MeasurableLaminarCertifiedAtAtom
+    kernel
+    atom
+    invariantMeasure
+    minorizationMeasure
+    smallSet
+    epsilon ∧
+      MeasurableAtomHittingBoundAtAtom kernel atom hitBound
+
+def MeasurableQuantitativeHarrisCertified
+    {state : Type*}
+    [MeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference invariantMeasure minorizationMeasure : MeasureTheory.Measure state)
+    (smallSet : Set state)
+    (epsilon : ℝ≥0∞)
+    (hitBound : state -> Nat) : Prop :=
+  MeasurableHarrisCertified
+    kernel
+    reference
+    invariantMeasure
+    minorizationMeasure
+    smallSet
+    epsilon ∧
+      MeasurableReferencePositiveHittingBound kernel reference hitBound
+
+def MeasurableReferencePositiveRecurrent
+    {state : Type*}
+    [MeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference : MeasureTheory.Measure state) : Prop :=
+  forall measurableSet : Set state,
+    MeasurableSet measurableSet ->
+      reference measurableSet > 0 ->
+        forall current : state,
+          ∃ n : ℕ, (kernel ^ n) current measurableSet > 0
+
+def MeasurableQuantitativeReferencePositiveRecurrent
+    {state : Type*}
+    [MeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference : MeasureTheory.Measure state)
+    (hitBound : state -> Nat) : Prop :=
+  forall measurableSet : Set state,
+    MeasurableSet measurableSet ->
+      reference measurableSet > 0 ->
+        forall current : state,
+          ∃ n : ℕ, n <= hitBound current ∧ (kernel ^ n) current measurableSet > 0
+
+def MeasurableReferencePositivePersistent
+    {state : Type*}
+    [MeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference : MeasureTheory.Measure state)
+    (hitBound : state -> Nat) : Prop :=
+  forall measurableSet : Set state,
+    MeasurableSet measurableSet ->
+      reference measurableSet > 0 ->
+        forall current : state,
+          forall n : Nat,
+            hitBound current <= n ->
+              (kernel ^ n) current measurableSet > 0
+
+def MeasurableEventuallyConvergesToReference
+    {state : Type*}
+    [MeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference : MeasureTheory.Measure state)
+    (hitBound : state -> Nat) : Prop :=
+  forall current : state,
+    forall n : Nat,
+      hitBound current <= n ->
+        (kernel ^ n) current = reference
+
+def MeasurableFiniteTimeHarrisRecurrent
+    {state : Type*}
+    [MeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference invariantMeasure minorizationMeasure : MeasureTheory.Measure state)
+    (smallSet : Set state)
+    (epsilon : ℝ≥0∞)
+    (hitBound : state -> Nat) : Prop :=
+  MeasurableQuantitativeHarrisCertified
+    kernel
+    reference
+    invariantMeasure
+    minorizationMeasure
+    smallSet
+    epsilon
+    hitBound ∧
+      MeasurableEventuallyConvergesToReference kernel reference hitBound
+
+def MeasurableFiniteTimeGeometricStability
+    {state : Type*}
+    [MeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference : MeasureTheory.Measure state)
+    (hitBound : state -> Nat) : Prop :=
+  MeasurableEventuallyConvergesToReference kernel reference hitBound
+
+def MeasurableFiniteTimeGeometricEnvelope
+    {state : Type*}
+    [MeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference : MeasureTheory.Measure state)
+    (hitBound : state -> Nat) : Prop :=
+  MeasurableQuantitativeReferencePositiveRecurrent
+    kernel
+    reference
+    hitBound ∧
+      MeasurableReferencePositivePersistent kernel reference hitBound ∧
+        MeasurableFiniteTimeGeometricStability kernel reference hitBound
+
+def MeasurableHarrisRecurrent
+    {state : Type*}
+    [MeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference : MeasureTheory.Measure state) : Prop :=
+  MeasurableReferencePositiveRecurrent kernel reference
+
+def MeasurableFiniteTimeGeometricErgodic
+    {state : Type*}
+    [MeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference : MeasureTheory.Measure state)
+    (hitBound : state -> Nat) : Prop :=
+  MeasurableFiniteTimeGeometricEnvelope kernel reference hitBound
+
+def MeasurableLevyProkhorovEventuallyZero
+    {state : Type*}
+    [MeasurableSpace state]
+    [PseudoEMetricSpace state]
+    [OpensMeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference : MeasureTheory.Measure state)
+    (hitBound : state -> Nat) : Prop :=
+  forall current : state,
+    forall n : Nat,
+      hitBound current <= n ->
+        MeasureTheory.levyProkhorovDist ((kernel ^ n) current) reference = 0
+
+def MeasurableFiniteTimeLevyProkhorovGeometricErgodic
+    {state : Type*}
+    [MeasurableSpace state]
+    [PseudoEMetricSpace state]
+    [OpensMeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference : MeasureTheory.Measure state)
+    (hitBound : state -> Nat) : Prop :=
+  MeasurableFiniteTimeGeometricErgodic kernel reference hitBound ∧
+    MeasurableLevyProkhorovEventuallyZero kernel reference hitBound
+
+def MeasurableLevyProkhorovGeometricDecayAfterBurnIn
+    {state : Type*}
+    [MeasurableSpace state]
+    [PseudoEMetricSpace state]
+    [OpensMeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference : MeasureTheory.Measure state)
+    (hitBound : state -> Nat)
+    (rate : ℝ) : Prop :=
+  0 <= rate ∧
+    rate < 1 ∧
+      forall current : state,
+        forall n : Nat,
+          MeasureTheory.levyProkhorovDist
+              ((kernel ^ (n + hitBound current)) current)
+              reference <= rate ^ n
+
+def MeasurableLevyProkhorovGeometricErgodic
+    {state : Type*}
+    [MeasurableSpace state]
+    [PseudoEMetricSpace state]
+    [OpensMeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference : MeasureTheory.Measure state) : Prop :=
+  ∃ hitBound : state -> Nat,
+    ∃ prefactor : state -> ℝ,
+      ∃ rate : ℝ,
+        (forall current : state, 0 <= prefactor current) ∧
+          0 <= rate ∧
+            rate < 1 ∧
+              forall current : state,
+                forall n : Nat,
+                  MeasureTheory.levyProkhorovDist
+                      ((kernel ^ (n + hitBound current)) current)
+                      reference <= prefactor current * rate ^ n
 
 theorem measurableHarrisPrelude_of_components
     {state : Type*}
@@ -1162,6 +1768,50 @@ theorem measurableHarrisCertified_of_prelude
       reference
       h_irreducible
 
+theorem measurableReferencePositiveRecurrent_of_harrisCertified
+    {state : Type*}
+    [MeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference invariantMeasure minorizationMeasure : MeasureTheory.Measure state)
+    (smallSet : Set state)
+    (epsilon : ℝ≥0∞)
+    (h_certified :
+      MeasurableHarrisCertified
+        kernel
+        reference
+        invariantMeasure
+        minorizationMeasure
+        smallSet
+        epsilon) :
+    MeasurableReferencePositiveRecurrent kernel reference := by
+  intro measurableSet h_measurableSet h_positive current
+  exact h_certified.2.2 measurableSet h_measurableSet h_positive current
+
+theorem measurableHarrisRecurrent_of_harrisCertified
+    {state : Type*}
+    [MeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference invariantMeasure minorizationMeasure : MeasureTheory.Measure state)
+    (smallSet : Set state)
+    (epsilon : ℝ≥0∞)
+    (h_certified :
+      MeasurableHarrisCertified
+        kernel
+        reference
+        invariantMeasure
+        minorizationMeasure
+        smallSet
+        epsilon) :
+    MeasurableHarrisRecurrent kernel reference := by
+  exact measurableReferencePositiveRecurrent_of_harrisCertified
+    kernel
+    reference
+    invariantMeasure
+    minorizationMeasure
+    smallSet
+    epsilon
+    h_certified
+
 theorem measurableIrreducible_dirac_of_atomAccessible
     {state : Type*}
     [MeasurableSpace state]
@@ -1297,6 +1947,948 @@ theorem measurableContainingAtomAccessible_of_atomAccessible
   have h_positive : MeasureTheory.Measure.dirac atom measurableSet > 0 := by
     simp [h_atom_mem]
   exact h_dirac_accessible measurableSet h_measurableSet h_positive
+
+theorem measurableLaminarCertifiedAtAtom_of_atomAccessible
+    {state : Type*}
+    [MeasurableSpace state]
+    [MeasurableSingletonClass state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (atom : state)
+    (invariantMeasure minorizationMeasure : MeasureTheory.Measure state)
+    (smallSet : Set state)
+    (epsilon : ℝ≥0∞)
+    (h_atom_small : atom ∈ smallSet)
+    (h_accessible : MeasurableAtomAccessible kernel atom)
+    (h_invariant : ProbabilityTheory.Kernel.Invariant kernel invariantMeasure)
+    (h_small : MeasurableSmallSetMinorized kernel smallSet minorizationMeasure epsilon) :
+    MeasurableLaminarCertifiedAtAtom
+      kernel
+      atom
+      invariantMeasure
+      minorizationMeasure
+      smallSet
+      epsilon := by
+  exact ⟨
+    measurableHarrisCertified_of_atomAccessible
+      kernel
+      atom
+      invariantMeasure
+      minorizationMeasure
+      smallSet
+      epsilon
+      h_atom_small
+      h_accessible
+      h_invariant
+      h_small,
+    h_accessible
+  ⟩
+
+theorem measurableSmallSetAccessible_of_laminarCertifiedAtAtom
+    {state : Type*}
+    [MeasurableSpace state]
+    [MeasurableSingletonClass state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (atom : state)
+    (invariantMeasure minorizationMeasure : MeasureTheory.Measure state)
+    (smallSet : Set state)
+    (epsilon : ℝ≥0∞)
+    (h_certified :
+      MeasurableLaminarCertifiedAtAtom
+        kernel
+        atom
+        invariantMeasure
+        minorizationMeasure
+        smallSet
+        epsilon) :
+    MeasurableSmallSetAccessible kernel smallSet := by
+  exact h_certified.1.2.1
+
+theorem measurableContainingAtomAccessible_of_laminarCertifiedAtAtom
+    {state : Type*}
+    [MeasurableSpace state]
+    [MeasurableSingletonClass state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (atom : state)
+    (invariantMeasure minorizationMeasure : MeasureTheory.Measure state)
+    (smallSet measurableSet : Set state)
+    (epsilon : ℝ≥0∞)
+    (h_certified :
+      MeasurableLaminarCertifiedAtAtom
+        kernel
+        atom
+        invariantMeasure
+        minorizationMeasure
+        smallSet
+        epsilon)
+    (h_measurableSet : MeasurableSet measurableSet)
+    (h_atom_mem : atom ∈ measurableSet) :
+    forall current : state,
+      ∃ n : ℕ, (kernel ^ n) current measurableSet > 0 := by
+  have h_dirac_accessible :
+      MeasurableReferencePositiveAccessible kernel (MeasureTheory.Measure.dirac atom) :=
+    h_certified.1.2.2
+  have h_positive : MeasureTheory.Measure.dirac atom measurableSet > 0 := by
+    simp [h_atom_mem]
+  exact h_dirac_accessible measurableSet h_measurableSet h_positive
+
+theorem measurableQuantitativeLaminarCertifiedAtAtom_of_components
+    {state : Type*}
+    [MeasurableSpace state]
+    [MeasurableSingletonClass state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (atom : state)
+    (invariantMeasure minorizationMeasure : MeasureTheory.Measure state)
+    (smallSet : Set state)
+    (epsilon : ℝ≥0∞)
+    (hitBound : state -> Nat)
+    (h_certified :
+      MeasurableLaminarCertifiedAtAtom
+        kernel
+        atom
+        invariantMeasure
+        minorizationMeasure
+        smallSet
+        epsilon)
+    (h_bound : MeasurableAtomHittingBoundAtAtom kernel atom hitBound) :
+    MeasurableQuantitativeLaminarCertifiedAtAtom
+      kernel
+      atom
+      invariantMeasure
+      minorizationMeasure
+      smallSet
+      epsilon
+      hitBound := by
+  exact ⟨h_certified, h_bound⟩
+
+theorem measurableContainingAtomHittingBound_of_quantitativeLaminarCertifiedAtAtom
+    {state : Type*}
+    [MeasurableSpace state]
+    [MeasurableSingletonClass state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (atom : state)
+    (invariantMeasure minorizationMeasure : MeasureTheory.Measure state)
+    (smallSet measurableSet : Set state)
+    (epsilon : ℝ≥0∞)
+    (hitBound : state -> Nat)
+    (h_certified :
+      MeasurableQuantitativeLaminarCertifiedAtAtom
+        kernel
+        atom
+        invariantMeasure
+        minorizationMeasure
+        smallSet
+        epsilon
+        hitBound)
+    (h_atom_mem : atom ∈ measurableSet) :
+    forall current : state,
+      ∃ n : ℕ, n <= hitBound current ∧ (kernel ^ n) current measurableSet > 0 := by
+  intro current
+  rcases h_certified.2 current with ⟨n, h_le, h_hit_atom⟩
+  refine ⟨n, h_le, lt_of_lt_of_le h_hit_atom ?_⟩
+  exact MeasureTheory.measure_mono (by
+    intro point h_point
+    have h_point_eq : point = atom := by
+      simpa using h_point
+    simpa [h_point_eq] using h_atom_mem)
+
+theorem measurableSmallSetHittingBound_of_quantitativeLaminarCertifiedAtAtom
+    {state : Type*}
+    [MeasurableSpace state]
+    [MeasurableSingletonClass state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (atom : state)
+    (invariantMeasure minorizationMeasure : MeasureTheory.Measure state)
+    (smallSet : Set state)
+    (epsilon : ℝ≥0∞)
+    (hitBound : state -> Nat)
+    (h_atom_small : atom ∈ smallSet)
+    (h_certified :
+      MeasurableQuantitativeLaminarCertifiedAtAtom
+        kernel
+        atom
+        invariantMeasure
+        minorizationMeasure
+        smallSet
+        epsilon
+        hitBound) :
+    forall current : state,
+      ∃ n : ℕ, n <= hitBound current ∧ (kernel ^ n) current smallSet > 0 := by
+  exact measurableContainingAtomHittingBound_of_quantitativeLaminarCertifiedAtAtom
+    kernel
+    atom
+    invariantMeasure
+    minorizationMeasure
+    smallSet
+    smallSet
+    epsilon
+    hitBound
+    h_certified
+    h_atom_small
+
+theorem measurableReferencePositiveHittingBound_of_quantitativeLaminarCertifiedAtAtom
+    {state : Type*}
+    [MeasurableSpace state]
+    [MeasurableSingletonClass state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (atom : state)
+    (invariantMeasure minorizationMeasure : MeasureTheory.Measure state)
+    (smallSet : Set state)
+    (epsilon : ℝ≥0∞)
+    (hitBound : state -> Nat)
+    (h_certified :
+      MeasurableQuantitativeLaminarCertifiedAtAtom
+        kernel
+        atom
+        invariantMeasure
+        minorizationMeasure
+        smallSet
+        epsilon
+        hitBound) :
+    MeasurableReferencePositiveHittingBound
+      kernel
+      (MeasureTheory.Measure.dirac atom)
+      hitBound := by
+  intro measurableSet h_measurableSet h_positive current
+  by_cases h_atom_mem : atom ∈ measurableSet
+  · exact measurableContainingAtomHittingBound_of_quantitativeLaminarCertifiedAtAtom
+      kernel
+      atom
+      invariantMeasure
+      minorizationMeasure
+      smallSet
+      measurableSet
+      epsilon
+      hitBound
+      h_certified
+      h_atom_mem
+      current
+  · have h_not_positive : ¬ MeasureTheory.Measure.dirac atom measurableSet > 0 := by
+      simp [h_atom_mem]
+    exact False.elim (h_not_positive h_positive)
+
+theorem measurableQuantitativeHarrisCertified_of_quantitativeLaminarCertifiedAtAtom
+    {state : Type*}
+    [MeasurableSpace state]
+    [MeasurableSingletonClass state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (atom : state)
+    (invariantMeasure minorizationMeasure : MeasureTheory.Measure state)
+    (smallSet : Set state)
+    (epsilon : ℝ≥0∞)
+    (hitBound : state -> Nat)
+    (h_certified :
+      MeasurableQuantitativeLaminarCertifiedAtAtom
+        kernel
+        atom
+        invariantMeasure
+        minorizationMeasure
+        smallSet
+        epsilon
+        hitBound) :
+    MeasurableQuantitativeHarrisCertified
+      kernel
+      (MeasureTheory.Measure.dirac atom)
+      invariantMeasure
+      minorizationMeasure
+      smallSet
+      epsilon
+      hitBound := by
+  exact ⟨
+    h_certified.1.1,
+    measurableReferencePositiveHittingBound_of_quantitativeLaminarCertifiedAtAtom
+      kernel
+      atom
+      invariantMeasure
+      minorizationMeasure
+      smallSet
+      epsilon
+      hitBound
+      h_certified
+  ⟩
+
+theorem measurableQuantitativeReferencePositiveRecurrent_of_quantitativeHarrisCertified
+    {state : Type*}
+    [MeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference invariantMeasure minorizationMeasure : MeasureTheory.Measure state)
+    (smallSet : Set state)
+    (epsilon : ℝ≥0∞)
+    (hitBound : state -> Nat)
+    (h_quantitative :
+      MeasurableQuantitativeHarrisCertified
+        kernel
+        reference
+        invariantMeasure
+        minorizationMeasure
+        smallSet
+        epsilon
+        hitBound) :
+    MeasurableQuantitativeReferencePositiveRecurrent
+      kernel
+      reference
+      hitBound := by
+  intro measurableSet h_measurableSet h_positive current
+  exact h_quantitative.2 measurableSet h_measurableSet h_positive current
+
+theorem measurableFiniteTimeHarrisRecurrent_of_quantitativeHarris_and_convergence
+    {state : Type*}
+    [MeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference invariantMeasure minorizationMeasure : MeasureTheory.Measure state)
+    (smallSet : Set state)
+    (epsilon : ℝ≥0∞)
+    (hitBound : state -> Nat)
+    (h_quantitative :
+      MeasurableQuantitativeHarrisCertified
+        kernel
+        reference
+        invariantMeasure
+        minorizationMeasure
+        smallSet
+        epsilon
+        hitBound)
+    (h_converges : MeasurableEventuallyConvergesToReference kernel reference hitBound) :
+    MeasurableFiniteTimeHarrisRecurrent
+      kernel
+      reference
+      invariantMeasure
+      minorizationMeasure
+      smallSet
+      epsilon
+      hitBound := by
+  exact ⟨h_quantitative, h_converges⟩
+
+theorem measurableReferencePositivePersistent_of_eventualConvergence
+    {state : Type*}
+    [MeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference : MeasureTheory.Measure state)
+    (hitBound : state -> Nat)
+    (h_converges : MeasurableEventuallyConvergesToReference kernel reference hitBound) :
+    forall measurableSet : Set state,
+      MeasurableSet measurableSet ->
+        reference measurableSet > 0 ->
+          forall current : state,
+            forall n : Nat,
+              hitBound current <= n ->
+                (kernel ^ n) current measurableSet > 0 := by
+  intro measurableSet h_measurableSet h_positive current n h_le
+  rw [h_converges current n h_le]
+  exact h_positive
+
+theorem measurableReferencePositivePersistent_of_finiteTimeHarrisRecurrent
+    {state : Type*}
+    [MeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference invariantMeasure minorizationMeasure : MeasureTheory.Measure state)
+    (smallSet : Set state)
+    (epsilon : ℝ≥0∞)
+    (hitBound : state -> Nat)
+    (h_finite :
+      MeasurableFiniteTimeHarrisRecurrent
+        kernel
+        reference
+        invariantMeasure
+        minorizationMeasure
+        smallSet
+        epsilon
+        hitBound) :
+    MeasurableReferencePositivePersistent
+      kernel
+      reference
+      hitBound := by
+  exact measurableReferencePositivePersistent_of_eventualConvergence
+    kernel
+    reference
+    hitBound
+    h_finite.2
+
+theorem measurableFiniteTimeGeometricStability_of_finiteTimeHarrisRecurrent
+    {state : Type*}
+    [MeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference invariantMeasure minorizationMeasure : MeasureTheory.Measure state)
+    (smallSet : Set state)
+    (epsilon : ℝ≥0∞)
+    (hitBound : state -> Nat)
+    (h_finite :
+      MeasurableFiniteTimeHarrisRecurrent
+        kernel
+        reference
+        invariantMeasure
+        minorizationMeasure
+        smallSet
+        epsilon
+        hitBound) :
+    MeasurableFiniteTimeGeometricStability
+      kernel
+      reference
+      hitBound := by
+  exact h_finite.2
+
+theorem measurableFiniteTimeGeometricEnvelope_of_finiteTimeHarrisRecurrent
+    {state : Type*}
+    [MeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference invariantMeasure minorizationMeasure : MeasureTheory.Measure state)
+    (smallSet : Set state)
+    (epsilon : ℝ≥0∞)
+    (hitBound : state -> Nat)
+    (h_finite :
+      MeasurableFiniteTimeHarrisRecurrent
+        kernel
+        reference
+        invariantMeasure
+        minorizationMeasure
+        smallSet
+        epsilon
+        hitBound) :
+    MeasurableFiniteTimeGeometricEnvelope
+      kernel
+      reference
+      hitBound := by
+  refine ⟨?_, ?_, ?_⟩
+  · exact measurableQuantitativeReferencePositiveRecurrent_of_quantitativeHarrisCertified
+      kernel
+      reference
+      invariantMeasure
+      minorizationMeasure
+      smallSet
+      epsilon
+      hitBound
+      h_finite.1
+  · exact measurableReferencePositivePersistent_of_finiteTimeHarrisRecurrent
+      kernel
+      reference
+      invariantMeasure
+      minorizationMeasure
+      smallSet
+      epsilon
+      hitBound
+      h_finite
+  · exact measurableFiniteTimeGeometricStability_of_finiteTimeHarrisRecurrent
+      kernel
+      reference
+      invariantMeasure
+      minorizationMeasure
+      smallSet
+      epsilon
+      hitBound
+      h_finite
+
+theorem measurableHarrisRecurrent_of_finiteTimeHarrisRecurrent
+    {state : Type*}
+    [MeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference invariantMeasure minorizationMeasure : MeasureTheory.Measure state)
+    (smallSet : Set state)
+    (epsilon : ℝ≥0∞)
+    (hitBound : state -> Nat)
+    (h_finite :
+      MeasurableFiniteTimeHarrisRecurrent
+        kernel
+        reference
+        invariantMeasure
+        minorizationMeasure
+        smallSet
+        epsilon
+        hitBound) :
+    MeasurableHarrisRecurrent
+      kernel
+      reference := by
+  exact measurableHarrisRecurrent_of_harrisCertified
+    kernel
+    reference
+    invariantMeasure
+    minorizationMeasure
+    smallSet
+    epsilon
+    h_finite.1.1
+
+theorem measurableFiniteTimeGeometricErgodic_of_finiteTimeHarrisRecurrent
+    {state : Type*}
+    [MeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference invariantMeasure minorizationMeasure : MeasureTheory.Measure state)
+    (smallSet : Set state)
+    (epsilon : ℝ≥0∞)
+    (hitBound : state -> Nat)
+    (h_finite :
+      MeasurableFiniteTimeHarrisRecurrent
+        kernel
+        reference
+        invariantMeasure
+        minorizationMeasure
+        smallSet
+        epsilon
+        hitBound) :
+    MeasurableFiniteTimeGeometricErgodic
+      kernel
+      reference
+      hitBound := by
+  exact measurableFiniteTimeGeometricEnvelope_of_finiteTimeHarrisRecurrent
+    kernel
+    reference
+    invariantMeasure
+    minorizationMeasure
+    smallSet
+    epsilon
+    hitBound
+    h_finite
+
+theorem measurableLevyProkhorovEventuallyZero_of_eventualConvergence
+    {state : Type*}
+    [MeasurableSpace state]
+    [PseudoEMetricSpace state]
+    [OpensMeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference : MeasureTheory.Measure state)
+    (hitBound : state -> Nat)
+    (h_converges : MeasurableEventuallyConvergesToReference kernel reference hitBound) :
+    MeasurableLevyProkhorovEventuallyZero kernel reference hitBound := by
+  intro current n h_le
+  rw [h_converges current n h_le]
+  exact MeasureTheory.levyProkhorovDist_self reference
+
+theorem measurableLevyProkhorovEventuallyZero_of_finiteTimeHarrisRecurrent
+    {state : Type*}
+    [MeasurableSpace state]
+    [PseudoEMetricSpace state]
+    [OpensMeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference invariantMeasure minorizationMeasure : MeasureTheory.Measure state)
+    (smallSet : Set state)
+    (epsilon : ℝ≥0∞)
+    (hitBound : state -> Nat)
+    (h_finite :
+      MeasurableFiniteTimeHarrisRecurrent
+        kernel
+        reference
+        invariantMeasure
+        minorizationMeasure
+        smallSet
+        epsilon
+        hitBound) :
+    MeasurableLevyProkhorovEventuallyZero
+      kernel
+      reference
+      hitBound := by
+  exact measurableLevyProkhorovEventuallyZero_of_eventualConvergence
+    kernel
+    reference
+    hitBound
+    h_finite.2
+
+theorem measurableFiniteTimeLevyProkhorovGeometricErgodic_of_finiteTimeHarrisRecurrent
+    {state : Type*}
+    [MeasurableSpace state]
+    [PseudoEMetricSpace state]
+    [OpensMeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference invariantMeasure minorizationMeasure : MeasureTheory.Measure state)
+    (smallSet : Set state)
+    (epsilon : ℝ≥0∞)
+    (hitBound : state -> Nat)
+    (h_finite :
+      MeasurableFiniteTimeHarrisRecurrent
+        kernel
+        reference
+        invariantMeasure
+        minorizationMeasure
+        smallSet
+        epsilon
+        hitBound) :
+    MeasurableFiniteTimeLevyProkhorovGeometricErgodic
+      kernel
+      reference
+      hitBound := by
+  refine ⟨?_, ?_⟩
+  · exact measurableFiniteTimeGeometricErgodic_of_finiteTimeHarrisRecurrent
+      kernel
+      reference
+      invariantMeasure
+      minorizationMeasure
+      smallSet
+      epsilon
+      hitBound
+      h_finite
+  · exact measurableLevyProkhorovEventuallyZero_of_finiteTimeHarrisRecurrent
+      kernel
+      reference
+      invariantMeasure
+      minorizationMeasure
+      smallSet
+      epsilon
+      hitBound
+      h_finite
+
+theorem measurableLevyProkhorovGeometricDecayAfterBurnIn_of_eventualConvergence
+    {state : Type*}
+    [MeasurableSpace state]
+    [PseudoEMetricSpace state]
+    [OpensMeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference : MeasureTheory.Measure state)
+    (hitBound : state -> Nat)
+    (rate : ℝ)
+    (h_rate_nonneg : 0 <= rate)
+    (h_rate_lt_one : rate < 1)
+    (h_converges : MeasurableEventuallyConvergesToReference kernel reference hitBound) :
+    MeasurableLevyProkhorovGeometricDecayAfterBurnIn
+      kernel
+      reference
+      hitBound
+      rate := by
+  refine ⟨h_rate_nonneg, h_rate_lt_one, ?_⟩
+  intro current n
+  have h_bound : hitBound current <= n + hitBound current := by
+    exact Nat.le_add_left (hitBound current) n
+  rw [h_converges current (n + hitBound current) h_bound]
+  rw [MeasureTheory.levyProkhorovDist_self]
+  exact pow_nonneg h_rate_nonneg n
+
+theorem measurableLevyProkhorovGeometricDecayAfterBurnIn_of_finiteTimeHarrisRecurrent
+    {state : Type*}
+    [MeasurableSpace state]
+    [PseudoEMetricSpace state]
+    [OpensMeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference invariantMeasure minorizationMeasure : MeasureTheory.Measure state)
+    (smallSet : Set state)
+    (epsilon : ℝ≥0∞)
+    (hitBound : state -> Nat)
+    (rate : ℝ)
+    (h_rate_nonneg : 0 <= rate)
+    (h_rate_lt_one : rate < 1)
+    (h_finite :
+      MeasurableFiniteTimeHarrisRecurrent
+        kernel
+        reference
+        invariantMeasure
+        minorizationMeasure
+        smallSet
+        epsilon
+        hitBound) :
+    MeasurableLevyProkhorovGeometricDecayAfterBurnIn
+      kernel
+      reference
+      hitBound
+      rate := by
+  exact measurableLevyProkhorovGeometricDecayAfterBurnIn_of_eventualConvergence
+    kernel
+    reference
+    hitBound
+    rate
+    h_rate_nonneg
+    h_rate_lt_one
+    h_finite.2
+
+theorem measurableLevyProkhorovGeometricErgodic_of_decayAfterBurnIn
+    {state : Type*}
+    [MeasurableSpace state]
+    [PseudoEMetricSpace state]
+    [OpensMeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference : MeasureTheory.Measure state)
+    (hitBound : state -> Nat)
+    (rate : ℝ)
+    (h_decay :
+      MeasurableLevyProkhorovGeometricDecayAfterBurnIn
+        kernel
+        reference
+        hitBound
+        rate) :
+    MeasurableLevyProkhorovGeometricErgodic
+      kernel
+      reference := by
+  rcases h_decay with ⟨h_rate_nonneg, h_rate_lt_one, h_decay_bound⟩
+  refine ⟨hitBound, fun _ => 1, rate, ?_, h_rate_nonneg, h_rate_lt_one, ?_⟩
+  · intro current
+    norm_num
+  · intro current n
+    have h_bound := h_decay_bound current n
+    simpa using h_bound
+
+theorem measurableLevyProkhorovGeometricErgodic_of_finiteTimeHarrisRecurrent
+    {state : Type*}
+    [MeasurableSpace state]
+    [PseudoEMetricSpace state]
+    [OpensMeasurableSpace state]
+    (kernel : ProbabilityTheory.Kernel state state)
+    (reference invariantMeasure minorizationMeasure : MeasureTheory.Measure state)
+    (smallSet : Set state)
+    (epsilon : ℝ≥0∞)
+    (hitBound : state -> Nat)
+    (h_finite :
+      MeasurableFiniteTimeHarrisRecurrent
+        kernel
+        reference
+        invariantMeasure
+        minorizationMeasure
+        smallSet
+        epsilon
+        hitBound) :
+    MeasurableLevyProkhorovGeometricErgodic
+      kernel
+      reference := by
+  exact measurableLevyProkhorovGeometricErgodic_of_decayAfterBurnIn
+    kernel
+    reference
+    hitBound
+    (1 / 2)
+    (measurableLevyProkhorovGeometricDecayAfterBurnIn_of_finiteTimeHarrisRecurrent
+      kernel
+      reference
+      invariantMeasure
+      minorizationMeasure
+      smallSet
+      epsilon
+      hitBound
+      (1 / 2)
+      (by norm_num)
+      (by norm_num)
+      h_finite)
+
+theorem nat_iterate_queueStep_stays_at_atom
+    (boundary atom : Nat)
+    (h_atom_small : atom <= boundary) :
+    forall n : Nat,
+      ((fun current : Nat => if current <= boundary then atom else current - 1)^[n]) atom = atom := by
+  intro n
+  induction n with
+  | zero =>
+      rfl
+  | succ n ih =>
+      rw [Function.iterate_succ_apply]
+      simp [h_atom_small, ih]
+
+theorem natMeasurableEventuallyConvergesToAtom_of_queueStep
+    (boundary atom : Nat)
+    (h_atom_small : atom <= boundary) :
+    MeasurableEventuallyConvergesToReference
+      (ProbabilityTheory.Kernel.deterministic
+        (fun current : Nat => if current <= boundary then atom else current - 1)
+        (measurable_of_countable _))
+      (MeasureTheory.Measure.dirac atom)
+      (fun current : Nat => current - boundary + 1) := by
+  intro current n h_le
+  rcases Nat.exists_eq_add_of_le h_le with ⟨extra, rfl⟩
+  apply MeasureTheory.Measure.ext
+  intro measurableSet h_measurableSet
+  rw [add_comm, deterministic_pow_eq_deterministic_iterate]
+  rw [ProbabilityTheory.Kernel.deterministic_apply]
+  have h_hit :
+      ((fun current : Nat => if current <= boundary then atom else current - 1)^[current - boundary + 1])
+        current = atom :=
+    nat_iterate_queueStep_hits_atom boundary atom current
+  have h_stay :
+      ((fun current : Nat => if current <= boundary then atom else current - 1)^[extra]) atom = atom :=
+    nat_iterate_queueStep_stays_at_atom boundary atom h_atom_small extra
+  have h_iter :
+      ((fun current : Nat => if current <= boundary then atom else current - 1)^[extra + (current - boundary + 1)])
+        current = atom := by
+    rw [Function.iterate_add_apply, h_hit, h_stay]
+  simp [h_iter]
+
+theorem natMeasurableHarrisCertified_of_queueStep
+    (boundary atom : Nat)
+    (h_atom_small : atom <= boundary) :
+    MeasurableHarrisCertified
+      (ProbabilityTheory.Kernel.deterministic
+        (fun current : Nat => if current <= boundary then atom else current - 1)
+        (measurable_of_countable _))
+      (MeasureTheory.Measure.dirac atom)
+      (MeasureTheory.Measure.dirac atom)
+      (MeasureTheory.Measure.dirac atom)
+      {current : Nat | current <= boundary}
+      1 := by
+  exact measurableHarrisCertified_of_atomAccessible
+    (ProbabilityTheory.Kernel.deterministic
+      (fun current : Nat => if current <= boundary then atom else current - 1)
+      (measurable_of_countable _))
+    atom
+    (MeasureTheory.Measure.dirac atom)
+    (MeasureTheory.Measure.dirac atom)
+    {current : Nat | current <= boundary}
+    1
+    h_atom_small
+    (natMeasurableAtomAccessible_of_queueStep boundary atom)
+    (natQueueSupportInvariantAtAtom boundary atom h_atom_small)
+    (natQueueSupportSmallSetMinorized boundary atom)
+
+theorem natMeasurableLaminarCertified_of_queueStep
+    (boundary atom : Nat)
+    (h_atom_small : atom <= boundary) :
+    MeasurableLaminarCertifiedAtAtom
+      (ProbabilityTheory.Kernel.deterministic
+        (fun current : Nat => if current <= boundary then atom else current - 1)
+        (measurable_of_countable _))
+      atom
+      (MeasureTheory.Measure.dirac atom)
+      (MeasureTheory.Measure.dirac atom)
+      {current : Nat | current <= boundary}
+      1 := by
+  exact ⟨
+    natMeasurableHarrisCertified_of_queueStep boundary atom h_atom_small,
+    natMeasurableAtomAccessible_of_queueStep boundary atom
+  ⟩
+
+theorem natMeasurableQuantitativeLaminarCertified_of_queueStep
+    (boundary atom : Nat)
+    (h_atom_small : atom <= boundary) :
+    MeasurableQuantitativeLaminarCertifiedAtAtom
+      (ProbabilityTheory.Kernel.deterministic
+        (fun current : Nat => if current <= boundary then atom else current - 1)
+        (measurable_of_countable _))
+      atom
+      (MeasureTheory.Measure.dirac atom)
+      (MeasureTheory.Measure.dirac atom)
+      {current : Nat | current <= boundary}
+      1
+      (fun current : Nat => current - boundary + 1) := by
+  exact measurableQuantitativeLaminarCertifiedAtAtom_of_components
+    (ProbabilityTheory.Kernel.deterministic
+      (fun current : Nat => if current <= boundary then atom else current - 1)
+      (measurable_of_countable _))
+    atom
+    (MeasureTheory.Measure.dirac atom)
+    (MeasureTheory.Measure.dirac atom)
+    {current : Nat | current <= boundary}
+    1
+    (fun current : Nat => current - boundary + 1)
+    (natMeasurableLaminarCertified_of_queueStep boundary atom h_atom_small)
+    (natMeasurableAtomHittingBound_of_queueStep boundary atom)
+
+theorem natMeasurableQuantitativeHarrisCertified_of_queueStep
+    (boundary atom : Nat)
+    (h_atom_small : atom <= boundary) :
+    MeasurableQuantitativeHarrisCertified
+      (ProbabilityTheory.Kernel.deterministic
+        (fun current : Nat => if current <= boundary then atom else current - 1)
+        (measurable_of_countable _))
+      (MeasureTheory.Measure.dirac atom)
+      (MeasureTheory.Measure.dirac atom)
+      (MeasureTheory.Measure.dirac atom)
+      {current : Nat | current <= boundary}
+      1
+      (fun current : Nat => current - boundary + 1) := by
+  exact measurableQuantitativeHarrisCertified_of_quantitativeLaminarCertifiedAtAtom
+    (ProbabilityTheory.Kernel.deterministic
+      (fun current : Nat => if current <= boundary then atom else current - 1)
+      (measurable_of_countable _))
+    atom
+    (MeasureTheory.Measure.dirac atom)
+    (MeasureTheory.Measure.dirac atom)
+    {current : Nat | current <= boundary}
+    1
+    (fun current : Nat => current - boundary + 1)
+    (natMeasurableQuantitativeLaminarCertified_of_queueStep boundary atom h_atom_small)
+
+theorem natMeasurableHarrisCertified_of_queueWitnessKernel
+    (boundary atom : Nat)
+    (h_atom_small : atom <= boundary) :
+    MeasurableHarrisCertified
+      (natQueueWitnessKernel boundary atom)
+      (MeasureTheory.Measure.dirac atom)
+      (MeasureTheory.Measure.dirac atom)
+      (MeasureTheory.Measure.dirac atom)
+      {current : Nat | current <= boundary}
+      1 := by
+  exact measurableHarrisCertified_of_atomAccessible
+    (natQueueWitnessKernel boundary atom)
+    atom
+    (MeasureTheory.Measure.dirac atom)
+    (MeasureTheory.Measure.dirac atom)
+    {current : Nat | current <= boundary}
+    1
+    h_atom_small
+    (natMeasurableAtomAccessible_of_queueWitnessKernel boundary atom)
+    (natQueueWitnessInvariantAtAtom boundary atom h_atom_small)
+    (natQueueWitnessSmallSetMinorized boundary atom)
+
+theorem natMeasurableLaminarCertified_of_queueWitnessKernel
+    (boundary atom : Nat)
+    (h_atom_small : atom <= boundary) :
+    MeasurableLaminarCertifiedAtAtom
+      (natQueueWitnessKernel boundary atom)
+      atom
+      (MeasureTheory.Measure.dirac atom)
+      (MeasureTheory.Measure.dirac atom)
+      {current : Nat | current <= boundary}
+      1 := by
+  exact ⟨
+    natMeasurableHarrisCertified_of_queueWitnessKernel boundary atom h_atom_small,
+    natMeasurableAtomAccessible_of_queueWitnessKernel boundary atom
+  ⟩
+
+theorem natMeasurableQuantitativeLaminarCertified_of_queueWitnessKernel
+    (boundary atom : Nat)
+    (h_atom_small : atom <= boundary) :
+    MeasurableQuantitativeLaminarCertifiedAtAtom
+      (natQueueWitnessKernel boundary atom)
+      atom
+      (MeasureTheory.Measure.dirac atom)
+      (MeasureTheory.Measure.dirac atom)
+      {current : Nat | current <= boundary}
+      1
+      (fun _ : Nat => 1) := by
+  exact measurableQuantitativeLaminarCertifiedAtAtom_of_components
+    (natQueueWitnessKernel boundary atom)
+    atom
+    (MeasureTheory.Measure.dirac atom)
+    (MeasureTheory.Measure.dirac atom)
+    {current : Nat | current <= boundary}
+    1
+    (fun _ : Nat => 1)
+    (natMeasurableLaminarCertified_of_queueWitnessKernel boundary atom h_atom_small)
+    (natMeasurableAtomHittingBound_of_queueWitnessKernel boundary atom)
+
+theorem natMeasurableQuantitativeHarrisCertified_of_queueWitnessKernel
+    (boundary atom : Nat)
+    (h_atom_small : atom <= boundary) :
+    MeasurableQuantitativeHarrisCertified
+      (natQueueWitnessKernel boundary atom)
+      (MeasureTheory.Measure.dirac atom)
+      (MeasureTheory.Measure.dirac atom)
+      (MeasureTheory.Measure.dirac atom)
+      {current : Nat | current <= boundary}
+      1
+      (fun _ : Nat => 1) := by
+  exact measurableQuantitativeHarrisCertified_of_quantitativeLaminarCertifiedAtAtom
+    (natQueueWitnessKernel boundary atom)
+    atom
+    (MeasureTheory.Measure.dirac atom)
+    (MeasureTheory.Measure.dirac atom)
+    {current : Nat | current <= boundary}
+    1
+    (fun _ : Nat => 1)
+    (natMeasurableQuantitativeLaminarCertified_of_queueWitnessKernel boundary atom h_atom_small)
+
+theorem natMeasurableFiniteTimeHarrisRecurrent_of_queueStep
+    (boundary atom : Nat)
+    (h_atom_small : atom <= boundary) :
+    MeasurableFiniteTimeHarrisRecurrent
+      (ProbabilityTheory.Kernel.deterministic
+        (fun current : Nat => if current <= boundary then atom else current - 1)
+        (measurable_of_countable _))
+      (MeasureTheory.Measure.dirac atom)
+      (MeasureTheory.Measure.dirac atom)
+      (MeasureTheory.Measure.dirac atom)
+      {current : Nat | current <= boundary}
+      1
+      (fun current : Nat => current - boundary + 1) := by
+  exact measurableFiniteTimeHarrisRecurrent_of_quantitativeHarris_and_convergence
+    (ProbabilityTheory.Kernel.deterministic
+      (fun current : Nat => if current <= boundary then atom else current - 1)
+      (measurable_of_countable _))
+    (MeasureTheory.Measure.dirac atom)
+    (MeasureTheory.Measure.dirac atom)
+    (MeasureTheory.Measure.dirac atom)
+    {current : Nat | current <= boundary}
+    1
+    (fun current : Nat => current - boundary + 1)
+    (natMeasurableQuantitativeHarrisCertified_of_queueStep boundary atom h_atom_small)
+    (natMeasurableEventuallyConvergesToAtom_of_queueStep boundary atom h_atom_small)
 
 theorem natSmallSetRecurrent_of_margin_step
     (kernel : CountableCertifiedKernel Nat)

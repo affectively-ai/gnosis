@@ -1,7 +1,21 @@
-import path from 'node:path';
 import type { GnosisComplexityReport } from './analysis.js';
 import { summarizeCapabilityRequirements } from './capabilities/index.js';
 import type { TsSonarReport } from './ts-sonar.js';
+
+function safeCurrentWorkingDirectory(): string {
+  return typeof process !== 'undefined' && typeof process.cwd === 'function'
+    ? process.cwd()
+    : '/';
+}
+
+function normalizeAbsolutePath(filePath: string): string {
+  const normalized = filePath.replace(/\\/g, '/');
+  if (normalized.startsWith('/')) {
+    return normalized;
+  }
+  const cwd = safeCurrentWorkingDirectory().replace(/\\/g, '/').replace(/\/+$/, '');
+  return `${cwd}/${normalized.replace(/^\.\/+/, '')}`;
+}
 
 interface SarifArtifactLocation {
   uri: string;
@@ -48,9 +62,7 @@ interface SarifLog {
 }
 
 function toUri(filePath: string): string {
-  return path.isAbsolute(filePath)
-    ? filePath
-    : path.resolve(process.cwd(), filePath);
+  return normalizeAbsolutePath(filePath);
 }
 
 function buildSarifLog(

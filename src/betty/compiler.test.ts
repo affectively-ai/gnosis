@@ -22,6 +22,19 @@ describe('BettyCompiler', () => {
     expect(b1).toBe(1); // beta1 increases by targets.length - 1
   });
 
+  it('backfills labels and properties when a node is declared after edge parsing created a placeholder', () => {
+    const { ast } = compiler.parse(`
+      (router)-[:FORK]->(branch)
+      (branch:Worker { role: "live" })
+    `);
+
+    expect(ast?.nodes.get('branch')).toMatchObject({
+      id: 'branch',
+      labels: ['Worker'],
+      properties: { role: 'live' },
+    });
+  });
+
   it('should calculate Buley measurement correctly', () => {
     const { buleyMeasure } = compiler.parse(
       '(a)-[:FORK]->(b|c)\n(b|c)-[:FOLD]->(d)'
@@ -275,6 +288,42 @@ describe('BettyCompiler', () => {
     );
     expect(stability?.metadata.measurableHarrisTheoremName).toBe(
       'complete_is_geometrically_stable_measurable_harris_certified'
+    );
+    expect(stability?.metadata.measurableLaminarTheoremName).toBe(
+      'complete_is_geometrically_stable_measurable_laminar_certified'
+    );
+    expect(stability?.metadata.measurableQuantitativeLaminarTheoremName).toBe(
+      'complete_is_geometrically_stable_measurable_quantitative_laminar_certified'
+    );
+    expect(stability?.metadata.measurableQuantitativeHarrisTheoremName).toBe(
+      'complete_is_geometrically_stable_measurable_quantitative_harris_certified'
+    );
+    expect(stability?.metadata.measurableFiniteTimeHarrisTheoremName).toBe(
+      'complete_is_geometrically_stable_measurable_finite_time_harris_recurrent'
+    );
+    expect(stability?.metadata.measurableHarrisRecurrentTheoremName).toBe(
+      'complete_is_geometrically_stable_measurable_harris_recurrent'
+    );
+    expect(stability?.metadata.measurableFiniteTimeGeometricErgodicTheoremName).toBe(
+      'complete_is_geometrically_stable_measurable_finite_time_geometric_ergodic'
+    );
+    expect(
+      stability?.metadata.measurableLevyProkhorovGeometricErgodicTheoremName
+    ).toBe(
+      'complete_is_geometrically_stable_measurable_levy_prokhorov_geometric_ergodic'
+    );
+    expect(
+      stability?.metadata.measurableLevyProkhorovGeometricDecayTheoremName
+    ).toBe(
+      'complete_is_geometrically_stable_measurable_levy_prokhorov_geometric_decay'
+    );
+    expect(
+      stability?.metadata.measurableLevyProkhorovAbstractGeometricErgodicTheoremName
+    ).toBe(
+      'complete_is_geometrically_stable_measurable_levy_prokhorov_geometric_ergodic_abstract'
+    );
+    expect(stability?.metadata.measurableWitnessQuantitativeHarrisTheoremName).toBe(
+      'complete_is_geometrically_stable_measurable_witness_quantitative_harris_certified'
     );
     expect(stability?.recurrence.finiteStateCertified).toBe(true);
     expect(

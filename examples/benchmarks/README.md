@@ -4,14 +4,17 @@
 
 This directory contains the Gnosis-native topologies for the learned fold-boundary benchmarks.
 
-Two benchmark families live here:
+Three benchmark families live here:
 
 - `fold-training-*`: two affine paths and one recombination node for the cancellation-sensitive `left - right` task.
 - `moe-routing-*`: four sign-specialized experts behind one routing gate for the mini-MoE `|x| + |y|` routing task.
+- `aeon-framed-transformer-*`: four toy transformerlets behind a four-stage Wallington triangle, each carrying internal attention-head and feedforward chains that rotate and whip before the benchmark collapse boundary varies by `FOLD` strategy.
+- `moa-transformer-*`: a direct dense-vs-sparse transformer shootout where both families keep the same total rotated capacity, but only the MoA family uses an outer router plus inner head sparsity before the final additive collapse.
 
 These same topologies also drive four additional Chapter 17 learned-evidence surfaces:
 
 - the one-path negative-control benchmark in `src/benchmarks/negative-controls-benchmark.ts`, where the data are restricted so one branch or one expert is sufficient and nonlinear selection should therefore not be penalized;
+- the fine-grained near-control zoom in `src/benchmarks/near-control-sweep-benchmark.ts`, where the same families stay close to one-path parity until additive demand becomes large enough to open a measurable linear advantage;
 - the continuous regime sweep in `src/benchmarks/regime-sweep-benchmark.ts`, where the targets interpolate from one-path parity to mandatory additive recombination;
 - the adversarial controls in `src/benchmarks/adversarial-controls-benchmark.ts`, where the targets intentionally reward winner selection or early stopping;
 - and the artifact writers in the companion suite, which reuse these same `.gg` modules to keep topology fixed while the data distribution moves across the boundary.
@@ -28,3 +31,10 @@ Within each family, only the `FOLD { strategy: ... }` property changes.
 - `moe-routing-winner-take-all.gg`: nonlinear top-1 routed-expert ablation.
 - `moe-routing-early-stop.gg`: nonlinear first-branch routed-expert ablation.
 - `moe-routing.test.gg`: `.test.gg` suite that verifies the three routed-expert modules as safe bounded topologies.
+- `aeon-framed-transformer-linear.gg`: additive framed transformer baseline with a four-stage input triangle plus internal head/feedforward whip inside each transformerlet.
+- `aeon-framed-transformer-winner-take-all.gg`: nonlinear top-1 collapse ablation for the framed transformer battery.
+- `aeon-framed-transformer-early-stop.gg`: nonlinear first-branch collapse ablation for the framed transformer battery.
+- `aeon-framed-transformer.test.gg`: `.test.gg` suite that verifies the three framed transformer modules as safe bounded topologies.
+- `moa-transformer-regular.gg`: dense rotated transformer baseline that keeps all four transformerlets and all sixteen head chains live on every sample.
+- `moa-transformer-moa.gg`: sparse rotated MoA transformer that now uses the `StructuredMoA` primitive to declare the same four-block/two-live/two-head concurrent topology compactly before lowering into the nested additive whip graph.
+- `moa-transformer.test.gg`: `.test.gg` suite that verifies the regular and MoA shootout modules as safe bounded topologies.

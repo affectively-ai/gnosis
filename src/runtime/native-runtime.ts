@@ -76,6 +76,30 @@ export class GnosisNativeRuntime {
                 this.stabilityMetadata.laminarGeometricTheoremName,
               measurableHarrisTheoremName:
                 this.stabilityMetadata.measurableHarrisTheoremName,
+              measurableLaminarTheoremName:
+                this.stabilityMetadata.measurableLaminarTheoremName,
+              measurableQuantitativeLaminarTheoremName:
+                this.stabilityMetadata.measurableQuantitativeLaminarTheoremName,
+              measurableQuantitativeHarrisTheoremName:
+                this.stabilityMetadata.measurableQuantitativeHarrisTheoremName,
+              measurableFiniteTimeHarrisTheoremName:
+                this.stabilityMetadata.measurableFiniteTimeHarrisTheoremName,
+              measurableHarrisRecurrentTheoremName:
+                this.stabilityMetadata.measurableHarrisRecurrentTheoremName,
+              measurableFiniteTimeGeometricErgodicTheoremName:
+                this.stabilityMetadata.measurableFiniteTimeGeometricErgodicTheoremName,
+              measurableLevyProkhorovGeometricErgodicTheoremName:
+                this.stabilityMetadata
+                  .measurableLevyProkhorovGeometricErgodicTheoremName,
+              measurableLevyProkhorovGeometricDecayTheoremName:
+                this.stabilityMetadata
+                  .measurableLevyProkhorovGeometricDecayTheoremName,
+              measurableLevyProkhorovAbstractGeometricErgodicTheoremName:
+                this.stabilityMetadata
+                  .measurableLevyProkhorovAbstractGeometricErgodicTheoremName,
+              measurableWitnessQuantitativeHarrisTheoremName:
+                this.stabilityMetadata
+                  .measurableWitnessQuantitativeHarrisTheoremName,
               queueBoundary: this.stabilityMetadata.queueBoundary,
               laminarAtom: this.stabilityMetadata.laminarAtom,
               queuePotential: this.stabilityMetadata.queuePotential,

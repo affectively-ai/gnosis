@@ -27,6 +27,11 @@ The relevant theorems live in [`GnosisProofs.lean`](../GnosisProofs.lean):
 - `countableSupportPath_reachesSmallSet_of_driftWitness`
 - `countableSmallSetRecurrent_of_driftWitness`
 - `countableAtomicSmallSetMinorized_one_of_collapse`
+- `countableAtomAccessibleAt_of_smallSetRecurrence_and_atomicMinorization`
+- `countablePsiIrreducibleAt_of_atomAccessible`
+- `countableHarrisPreludeAt_of_components`
+- `countableHarrisRecurrentClassAt_of_recurrence_and_prelude`
+- `countableGeometricEnvelopeAt_of_harrisPrelude_and_bound`
 - `countableAtomAccessible_of_smallSetRecurrence_and_atomicMinorization`
 - `countablePsiIrreducibleAtAtom_of_atomAccessible`
 - `countableHarrisPreludeAtAtom_of_components`
@@ -46,6 +51,50 @@ The relevant theorems live in [`GnosisProofs.lean`](../GnosisProofs.lean):
 - `measurableHarrisCertified_of_atomAccessible`
 - `measurableSmallSetAccessible_of_atomAccessible`
 - `measurableContainingAtomAccessible_of_atomAccessible`
+- `measurableLaminarCertifiedAtAtom_of_atomAccessible`
+- `measurableSmallSetAccessible_of_laminarCertifiedAtAtom`
+- `measurableContainingAtomAccessible_of_laminarCertifiedAtAtom`
+- `deterministic_pow_eq_deterministic_iterate`
+- `measurableAtomAccessible_of_deterministic_hit`
+- `nat_iterate_queueStep_hits_atom`
+- `natMeasurableAtomAccessible_of_queueStep`
+- `natQueueSupportInvariantAtAtom`
+- `natQueueSupportSmallSetMinorized`
+- `natMeasurableHarrisCertified_of_queueStep`
+- `natMeasurableLaminarCertified_of_queueStep`
+- `natMeasurableAtomHittingBound_of_queueStep`
+- `natMeasurableQuantitativeLaminarCertified_of_queueStep`
+- `natMeasurableQuantitativeHarrisCertified_of_queueStep`
+- `natMeasurableEventuallyConvergesToAtom_of_queueStep`
+- `natMeasurableFiniteTimeHarrisRecurrent_of_queueStep`
+- `natQueueWitnessKernel`
+- `natMeasurableAtomAccessible_of_queueWitnessKernel`
+- `natMeasurableAtomHittingBound_of_queueWitnessKernel`
+- `natMeasurableHarrisCertified_of_queueWitnessKernel`
+- `natMeasurableLaminarCertified_of_queueWitnessKernel`
+- `natMeasurableQuantitativeLaminarCertified_of_queueWitnessKernel`
+- `natMeasurableQuantitativeHarrisCertified_of_queueWitnessKernel`
+- `measurableContainingAtomHittingBound_of_quantitativeLaminarCertifiedAtAtom`
+- `measurableSmallSetHittingBound_of_quantitativeLaminarCertifiedAtAtom`
+- `measurableReferencePositiveHittingBound_of_quantitativeLaminarCertifiedAtAtom`
+- `measurableQuantitativeHarrisCertified_of_quantitativeLaminarCertifiedAtAtom`
+- `measurableReferencePositiveRecurrent_of_harrisCertified`
+- `measurableHarrisRecurrent_of_harrisCertified`
+- `measurableQuantitativeReferencePositiveRecurrent_of_quantitativeHarrisCertified`
+- `measurableReferencePositivePersistent_of_eventualConvergence`
+- `measurableReferencePositivePersistent_of_finiteTimeHarrisRecurrent`
+- `measurableFiniteTimeGeometricStability_of_finiteTimeHarrisRecurrent`
+- `measurableFiniteTimeGeometricEnvelope_of_finiteTimeHarrisRecurrent`
+- `measurableHarrisRecurrent_of_finiteTimeHarrisRecurrent`
+- `measurableFiniteTimeGeometricErgodic_of_finiteTimeHarrisRecurrent`
+- `measurableLevyProkhorovEventuallyZero_of_eventualConvergence`
+- `measurableLevyProkhorovEventuallyZero_of_finiteTimeHarrisRecurrent`
+- `measurableFiniteTimeLevyProkhorovGeometricErgodic_of_finiteTimeHarrisRecurrent`
+- `measurableLevyProkhorovGeometricDecayAfterBurnIn_of_eventualConvergence`
+- `measurableLevyProkhorovGeometricDecayAfterBurnIn_of_finiteTimeHarrisRecurrent`
+- `measurableLevyProkhorovGeometricErgodic_of_decayAfterBurnIn`
+- `measurableLevyProkhorovGeometricErgodic_of_finiteTimeHarrisRecurrent`
+- `measurableFiniteTimeHarrisRecurrent_of_quantitativeHarris_and_convergence`
 - `natSmallSetRecurrent_of_stepDown`
 - `natSmallSetRecurrent_of_uniformPredecessorMinorization`
 - `natSmallSetRecurrent_of_margin_step`
@@ -60,4 +109,4 @@ Betti's Lean artifact emission should still pass after the proof workspace chang
 bun test open-source/gnosis/src/betty/lean.test.ts
 ```
 
-This confirms that the compiler's generated proof artifact now emits a real `CertifiedKernel` witness that imports the shared proof workspace instead of relying on a local `Unit`/axiom scaffold.
+This confirms that the compiler's generated proof artifact now emits a real `CertifiedKernel` witness that imports the shared proof workspace instead of relying on a local `Unit`/axiom scaffold, and that the measurable queue artifact reaches the emitted exact-convergence, post-burn-in geometric-decay, and abstract geometric-ergodicity Lévy-Prokhorov endpoints as well as the earlier Harris-style endpoints.

@@ -1,0 +1,19 @@
+// warmup_invert_unfair_repair.gg — Repair exists but the schedule keeps choosing stutter
+//
+// Semantic void witness: a repair path is enabled, but unfair control keeps
+// selecting stutter, so the system remains degraded without structural blockage.
+// The poison event in this witness stands for the unfair scheduler.
+
+(input: Workload { type: 'degraded-service' })
+(fast_path: State)
+(slow_path: State)
+(poison_event: Event { type: 'entropy_or_drift' })
+(chosen_path: Plan)
+(fallback: Plan)
+(result: Result)
+
+(input)-[:FORK]->(fast_path | slow_path | poison_event)
+(poison_event)-[:INTERFERE { mode: 'destructive' }]->(slow_path)
+(fast_path | slow_path)-[:RACE { expect: 'scheduler-pick' }]->(chosen_path)
+(chosen_path | poison_event)-[:FOLD { strategy: 'remain-degraded' }]->(fallback)
+(fallback)-[:PROCESS]->(result)

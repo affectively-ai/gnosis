@@ -1,3 +1,5 @@
+import { expandStructuredPrimitivesSource } from './structured-primitives.js';
+
 interface UfcsExpression {
   receiverId: string;
   calleeIds: string[];
@@ -100,7 +102,7 @@ export function lowerUfcsLine(line: string): string[] {
 }
 
 export function lowerUfcsSource(source: string): string {
-  return source
+  return expandStructuredPrimitivesSource(source)
     .split('\n')
     .flatMap((line) => lowerUfcsLine(line))
     .join('\n');

@@ -30,6 +30,17 @@ export {
   withSteeringTelemetry,
 } from './analysis.js';
 export {
+  buildBehavioralLoopExecutionTopology,
+  buildBehavioralTaxonomyTopology,
+  executeBehavioralLoop,
+  formatBehavioralTaxonomyMeasurement,
+  loadBehavioralLoopsDataset,
+  measureBehavioralTaxonomy,
+  measureBehavioralTaxonomySelection,
+  selectBehavioralTaxonomy,
+  writeBehavioralLoopExecutionArtifacts,
+} from './behavioral-taxonomy.js';
+export {
   authorizeBoundaryWalkRun,
   DEFAULT_GNOSIS_STEERING_TRACE_GUID,
   createSteeringTraceRecord,
@@ -89,6 +100,29 @@ export type {
   GnosisSteeringTelemetry,
   GnosisTopologyMetrics,
 } from './analysis.js';
+export type {
+  BehavioralExecutionContext,
+  BehavioralExecutionInterventionKind,
+  BehavioralExecutionMode,
+  BehavioralExecutionPayload,
+  BehavioralExecutionStatus,
+  BehavioralLoopArtifactManifest,
+  BehavioralLoopArtifactManifestEntry,
+  BehavioralLoopArtifactWriteOptions,
+  BehavioralLoopCategoryRecord,
+  BehavioralLoopExecution,
+  BehavioralLoopIntervention,
+  BehavioralLoopLogic,
+  BehavioralLoopMeta,
+  BehavioralLoopOperator,
+  BehavioralLoopRecord,
+  BehavioralLoopTaxonomy,
+  BehavioralLoopsDataset,
+  BehavioralTaxonomyMeasureOptions,
+  BehavioralTaxonomyMeasurement,
+  BehavioralTaxonomySelection,
+  BehavioralTaxonomySelectionOptions,
+} from './behavioral-taxonomy.js';
 export type {
   CreateGnosisSteeringTraceRecordOptions,
   GnosisSteeringTraceCommand,

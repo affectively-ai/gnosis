@@ -104,6 +104,16 @@ export interface StabilityMetadata {
   countableQueueCertified: boolean;
   laminarGeometricTheoremName: string | null;
   measurableHarrisTheoremName: string | null;
+  measurableLaminarTheoremName: string | null;
+  measurableQuantitativeLaminarTheoremName: string | null;
+  measurableQuantitativeHarrisTheoremName: string | null;
+  measurableFiniteTimeHarrisTheoremName: string | null;
+  measurableHarrisRecurrentTheoremName: string | null;
+  measurableFiniteTimeGeometricErgodicTheoremName: string | null;
+  measurableLevyProkhorovGeometricErgodicTheoremName: string | null;
+  measurableLevyProkhorovGeometricDecayTheoremName: string | null;
+  measurableLevyProkhorovAbstractGeometricErgodicTheoremName: string | null;
+  measurableWitnessQuantitativeHarrisTheoremName: string | null;
   queueBoundary: number | null;
   laminarAtom: number | null;
   queuePotential: string | null;
@@ -1236,10 +1246,11 @@ export function analyzeTopologyStability(
   );
   const harrisRecurrent = recurrence.finiteStateCertified;
 
-  const proofKind =
-    driftAssessment.proofKind === 'none' && supremumBound !== null
-      ? 'bounded-supremum'
-      : driftAssessment.proofKind;
+  const hasSpectralNoDriftCertificate =
+    driftAssessment.proofKind === 'none' && spectralRadius < 1;
+  const proofKind = hasSpectralNoDriftCertificate
+    ? 'bounded-supremum'
+    : driftAssessment.proofKind;
   const theoremName = buildThermalTheoremName(ast);
   const redline = computeRedline(ast, sinkNodeIds, spectralRadius);
   const geometricCeiling = round3(supremumBound ?? spectralRadius);
@@ -1266,7 +1277,9 @@ export function analyzeTopologyStability(
       : proofKind === 'numeric'
       ? 'Numeric thermodynamic bounds are sufficient to certify the drift floor directly.'
       : proofKind === 'bounded-supremum'
-      ? 'Adaptive routing is constrained by an explicit supremum bound below one.'
+      ? supremumBound !== null
+        ? 'Adaptive routing is constrained by an explicit supremum bound below one.'
+        : 'The routing kernel is spectrally stable below one and carries no drift obligation.'
       : 'No thermodynamic proof family could be synthesized from the annotated topology.';
 
   const proof: StabilityProofObligation = {
@@ -1295,6 +1308,44 @@ export function analyzeTopologyStability(
     measurableHarrisTheoremName:
       countableQueue !== null
         ? `${theoremName}_measurable_harris_certified`
+        : null,
+    measurableLaminarTheoremName:
+      countableQueue !== null
+        ? `${theoremName}_measurable_laminar_certified`
+        : null,
+    measurableQuantitativeLaminarTheoremName:
+      countableQueue !== null
+        ? `${theoremName}_measurable_quantitative_laminar_certified`
+        : null,
+    measurableQuantitativeHarrisTheoremName:
+      countableQueue !== null
+        ? `${theoremName}_measurable_quantitative_harris_certified`
+        : null,
+    measurableFiniteTimeHarrisTheoremName:
+      countableQueue !== null
+        ? `${theoremName}_measurable_finite_time_harris_recurrent`
+        : null,
+    measurableHarrisRecurrentTheoremName:
+      countableQueue !== null ? `${theoremName}_measurable_harris_recurrent` : null,
+    measurableFiniteTimeGeometricErgodicTheoremName:
+      countableQueue !== null
+        ? `${theoremName}_measurable_finite_time_geometric_ergodic`
+        : null,
+    measurableLevyProkhorovGeometricErgodicTheoremName:
+      countableQueue !== null
+        ? `${theoremName}_measurable_levy_prokhorov_geometric_ergodic`
+        : null,
+    measurableLevyProkhorovGeometricDecayTheoremName:
+      countableQueue !== null
+        ? `${theoremName}_measurable_levy_prokhorov_geometric_decay`
+        : null,
+    measurableLevyProkhorovAbstractGeometricErgodicTheoremName:
+      countableQueue !== null
+        ? `${theoremName}_measurable_levy_prokhorov_geometric_ergodic_abstract`
+        : null,
+    measurableWitnessQuantitativeHarrisTheoremName:
+      countableQueue !== null
+        ? `${theoremName}_measurable_witness_quantitative_harris_certified`
         : null,
     queueBoundary: countableQueue?.queueBoundary ?? null,
     laminarAtom: countableQueue?.laminarAtom ?? null,

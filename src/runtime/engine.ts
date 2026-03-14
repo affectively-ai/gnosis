@@ -12,6 +12,18 @@ import { registerCoreAuthHandlers } from '../auth/handlers.js';
 import { registerCoreRuntimeHandlers } from './core-handlers.js';
 import { injectSensitiveZkEnvelopes } from '../auth/auto-zk.js';
 import type { GnosisHandler, GnosisHandlerContext } from './registry.js';
+import {
+  cancelConcurrentBranches,
+  collectConcurrentOutcomes,
+  mapOutcomesForPolicy,
+  resolveStructuredFold,
+  resolveStructuredRace,
+  type ConcurrentBranchHandle,
+  type ConcurrentBranchOutcome,
+  type StructuredBranchStatus,
+  type StructuredConcurrencyFailureMode,
+  type StructuredConcurrencyPolicy,
+} from './structured-concurrency.js';
 
 export interface GnosisEngineOptions {
   onEdgeEvaluated?: (edge: ASTEdge) => Promise<void> | void;
@@ -24,38 +36,6 @@ export interface GnosisEngineExecuteOptions {
 export interface GnosisEngineExecutionResult {
   logs: string;
   payload: unknown;
-}
-
-type StructuredConcurrencyFailureMode = 'cancel' | 'vent' | 'shield';
-type StructuredBranchStatus =
-  | 'success'
-  | 'error'
-  | 'timeout'
-  | 'cancelled'
-  | 'vented';
-
-interface StructuredConcurrencyPolicy {
-  failure: StructuredConcurrencyFailureMode;
-  timeoutMs: number | null;
-  deadlineMs: number | null;
-}
-
-interface ConcurrentBranchOutcome {
-  path: string;
-  sid: number;
-  status: StructuredBranchStatus;
-  durationMs: number;
-  value?: unknown;
-  reason?: string;
-}
-
-interface ConcurrentBranchHandle {
-  path: string;
-  sid: number;
-  controller: AbortController;
-  promise: Promise<ConcurrentBranchOutcome>;
-  settled: boolean;
-  outcome?: ConcurrentBranchOutcome;
 }
 
 export class GnosisEngine {
@@ -617,82 +597,44 @@ export class GnosisEngine {
     execLogs: string[]
   ): Promise<{ payload: unknown; outcomes: ConcurrentBranchOutcome[] }> {
     execLogs.push(`   Racing paths: [${collapseEdge.sourceIds.join(', ')}]`);
-
-    const pending = new Map(
-      branches.map((branch) => [branch.path, branch.promise] as const)
-    );
-    let winner: ConcurrentBranchOutcome | null = null;
-
-    while (pending.size > 0) {
-      const settled = await Promise.race(
-        Array.from(pending.entries()).map(([path, promise]) =>
-          promise.then((outcome) => ({ path, outcome }))
-        )
+    const resolution = await resolveStructuredRace(branches, policy);
+    if (resolution.cancelledByFailure) {
+      execLogs.push(
+        `   [STRUCTURED] Race cancelled by ${resolution.cancelledByFailure.path} (${resolution.cancelledByFailure.status}).`
       );
-      pending.delete(settled.path);
-
-      if (settled.outcome.status === 'success') {
-        winner = settled.outcome;
-        this.cancelConcurrentBranches(
-          branches,
-          `cancelled after RACE winner '${settled.outcome.path}'.`,
-          settled.outcome.path
-        );
-        break;
-      }
-
-      if (
-        (settled.outcome.status === 'error' ||
-          settled.outcome.status === 'timeout') &&
-        policy.failure === 'cancel'
-      ) {
-        this.cancelConcurrentBranches(
-          branches,
-          `cancelled after ${settled.outcome.status} in '${settled.outcome.path}'.`,
-          settled.outcome.path
-        );
-        const outcomes = this.mapOutcomesForPolicy(
-          await this.collectConcurrentOutcomes(branches),
-          policy
-        );
-        execLogs.push(
-          `   [STRUCTURED] Race cancelled by ${settled.outcome.path} (${settled.outcome.status}).`
-        );
-        return {
-          payload: this.buildConcurrentFailurePayload(
-            collapseEdge.type,
-            policy,
-            outcomes,
-            settled.outcome
-          ),
-          outcomes,
-        };
-      }
+      return {
+        payload: this.buildConcurrentFailurePayload(
+          collapseEdge.type,
+          policy,
+          resolution.outcomes,
+          resolution.cancelledByFailure
+        ),
+        outcomes: [...resolution.outcomes],
+      };
     }
 
-    const outcomes = this.mapOutcomesForPolicy(
-      await this.collectConcurrentOutcomes(branches),
-      policy
-    );
-    if (winner) {
-      execLogs.push(`   Race concluded! Winner: ${winner.path}`);
-      return { payload: winner.value, outcomes };
+    if (resolution.winner) {
+      execLogs.push(`   Race concluded! Winner: ${resolution.winner.path}`);
+      return {
+        payload: resolution.winner.value,
+        outcomes: [...resolution.outcomes],
+      };
     }
 
     execLogs.push(
       `   [STRUCTURED] Race exhausted without a successful branch.`
     );
-    const primaryFailure = outcomes.find(
+    const primaryFailure = resolution.outcomes.find(
       (outcome) => outcome.status !== 'success'
     );
     return {
       payload: this.buildConcurrentFailurePayload(
         collapseEdge.type,
         policy,
-        outcomes,
+        [...resolution.outcomes],
         primaryFailure
       ),
-      outcomes,
+      outcomes: [...resolution.outcomes],
     };
   }
 
@@ -703,121 +645,44 @@ export class GnosisEngine {
     execLogs: string[]
   ): Promise<{ payload: unknown; outcomes: ConcurrentBranchOutcome[] }> {
     execLogs.push(`   Folding paths: [${collapseEdge.sourceIds.join(', ')}]`);
-
-    const pending = new Map(
-      branches.map((branch) => [branch.path, branch.promise] as const)
-    );
-
-    while (pending.size > 0) {
-      const settled = await Promise.race(
-        Array.from(pending.entries()).map(([path, promise]) =>
-          promise.then((outcome) => ({ path, outcome }))
-        )
+    const resolution = await resolveStructuredFold(branches, policy);
+    if (resolution.cancelledByFailure) {
+      execLogs.push(
+        `   [STRUCTURED] Fold cancelled by ${resolution.cancelledByFailure.path} (${resolution.cancelledByFailure.status}).`
       );
-      pending.delete(settled.path);
-
-      if (
-        (settled.outcome.status === 'error' ||
-          settled.outcome.status === 'timeout') &&
-        policy.failure === 'cancel'
-      ) {
-        this.cancelConcurrentBranches(
-          branches,
-          `cancelled after ${settled.outcome.status} in '${settled.outcome.path}'.`,
-          settled.outcome.path
-        );
-        const outcomes = this.mapOutcomesForPolicy(
-          await this.collectConcurrentOutcomes(branches),
-          policy
-        );
-        execLogs.push(
-          `   [STRUCTURED] Fold cancelled by ${settled.outcome.path} (${settled.outcome.status}).`
-        );
-        return {
-          payload: this.buildConcurrentFailurePayload(
-            collapseEdge.type,
-            policy,
-            outcomes,
-            settled.outcome
-          ),
-          outcomes,
-        };
-      }
+      return {
+        payload: this.buildConcurrentFailurePayload(
+          collapseEdge.type,
+          policy,
+          resolution.outcomes,
+          resolution.cancelledByFailure
+        ),
+        outcomes: [...resolution.outcomes],
+      };
     }
 
-    const outcomes = this.mapOutcomesForPolicy(
-      await this.collectConcurrentOutcomes(branches),
-      policy
-    );
-    if (!outcomes.some((outcome) => outcome.status === 'success')) {
+    if (!resolution.outcomes.some((outcome) => outcome.status === 'success')) {
       execLogs.push(`   [STRUCTURED] Fold produced no surviving branches.`);
       return {
         payload: this.buildConcurrentFailurePayload(
           collapseEdge.type,
           policy,
-          outcomes,
-          outcomes[0]
+          [...resolution.outcomes],
+          resolution.outcomes[0]
         ),
-        outcomes,
+        outcomes: [...resolution.outcomes],
       };
     }
 
-    const payload = this.mergeFoldOutcomes(outcomes, policy);
+    const payload = this.mergeFoldOutcomes([...resolution.outcomes], policy);
     execLogs.push(
       `   Folded result: ${JSON.stringify(payload).substring(0, 50)}...`
     );
-    return { payload, outcomes };
-  }
-
-  private async collectConcurrentOutcomes(
-    branches: ConcurrentBranchHandle[]
-  ): Promise<ConcurrentBranchOutcome[]> {
-    return Promise.all(branches.map((branch) => branch.promise));
-  }
-
-  private cancelConcurrentBranches(
-    branches: ConcurrentBranchHandle[],
-    reason: string,
-    survivorPath?: string
-  ): void {
-    for (const branch of branches) {
-      if (
-        branch.path === survivorPath ||
-        branch.settled ||
-        branch.controller.signal.aborted
-      ) {
-        continue;
-      }
-
-      branch.controller.abort({
-        kind: 'cancelled',
-        reason,
-      });
-    }
-  }
-
-  private mapOutcomesForPolicy(
-    outcomes: ConcurrentBranchOutcome[],
-    policy: StructuredConcurrencyPolicy
-  ): ConcurrentBranchOutcome[] {
-    if (policy.failure !== 'vent') {
-      return outcomes;
-    }
-
-    return outcomes.map((outcome) => {
-      if (outcome.status === 'error' || outcome.status === 'timeout') {
-        return {
-          ...outcome,
-          status: 'vented' as const,
-        };
-      }
-
-      return outcome;
-    });
+    return { payload, outcomes: [...resolution.outcomes] };
   }
 
   private mergeFoldOutcomes(
-    outcomes: ConcurrentBranchOutcome[],
+    outcomes: readonly ConcurrentBranchOutcome[],
     policy: StructuredConcurrencyPolicy
   ): unknown {
     const successfulValues = outcomes
@@ -867,7 +732,7 @@ export class GnosisEngine {
   private buildConcurrentFailurePayload(
     collapseType: string,
     policy: StructuredConcurrencyPolicy,
-    outcomes: ConcurrentBranchOutcome[],
+    outcomes: readonly ConcurrentBranchOutcome[],
     primaryFailure?: ConcurrentBranchOutcome
   ): { kind: 'err'; error: Record<string, unknown> } {
     return {

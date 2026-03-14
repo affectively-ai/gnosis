@@ -1,6 +1,17 @@
-import path from 'node:path';
 import type { GraphAST } from './compiler.js';
 import type { StabilityKernelEdge, StabilityReport, StabilityStateAssessment } from './stability.js';
+
+function basenameLike(filePath: string): string {
+  const normalized = filePath.replace(/\\/g, '/').replace(/\/+$/, '');
+  const segments = normalized.split('/');
+  return segments[segments.length - 1] ?? normalized;
+}
+
+function extnameLike(filePath: string): string {
+  const baseName = basenameLike(filePath);
+  const extensionStart = baseName.lastIndexOf('.');
+  return extensionStart > 0 ? baseName.slice(extensionStart) : '';
+}
 
 export interface GnosisLeanArtifact {
   moduleName: string;
@@ -61,7 +72,13 @@ function buildModuleName(options: GnosisLeanOptions): string {
   const rawName =
     options.moduleName ??
     (options.sourceFilePath
-      ? path.basename(options.sourceFilePath, path.extname(options.sourceFilePath))
+      ? (() => {
+          const extension = extnameLike(options.sourceFilePath!);
+          const baseName = basenameLike(options.sourceFilePath!);
+          return extension
+            ? baseName.slice(0, Math.max(0, baseName.length - extension.length))
+            : baseName;
+        })()
       : 'gnosis_generated');
   return sanitizeLeanIdentifier(rawName);
 }
@@ -421,6 +438,26 @@ def queueMinorizationFloor : Real := ${queueMinorizationFloor}
 
 def queueSmallSet : Set Nat := {current : Nat | current <= queueBoundary}
 
+def queueSupportStep : Nat -> Nat :=
+  fun current => if current <= queueBoundary then queueAtom else current - 1
+
+noncomputable def queueSupportKernel : ProbabilityTheory.Kernel Nat Nat :=
+  ProbabilityTheory.Kernel.deterministic queueSupportStep (measurable_of_countable queueSupportStep)
+
+noncomputable def queueWitnessKernel : ProbabilityTheory.Kernel Nat Nat :=
+  natQueueWitnessKernel queueBoundary queueAtom
+
+noncomputable def queueAtomMeasure : MeasureTheory.Measure Nat :=
+  MeasureTheory.Measure.dirac queueAtom
+
+def queueMeasurableEpsilon : ENNReal := 1
+
+def queueAtomHittingBound : Nat -> Nat :=
+  fun current => current - queueBoundary + 1
+
+def queueWitnessHittingBound : Nat -> Nat :=
+  fun _ => 1
+
 def queueKernel (lam mu : Real) (alpha : Nat -> Real) : CountableCertifiedKernel Nat := {
   transition := fun current target =>
     if current <= queueBoundary then
@@ -605,79 +642,311 @@ theorem ${theoremName}_laminar_geometric_stable
     ${theoremName}_geometric_envelope
     ${theoremName}_atom_hit_lower_bound
 
-theorem ${theoremName}_measurable_harris_certified
-  (queueMeasurableKernel : ProbabilityTheory.Kernel Nat Nat)
-  (invariantMeasure minorizationMeasure : MeasureTheory.Measure Nat)
-  (queueEpsilon : ENNReal)
-  (h_atom_accessible : MeasurableAtomAccessible queueMeasurableKernel queueAtom)
-  (h_invariant : ProbabilityTheory.Kernel.Invariant queueMeasurableKernel invariantMeasure)
-  (h_small :
-    MeasurableSmallSetMinorized queueMeasurableKernel queueSmallSet minorizationMeasure queueEpsilon) :
-  MeasurableHarrisCertified
-      queueMeasurableKernel
-      (MeasureTheory.Measure.dirac queueAtom)
-      invariantMeasure
-      minorizationMeasure
-      queueSmallSet
-      queueEpsilon := by
-  exact measurableHarrisCertified_of_atomAccessible
-    queueMeasurableKernel
+theorem ${theoremName}_measurable_atom_accessible
+  : MeasurableAtomAccessible queueSupportKernel queueAtom := by
+  exact natMeasurableAtomAccessible_of_queueStep
+    queueBoundary
     queueAtom
-    invariantMeasure
-    minorizationMeasure
-    queueSmallSet
-    queueEpsilon
-    (by simp [queueSmallSet, queueAtom, queueBoundary])
-    h_atom_accessible
-    h_invariant
-    h_small
 
-theorem ${theoremName}_measurable_small_set_accessible
-  (queueMeasurableKernel : ProbabilityTheory.Kernel Nat Nat)
-  (invariantMeasure minorizationMeasure : MeasureTheory.Measure Nat)
-  (queueEpsilon : ENNReal)
-  (h_atom_accessible : MeasurableAtomAccessible queueMeasurableKernel queueAtom)
-  (h_invariant : ProbabilityTheory.Kernel.Invariant queueMeasurableKernel invariantMeasure)
-  (h_small :
-    MeasurableSmallSetMinorized queueMeasurableKernel queueSmallSet minorizationMeasure queueEpsilon) :
-  MeasurableSmallSetAccessible queueMeasurableKernel queueSmallSet := by
-  exact measurableSmallSetAccessible_of_atomAccessible
-    queueMeasurableKernel
+theorem ${theoremName}_measurable_harris_certified :
+  MeasurableHarrisCertified
+      queueSupportKernel
+      queueAtomMeasure
+      queueAtomMeasure
+      queueAtomMeasure
+      queueSmallSet
+      queueMeasurableEpsilon := by
+  simpa [queueSupportKernel, queueSupportStep, queueAtomMeasure, queueMeasurableEpsilon] using
+    (natMeasurableHarrisCertified_of_queueStep
+      queueBoundary
+      queueAtom
+      (by simp [queueAtom, queueBoundary]))
+
+theorem ${theoremName}_measurable_laminar_certified :
+  MeasurableLaminarCertifiedAtAtom
+      queueSupportKernel
+      queueAtom
+      queueAtomMeasure
+      queueAtomMeasure
+      queueSmallSet
+      queueMeasurableEpsilon := by
+  simpa [queueSupportKernel, queueSupportStep, queueAtomMeasure, queueMeasurableEpsilon] using
+    (natMeasurableLaminarCertified_of_queueStep
+      queueBoundary
+      queueAtom
+      (by simp [queueAtom, queueBoundary]))
+
+theorem ${theoremName}_measurable_atom_hitting_bound :
+  MeasurableAtomHittingBoundAtAtom
+      queueSupportKernel
+      queueAtom
+      queueAtomHittingBound := by
+  simpa [queueSupportKernel, queueSupportStep, queueAtomHittingBound] using
+    (natMeasurableAtomHittingBound_of_queueStep
+      queueBoundary
+      queueAtom)
+
+theorem ${theoremName}_measurable_quantitative_laminar_certified :
+  MeasurableQuantitativeLaminarCertifiedAtAtom
+      queueSupportKernel
+      queueAtom
+      queueAtomMeasure
+      queueAtomMeasure
+      queueSmallSet
+      queueMeasurableEpsilon
+      queueAtomHittingBound := by
+  simpa [queueSupportKernel, queueSupportStep, queueAtomMeasure, queueMeasurableEpsilon, queueAtomHittingBound] using
+    (natMeasurableQuantitativeLaminarCertified_of_queueStep
+      queueBoundary
+      queueAtom
+      (by simp [queueAtom, queueBoundary]))
+
+theorem ${theoremName}_measurable_quantitative_harris_certified :
+  MeasurableQuantitativeHarrisCertified
+      queueSupportKernel
+      queueAtomMeasure
+      queueAtomMeasure
+      queueAtomMeasure
+      queueSmallSet
+      queueMeasurableEpsilon
+      queueAtomHittingBound := by
+  exact measurableQuantitativeHarrisCertified_of_quantitativeLaminarCertifiedAtAtom
+    queueSupportKernel
     queueAtom
-    invariantMeasure
-    minorizationMeasure
+    queueAtomMeasure
+    queueAtomMeasure
     queueSmallSet
-    queueEpsilon
+    queueMeasurableEpsilon
+    queueAtomHittingBound
+    ${theoremName}_measurable_quantitative_laminar_certified
+
+theorem ${theoremName}_measurable_witness_quantitative_harris_certified :
+  MeasurableQuantitativeHarrisCertified
+      queueWitnessKernel
+      queueAtomMeasure
+      queueAtomMeasure
+      queueAtomMeasure
+      queueSmallSet
+      queueMeasurableEpsilon
+      queueWitnessHittingBound := by
+  simpa [queueWitnessKernel, queueAtomMeasure, queueMeasurableEpsilon, queueWitnessHittingBound] using
+    (natMeasurableQuantitativeHarrisCertified_of_queueWitnessKernel
+      queueBoundary
+      queueAtom
+      (by simp [queueAtom, queueBoundary]))
+
+theorem ${theoremName}_measurable_eventually_converges :
+  MeasurableEventuallyConvergesToReference
+      queueSupportKernel
+      queueAtomMeasure
+      queueAtomHittingBound := by
+  simpa [queueSupportKernel, queueSupportStep, queueAtomMeasure, queueAtomHittingBound] using
+    (natMeasurableEventuallyConvergesToAtom_of_queueStep
+      queueBoundary
+      queueAtom
+      (by simp [queueAtom, queueBoundary]))
+
+theorem ${theoremName}_measurable_small_set_hitting_bound :
+  forall current : Nat,
+    ∃ n : ℕ, n <= queueAtomHittingBound current ∧ (queueSupportKernel ^ n) current queueSmallSet > 0 := by
+  exact measurableSmallSetHittingBound_of_quantitativeLaminarCertifiedAtAtom
+    queueSupportKernel
+    queueAtom
+    queueAtomMeasure
+    queueAtomMeasure
+    queueSmallSet
+    queueMeasurableEpsilon
+    queueAtomHittingBound
     (by simp [queueSmallSet, queueAtom, queueBoundary])
-    h_atom_accessible
-    h_invariant
-    h_small
+    ${theoremName}_measurable_quantitative_laminar_certified
+
+theorem ${theoremName}_measurable_containing_atom_hitting_bound
+  (measurableSet : Set Nat)
+  (h_atom_mem : queueAtom ∈ measurableSet) :
+  forall current : Nat,
+    ∃ n : ℕ, n <= queueAtomHittingBound current ∧ (queueSupportKernel ^ n) current measurableSet > 0 := by
+  exact measurableContainingAtomHittingBound_of_quantitativeLaminarCertifiedAtAtom
+    queueSupportKernel
+    queueAtom
+    queueAtomMeasure
+    queueAtomMeasure
+    queueSmallSet
+    measurableSet
+    queueMeasurableEpsilon
+    queueAtomHittingBound
+    ${theoremName}_measurable_quantitative_laminar_certified
+    h_atom_mem
+
+theorem ${theoremName}_measurable_reference_positive_hitting_bound
+  (measurableSet : Set Nat)
+  (h_measurableSet : MeasurableSet measurableSet)
+  (h_positive : queueAtomMeasure measurableSet > 0) :
+  forall current : Nat,
+    ∃ n : ℕ, n <= queueAtomHittingBound current ∧ (queueSupportKernel ^ n) current measurableSet > 0 := by
+  exact measurableReferencePositiveHittingBound_of_quantitativeLaminarCertifiedAtAtom
+    queueSupportKernel
+    queueAtom
+    queueAtomMeasure
+    queueAtomMeasure
+    queueSmallSet
+    queueMeasurableEpsilon
+    queueAtomHittingBound
+    ${theoremName}_measurable_quantitative_laminar_certified
+    measurableSet
+    h_measurableSet
+    h_positive
+
+theorem ${theoremName}_measurable_witness_reference_positive_hitting_bound
+  (measurableSet : Set Nat)
+  (h_measurableSet : MeasurableSet measurableSet)
+  (h_positive : queueAtomMeasure measurableSet > 0) :
+  forall current : Nat,
+    ∃ n : ℕ, n <= queueWitnessHittingBound current ∧ (queueWitnessKernel ^ n) current measurableSet > 0 := by
+  exact ${theoremName}_measurable_witness_quantitative_harris_certified.2
+    measurableSet
+    h_measurableSet
+    h_positive
+
+theorem ${theoremName}_measurable_reference_positive_persistent
+  (measurableSet : Set Nat)
+  (h_measurableSet : MeasurableSet measurableSet)
+  (h_positive : queueAtomMeasure measurableSet > 0) :
+  forall current : Nat,
+    forall n : Nat,
+      queueAtomHittingBound current <= n ->
+        (queueSupportKernel ^ n) current measurableSet > 0 := by
+  exact measurableReferencePositivePersistent_of_eventualConvergence
+    queueSupportKernel
+    queueAtomMeasure
+    queueAtomHittingBound
+    ${theoremName}_measurable_eventually_converges
+    measurableSet
+    h_measurableSet
+    h_positive
+
+theorem ${theoremName}_measurable_finite_time_harris_recurrent :
+  MeasurableFiniteTimeHarrisRecurrent
+      queueSupportKernel
+      queueAtomMeasure
+      queueAtomMeasure
+      queueAtomMeasure
+      queueSmallSet
+      queueMeasurableEpsilon
+      queueAtomHittingBound := by
+  exact measurableFiniteTimeHarrisRecurrent_of_quantitativeHarris_and_convergence
+    queueSupportKernel
+    queueAtomMeasure
+    queueAtomMeasure
+    queueAtomMeasure
+    queueSmallSet
+    queueMeasurableEpsilon
+    queueAtomHittingBound
+    ${theoremName}_measurable_quantitative_harris_certified
+    ${theoremName}_measurable_eventually_converges
+
+theorem ${theoremName}_measurable_harris_recurrent :
+  MeasurableHarrisRecurrent
+      queueSupportKernel
+      queueAtomMeasure := by
+  exact measurableHarrisRecurrent_of_finiteTimeHarrisRecurrent
+    queueSupportKernel
+    queueAtomMeasure
+    queueAtomMeasure
+    queueAtomMeasure
+    queueSmallSet
+    queueMeasurableEpsilon
+    queueAtomHittingBound
+    ${theoremName}_measurable_finite_time_harris_recurrent
+
+theorem ${theoremName}_measurable_finite_time_geometric_ergodic :
+  MeasurableFiniteTimeGeometricErgodic
+      queueSupportKernel
+      queueAtomMeasure
+      queueAtomHittingBound := by
+  exact measurableFiniteTimeGeometricErgodic_of_finiteTimeHarrisRecurrent
+    queueSupportKernel
+    queueAtomMeasure
+    queueAtomMeasure
+    queueAtomMeasure
+    queueSmallSet
+    queueMeasurableEpsilon
+    queueAtomHittingBound
+    ${theoremName}_measurable_finite_time_harris_recurrent
+
+theorem ${theoremName}_measurable_levy_prokhorov_geometric_ergodic :
+  MeasurableFiniteTimeLevyProkhorovGeometricErgodic
+      queueSupportKernel
+      queueAtomMeasure
+      queueAtomHittingBound := by
+  exact measurableFiniteTimeLevyProkhorovGeometricErgodic_of_finiteTimeHarrisRecurrent
+    queueSupportKernel
+    queueAtomMeasure
+    queueAtomMeasure
+    queueAtomMeasure
+    queueSmallSet
+    queueMeasurableEpsilon
+    queueAtomHittingBound
+    ${theoremName}_measurable_finite_time_harris_recurrent
+
+theorem ${theoremName}_measurable_levy_prokhorov_geometric_decay :
+  MeasurableLevyProkhorovGeometricDecayAfterBurnIn
+      queueSupportKernel
+      queueAtomMeasure
+      queueAtomHittingBound
+      (1 / 2) := by
+  exact measurableLevyProkhorovGeometricDecayAfterBurnIn_of_finiteTimeHarrisRecurrent
+    queueSupportKernel
+    queueAtomMeasure
+    queueAtomMeasure
+    queueAtomMeasure
+    queueSmallSet
+    queueMeasurableEpsilon
+    queueAtomHittingBound
+    (1 / 2)
+    (by norm_num)
+    (by norm_num)
+    ${theoremName}_measurable_finite_time_harris_recurrent
+
+theorem ${theoremName}_measurable_levy_prokhorov_geometric_ergodic_abstract :
+  MeasurableLevyProkhorovGeometricErgodic
+      queueSupportKernel
+      queueAtomMeasure := by
+  exact measurableLevyProkhorovGeometricErgodic_of_finiteTimeHarrisRecurrent
+    queueSupportKernel
+    queueAtomMeasure
+    queueAtomMeasure
+    queueAtomMeasure
+    queueSmallSet
+    queueMeasurableEpsilon
+    queueAtomHittingBound
+    ${theoremName}_measurable_finite_time_harris_recurrent
+
+theorem ${theoremName}_measurable_small_set_accessible :
+  MeasurableSmallSetAccessible queueSupportKernel queueSmallSet := by
+  exact measurableSmallSetAccessible_of_laminarCertifiedAtAtom
+    queueSupportKernel
+    queueAtom
+    queueAtomMeasure
+    queueAtomMeasure
+    queueSmallSet
+    queueMeasurableEpsilon
+    ${theoremName}_measurable_laminar_certified
 
 theorem ${theoremName}_measurable_containing_atom_accessible
-  (queueMeasurableKernel : ProbabilityTheory.Kernel Nat Nat)
-  (invariantMeasure minorizationMeasure : MeasureTheory.Measure Nat)
-  (queueEpsilon : ENNReal)
   (measurableSet : Set Nat)
-  (h_atom_accessible : MeasurableAtomAccessible queueMeasurableKernel queueAtom)
-  (h_invariant : ProbabilityTheory.Kernel.Invariant queueMeasurableKernel invariantMeasure)
-  (h_small :
-    MeasurableSmallSetMinorized queueMeasurableKernel queueSmallSet minorizationMeasure queueEpsilon)
   (h_measurableSet : MeasurableSet measurableSet)
   (h_atom_mem : queueAtom ∈ measurableSet) :
   forall current : Nat,
-    ∃ n : ℕ, (queueMeasurableKernel ^ n) current measurableSet > 0 := by
-  exact measurableContainingAtomAccessible_of_atomAccessible
-    queueMeasurableKernel
+    ∃ n : ℕ, (queueSupportKernel ^ n) current measurableSet > 0 := by
+  exact measurableContainingAtomAccessible_of_laminarCertifiedAtAtom
+    queueSupportKernel
     queueAtom
-    invariantMeasure
-    minorizationMeasure
+    queueAtomMeasure
+    queueAtomMeasure
     queueSmallSet
     measurableSet
-    queueEpsilon
-    (by simp [queueSmallSet, queueAtom, queueBoundary])
-    h_atom_accessible
-    h_invariant
-    h_small
+    queueMeasurableEpsilon
+    ${theoremName}_measurable_laminar_certified
     h_measurableSet
     h_atom_mem`,
     };
@@ -926,79 +1195,311 @@ theorem ${theoremName}_laminar_geometric_stable
     (${theoremName}_geometric_envelope lam mu alpha h_drift_floor)
     (${theoremName}_atom_hit_lower_bound lam mu alpha h_drift_floor)
 
-theorem ${theoremName}_measurable_harris_certified
-  (queueMeasurableKernel : ProbabilityTheory.Kernel Nat Nat)
-  (invariantMeasure minorizationMeasure : MeasureTheory.Measure Nat)
-  (queueEpsilon : ENNReal)
-  (h_atom_accessible : MeasurableAtomAccessible queueMeasurableKernel queueAtom)
-  (h_invariant : ProbabilityTheory.Kernel.Invariant queueMeasurableKernel invariantMeasure)
-  (h_small :
-    MeasurableSmallSetMinorized queueMeasurableKernel queueSmallSet minorizationMeasure queueEpsilon) :
-  MeasurableHarrisCertified
-      queueMeasurableKernel
-      (MeasureTheory.Measure.dirac queueAtom)
-      invariantMeasure
-      minorizationMeasure
-      queueSmallSet
-      queueEpsilon := by
-  exact measurableHarrisCertified_of_atomAccessible
-    queueMeasurableKernel
+theorem ${theoremName}_measurable_atom_accessible
+  : MeasurableAtomAccessible queueSupportKernel queueAtom := by
+  exact natMeasurableAtomAccessible_of_queueStep
+    queueBoundary
     queueAtom
-    invariantMeasure
-    minorizationMeasure
-    queueSmallSet
-    queueEpsilon
-    (by simp [queueSmallSet, queueAtom, queueBoundary])
-    h_atom_accessible
-    h_invariant
-    h_small
 
-theorem ${theoremName}_measurable_small_set_accessible
-  (queueMeasurableKernel : ProbabilityTheory.Kernel Nat Nat)
-  (invariantMeasure minorizationMeasure : MeasureTheory.Measure Nat)
-  (queueEpsilon : ENNReal)
-  (h_atom_accessible : MeasurableAtomAccessible queueMeasurableKernel queueAtom)
-  (h_invariant : ProbabilityTheory.Kernel.Invariant queueMeasurableKernel invariantMeasure)
-  (h_small :
-    MeasurableSmallSetMinorized queueMeasurableKernel queueSmallSet minorizationMeasure queueEpsilon) :
-  MeasurableSmallSetAccessible queueMeasurableKernel queueSmallSet := by
-  exact measurableSmallSetAccessible_of_atomAccessible
-    queueMeasurableKernel
+theorem ${theoremName}_measurable_harris_certified :
+  MeasurableHarrisCertified
+      queueSupportKernel
+      queueAtomMeasure
+      queueAtomMeasure
+      queueAtomMeasure
+      queueSmallSet
+      queueMeasurableEpsilon := by
+  simpa [queueSupportKernel, queueSupportStep, queueAtomMeasure, queueMeasurableEpsilon] using
+    (natMeasurableHarrisCertified_of_queueStep
+      queueBoundary
+      queueAtom
+      (by simp [queueAtom, queueBoundary]))
+
+theorem ${theoremName}_measurable_laminar_certified :
+  MeasurableLaminarCertifiedAtAtom
+      queueSupportKernel
+      queueAtom
+      queueAtomMeasure
+      queueAtomMeasure
+      queueSmallSet
+      queueMeasurableEpsilon := by
+  simpa [queueSupportKernel, queueSupportStep, queueAtomMeasure, queueMeasurableEpsilon] using
+    (natMeasurableLaminarCertified_of_queueStep
+      queueBoundary
+      queueAtom
+      (by simp [queueAtom, queueBoundary]))
+
+theorem ${theoremName}_measurable_atom_hitting_bound :
+  MeasurableAtomHittingBoundAtAtom
+      queueSupportKernel
+      queueAtom
+      queueAtomHittingBound := by
+  simpa [queueSupportKernel, queueSupportStep, queueAtomHittingBound] using
+    (natMeasurableAtomHittingBound_of_queueStep
+      queueBoundary
+      queueAtom)
+
+theorem ${theoremName}_measurable_quantitative_laminar_certified :
+  MeasurableQuantitativeLaminarCertifiedAtAtom
+      queueSupportKernel
+      queueAtom
+      queueAtomMeasure
+      queueAtomMeasure
+      queueSmallSet
+      queueMeasurableEpsilon
+      queueAtomHittingBound := by
+  simpa [queueSupportKernel, queueSupportStep, queueAtomMeasure, queueMeasurableEpsilon, queueAtomHittingBound] using
+    (natMeasurableQuantitativeLaminarCertified_of_queueStep
+      queueBoundary
+      queueAtom
+      (by simp [queueAtom, queueBoundary]))
+
+theorem ${theoremName}_measurable_quantitative_harris_certified :
+  MeasurableQuantitativeHarrisCertified
+      queueSupportKernel
+      queueAtomMeasure
+      queueAtomMeasure
+      queueAtomMeasure
+      queueSmallSet
+      queueMeasurableEpsilon
+      queueAtomHittingBound := by
+  exact measurableQuantitativeHarrisCertified_of_quantitativeLaminarCertifiedAtAtom
+    queueSupportKernel
     queueAtom
-    invariantMeasure
-    minorizationMeasure
+    queueAtomMeasure
+    queueAtomMeasure
     queueSmallSet
-    queueEpsilon
+    queueMeasurableEpsilon
+    queueAtomHittingBound
+    ${theoremName}_measurable_quantitative_laminar_certified
+
+theorem ${theoremName}_measurable_witness_quantitative_harris_certified :
+  MeasurableQuantitativeHarrisCertified
+      queueWitnessKernel
+      queueAtomMeasure
+      queueAtomMeasure
+      queueAtomMeasure
+      queueSmallSet
+      queueMeasurableEpsilon
+      queueWitnessHittingBound := by
+  simpa [queueWitnessKernel, queueAtomMeasure, queueMeasurableEpsilon, queueWitnessHittingBound] using
+    (natMeasurableQuantitativeHarrisCertified_of_queueWitnessKernel
+      queueBoundary
+      queueAtom
+      (by simp [queueAtom, queueBoundary]))
+
+theorem ${theoremName}_measurable_eventually_converges :
+  MeasurableEventuallyConvergesToReference
+      queueSupportKernel
+      queueAtomMeasure
+      queueAtomHittingBound := by
+  simpa [queueSupportKernel, queueSupportStep, queueAtomMeasure, queueAtomHittingBound] using
+    (natMeasurableEventuallyConvergesToAtom_of_queueStep
+      queueBoundary
+      queueAtom
+      (by simp [queueAtom, queueBoundary]))
+
+theorem ${theoremName}_measurable_small_set_hitting_bound :
+  forall current : Nat,
+    ∃ n : ℕ, n <= queueAtomHittingBound current ∧ (queueSupportKernel ^ n) current queueSmallSet > 0 := by
+  exact measurableSmallSetHittingBound_of_quantitativeLaminarCertifiedAtAtom
+    queueSupportKernel
+    queueAtom
+    queueAtomMeasure
+    queueAtomMeasure
+    queueSmallSet
+    queueMeasurableEpsilon
+    queueAtomHittingBound
     (by simp [queueSmallSet, queueAtom, queueBoundary])
-    h_atom_accessible
-    h_invariant
-    h_small
+    ${theoremName}_measurable_quantitative_laminar_certified
+
+theorem ${theoremName}_measurable_containing_atom_hitting_bound
+  (measurableSet : Set Nat)
+  (h_atom_mem : queueAtom ∈ measurableSet) :
+  forall current : Nat,
+    ∃ n : ℕ, n <= queueAtomHittingBound current ∧ (queueSupportKernel ^ n) current measurableSet > 0 := by
+  exact measurableContainingAtomHittingBound_of_quantitativeLaminarCertifiedAtAtom
+    queueSupportKernel
+    queueAtom
+    queueAtomMeasure
+    queueAtomMeasure
+    queueSmallSet
+    measurableSet
+    queueMeasurableEpsilon
+    queueAtomHittingBound
+    ${theoremName}_measurable_quantitative_laminar_certified
+    h_atom_mem
+
+theorem ${theoremName}_measurable_reference_positive_hitting_bound
+  (measurableSet : Set Nat)
+  (h_measurableSet : MeasurableSet measurableSet)
+  (h_positive : queueAtomMeasure measurableSet > 0) :
+  forall current : Nat,
+    ∃ n : ℕ, n <= queueAtomHittingBound current ∧ (queueSupportKernel ^ n) current measurableSet > 0 := by
+  exact measurableReferencePositiveHittingBound_of_quantitativeLaminarCertifiedAtAtom
+    queueSupportKernel
+    queueAtom
+    queueAtomMeasure
+    queueAtomMeasure
+    queueSmallSet
+    queueMeasurableEpsilon
+    queueAtomHittingBound
+    ${theoremName}_measurable_quantitative_laminar_certified
+    measurableSet
+    h_measurableSet
+    h_positive
+
+theorem ${theoremName}_measurable_witness_reference_positive_hitting_bound
+  (measurableSet : Set Nat)
+  (h_measurableSet : MeasurableSet measurableSet)
+  (h_positive : queueAtomMeasure measurableSet > 0) :
+  forall current : Nat,
+    ∃ n : ℕ, n <= queueWitnessHittingBound current ∧ (queueWitnessKernel ^ n) current measurableSet > 0 := by
+  exact ${theoremName}_measurable_witness_quantitative_harris_certified.2
+    measurableSet
+    h_measurableSet
+    h_positive
+
+theorem ${theoremName}_measurable_reference_positive_persistent
+  (measurableSet : Set Nat)
+  (h_measurableSet : MeasurableSet measurableSet)
+  (h_positive : queueAtomMeasure measurableSet > 0) :
+  forall current : Nat,
+    forall n : Nat,
+      queueAtomHittingBound current <= n ->
+        (queueSupportKernel ^ n) current measurableSet > 0 := by
+  exact measurableReferencePositivePersistent_of_eventualConvergence
+    queueSupportKernel
+    queueAtomMeasure
+    queueAtomHittingBound
+    ${theoremName}_measurable_eventually_converges
+    measurableSet
+    h_measurableSet
+    h_positive
+
+theorem ${theoremName}_measurable_finite_time_harris_recurrent :
+  MeasurableFiniteTimeHarrisRecurrent
+      queueSupportKernel
+      queueAtomMeasure
+      queueAtomMeasure
+      queueAtomMeasure
+      queueSmallSet
+      queueMeasurableEpsilon
+      queueAtomHittingBound := by
+  exact measurableFiniteTimeHarrisRecurrent_of_quantitativeHarris_and_convergence
+    queueSupportKernel
+    queueAtomMeasure
+    queueAtomMeasure
+    queueAtomMeasure
+    queueSmallSet
+    queueMeasurableEpsilon
+    queueAtomHittingBound
+    ${theoremName}_measurable_quantitative_harris_certified
+    ${theoremName}_measurable_eventually_converges
+
+theorem ${theoremName}_measurable_harris_recurrent :
+  MeasurableHarrisRecurrent
+      queueSupportKernel
+      queueAtomMeasure := by
+  exact measurableHarrisRecurrent_of_finiteTimeHarrisRecurrent
+    queueSupportKernel
+    queueAtomMeasure
+    queueAtomMeasure
+    queueAtomMeasure
+    queueSmallSet
+    queueMeasurableEpsilon
+    queueAtomHittingBound
+    ${theoremName}_measurable_finite_time_harris_recurrent
+
+theorem ${theoremName}_measurable_finite_time_geometric_ergodic :
+  MeasurableFiniteTimeGeometricErgodic
+      queueSupportKernel
+      queueAtomMeasure
+      queueAtomHittingBound := by
+  exact measurableFiniteTimeGeometricErgodic_of_finiteTimeHarrisRecurrent
+    queueSupportKernel
+    queueAtomMeasure
+    queueAtomMeasure
+    queueAtomMeasure
+    queueSmallSet
+    queueMeasurableEpsilon
+    queueAtomHittingBound
+    ${theoremName}_measurable_finite_time_harris_recurrent
+
+theorem ${theoremName}_measurable_levy_prokhorov_geometric_ergodic :
+  MeasurableFiniteTimeLevyProkhorovGeometricErgodic
+      queueSupportKernel
+      queueAtomMeasure
+      queueAtomHittingBound := by
+  exact measurableFiniteTimeLevyProkhorovGeometricErgodic_of_finiteTimeHarrisRecurrent
+    queueSupportKernel
+    queueAtomMeasure
+    queueAtomMeasure
+    queueAtomMeasure
+    queueSmallSet
+    queueMeasurableEpsilon
+    queueAtomHittingBound
+    ${theoremName}_measurable_finite_time_harris_recurrent
+
+theorem ${theoremName}_measurable_levy_prokhorov_geometric_decay :
+  MeasurableLevyProkhorovGeometricDecayAfterBurnIn
+      queueSupportKernel
+      queueAtomMeasure
+      queueAtomHittingBound
+      (1 / 2) := by
+  exact measurableLevyProkhorovGeometricDecayAfterBurnIn_of_finiteTimeHarrisRecurrent
+    queueSupportKernel
+    queueAtomMeasure
+    queueAtomMeasure
+    queueAtomMeasure
+    queueSmallSet
+    queueMeasurableEpsilon
+    queueAtomHittingBound
+    (1 / 2)
+    (by norm_num)
+    (by norm_num)
+    ${theoremName}_measurable_finite_time_harris_recurrent
+
+theorem ${theoremName}_measurable_levy_prokhorov_geometric_ergodic_abstract :
+  MeasurableLevyProkhorovGeometricErgodic
+      queueSupportKernel
+      queueAtomMeasure := by
+  exact measurableLevyProkhorovGeometricErgodic_of_finiteTimeHarrisRecurrent
+    queueSupportKernel
+    queueAtomMeasure
+    queueAtomMeasure
+    queueAtomMeasure
+    queueSmallSet
+    queueMeasurableEpsilon
+    queueAtomHittingBound
+    ${theoremName}_measurable_finite_time_harris_recurrent
+
+theorem ${theoremName}_measurable_small_set_accessible :
+  MeasurableSmallSetAccessible queueSupportKernel queueSmallSet := by
+  exact measurableSmallSetAccessible_of_laminarCertifiedAtAtom
+    queueSupportKernel
+    queueAtom
+    queueAtomMeasure
+    queueAtomMeasure
+    queueSmallSet
+    queueMeasurableEpsilon
+    ${theoremName}_measurable_laminar_certified
 
 theorem ${theoremName}_measurable_containing_atom_accessible
-  (queueMeasurableKernel : ProbabilityTheory.Kernel Nat Nat)
-  (invariantMeasure minorizationMeasure : MeasureTheory.Measure Nat)
-  (queueEpsilon : ENNReal)
   (measurableSet : Set Nat)
-  (h_atom_accessible : MeasurableAtomAccessible queueMeasurableKernel queueAtom)
-  (h_invariant : ProbabilityTheory.Kernel.Invariant queueMeasurableKernel invariantMeasure)
-  (h_small :
-    MeasurableSmallSetMinorized queueMeasurableKernel queueSmallSet minorizationMeasure queueEpsilon)
   (h_measurableSet : MeasurableSet measurableSet)
   (h_atom_mem : queueAtom ∈ measurableSet) :
   forall current : Nat,
-    ∃ n : ℕ, (queueMeasurableKernel ^ n) current measurableSet > 0 := by
-  exact measurableContainingAtomAccessible_of_atomAccessible
-    queueMeasurableKernel
+    ∃ n : ℕ, (queueSupportKernel ^ n) current measurableSet > 0 := by
+  exact measurableContainingAtomAccessible_of_laminarCertifiedAtAtom
+    queueSupportKernel
     queueAtom
-    invariantMeasure
-    minorizationMeasure
+    queueAtomMeasure
+    queueAtomMeasure
     queueSmallSet
     measurableSet
-    queueEpsilon
-    (by simp [queueSmallSet, queueAtom, queueBoundary])
-    h_atom_accessible
-    h_invariant
-    h_small
+    queueMeasurableEpsilon
+    ${theoremName}_measurable_laminar_certified
     h_measurableSet
     h_atom_mem`,
   };

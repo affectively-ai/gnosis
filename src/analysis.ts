@@ -1,9 +1,9 @@
-import { performance } from 'node:perf_hooks';
 import {
   checkGgProgram,
   getGgTerminalNodeIds,
   parseGgProgram,
   type CheckerResult,
+  type CheckerTopologyStats,
   type GgTopologyState,
 } from '@affectively/aeon-logic';
 import {
@@ -26,6 +26,12 @@ import {
   type PointsDescription,
   type SeriesDescription,
 } from 'twokeys';
+
+const performance =
+  globalThis.performance ??
+  ({
+    now: (): number => Date.now(),
+  } satisfies Pick<Performance, 'now'>);
 
 export interface GnosisLineMetrics {
   totalLines: number;
@@ -184,6 +190,10 @@ export interface GnosisAnalyzeOptions {
   target?: RuntimeTarget;
   steeringMode?: GnosisSteeringMode;
 }
+
+type WallaceAliasTarget = {
+  readonly wallaceNumber: number;
+};
 
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
@@ -720,14 +730,59 @@ export function finishSteeringTelemetry(
   };
 }
 
+function withLegacyWallaceAliases<T extends WallaceAliasTarget>(
+  value: T
+): T & Pick<GnosisSteeringMetrics, 'wally' | 'frontierDeficit'> {
+  return Object.defineProperties(value, {
+    wally: {
+      get: (): number => value.wallaceNumber,
+      enumerable: false,
+      configurable: true,
+    },
+    frontierDeficit: {
+      get: (): number => value.wallaceNumber,
+      enumerable: false,
+      configurable: true,
+    },
+  }) as T & Pick<GnosisSteeringMetrics, 'wally' | 'frontierDeficit'>;
+}
+
+function normalizeCheckerTopology(
+  topology: CheckerTopologyStats
+): CheckerTopologyStats {
+  const {
+    wally: _legacyWally,
+    frontierDeficit: _legacyFrontierDeficit,
+    ...canonicalTopology
+  } = topology;
+  return withLegacyWallaceAliases({
+    ...canonicalTopology,
+    wallaceNumber: topology.wallaceNumber,
+  }) as CheckerTopologyStats;
+}
+
+function normalizeSteeringMetrics(
+  steering: GnosisSteeringMetrics
+): GnosisSteeringMetrics {
+  const {
+    wally: _legacyWally,
+    frontierDeficit: _legacyFrontierDeficit,
+    ...canonicalSteering
+  } = steering;
+  return withLegacyWallaceAliases({
+    ...canonicalSteering,
+    wallaceNumber: steering.wallaceNumber,
+  }) as GnosisSteeringMetrics;
+}
+
 export function withSteeringTelemetry(
   steering: GnosisSteeringMetrics,
   telemetry: GnosisSteeringTelemetry
 ): GnosisSteeringMetrics {
-  return {
+  return normalizeSteeringMetrics({
     ...steering,
     telemetry,
-  };
+  });
 }
 
 function buildSteeringMetrics(
@@ -769,7 +824,7 @@ function buildSteeringMetrics(
     correctness
   );
 
-  return {
+  return normalizeSteeringMetrics({
     mode,
     autoApplyEnabled: mode === 'apply',
     applySupported: false,
@@ -788,7 +843,7 @@ function buildSteeringMetrics(
     failureBoundary,
     eda: buildSteeringEda(program, correctness),
     telemetry: createEmptySteeringTelemetry(),
-  };
+  });
 }
 
 function buildQuantumMetrics(
@@ -898,12 +953,16 @@ export async function analyzeGnosisSource(
   const program = parseGgProgram(normalizedSource);
   const topology = buildTopologyMetrics(program);
   const target = options.target ?? 'agnostic';
-  const correctness = await checkGgProgram(normalizedSource, {
+  const rawCorrectness = await checkGgProgram(normalizedSource, {
     defaults: {
       maxDepth: 64,
       maxBeta1Exclusive: 10,
     },
   });
+  const correctness: CheckerResult<GgTopologyState> = {
+    ...rawCorrectness,
+    topology: normalizeCheckerTopology(rawCorrectness.topology),
+  };
   const quantum = buildQuantumMetrics(topology, correctness);
   const steering = buildSteeringMetrics(
     program,

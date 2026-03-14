@@ -1,6 +1,6 @@
 # Chapter 17: The Geometry of Failure
 
-This manuscript source closes the gap left by the earlier draft's monoidal aside. The point is no longer taxonomic hand-waving. We now fix a concrete execution category for the `fork` / `race` / `fold` fragment, state the laws that matter, and point to the exact Lean theorems that discharge them in [`GnosisProofs.lean`](../GnosisProofs.lean).
+This manuscript source closes the gap left by the earlier draft's monoidal aside. The point is no longer taxonomic hand-waving. We now fix a concrete execution category for the pure `fork` / `race` / `fold` fragment, state the laws that matter, and point to the exact Lean theorems that discharge them in [`GnosisProofs.lean`](../GnosisProofs.lean). Just as importantly, we locate that pure fragment inside the larger `fork` / `race` / `fold` / `vent` execution surface actually used by the compiler and companion proofs. The algebraic result is therefore not "everything is already pure." It is that pure `fork` / `race` / `fold` is the algebraic floor, while `INTERFERE`, `VENT`, repair debt, and stochastic stability live above it in the same formal stack.
 
 ## A Scoped Execution Category
 
@@ -96,6 +96,47 @@ The earlier draft claimed, without proof, that monoidal coherence should imply a
 
 The Lean witnesses are `race_tree_coherence` and `fold_tree_coherence`. For `fold`, commutativity upgrades this from bracketing invariance to permutation invariance. That is the exact categorical strengthening of C3 that the manuscript wanted but did not previously earn.
 
+## FRF Is Only The Algebraic Floor
+
+The earlier draft blurred two different claims:
+
+- the algebraic claim that `fork`, `race`, and `fold` have a coherent denotation under fixed choice and fold algebras,
+- and the operational claim that a system may safely collapse a live multiplicity to a single answer.
+
+This chapter now separates them.
+
+`fork` creates multiplicity. `race` chooses a provisional winner under a fixed priority discipline. `fold` specifies how disagreement is collapsed. None of those facts, by themselves, say that the winner is truthful, that discarded branches were semantically harmless, or that deterministic single-survivor collapse is free. Those are `INTERFERE` / `VENT` / repair-debt questions, not mere coherence questions.
+
+The right reading is therefore:
+
+- `race` yields a selected branch, not a correctness certificate;
+- `fold` yields a collapse law, not a guarantee that collapse preserves the distinctions one cares about;
+- `vent` records paid loss or discarded branch mass when multiplicity is not retained;
+- `interfere` marks the point where one branch changes the meaning, viability, or observability of another.
+
+## Failure Is Not Just Bad Bracketing
+
+Once the pure algebraic floor is fixed, the actual failure geometry becomes visible.
+
+First, not every fold is equally truthful. The companion boundary theorems in the shared [Formal Theorem Ledger](../../aeon/docs/ebooks/145-log-rolling-pipelined-prefill/companion-tests/formal/THEOREM_LEDGER.md) make this explicit: linear aggregation preserves the cancellation-sensitive families that nonlinear winner-selection and early-stop folds can miss. In other words, a race winner can be stably wrong if the collapse law counterfeits certainty rather than recombining evidence exactly.
+
+Second, deterministic collapse is not free. The same companion surface proves a no-free-collapse boundary: from a nontrivial fork, a deterministic single survivor requires either vented loss or repair debt. That is the formal content behind the paper's geometry-of-failure claim. The topology is not merely about what executes; it is also about what gets paid when multiplicity is forcibly removed.
+
+Third, single-winner collapse is not always the legal endpoint. The failure-action frontier includes `keep-multiplicity` as a first-class outcome alongside `pay-vent` and `pay-repair`. The theory therefore does not identify "resolved" with "collapsed to one survivor." Sometimes the truthful endpoint is preserved ambiguity rather than counterfeit certainty.
+
+On the measurable queue side, the companion proof surface now also packages the emitted deterministic laminar kernel into standard metric claims: after the certified bound, the Lévy-Prokhorov distance between the runtime law and the laminar reference law is exactly zero, the emitted kernel therefore satisfies a post-burn-in geometric decay inequality in the same metric, and that decay is finally re-packaged as an abstract geometric-ergodicity witness. That is still specialized to the compiler-emitted queue kernel, not an abstract arbitrary-kernel ergodicity theorem from drift and minorization alone, but it closes the metric endpoint honestly for the executable queue family and clarifies the exact theorem shape that future abstract work should target.
+
+## Regime Boundaries Matter
+
+The formal surface is not limited to existence witnesses. The companion proofs already expose phase boundaries and controller thresholds:
+
+- warm-up is worth paying for only past an explicit burden threshold;
+- dynamic cooling can return a turbulent system to a laminar regime under explicit drift and fairness assumptions;
+- controller redlines separate expand, constrain, and shed-load regions;
+- crossover theorems mark where more sharding or more warm-up stops helping.
+
+So the semantic space is not just "good topology" versus "bad topology." It has measurable regime changes.
+
 ## What This Buys
 
 The value is no longer just taxonomic. The `fork` / `race` / `fold` fragment now has a concrete symmetric monoidal semantics with an explicit unit object, explicit associator and unitor isomorphisms, and a proved interchange law. That is enough to import standard coherence reasoning instead of merely gesturing at it. In practical terms:
@@ -103,5 +144,37 @@ The value is no longer just taxonomic. The `fork` / `race` / `fold` fragment now
 - Different bracketings of the same `fold` tree are definitionally harmless once the fold algebra is associative.
 - Different bracketings of the same ordered `race` tree are harmless once the priority discipline is fixed.
 - The manuscript can cite actual mechanized theorems instead of an unproved categorical analogy.
+- The paper can cleanly distinguish a provisional race winner from a truthful collapse.
+- The same vocabulary can talk about preserved multiplicity, paid collapse, and regime thresholds instead of collapsing all of that into one informal failure bucket.
 
-This is still a scoped result. It does not claim that every Gnosis topology is already captured by the pure `Type` semantics, and it does not yet mechanize the full Harris-recurrence story. But the thermodynamic `vent` / drift / spectral layer is no longer treated as a separate after-the-fact note: the shared Lean workspace now exposes a `CertifiedKernel` object that carries the transition matrix together with drift data, the finite-state spectral side is proved in the concrete kernel families Betti emits today, and finite return to the compiler’s designated small set is likewise mechanized by a support-path recurrence theorem. Beyond that finite layer, the proof workspace now also contains a countable-state drift-to-small-set theorem and a queue-specific reneging bridge: if a countable kernel carries a Nat-valued potential that decreases along a positive-probability support edge until a designated small set is reached, then the chain returns to that small set in finitely many support steps; and if a queue family has eventual positive margin `mu + alpha(n) - lam > 0`, Betti now records a structured `countableQueue` witness in the compiler output, emits a concrete `queueKernel` skeleton over `Nat`-indexed queue states, collapses the certified laminar band to a representative atom, proves a common-atom small-set minorization theorem, proves a uniform predecessor minorization theorem outside the small set, derives recurrence from those witnesses, proves that every queue state reaches the shared laminar atom through positive-support steps, packages that irreducibility-style fact into an explicit atom-based ψ-irreducibility theorem and bundled Harris prelude for the emitted proof kernel, discharges a recurrent-class theorem on top of that prelude, proves a quantitative atom-hitting bound / geometric envelope, and then packages those quantitative results into a single `CountableLaminarGeometricStabilityAtAtom` endpoint for the emitted queue family. The proof surface now also includes an honest measurable-kernel Harris prelude on top of Mathlib’s `ProbabilityTheory.Kernel`: measurable-state small-set minorization, `Kernel.IsIrreducible`, and `Kernel.Invariant` are bundled directly at that level, reversibility can be used to discharge the invariant-measure component, positive reference mass of the small set yields an actual finite-step positive-probability hit theorem for that measurable set, irreducibility is repackaged as accessibility of every measurable set with positive reference mass, atom accessibility implies irreducibility with respect to the Dirac measure at the laminar atom, and that atom-based measurable certification now yields two operational corollaries rather than just a bundled hypothesis surface: the designated measurable small set is finitely reachable from every state, and every measurable set containing the laminar atom is likewise finitely reachable from every state. Acyclic kernels are discharged by nilpotence, row-contractive kernels are discharged by a mechanized `ρ(P) ≤ ‖P‖∞ < 1` bound, finite-state recurrence is discharged by a decreasing distance-to-small-set witness, and countable-state recurrence is discharged by the same idea over an arbitrary countable state space. What remains separate is the broader analytic layer around full Harris recurrence: a theorem from those measurable hypotheses to Harris recurrence or geometric ergodicity, and the symbolic or infinite-state compiler bridge into those hypotheses. What this section provides is the missing algebraic floor for the deterministic `fork` / `race` / `fold` core and the bridge that lets the thermodynamic auditor live inside the same proof surface.
+## The Proof Surface Is Layered
+
+The current formal story is easiest to understand as a stack.
+
+1. `fork` / `race` / `fold` coherence in [`GnosisProofs.lean`](../GnosisProofs.lean) gives the algebraic floor.
+2. Fold-boundary and failure-boundary theorems in the companion [Formal Theorem Ledger](../../aeon/docs/ebooks/145-log-rolling-pipelined-prefill/companion-tests/formal/THEOREM_LEDGER.md) explain when collapse preserves truth, when it counterfeits certainty, and when it necessarily pays vent or debt.
+3. Spectral, recurrence, and geometric-stability theorems lift emitted Gnosis kernels beyond pure denotational semantics into finite and countable dynamics.
+4. Queueing, adaptive-routing, and measurable-kernel results extend that same surface toward stochastic and state-dependent settings.
+5. Runtime witness export bridges the theorem layer back into executable artifacts, so boundary claims can be tested as concrete witnesses rather than left as Lean-only prose.
+
+## Runtime Witness Bridge
+
+The formal story is no longer Lean-only. The shared workspace exports concrete witness catalogs for the boundary theorems, and the executable test surface consumes those witnesses directly. That matters methodologically: the paper's impossibility and boundary claims are not only machine-checked as abstract theorems, but also reified as concrete runtime artifacts that can be inspected and exercised.
+
+## Current Boundary
+
+This is still a scoped result. It does not claim that every Gnosis topology is already captured by the pure `Type` semantics, and it does not yet close the full measurable-state Harris story in complete generality.
+
+What is already inside the proof surface is substantial:
+
+- the pure algebraic `fork` / `race` / `fold` floor;
+- finite-state spectral certification for emitted kernels;
+- countable-state drift-to-small-set recurrence;
+- queue-shaped bridges from compiler witnesses to countable and measurable kernels;
+- quantitative atom-hitting and geometric-envelope endpoints for the emitted queue families.
+
+The shared Lean workspace exposes a `CertifiedKernel` object carrying the transition matrix together with drift data, proves finite-state spectral stability for the concrete kernel families Betti emits today, proves finite return to the compiler's designated small set by support-path recurrence, and pushes that same pattern outward through countable-state drift witnesses and queue-shaped measurable Harris scaffolding.
+
+What remains genuinely open is the final lift from these emitted finite/countable/queue-shaped kernels to the full class of measurable kernels satisfying the abstract Harris hypotheses. The broader companion package also still distinguishes between constructive theorems and assumption-parameterized schemas. That boundary should be stated explicitly rather than blurred.
+
+So the corrected claim of this chapter is narrow and strong: it provides the missing algebraic floor for deterministic `fork` / `race` / `fold`, shows how that floor connects to interference, vent, paid collapse, and dynamic stability in the shared proof stack, and states honestly where the general measurable-state frontier still begins.
