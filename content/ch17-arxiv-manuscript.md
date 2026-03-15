@@ -34,52 +34,15 @@ Fork/race/fold is represented here as a directed acyclic graph (DAG) with merge 
 
 I instantiate the algorithm in **five** domains, presented in stack order – from building blocks to bytes on wire – each layer enabled by the ones below it.
 
-1.  In formal verification (the foundation, §10), I implement a temporal
-    logic model checker (`@affectively/aeon-logic`) whose BFS
-    state-space exploration is itself a fork/race/fold computation. Each
-    multi-successor expansion is a fork, each transition to an
-    already-visited state is a fold (interference), each unfair cycle
-    filtered by weak fairness is a vent, and termination is collapse.
-    The checker verifies a `TemporalModel` of its own exploration and
-    generates a TLA+ specification of the same model, validated through
-    a round-trip-stable TLA sandbox. Both verification paths check the
-    same invariants: $\beta_1 = \text{folded}$, $\beta_1 \geq 0$,
-    $\text{vents} \leq \text{folds}$, and eventual termination under
-    weak fairness. In the modeled scope, this yields closure under
-    self-application: a formal system built from these primitives can
-    reason about formal systems built from these primitives [13].
+1. In formal verification (the foundation, §10), I implement a temporal logic model checker (`@affectively/aeon-logic`) whose BFS state-space exploration is itself a fork/race/fold computation. Each multi-successor expansion is a fork, each transition to an already-visited state is a fold (interference), each unfair cycle filtered by weak fairness is a vent, and termination is collapse. The checker verifies a `TemporalModel` of its own exploration and generates a TLA+ specification of the same model, validated through a round-trip-stable TLA sandbox. Both verification paths check the same invariants: $\beta_1 = \text{folded}$, $\beta_1 \geq 0$, $\text{vents} \leq \text{folds}$, and eventual termination under weak fairness. In the modeled scope, this yields closure under self-application: a formal system built from these primitives can reason about formal systems built from these primitives [13].
 
-2.  In formal language theory (the programming model, §11), I implement
-    Gnosis [15] – a programming language that unifies source code and
-    computation graph and whose compiler is a fork/race/fold pipeline.
-    Programs are Cypher-like graphs with four edge types (FORK, RACE,
-    FOLD, VENT). The compiler statically verifies $\beta_1$ bounds,
-    verified by layer 1. The self-hosted compiler (Betti) is itself a
-    GGL program:
-    `(source) -``[``:FORK``]``-> (parse_nodes  parse_edges) -``[``:FOLD``]``-> (ast)`,
-    establishing closure under construction.
+2. In formal language theory (the programming model, §11), I implement Gnosis [15] – a programming language that unifies source code and computation graph and whose compiler is a fork/race/fold pipeline. Programs are Cypher-like graphs with four edge types (FORK, RACE, FOLD, VENT). The compiler statically verifies $\beta_1$ bounds, verified by layer 1. The self-hosted compiler (Betti) is itself a GGL program: `(source) -``[``:FORK``]``-> (parse_nodes  parse_edges) -``[``:FOLD``]``-> (ast)`, establishing closure under construction.
 
-3.  In distributed staged computation (the scheduling algorithm, §7),
-    chunked pipelined processing reduces sequential depth from $O(PN)$
-    to $O(\lceil P/B \rceil + N - 1)$, yielding modeled step-count
-    speedups of 3.1x–267x in the listed scenarios under explicit
-    idealized assumptions (uniform stage service time, zero inter-node
-    communication cost). The Wallington Rotation, expressed in layer 2’s
-    language, verified by layer 1’s checker.
+3. In distributed staged computation (the scheduling algorithm, §7), chunked pipelined processing reduces sequential depth from $O(PN)$ to $O(\lceil P/B \rceil + N - 1)$, yielding modeled step-count speedups of 3.1x–267x in the listed scenarios under explicit idealized assumptions (uniform stage service time, zero inter-node communication cost). The Wallington Rotation, expressed in layer 2’s language, verified by layer 1’s checker.
 
-4.  In edge transport (the wire format, §8), I implement a binary stream
-    protocol with 10-byte self-describing frame headers and native
-    fork/race/fold operations on UDP, reducing framing overhead by 95
-    percent versus HTTP/1.1 and removing one-path ordered-delivery
-    coupling that drives head-of-line behavior in TCP-bound stacks.
-    Layer 3’s scheduling algorithm runs over layer 4’s wire format.
+4. In edge transport (the wire format, §8), I implement a binary stream protocol with 10-byte self-describing frame headers and native fork/race/fold operations on UDP, reducing framing overhead by 95 percent versus HTTP/1.1 and removing one-path ordered-delivery coupling that drives head-of-line behavior in TCP-bound stacks. Layer 3’s scheduling algorithm runs over layer 4’s wire format.
 
-5.  In compression (bytes on wire, §9), I implement per-chunk
-    topological codec racing (fork codecs, race per chunk, fold to
-    winner), with executable verification of roundtrip correctness,
-    codec-vent behavior and $\beta_1 = \text{codecs}-1$ invariants
-    [8, 9]. The capstone: actual bytes, actual ratios, actual wire –
-    using every layer below it.
+5. In compression (bytes on wire, §9), I implement per-chunk topological codec racing (fork codecs, race per chunk, fold to winner), with executable verification of roundtrip correctness, codec-vent behavior and $\beta_1 = \text{codecs}-1$ invariants [8, 9]. The capstone: actual bytes, actual ratios, actual wire – using every layer below it.
 
 Within the modeled scope in this paper (finite DAG decompositions under C1-C4), the algorithm is a high-fit topology class with measurable fit via $\Delta_\beta$. It is intentionally simple: four primitives, explicit assumptions, and executable checks.
 
@@ -346,13 +309,11 @@ and adversarial-controls figure assembled from the Gnosis near-control, regime-s
 
 In this manuscript’s selected examples – spanning roughly seven orders of magnitude from quantum-coherent pigment networks to billion-parameter neural networks – different substrates exhibit a related structural motif. This is suggestive rather than conclusive, and is used here as a bounded correspondence claim under three constraints:
 
-1.  **Finite resources, high demand** → chunked pipelining and
-    multiplexing
+1. **Finite resources, high demand** → chunked pipelining and multiplexing
 
-2.  **Unknown correct answer** → fork/race/fold with vent
+2. **Unknown correct answer** → fork/race/fold with vent
 
-3.  **No global clock** → self-describing frames with out-of-order
-    reassembly
+3. **No global clock** → self-describing frames with out-of-order reassembly
 
 These three constraints make fork/race/fold a strong candidate for high efficiency within the class of finite DAG topologies examined in this paper. Systems lacking all three can still use fork/race/fold (transformers have synchronized SGD; photosynthesis has electromagnetic field synchronization). In the finite constructions evaluated here, when all three constraints bind simultaneously, no outperforming alternative was observed in the tested topology set on the measured criteria. Other concurrent models (gossip protocols, epidemic algorithms, eventually-consistent CRDTs) also operate under these constraints but make different tradeoffs – gossip sacrifices deterministic fold for probabilistic convergence, CRDTs sacrifice fold entirely for commutativity. The claim is not unique optimality; it is selective evidence for pressure toward this topology when systems require both parallelism and deterministic reconciliation. In this paper’s vocabulary, the conveyor belt is the canonical one-path boundary case.
 
@@ -418,24 +379,13 @@ The Reynolds-number mapping is an explicit analogy. In fluid dynamics, $Re = \rh
 
 Given pipeline state $S$ and operation set $O$:
 
-1.  **Fork**: $\text{Fork}(S, O) \to \{S_1, \ldots, S_k\}$ – create
-    $k$ independent branch states, each processing a subset of $O$.
-    Topological effect: $\beta_1 \mathrel{+}= k-1$.
+1. **Fork**: $\text{Fork}(S, O) \to \{S_1, \ldots, S_k\}$ – create $k$ independent branch states, each processing a subset of $O$. Topological effect: $\beta_1 \mathrel{+}= k-1$.
 
-2.  **Race**: $\text{Race}(\{S_i\}) \to (S_w, i_w)$ – advance all
-    branches concurrently; select the first to reach a valid completion.
-    Losers are vented. Exploits homotopy equivalence.
+2. **Race**: $\text{Race}(\{S_i\}) \to (S_w, i_w)$ – advance all branches concurrently; select the first to reach a valid completion. Losers are vented. Exploits homotopy equivalence.
 
-3.  **Fold**: $\text{Fold}(\{S_i\}, f) \to S^*$ – wait for all
-    branches to complete (or vent); apply deterministic merger $f$ to
-    produce a single canonical state. Topological effect:
-    $\beta_1 \to 0$.
+3. **Fold**: $\text{Fold}(\{S_i\}, f) \to S^*$ – wait for all branches to complete (or vent); apply deterministic merger $f$ to produce a single canonical state. Topological effect: $\beta_1 \to 0$.
 
-4.  **Vent**: $\text{Vent}(S_i) \to \bot$ – cease output, recursively
-    vent all descendants, leave siblings untouched. **One rule:
-    propagate down, never across.** The system releases excess energy
-    from paths that cannot contribute useful work – a pressure relief
-    valve that prevents computational overheating.
+4. **Vent**: $\text{Vent}(S_i) \to \bot$ – cease output, recursively vent all descendants, leave siblings untouched. **One rule: propagate down, never across.** The system releases excess energy from paths that cannot contribute useful work – a pressure relief valve that prevents computational overheating.
 
 **Completeness (finite, mechanized scope).** These four primitives are sufficient to express finite directed acyclic computation graphs under explicit decomposition assumptions. Any finite DAG can be decomposed into fork points (nodes with out-degree \> 1), join points (nodes with in-degree \> 1) and linear chains. Fork creates divergences. Fold creates convergences. Race is fold with early termination. Vent handles failures and excess energy. Linear chains are the trivial case (no fork, no fold). In the formal stack, local decomposition is constructive and the global statement is an explicit-assumption theorem schema, paired with executable finite-DAG decomposition checks [9, 13].
 
@@ -1339,27 +1289,13 @@ $$
 
 where $S$ is the action along each path. For comparison with the present framework, the path-integral calculation is interpreted here in four phases:
 
-1.  **Fork analogue.** The particle enters all possible trajectories
-    simultaneously. Each trajectory is a path with phase
-    $e^{iS/\hbar}$. In the comparison used here, this plays the role
-    of fork: one input $\to$ innumerable paths.
-    $\beta_1 \to \infty$.
+1. **Fork analogue.** The particle enters all possible trajectories simultaneously. Each trajectory is a path with phase $e^{iS/\hbar}$. In the comparison used here, this plays the role of fork: one input $\to$ innumerable paths. $\beta_1 \to \infty$.
 
-2.  **Race analogue.** Each path propagates with its own phase
-    accumulation. No path “knows” about the others during propagation
-    (allowing for transport gains). In the comparison used here, this
-    plays the role of race: parallel, independent, timeless (unitary
-    evolution is time-reversible).
+2. **Race analogue.** Each path propagates with its own phase accumulation. No path “knows” about the others during propagation (allowing for transport gains). In the comparison used here, this plays the role of race: parallel, independent, timeless (unitary evolution is time-reversible).
 
-3.  **Fold analogue.** The amplitudes sum. Constructive interference
-    concentrates amplitude on the classical path (stationary phase). In
-    the comparison used here, this plays the role of fold: many paths
-    $\to$ one probability amplitude. $\beta_1 \to 0$.
+3. **Fold analogue.** The amplitudes sum. Constructive interference concentrates amplitude on the classical path (stationary phase). In the comparison used here, this plays the role of fold: many paths $\to$ one probability amplitude. $\beta_1 \to 0$.
 
-4.  **Vent analogue.** Destructive interference eliminates non-classical
-    paths. Their amplitudes cancel to zero. In the comparison used here,
-    this plays the role of vent: paths that contribute no useful work
-    are dissipated.
+4. **Vent analogue.** Destructive interference eliminates non-classical paths. Their amplitudes cancel to zero. In the comparison used here, this plays the role of vent: paths that contribute no useful work are dissipated.
 
 The classical limit ($\hbar \to 0$) recovers the path of stationary action – the unique classical trajectory. In the comparison used here, that behaves like a $\beta_1 = 0$ boundary case: one path, no fork, no race, no vent. It is analogous to the sequential limit of the Wallington Rotation rather than formally identical to it.
 
@@ -1480,21 +1416,13 @@ $$
 
 Half the gravitational potential energy becomes kinetic energy (thermal motion, radiation). The virial theorem is a constraint on the *equilibrium state*, not a description of the process that reaches it. One interpretive lens is to read the process of reaching equilibrium – gravitational collapse – through a fork/race/fold comparison, with the virial theorem constraining the energy partition of the resulting state. A collapsing gas cloud:
 
-1.  **Fork.** Gravitational potential energy $V$ is stored in the
-    spatial distribution of mass. Every particle has a trajectory it
-    *could* follow. $V = -\sum_{i<j} G m_i m_j / r_{ij}$.
+1. **Fork.** Gravitational potential energy $V$ is stored in the spatial distribution of mass. Every particle has a trajectory it *could* follow. $V = -\sum_{i<j} G m_i m_j / r_{ij}$.
 
-2.  **Race.** Free-fall collapse. Particles accelerate toward the
-    center. $V \to K$ conversion.
+2. **Race.** Free-fall collapse. Particles accelerate toward the center. $V \to K$ conversion.
 
-3.  **Fold.** A star forms – the bound state. Useful work $W$ is
-    extracted as nuclear fusion becomes possible. Hydrostatic
-    equilibrium is the fold: gravitational compression balanced by
-    radiation pressure.
+3. **Fold.** A star forms – the bound state. Useful work $W$ is extracted as nuclear fusion becomes possible. Hydrostatic equilibrium is the fold: gravitational compression balanced by radiation pressure.
 
-4.  **Vent.** In this virial-budget interpretation, an order-half energy
-    partition appears as dissipative output during relaxation. The
-    Kelvin-Helmholtz mechanism is the vent analogue.
+4. **Vent.** In this virial-budget interpretation, an order-half energy partition appears as dissipative output during relaxation. The Kelvin-Helmholtz mechanism is the vent analogue.
 
 In this bookkeeping comparison, the virial theorem suggests an order-half partition: $W \approx V/2$, $Q \approx V/2$, therefore $\eta \approx 0.5$. The physical split comes from the virial theorem; the `fork/race/fold/vent` labels are only the accounting language used here.
 
@@ -1595,38 +1523,17 @@ The shape of failure and the shape of war are the same shape. A fold that erases
 
 The connection is not analogical. It is structural. Consider the complete formal chain:
 
-1.  A population holds $k$ distinct beliefs with positive support mass
-    (`PMF` over a belief space, each belief $b_i$ with
-    $0 < p(b_i)$).
+1. A population holds $k$ distinct beliefs with positive support mass (`PMF` over a belief space, each belief $b_i$ with $0 < p(b_i)$).
 
-2.  A political or theological fold $f$ maps $k$ beliefs to
-    $m < k$ categories (orthodoxy, heresy, or more granularly, the
-    Nicene partition). This fold is many-to-one on the support:
-    $\exists\, b_1 \neq b_2$ with $f(b_1) = f(b_2)$ and both
-    $p(b_1), p(b_2) > 0$.
+2. A political or theological fold $f$ maps $k$ beliefs to $m < k$ categories (orthodoxy, heresy, or more granularly, the Nicene partition). This fold is many-to-one on the support: $\exists\, b_1 \neq b_2$ with $f(b_1) = f(b_2)$ and both $p(b_1), p(b_2) > 0$.
 
-3.  By `coarsening_information_loss_pos_of_many_to_one`, the fold erases
-    strictly positive information. The erased information is the content
-    of the beliefs that did not survive the fold — the lived meaning of
-    the people whose category was merged into another.
+3. By `coarsening_information_loss_pos_of_many_to_one`, the fold erases strictly positive information. The erased information is the content of the beliefs that did not survive the fold — the lived meaning of the people whose category was merged into another.
 
-4.  By `coarsening_landauer_heat_pos_of_many_to_one`, the erasure
-    generates strictly positive heat. This heat is not metaphorical. In
-    human systems, it manifests as grievance, resistance, persecution,
-    and violence. The heat is proportional to the information erased:
-    more beliefs collapsed, more meaning destroyed, more heat generated.
+4. By `coarsening_landauer_heat_pos_of_many_to_one`, the erasure generates strictly positive heat. This heat is not metaphorical. In human systems, it manifests as grievance, resistance, persecution, and violence. The heat is proportional to the information erased: more beliefs collapsed, more meaning destroyed, more heat generated.
 
-5.  By `trajectory_cumulative_heat_monotone`, the heat accumulates
-    across successive folds. Each Council, each purge, each conquest
-    adds to the cumulative heat. The arrow of coarsening is irreversible
-    (`cumulative_coarsening_strict_monotone`).
+5. By `trajectory_cumulative_heat_monotone`, the heat accumulates across successive folds. Each Council, each purge, each conquest adds to the cumulative heat. The arrow of coarsening is irreversible (`cumulative_coarsening_strict_monotone`).
 
-6.  By `finite_trajectory_reaches_fixed_point`, the trajectory
-    terminates at a fixed point — a dogmatic state where the quotient
-    map is injective on the surviving support. But the fixed point is
-    path-dependent. The fold ordering determines which beliefs survive.
-    The theorems guarantee convergence. They do not select the
-    destination.
+6. By `finite_trajectory_reaches_fixed_point`, the trajectory terminates at a fixed point — a dogmatic state where the quotient map is injective on the surviving support. But the fixed point is path-dependent. The fold ordering determines which beliefs survive. The theorems guarantee convergence. They do not select the destination.
 
 This is the formal content of the observation that war is a failure of communication. It is not a metaphor. War is the discharge of Landauer heat from a fold that erased positive-mass semantic paths faster than the semiotic channel could absorb the heat through dialogue. The deficit between internal complexity and communication bandwidth (`semiotic_deficit`) is the thermodynamic precondition. The fold (`coarseningInformationLoss`) is the mechanism. The heat (`coarseningLandauerHeat`) is the consequence. The accumulation (`trajectory_cumulative_heat_monotone`) is history.
 
@@ -1759,19 +1666,11 @@ In this paper’s analyzed set, the pattern is: **$\Delta_\beta = 0$ cases coinc
 
 This yields a practical diagnostic tool:
 
-1.  **Measure $\beta_1^*$**: analyze the problem’s dependency
-    structure to find its intrinsic parallelism. Independent inputs are
-    independent paths. Sequential dependencies are constraints that
-    reduce $\beta_1^*$.
+1. **Measure $\beta_1^*$**: analyze the problem’s dependency structure to find its intrinsic parallelism. Independent inputs are independent paths. Sequential dependencies are constraints that reduce $\beta_1^*$.
 
-2.  **Measure $\beta_1$**: count the actual parallel paths in the
-    implementation. A sequential pipeline has $\beta_1 = 0$. A fork
-    with $N$ paths has $\beta_1 = N - 1$.
+2. **Measure $\beta_1$**: count the actual parallel paths in the implementation. A sequential pipeline has $\beta_1 = 0$. A fork with $N$ paths has $\beta_1 = N - 1$.
 
-3.  **Compute $\Delta_\beta$**: the gap is the optimization
-    opportunity. If $\Delta_\beta > 0$, the system is topologically
-    constrained; micro-optimization within that fixed topology cannot
-    recover the parallel paths the topology itself suppresses.
+3. **Compute $\Delta_\beta$**: the gap is the optimization opportunity. If $\Delta_\beta > 0$, the system is topologically constrained; micro-optimization within that fixed topology cannot recover the parallel paths the topology itself suppresses.
 
 **A scoped converse.** When a system exhibits fork/race/fold with $\Delta_\beta = 0$ – for example, photosynthesis, DNA replication and myelinated conduction in this analyzed set – that is evidence consistent with near-optimal topological fit under this paper’s constraints. It is not a universal proof of unique optimality.
 
@@ -2445,22 +2344,19 @@ The checker computes and returns topological diagnostics (`CheckerTopologyStats`
 
 The checker’s own BFS exploration is modeled as a `TemporalModel<CheckerState>` with 8 state variables (`explored`, `frontier`, `transitions`, `folded`, `forks`, `vents`, `depth`, `done`) and 6 actions (`ExpandLinear`, `ExpandFork`, `FoldTransition`, `VentCycle`, `CompleteLayer`, `Finish`). Another instance of the same checker verifies 7 invariants about this model:
 
-1.  $\beta_1 \geq 0$ – topology is well-formed
+1. $\beta_1 \geq 0$ – topology is well-formed
 
-2.  $\beta_1 = \text{folded}$ – every back-edge creates exactly one
-    independent cycle
+2. $\beta_1 = \text{folded}$ – every back-edge creates exactly one independent cycle
 
-3.  $\text{vents} \leq \text{folds}$ – you can only vent what has been
-    folded
+3. $\text{vents} \leq \text{folds}$ – you can only vent what has been folded
 
-4.  $\text{folds} \leq \text{transitions}$ – folds are a subset of
-    transitions
+4. $\text{folds} \leq \text{transitions}$ – folds are a subset of transitions
 
-5.  $\text{explored} \geq 1$ – at least the initial state
+5. $\text{explored} \geq 1$ – at least the initial state
 
-6.  $\text{frontier} \geq 0$ – non-negative frontier
+6. $\text{frontier} \geq 0$ – non-negative frontier
 
-7.  $\text{depth} \leq \text{MaxDepth}$ – bounded exploration
+7. $\text{depth} \leq \text{MaxDepth}$ – bounded exploration
 
 Liveness: $\Diamond\text{done}$ (eventual termination) under weak fairness $\text{WF}(\text{Finish})$.
 
@@ -2498,14 +2394,11 @@ This is the thesis of the paper made literal: **the source code IS the topology*
 
 The compiler (named **Betty**, after the Betti number) statically analyzes the GGL topology to ensure:
 
-1.  $\beta_1$ is properly managed – no unbounded superpositions (every
-    `FORK` must reach a `FOLD`, `RACE`, or `VENT`).
+1. $\beta_1$ is properly managed – no unbounded superpositions (every `FORK` must reach a `FOLD`, `RACE`, or `VENT`).
 
-2.  All paths eventually collapse – the compiler rejects programs where
-    $\beta_1$ never returns to zero.
+2. All paths eventually collapse – the compiler rejects programs where $\beta_1$ never returns to zero.
 
-3.  Deterministic fold – the merger strategy is declared in the edge
-    properties, satisfying C3.
+3. Deterministic fold – the merger strategy is declared in the edge properties, satisfying C3.
 
 Betty parses the graph, computes $\beta_1$ at each edge, and translates the AST into 10-byte `FlowFrame` binary buffers (§8.2) – the same wire format used by the Aeon Flow protocol. The compiled output is a sequence of `FlowFrame`s that the Rust/WASM runtime executes at near-native speed.
 
@@ -2760,34 +2653,27 @@ Zero dependencies. ~384 bytes per stream and ~3.5 KB per pipeline. Requires no s
 
 The same API – unchanged – was exercised in executable scenario harnesses across multiple domain archetypes, including:
 
-1.  **Multi-venue trading**: fork/race across exchanges, vent adverse
-    prices
+1. **Multi-venue trading**: fork/race across exchanges, vent adverse prices
 
-2.  **Healthcare diagnostics**: fork parallel tests, tunnel on
-    conclusive, merge-all findings
+2. **Healthcare diagnostics**: fork parallel tests, tunnel on conclusive, merge-all findings
 
-3.  **Financial settlement**: fork clearing/netting/DVP, merge-all for
-    T+0
+3. **Financial settlement**: fork clearing/netting/DVP, merge-all for T+0
 
-4.  **Construction scheduling**: fork trades per floor, merge-all hours
+4. **Construction scheduling**: fork trades per floor, merge-all hours
 
-5.  **Emergency dispatch**: fork/race responders, first arrival wins
+5. **Emergency dispatch**: fork/race responders, first arrival wins
 
-6.  **Academic review**: fork reviewers, quorum 2/3 agreement
+6. **Academic review**: fork reviewers, quorum 2/3 agreement
 
-7.  **Drug discovery**: fork compounds, Grover search to convergence
+7. **Drug discovery**: fork compounds, Grover search to convergence
 
-8.  **Manufacturing QC**: fork sensors, consensus (constructive
-    interference)
+8. **Manufacturing QC**: fork sensors, consensus (constructive interference)
 
-9.  **Journal publishing**: fork reviewers, vent timeout, quorum verdict
+9. **Journal publishing**: fork reviewers, vent timeout, quorum verdict
 
 10. **Legal review**: fork reviewers, weighted fold by seniority
 
-11. **Deployment control plane**: fork environment probes and publish
-    candidates, race target-resolution plans, fold to a fail-closed
-    publish decision with explicit smoke-gate and host-capability
-    constraints
+11. **Deployment control plane**: fork environment probes and publish candidates, race target-resolution plans, fold to a fail-closed publish decision with explicit smoke-gate and host-capability constraints
 
 The recurrence is framed here as discovered rather than imposed, similar to how *Physarum* discovers high-fit transport networks without centralized planning.
 
@@ -2903,62 +2789,15 @@ finite-prefix balance theorems, infinite weighted-sum queue balance, direct coun
 
 Each strong claim in this manuscript is stated with an explicit evidence boundary and reproducible artifact path.
 
-1.  **Broad deployment wall-clock claim (fixture scope): supported for
-    the benchmark family.** Loopback and predeclared external
-    non-loopback matrices, including a six-distinct-host run
-    (`workers-dev-external-multihost6-distinct`), satisfy predeclared
-    criteria with p50/p95 and bootstrap confidence intervals in
-    `gate1-wallclock-matrix.{json,md}` and
-    `gate1-wallclock-external-multihost.{json,md}`. In the six-host
-    external matrix, 8/8 primary cells satisfy the primary criteria;
-    across all cells, median speedup ranges 11.785x-21.620x, and the
-    minimum 95% CI lower bounds remain positive (11.365x speedup and
-    3,560.98 ms latency improvement). This claim is bounded to this
-    benchmark family and is not a universal production-network claim.
+1. **Broad deployment wall-clock claim (fixture scope): supported for the benchmark family.** Loopback and predeclared external non-loopback matrices, including a six-distinct-host run (`workers-dev-external-multihost6-distinct`), satisfy predeclared criteria with p50/p95 and bootstrap confidence intervals in `gate1-wallclock-matrix.{json,md}` and `gate1-wallclock-external-multihost.{json,md}`. In the six-host external matrix, 8/8 primary cells satisfy the primary criteria; across all cells, median speedup ranges 11.785x-21.620x, and the minimum 95% CI lower bounds remain positive (11.365x speedup and 3,560.98 ms latency improvement). This claim is bounded to this benchmark family and is not a universal production-network claim.
 
-2.  **Protocol corpus advantage claim (simulated corpus scope):
-    supported for the seeded corpus family.**
-    `companion-tests/artifacts/gate2-protocol-corpus.{json,md}` reports
-    144 sites and 12,371 resources with 6/6 primary environment cells
-    satisfying predeclared criteria; framing median gain is 72.252% (CI
-    low approximately 72.19%); primary-cell completion-median CI lows
-    are 20.24-83.38 ms and completion-p95 CI lows are 19.99-98.22 ms;
-    per-site win rates are 100% on all three metrics. This claim is
-    bounded to the seeded simulation corpus and does not assert
-    internet-wide superiority on live traffic.
+2. **Protocol corpus advantage claim (simulated corpus scope): supported for the seeded corpus family.** `companion-tests/artifacts/gate2-protocol-corpus.{json,md}` reports 144 sites and 12,371 resources with 6/6 primary environment cells satisfying predeclared criteria; framing median gain is 72.252% (CI low approximately 72.19%); primary-cell completion-median CI lows are 20.24-83.38 ms and completion-p95 CI lows are 19.99-98.22 ms; per-site win rates are 100% on all three metrics. This claim is bounded to the seeded simulation corpus and does not assert internet-wide superiority on live traffic.
 
-3.  **Compression corpus advantage claim (seeded corpus scope):
-    supported for the seeded corpus family.**
-    `companion-tests/artifacts/gate3-compression-corpus.{json,md}`
-    reports 90 samples and 20,133,761 bytes with 4/4 primary family
-    cells satisfying predeclared criteria. Primary-cell median gain vs
-    best fixed codec is positive with positive CI lows (approximately
-    0.0009%-0.0075%); median gain vs heuristic baseline is
-    0.777%-46.366% with CI lows approximately 0.386%-39.449%; per-sample
-    win rates are 100% against both comparators in all primary cells.
-    This claim is bounded to the seeded corpus family and does not
-    assert universal superiority on live production payloads.
+3. **Compression corpus advantage claim (seeded corpus scope): supported for the seeded corpus family.** `companion-tests/artifacts/gate3-compression-corpus.{json,md}` reports 90 samples and 20,133,761 bytes with 4/4 primary family cells satisfying predeclared criteria. Primary-cell median gain vs best fixed codec is positive with positive CI lows (approximately 0.0009%-0.0075%); median gain vs heuristic baseline is 0.777%-46.366% with CI lows approximately 0.386%-39.449%; per-sample win rates are 100% against both comparators in all primary cells. This claim is bounded to the seeded corpus family and does not assert universal superiority on live production payloads.
 
-4.  **Out-of-sample $R_{\text{qr}}$ predictive-screening claim (model
-    scope): supported for the tested simulator family.**
-    `companion-tests/artifacts/gate4-rqr-holdout.{json,md}` reports
-    independent train/holdout validation with predeclared scoring
-    criteria: Spearman CI low 0.446, slope CI low 0.427, quartile-delta
-    CI low 0.100, predictor-correlation CI low 0.176, and decile
-    monotonicity violations 1 \<= 3. This claim is bounded to the tested
-    simulator family and does not assert real-world deployment
-    predictivity.
+4. **Out-of-sample $R_{\text{qr}}$ predictive-screening claim (model scope): supported for the tested simulator family.** `companion-tests/artifacts/gate4-rqr-holdout.{json,md}` reports independent train/holdout validation with predeclared scoring criteria: Spearman CI low 0.446, slope CI low 0.427, quartile-delta CI low 0.100, predictor-correlation CI low 0.176, and decile monotonicity violations 1 \<= 3. This claim is bounded to the tested simulator family and does not assert real-world deployment predictivity.
 
-5.  **Biological effect-size mapping claim (predeclared range-extraction
-    scope): supported as internal consistency evidence for the listed
-    comparative set.**
-    `companion-tests/artifacts/gate5-bio-effect-size.{json,md}` reports
-    three primary biological condition pairs with positive
-    uncertainty-bounded effect sizes (minimum primary-pair ratio CI low
-    5.829x; median pair ratio 21.524x; pooled log-ratio 3.280 with 95%
-    CI 2.289-4.360). This claim is bounded to those predeclared
-    manuscript-range pairs and does not assert independent dataset
-    validation or preregistered cross-lab causal inference.
+5. **Biological effect-size mapping claim (predeclared range-extraction scope): supported as internal consistency evidence for the listed comparative set.** `companion-tests/artifacts/gate5-bio-effect-size.{json,md}` reports three primary biological condition pairs with positive uncertainty-bounded effect sizes (minimum primary-pair ratio CI low 5.829x; median pair ratio 21.524x; pooled log-ratio 3.280 with 95% CI 2.289-4.360). This claim is bounded to those predeclared manuscript-range pairs and does not assert independent dataset validation or preregistered cross-lab causal inference.
 
 ## 15. Conclusion
 
@@ -2966,17 +2805,13 @@ I began with a child handing a ball to another child in a line. Four hundred han
 
 The path between those two points is fork/race/fold: four operations that express the finite DAG classes modeled in this paper.
 
-1.  **Fork** raises $\beta_1$, injects potential energy $V$ – create
-    parallel paths, store work.
+1. **Fork** raises $\beta_1$, injects potential energy $V$ – create parallel paths, store work.
 
-2.  **Race** traverses homotopy-equivalent paths, converts $V \to K$ –
-    take the fastest.
+2. **Race** traverses homotopy-equivalent paths, converts $V \to K$ – take the fastest.
 
-3.  **Fold** projects $\beta_1 \to 0$, extracts work $W$ – merge
-    results deterministically.
+3. **Fold** projects $\beta_1 \to 0$, extracts work $W$ – merge results deterministically.
 
-4.  **Vent** releases excess paths, dissipates heat $Q$ – propagate
-    down, never across.
+4. **Vent** releases excess paths, dissipates heat $Q$ – propagate down, never across.
 
 These operations are not new. DNA replication has used analogous structure for billions of years. Myelinated neurons pipeline action potentials at measured speeds up to roughly 100 m/s, within the range discussed in §1.3. Photosynthetic antenna complexes exhibit high step-level transfer efficiency in the cited measurements. *Physarum* recreated a rail-like topology in roughly 26 hours.
 
@@ -3074,18 +2909,13 @@ $$
 
 from diversity level $d$ to topological deficit (waste) satisfies four properties:
 
-1.  **Monotonicity:** $d_1 \leq d_2 \implies \text{waste}(d_2) \leq
-    \text{waste}(d_1)$. Increasing diversity never increases waste.
+1. **Monotonicity:** $d_1 \leq d_2 \implies \text{waste}(d_2) \leq \text{waste}(d_1)$. Increasing diversity never increases waste.
 
-2.  **Zero at match:** $\text{waste}(\beta_1^*) = 0$. Matched
-    diversity eliminates topological waste.
+2. **Zero at match:** $\text{waste}(\beta_1^*) = 0$. Matched diversity eliminates topological waste.
 
-3.  **Positive below match:** $\text{waste}(1) > 0$ when
-    $\beta_1^* \geq 2$. Monoculture forces information loss.
+3. **Positive below match:** $\text{waste}(1) > 0$ when $\beta_1^* \geq 2$. Monoculture forces information loss.
 
-4.  **Pigeonhole witness:** At $d = 1$, there exist distinct paths
-    $p_1 \neq p_2$ sharing a stream — a constructive collision that,
-    by the data processing inequality, erases information.
+4. **Pigeonhole witness:** At $d = 1$, there exist distinct paths $p_1 \neq p_2$ sharing a stream — a constructive collision that, by the data processing inequality, erases information.
 
 The companion theorem `buley_frontier_codec_racing` proves the same shape for codec-racing diversity: adding codecs to a race is monotonically non-increasing in wire size (Pillar 1 of the diversity theorem), and racing achieves zero compression deficit (Pillar 2). The unified theorem `buley_frontier_unified` composes both instantiations into a single statement: the topological and codec-racing frontiers share the same monotone envelope.
 
