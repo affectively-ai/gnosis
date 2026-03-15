@@ -365,6 +365,21 @@ export class GnosisEngine {
         execLogs.push(`  -> VENTING path: ${edge.sourceIds[0]}`);
       }
 
+      // LAMINAR: hella-whipped pipeline — self-contained fork/race/fold
+      // Internally races codecs per chunk, but externally acts like PROCESS.
+      // The payload passes through compressed → handler → decompressed.
+      if (edge.type === 'LAMINAR') {
+        const chunkSize = parseInt(edge.properties.chunk ?? '65536', 10);
+        const codecList = edge.properties.codecs ?? 'identity';
+        execLogs.push(
+          `  [LAMINAR] Hella-whipped pipeline: chunk=${chunkSize}, codecs=${codecList}`
+        );
+        // LAMINAR is β₁-neutral: internal fork/race/fold is self-contained.
+        // The target handler receives the payload and compresses via the
+        // registered LaminarCompress (or equivalent) handler.
+        // Engine treats it as sequential flow to the target node.
+      }
+
       // Normal sequential flow
       currentNodeId = edge.targetIds[0].trim();
     }
@@ -1173,6 +1188,7 @@ export class GnosisEngine {
           'SUPERPOSE',
           'ENTANGLE',
           'OBSERVE',
+          'LAMINAR',
         ].includes(edge.type || '')
       ) || candidates[0]
     );
