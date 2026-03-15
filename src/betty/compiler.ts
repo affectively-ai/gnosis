@@ -16,7 +16,7 @@ export interface ASTNode {
 export interface ASTEdge {
   sourceIds: string[];
   targetIds: string[];
-  type: string; // FORK, RACE, FOLD, VENT, PROCESS, COLLAPSE, TUNNEL, INTERFERE, OBSERVE
+  type: string; // FORK, RACE, FOLD, VENT, PROCESS, COLLAPSE, TUNNEL, INTERFERE, OBSERVE, LAMINAR
   properties: Record<string, string>;
 }
 
@@ -32,7 +32,8 @@ export type DiagnosticCode =
   | 'ERR_BETA_UNBOUNDED'
   | 'ERR_SPECTRAL_EXPLOSION'
   | 'ERR_DRIFT_POSITIVE'
-  | 'ERR_REPAIR_DEBT_LEAK';
+  | 'ERR_REPAIR_DEBT_LEAK'
+  | 'ERR_CONTINUOUS_WITNESS_INVALID';
 
 export interface GraphAST {
   nodes: Map<string, ASTNode>;
@@ -108,6 +109,7 @@ export class BettyCompiler {
       'COLLAPSE',
       'TUNNEL',
       'INTERFERE',
+      'LAMINAR',
       'MEASURE',
       'HALT',
       'EVOLVE',
@@ -272,6 +274,12 @@ export class BettyCompiler {
           this.b1 = Math.max(0, this.b1 - (sources.length - 1));
         } else if (edgeType === 'VENT') {
           this.b1 = Math.max(0, this.b1 - 1);
+        } else if (edgeType === 'LAMINAR') {
+          // LAMINAR: hella-whipped pipeline — fork codecs internally, race per chunk, fold to smallest.
+          // β₁ increases by (codecs - 1) for the internal codec racing, but the pipeline
+          // presents as a single stream externally (chunked, compressed, Flow-framed).
+          // Net β₁ effect: 0 (internal fork/race/fold is self-contained).
+          // The topology sees LAMINAR as a PROCESS-like passthrough that compresses.
         }
 
         this.wasmBridge.processAstEdge(
