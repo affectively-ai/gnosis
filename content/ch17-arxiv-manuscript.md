@@ -6091,9 +6091,3 @@ test generation, formalization support, artifact production, and general
 research workflow acceleration. Final selection, integration,
 interpretation, and responsibility for the manuscript’s claims, errors,
 and conclusions remain with the author.
-
-## Resources
-
-- Patreon: https://www.patreon.com/c/twbuley
-- Twitter: https://twitter.com/taylorbuley
-- Threads: https://www.threads.com/@taylorbuley
