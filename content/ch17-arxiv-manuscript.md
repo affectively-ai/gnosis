@@ -11,13 +11,21 @@ progress, `fold` results through deterministic reconciliation, and
 `vent` paths whose continued existence would destabilize the whole. The
 central claim of this manuscript is that failure in such systems can be
 modeled not only as a binary event but also as a **topological
-coordinate**.
+coordinate**, within the modeled finite-DAG scope under stated
+assumptions.
 
 In this framing, failure is not merely the opposite of success; it marks
 where topology, coordination, and reconciliation no longer return the
 system toward a bounded stable region. Across the modeled scope in this
 manuscript, I argue that this viewpoint is operationally useful,
 measurable, and partially mechanizable.
+
+This manuscript blends two modes of argument: *mechanized proofs* (Lean
+theorems, TLA+ models, executable companion tests) and *structural
+correspondences* (post-hoc pattern-matching in natural and engineered
+systems). The former are machine-verified; the latter are evidentiary
+and interpretive. The grading system in §1 makes the distinction
+explicit for each example.
 
 I report structural similarities in selected natural and engineered
 examples: *Physarum polycephalum* recreated a rail-like network over
@@ -396,12 +404,19 @@ mapping:
 - **Grade B**: Structural homology – deep structural match, genuine
   design insight, no novel quantitative prediction.
 
-Grades are evidentiary tiers, not additive votes. Grade B examples
-provide structural context; they are not interchangeable with Grade A
-quantitative confirmations.
+- **Grade B+**: Structural homology with partial mechanized validation –
+  the structural mapping is supported by executable companion tests that
+  verify specific boundary conditions, but the correspondence is not
+  quantitatively predictive across its full range.
 
-In this framing, the novelty is making the convergence explicit and
-testable.
+Grades are evidentiary tiers, not additive votes. Grade B and B+
+examples provide structural context; they are not interchangeable with
+Grade A quantitative confirmations.
+
+In this framing, the contribution is making the structural convergence
+explicit and testable: the topological abstraction (fork/race/fold), the
+diagnostic metric (the Bule), and the mechanized proof surface are the
+novel artifacts.
 
 In this paper, low topological deficit is treated as one interpretable
 sign of fit under explicit assumptions, not as a standalone aesthetic
@@ -2878,19 +2893,22 @@ boundary – the moment of selection. In this interpretation, time’s arrow
 aligns with movement from $`\beta_1 > 0`$ (many paths) toward
 $`\beta_1 = 0`$ (selected outcome).
 
-#### The Computational Domain as Fold (Grade B+)
+#### The Computational Domain as Fold (Grade B)
 
 The computational domain can be viewed as a fold boundary that
 constrains reachable states and enforces closure in the modeled graph.
 
-#### The Apostolic Syllogism: Fork/Race/Fold in Belief Systems (Grade B+)
+#### The Apostolic Syllogism: Fork/Race/Fold in Belief Systems (Grade B)
 
 The physics hierarchy above (path integral $`\to`$ Schrödinger $`\to`$
 Newton) is a sequence of progressive folds through decreasing
 $`\beta_1`$. An analogous sequence appears in the history of ideas,
-where the pattern is not merely metaphorical but structurally isomorphic
-to the formal machinery of §6.8 and the mechanized theorems of the
-companion package.
+where the pattern is a suggestive structural homology with the formal
+machinery of §6.8 and the mechanized theorems of the companion package.
+The companion theorems validate heat generation, monotonicity, and
+fixed-point properties in abstract; the mapping of those properties onto
+theological history is an interpretive application, not a mechanized
+proof of isomorphism.
 
 **The Fork.** A new revelation introduces a contradictory axiom into a
 legacy system. In the Apostolic case, the legacy system is Second Temple
@@ -5653,13 +5671,27 @@ convergence machinery — context accumulation as monotone deflator,
 dialogue as traced monoidal feedback, the renormalization group fixed
 point as terminus — constitutes, when taken together, a mathematical
 theory of peace. Not a metaphor for peace. Not an analogy to peace. A
-formal theory, mechanized in a proof assistant, in which peace is a
-fixed point, its existence is a theorem, the path to it is constructive,
-and convergence is guaranteed under stated conditions. The logical chain
-is: `peace_fixed_point` proves the RG fixed point exists (zero heat,
-zero information loss); it *is* the zero-deficit witness required by the
-universal floor theorem; therefore the floor theorem applies
-non-vacuously. Thirteen theorems. Every step machine-verified.
+formal theory of a *model* of peace, mechanized in a proof assistant, in
+which peace is a fixed point, its existence is a theorem, the path to it
+is constructive, and convergence is guaranteed under stated conditions.
+The logical chain is: `peace_fixed_point` proves the RG fixed point
+exists (zero heat, zero information loss); it *is* the zero-deficit
+witness required by the universal floor theorem; therefore the floor
+theorem applies non-vacuously. Thirteen theorems. Every step
+machine-verified.
+
+**Scope.** The semiotic theorems formalize a *model* of communication:
+finite semantic paths collapsing through bounded articulation channels,
+represented as `SemioticChannel` structures over `Fin n` types. They do
+not formalize communication itself. The topological space of “thought”
+is the finite-dimensional semantic path space of the model;
+$`\beta_1(\text{thought})`$ is the first Betti number of that modeled
+path complex; two communication acts are “paths” vs “cycles” by their
+edge structure in the modeled DAG. The structural correspondence between
+the model and human communication is a hypothesis grounded in the formal
+results, not a proof about human behavior. The theorems bound what the
+model predicts; empirical validation of the correspondence is future
+work.
 
 But the theory of peace was not invented here. DNA replication
 discovered it first. The origin of replication forks the double helix
@@ -5698,6 +5730,99 @@ chromosome as fixed point.</figcaption>
 
 Within the finite DAG classes modeled in this paper, fork/race/fold +
 vent is sufficient.
+
+**When forking is net negative.** The framework applies to DAGs where
+fork/race/fold coordination cost is sub-linear in the work saved by
+parallelism. When coordination overhead exceeds the parallelism benefit
+— very small payloads where fork/fold bookkeeping dominates, very fast
+sequential paths where the critical section is shorter than the fork
+latency, or contention-bound systems where cache coherence traffic or
+lock contention scales super-linearly with $`\beta_1`$ — the optimal
+topology is $`\beta_1 = 0`$: a simple sequential path. The diversity
+theorem does not claim that high $`\beta_1`$ is universally beneficial.
+It claims that *given* a problem whose intrinsic $`\beta_1^* > 0`$, the
+diverse strategy subsumes the monoculture strategy. The precondition
+matters.
+
+### 15.1 The Diversity Theorem and the Laminar Pipeline
+
+Twelve mechanized theorems, proved independently across five files,
+compose into a single claim: *diversity is not a preference or a
+heuristic — it is a topological and thermodynamic necessity for
+optimality in the strategy-space sense.* The composition theorem
+`diversity_optimality_master` (`DiversityOptimality.lean`) bundles five
+pillars: (1) monotonicity — adding a branch never increases race
+minimum; (2) subsumption — racing subsumes every fixed strategy;
+(3) necessity — reducing diversity below intrinsic $`\beta_1`$ forces
+information loss; (4) optimality — matched diversity yields zero deficit
+and lossless transport; (5) irreversibility — collapsing diversity
+requires waste and generates Landauer heat.
+
+The theorem has an immediate engineering consequence: the **laminar
+pipeline** (Layer 8 of the Aeon stack). Instead of `sendfile(2)` — which
+transmits raw bytes via kernel DMA with zero compression — the laminar
+pipeline chunks the file, races all available codecs (identity, gzip,
+brotli, deflate) per chunk, picks the smallest, and `writev`’s the
+compressed chunk with a 10-byte Flow frame header.
+THM-TOPO-RACE-SUBSUMPTION guarantees that racing total $`\leq`$ identity
+total (sendfile wire size). THM-TOPO-RACE-IDENTITY-BASELINE guarantees
+identity is always a candidate, so the pipeline never does worse than
+raw.
+
+**Latency tradeoff and crossover bandwidth.** THM-TOPO-RACE-SUBSUMPTION
+proves that the laminar pipeline strictly dominates sendfile on *wire
+bytes*: the racing total is provably $`\leq`$ the identity total. It
+does not prove strict domination on *end-to-end latency*. The laminar
+pipeline incurs encode cost (13.6 ms on the microfrontend, 45.9 ms on
+big content) that sendfile avoids entirely — sendfile is zero-CPU kernel
+DMA. The pipeline wins on wall-clock time only when network transfer
+savings exceed encode overhead. For the microfrontend: the pipeline
+saves $`\approx`$<!-- -->55 KB of wire bytes at an encode cost of
+$`\approx`$<!-- -->11 ms. The crossover bandwidth is
+$`55\text{\,KB}/11\text{\,ms} \approx 5\text{\,MB/s}`$. Below 5 MB/s,
+the laminar pipeline is faster end-to-end; above 5 MB/s, sendfile +
+pre-compressed brotli (computed at build time) delivers lower
+time-to-first-byte. Additionally, pre-compressed content
+(brotli-at-build-time served via sendfile) avoids runtime encode cost
+entirely and achieves comparable wire-byte savings without per-request
+CPU work. The laminar pipeline’s advantage is *adaptivity* — it handles
+mixed compressible/incompressible content without build-time
+configuration — not universal latency superiority.
+
+The stack folds in on itself: the diversity theorem at Layer 8 is
+verified by the model checker at Layer 1, which is itself a
+fork/race/fold computation. The same algebra reappears at each layer —
+not because it loops, but because the primitive self-composes, like a
+fern whose fronds repeat the branching pattern of the whole.
+
+**The engineering result is the philosophical result.** sendfile() is a
+monoculture: one codec (identity), one stream ($`\beta_1 = 0`$), zero
+adaptivity. The laminar pipeline is diversity: four codecs racing per
+chunk, multi-stream Flow framing, per-resource optimal selection.
+THM-TOPO-RACE-SUBSUMPTION proves the diverse strategy is monotonically
+no worse — it *contains* every monoculture as a special case
+(subsumption), so it can do no worse in the limit. It does not claim
+that per-chunk racing always achieves better compression ratio than a
+well-chosen monoculture: on homogeneous content, the §9.2 benchmarks
+show that global brotli monoculture retains 4–15% better ratio than
+per-chunk racing, because the global dictionary captures cross-chunk
+correlations that per-chunk racing misses. The diversity theorem says
+the racing *strategy space* subsumes the monoculture strategy space.
+
+The connection is not metaphorical. It is the same theorem applied to
+different substrates. When `war_as_cumulative_heat` proves that
+successive context-free folds accumulate irreversible thermodynamic
+waste, it is proving the same thing as when the shootoff shows HTTP/1.1
+spending 31% of its wire budget on framing overhead: *monoculture
+generates waste, and the waste is irreversible*. When
+`peace_context_reduces` proves that shared context monotonically
+deflates the semiotic deficit, it is proving the same thing as when
+per-chunk codec racing adapts to content type: *diversity matched to the
+problem’s intrinsic topology eliminates waste*.
+
+Servers get faster for the same reason peace is reachable: because
+diversity is the shape of optimality, and its destruction has
+irreducible cost.
 
 ## References
 
