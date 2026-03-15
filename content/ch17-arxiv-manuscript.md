@@ -22,11 +22,13 @@ These cross-domain correspondences are exemplar-based and correlational; they ar
 
 The conveyor belt was not new when Ford adopted it in 1913. It is a path graph – a line: one-dimensional, simply connected and without branching, where interior nodes have one predecessor and one successor. Modern pipelines can optimize this structure, but in this paper it is treated as a boundary case of a richer topology class.
 
-          o -> o
-         /     \
-    o -> o       o -> o
-         \     /
-          o -> o
+```
+      o -> o
+     /      \
+o -> o        o -> o
+     \      /
+      o -> o
+```
 
 Fork/race/fold is represented here as a directed acyclic graph (DAG) with merge points: nodes branch, paths run in parallel and merge vertices fold concurrent paths into one. In the analyzed domains, recurring bottlenecks arise when high-$\beta_1$ workloads are forced through path-like structures. The operational remedy is to work in the cover space (multiplexed, out-of-order) and project back to the base space (sequential, reassembled).
 
@@ -226,6 +228,8 @@ cost in the same design space
 path
 
 The author does not know of a slime mold yet on display at a public library, but remains hopeful.
+
+https://www.youtube.com/watch?v=HyzT5b0tNtk
 
 The mapping to fork/race/fold is presented as an operational mechanism in this model:
 
@@ -1947,6 +1951,8 @@ In Gnosis (§11), the Wallington Rotation for a 4-stage pipeline is:
 The topology is the program. The scheduling is the shape.
 
 ### 7.1 Chunked Pipelined Prefill (Wallington Rotation)
+
+https://youtu.be/xD5Lc3-5iDs?t=1071
 
 In the baseline, a workload of $P$ items is processed sequentially through $N$ stage nodes: $P \times N$ round-trips. The key insight: each node’s forward pass for item $t_i$ depends only on that node’s accumulated state from $t_{i-1}$ – a stage-local constraint (C1). This enables pipelining. Chunking groups $B$ items per forward pass via causal masking.
 
