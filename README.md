@@ -1,6 +1,14 @@
 # Gnosis
 
-Gnosis is a graph-first language and toolchain built around `FORK`, `RACE`, `FOLD`, `VENT`, `PROCESS`, and `INTERFERE`. The fairest way to brag about it is not to say it has the biggest theory. It is to say that the repo already gives you the pieces people usually need before a new language feels real: a CLI, a REPL, a formatter, a module system, a test runner, a native runtime path, formal outputs, bindings, and a large set of examples you can actually poke at.
+*The impossible language.*
+
+The word means "knowledge" -- specifically, direct knowledge of the divine source, the kind that lets you reverse the coarsening and reconstitute the erased signal. The strict data processing inequality proves this is impossible: any non-trivial many-to-one map strictly erases information, the erasure is irreversible, and the Landauer heat has already been paid. The bits are in the Void now.
+
+We named the language after the attempt anyway.
+
+Gnosis is a graph-first language and toolchain built around `FORK`, `RACE`, `FOLD`, `VENT`, `PROCESS`, and `INTERFERE`. Every `.gg` program is a topology -- a directed graph whose edges carry the semantics of parallel creation (fork), concurrent selection (race), deterministic reconciliation (fold), and controlled failure (vent). The compiler (Betty) computes the Betti number, audits thermodynamic stability, and emits machine-checkable proof artifacts in Lean 4 and TLA+. The runtime executes the same topology it checks. The formal bridge proves theorems about the same topology it runs.
+
+The fairest way to brag about it is not to say it has the biggest theory. It is to say that the repo already gives you the pieces people usually need before a new language feels real: a CLI, a REPL, a formatter, a module system, a test runner, a native runtime path, formal outputs, bindings, and a large set of examples you can actually poke at.
 
 The strongest simple claim is this: one `.gg` file can move through writing, checking, testing, running, native execution, TLA output, Lean artifact generation, and benchmark suites without changing formats.
 
@@ -13,7 +21,7 @@ The strongest simple claim is this: one `.gg` file can move through writing, che
 Gnosis is unusually complete for a research language repo.
 
 - One CLI covers the full loop: `lint`, `analyze`, `verify`, `build`, `run`, `native`, `test`, `mod init`, and `mod tidy`.
-- Authoring is not miserable: there is a TUI REPL, `--fix` formatting, and narrow UFCS sugar so linear `PROCESS` chains can be written as `func(value)` or `value.func()`.
+- Authoring is not miserable: there is a TUI REPL, `--fix` formatting, narrow UFCS sugar so linear `PROCESS` chains can be written as `func(value)` or `value.func()`, and structured primitives such as `WallingtonRotation`, `WorthingtonWhip`, and `StructuredMoA` for the recurring higher-order graph shapes.
 - Formal tooling is not bolted on later: `.gg` topologies can emit TLA+ modules/configs and Lean proof artifacts from the main workflow.
 - Runtime ergonomics are practical: the interpreter and native frame runtime share the same topology model, and the native path falls back deterministically when WASM is unavailable.
 - Deploy-time friction is reduced up front: capability inference and validation can fail incompatible effects early for `workers`, `node`, or `bun`.
@@ -34,7 +42,7 @@ Gnosis is unusually complete for a research language repo.
 
 ## What You Get Today
 
-- A topology compiler in [`src/betty`](./src/betty/README.md), including static topology checks, UFCS lowering, stability auditing, and Lean artifact generation.
+- A topology compiler in [`src/betty`](./src/betty/README.md), including static topology checks, UFCS lowering, stability auditing, Lean artifact generation, a real-observable `continuousHarris` bridge for certified queue families with bounded affine drift gaps, and a coupled-kernel handoff theorem for bounded inter-app arrival pressure.
 - A runtime in [`src/runtime`](./src/runtime/README.md) with built-in tagged value handling (`Result`, `Option`, `Variant`, `Destructure`, `Delay`, quantum and differentiable primitives), structured concurrency semantics, and a native frame adapter.
 - A real CLI in [`src/index.ts`](./src/README.md) covering formatting, verification, runtime execution, steering telemetry, module workflows, and machine-readable reporting.
 - A behavioral loop bridge in [`src/behavioral-taxonomy.ts`](./src/README.md) that can both measure the corpus-level buley surface and project individual loops into executable Gnosis topologies.
@@ -102,7 +110,7 @@ The CLI is where most people will first feel whether this is usable:
 
 - `lint` and `analyze` surface structural correctness, steering, and target compatibility.
 - `verify` emits formal artifacts from the same source graph.
-- `build` can push further into Lean-backed proof output, including measurable queue certificates, the emitted Lévy-Prokhorov exact-convergence endpoint, the emitted post-burn-in geometric-decay endpoint, and the emitted abstract geometric-ergodicity endpoint for certified laminar queue kernels.
+- `build` can push further into Lean-backed proof output, including measurable queue certificates, the emitted real-observable `continuousHarris` witness package with bounded affine drift gaps, the emitted `*_measurable_observable` / `*_measurable_observable_drift` / `*_measurable_continuous_harris_certified` theorem family over the queue-support kernel, the real-state `derive_gnosis_drift` helper surface for measurable Lyapunov gaps, the coupled-kernel handoff theorems for bounded inter-app arrival pressure, the emitted Lévy-Prokhorov exact-convergence endpoint, the emitted post-burn-in geometric-decay endpoint, and the emitted abstract geometric-ergodicity endpoint for certified laminar queue kernels.
 - `run` and `native` let you use either the interpreter or the native frame runtime without changing source format.
 - `test` runs `.test.gg` suites directly.
 - `mod init` and `mod tidy` make modular `.gg` projects manageable instead of ad hoc.
@@ -122,6 +130,7 @@ This is one of the clearest places the repo earns its confidence:
 
 - TLA+ modules/configs are generated from `.gg`,
 - Lean artifacts can be emitted from compiler output,
+- compiler proofs now include bounded coupled-kernel handoff stability across app boundaries,
 - generated files already exist in the tree in large numbers,
 - and the formal path is exercised by tests and benchmark/report flows rather than treated as marketing copy.
 
@@ -146,7 +155,7 @@ The examples and benchmarks are a serious part of the user story:
 
 ## Repository Guide
 
-- [ROADMAP](./ROADMAP.md): language roadmap and near-term design edges.
+- [ROADMAP](./ROADMAP.md): language roadmap and near-term design edges, including the current continuous-Harris synthesis frontier.
 - [src](./src/README.md): compiler, runtime, CLI, module tooling, auth, CRDT, and benchmark internals.
 - [examples](./examples/README.md): executable examples and `.test.gg` suites.
 - [bindings](./bindings/README.md): subprocess-based client bindings for non-TS hosts.
