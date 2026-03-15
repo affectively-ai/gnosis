@@ -1,7 +1,6 @@
 # **Finding Hope in the Shape of Failure**: Bottling Infinity in Distributed Systems
 
-**Taylor William Buley** Independent Researcher
-https://www.patreon.com/c/twbuley
+*[Taylor William Buley](https://www.patreon.com/c/twbuley) — Independent Researcher*
 
 ## Abstract
 
