@@ -2604,11 +2604,11 @@ The connection is not metaphorical. It is the same theorem applied to different 
 
 Servers get faster for the same reason peace is reachable: because diversity is the shape of optimality, and its destruction has irreducible cost.
 
-### 15.2 The Buley Frontier
+### 15.2 The American Frontier
 
 The three shootoffs — protocol framing (§8.5), topological compression (§9.2), and laminar pipeline scheduling (§15.1) — appear to be unrelated engineering benchmarks. They are not. All three trace the same Pareto frontier, and that frontier is mechanized.
 
-**THM-BULEY-FRONTIER** (`BuleyFrontier.lean`) proves that for any system with intrinsic topology $`\beta_1^*`$, the map
+**THM-AMERICAN-FRONTIER** (`AmericanFrontier.lean`) proves that for any system with intrinsic topology $`\beta_1^*`$, the map
 ``` math
 d \;\mapsto\; \text{waste}(d) \;=\; \Delta\beta(\beta_1^*, d)
 ```
@@ -2632,13 +2632,13 @@ Each shootoff is a substrate-specific projection of this frontier:
 
 - **Compression:** Across five corpus types, topology racing achieves 100% win rate against both best-fixed and heuristic strategies. The gain ranges from 0.8% on homogeneous text to 46% on heterogeneous API telemetry — the cost of monoculture scales with the problem’s intrinsic $`\beta_1^*`$.
 
-**Diagnostic application.** The frontier is not merely descriptive; it is a diagnostic tool. Given any fork/race/fold system, one can compute its diversity level $`d`$ and measured waste $`w`$, then check whether $`(d, w)`$ lies on the frontier. Systems below the frontier need diversification; systems on it are Pareto-optimal. The deficit $`\Delta\beta = \beta_1^* - d`$ is both the distance to the frontier and the lower bound on waste. Standard Pareto-analysis tools — dominance testing, efficiency frontiers, envelope computation — apply directly, because THM-BULEY-FRONTIER provides the monotonicity and boundary conditions that these tools require.
+**Diagnostic application.** The frontier is not merely descriptive; it is a diagnostic tool. Given any fork/race/fold system, one can compute its diversity level $`d`$ and measured waste $`w`$, then check whether $`(d, w)`$ lies on the frontier. Systems below the frontier need diversification; systems on it are Pareto-optimal. The deficit $`\Delta\beta = \beta_1^* - d`$ is both the distance to the frontier and the lower bound on waste. Standard Pareto-analysis tools — dominance testing, efficiency frontiers, envelope computation — apply directly, because THM-AMERICAN-FRONTIER provides the monotonicity and boundary conditions that these tools require.
 
 This makes diversity calculable rather than aspirational. When the deficit is positive, the system is provably below the frontier and diversification is not a preference but a Pareto improvement. When the deficit is zero, the system is on the frontier and further diversification provides no topological benefit (though it may provide robustness, which is a separate axis). The frontier tells you exactly when a system needs diversification and exactly how much it will gain.
 
 <figure>
 <p> </p>
-<figcaption>Figure 3. The Buley Frontier: diversity vs waste across three substrates. <strong>A.</strong> Protocol framing overhead on the microfrontend benchmark (95 resources), monotonically decreasing from HTTP/1.1 (31%) to Aeon Flow (1.5%). <strong>B.</strong> Pipeline idle fraction vs Reynolds number for a 4-stage pipeline: laminar regime (high diversity, low waste) to turbulent regime (low diversity, high waste). <strong>C.</strong> Cost of monoculture: heuristic waste (topology gain %) across five corpus types ordered by content heterogeneity, showing that the penalty for non-diverse strategy scales with intrinsic <span class="math inline"><em>β</em><sub>1</sub><sup>*</sup></span>. All three panels are instantiations of THM-BULEY-FRONTIER (<code>BuleyFrontier.lean</code>): waste monotonically non-increasing in diversity, zero at <span class="math inline"><em>β</em><sub>1</sub> = <em>β</em><sub>1</sub><sup>*</sup></span>, positive below.</figcaption>
+<figcaption>Figure 3. The American Frontier: diversity vs waste across three substrates. <strong>A.</strong> Protocol framing overhead on the microfrontend benchmark (95 resources), monotonically decreasing from HTTP/1.1 (31%) to Aeon Flow (1.5%). <strong>B.</strong> Pipeline idle fraction vs Reynolds number for a 4-stage pipeline: laminar regime (high diversity, low waste) to turbulent regime (low diversity, high waste). <strong>C.</strong> Cost of monoculture: heuristic waste (topology gain %) across five corpus types ordered by content heterogeneity, showing that the penalty for non-diverse strategy scales with intrinsic <span class="math inline"><em>β</em><sub>1</sub><sup>*</sup></span>. All three panels are instantiations of THM-AMERICAN-FRONTIER (<code>AmericanFrontier.lean</code>): waste monotonically non-increasing in diversity, zero at <span class="math inline"><em>β</em><sub>1</sub> = <em>β</em><sub>1</sub><sup>*</sup></span>, positive below.</figcaption>
 </figure>
 
 ## References
