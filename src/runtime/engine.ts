@@ -245,7 +245,7 @@ export class GnosisEngine {
         // 1. EVOLVE corollary: Dynamic Scaling based on Reynolds Number
         if (edge.type === 'EVOLVE') {
           const re = this.tracker.metrics().reynoldsNumber;
-          const maxRe = parseFloat(edge.properties.max_re || '0.7');
+          const maxRe = parseFloat(edge.properties.max_re || String(2/3));
           if (re > maxRe) {
             const targetCount = Math.max(
               1,
