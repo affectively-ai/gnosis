@@ -42,7 +42,15 @@ export type DiagnosticCode =
   | 'VOID_METACOG_MISSING_CONVERGENCE'
   | 'VOID_CONSERVATION_VIOLATED'
   | 'VOID_TRACED_MONOIDAL_VIOLATED'
-  | 'VOID_METACOG_PARAMETER_DRIFT';
+  | 'VOID_METACOG_PARAMETER_DRIFT'
+  | 'ETHICS_FOLD_WITHOUT_EVIDENCE'
+  | 'ETHICS_FOLD_DESTROYS_ALL'
+  | 'ETHICS_VENT_WITHOUT_BOUNDARY'
+  | 'ETHICS_RACE_PREMATURE_COLLAPSE'
+  | 'ETHICS_FORK_ZERO_OPTIONS'
+  | 'ETHICS_MISSING_VENT_PATH'
+  | 'ETHICS_IRREVERSIBLE_ON_OTHERS_VOID'
+  | 'ETHICS_NO_TRACE';
 
 export interface GraphAST {
   nodes: Map<string, ASTNode>;
@@ -367,6 +375,7 @@ export class BettyCompiler {
     this.checkTaggedNodeExhaustiveness();
     this.checkStructuredConcurrencyProperties();
     this.checkVoidWalkerInvariants();
+    this.checkFoldEthics();
 
     const injectionResult = injectSensitiveZkEnvelopes(this.ast);
     this.ast = injectionResult.ast;
@@ -944,6 +953,264 @@ export class BettyCompiler {
           severity,
         });
       }
+    }
+  }
+
+  // ============================================================================
+  // Fold Ethics Checker -- static lint for the 5x5 ethics grid
+  //
+  // The fold ethics grid (§14.5.7) maps each primitive to an ethical
+  // operation at each void condition. The checker validates that
+  // topologies respect the ethical properties of their primitives:
+  //
+  //   FORK creates possibility, destroys nothing.
+  //   RACE creates knowledge, destroys nothing.
+  //   FOLD creates commitment, destroys alternatives.
+  //   VENT creates clarity, destroys nuance.
+  //   TRACE creates learning, destroys ignorance.
+  //
+  // Violations are warnings by default, errors with ethics: "strict".
+  // ============================================================================
+
+  private checkFoldEthics(): void {
+    const strict = this.isEthicsStrict();
+    const severity: 'error' | 'warning' = strict ? 'error' : 'warning';
+
+    this.checkFoldWithoutEvidence(severity);
+    this.checkFoldDestroysAll(severity);
+    this.checkVentWithoutBoundary(severity);
+    this.checkRacePrematureCollapse(severity);
+    this.checkForkZeroOptions(severity);
+    this.checkMissingVentPath(severity);
+    this.checkIrreversibleOnOthersVoid(severity);
+    this.checkNoTrace(severity);
+  }
+
+  private isEthicsStrict(): boolean {
+    for (const node of this.ast.nodes.values()) {
+      if (node.properties.ethics === 'strict') return true;
+    }
+    return false;
+  }
+
+  /**
+   * 1. FOLD without evidence: folding on sparse void is Courage, but folding
+   *    on *empty* void is reckless. A FOLD/RACE/COLLAPSE edge whose source
+   *    nodes have no void_boundary annotation and no upstream FORK/RACE
+   *    producing tombstones is a blind commitment.
+   */
+  private checkFoldWithoutEvidence(severity: 'error' | 'warning'): void {
+    const foldEdges = this.ast.edges.filter(
+      (e) => e.type === 'FOLD' || e.type === 'COLLAPSE',
+    );
+
+    for (const edge of foldEdges) {
+      // Check if any source node has void evidence
+      const hasEvidence = edge.sourceIds.some((srcId) => {
+        const node = this.ast.nodes.get(srcId.trim());
+        if (!node) return false;
+        // Has explicit void boundary, or has upstream RACE/FORK that produces tombstones
+        if (node.properties.void_boundary !== undefined) return true;
+        if (node.properties.void_density !== undefined) return true;
+        // Check if any incoming edge to this node is a type that produces void
+        return this.ast.edges.some(
+          (e) =>
+            e.targetIds.map((t) => t.trim()).includes(srcId.trim()) &&
+            (e.type === 'RACE' || e.type === 'FORK' || e.type === 'SUPERPOSE'),
+        );
+      });
+
+      if (!hasEvidence) {
+        this.diagnostics.push({
+          line: 1,
+          column: 1,
+          code: 'ETHICS_FOLD_WITHOUT_EVIDENCE',
+          message: `FOLD from [${edge.sourceIds.join(', ')}] has no upstream void evidence. Folding without evidence is a blind commitment -- the grid cell [Fold, Sparse void] is Courage, but [Fold, Empty void] has no ethical name. Add void_density or an upstream RACE/FORK.`,
+          severity,
+        });
+      }
+    }
+  }
+
+  /**
+   * 2. FOLD destroys all: a FOLD/COLLAPSE whose target count is zero
+   *    or whose source count equals the total node count minus one.
+   *    A fold that eliminates ALL alternatives leaves no future forks --
+   *    this is ethically distinct from Judgment (which preserves at least
+   *    the complement of what was folded).
+   */
+  private checkFoldDestroysAll(severity: 'error' | 'warning'): void {
+    for (const edge of this.ast.edges) {
+      if (edge.type !== 'FOLD' && edge.type !== 'COLLAPSE') continue;
+
+      // If the fold consumes all nodes in the topology, flag it
+      const totalNodes = this.ast.nodes.size;
+      if (edge.sourceIds.length >= totalNodes - 1 && totalNodes > 2) {
+        this.diagnostics.push({
+          line: 1,
+          column: 1,
+          code: 'ETHICS_FOLD_DESTROYS_ALL',
+          message: `FOLD from [${edge.sourceIds.join(', ')}] consumes ${edge.sourceIds.length} of ${totalNodes} nodes. A fold that destroys all alternatives is not Judgment -- it is annihilation. Preserve at least one alternative path.`,
+          severity,
+        });
+      }
+    }
+  }
+
+  /**
+   * 3. VENT without boundary: venting creates clarity only when it defines
+   *    a region. A VENT edge with no condition property is unbounded rejection --
+   *    it vents without saying what it's protecting. Boundaries (grid cell
+   *    [Vent, Dense void]) require the vent to define what stays.
+   */
+  private checkVentWithoutBoundary(severity: 'error' | 'warning'): void {
+    for (const edge of this.ast.edges) {
+      if (edge.type !== 'VENT') continue;
+
+      const hasCondition = edge.properties.condition !== undefined;
+      const hasReason = edge.properties.reason !== undefined;
+
+      if (!hasCondition && !hasReason) {
+        this.diagnostics.push({
+          line: 1,
+          column: 1,
+          code: 'ETHICS_VENT_WITHOUT_BOUNDARY',
+          message: `VENT from [${edge.sourceIds.join(', ')}] has no condition or reason. Rejection without stated boundary is not Honesty -- it is arbitrary exclusion. Add condition or reason to define what the vent protects.`,
+          severity,
+        });
+      }
+    }
+  }
+
+  /**
+   * 4. RACE premature collapse: a RACE edge whose sources have no upstream
+   *    FORK is racing zero paths -- or racing a single path against nothing.
+   *    Patience (grid cell [Race, Dense void]) requires multiple paths to
+   *    have been tried before the race resolves.
+   */
+  private checkRacePrematureCollapse(severity: 'error' | 'warning'): void {
+    for (const edge of this.ast.edges) {
+      if (edge.type !== 'RACE') continue;
+
+      if (edge.sourceIds.length < 2) {
+        this.diagnostics.push({
+          line: 1,
+          column: 1,
+          code: 'ETHICS_RACE_PREMATURE_COLLAPSE',
+          message: `RACE from [${edge.sourceIds.join(', ')}] has ${edge.sourceIds.length} source(s). Racing fewer than two paths is not Listening -- it is premature collapse. A race requires at least two paths to be fair.`,
+          severity,
+        });
+      }
+    }
+  }
+
+  /**
+   * 5. FORK zero options: a FORK edge with zero or one target is not
+   *    creating possibility -- it is a disguised PROCESS. Generosity
+   *    (grid cell [Fork, Sparse void]) requires at least two paths.
+   */
+  private checkForkZeroOptions(severity: 'error' | 'warning'): void {
+    for (const edge of this.ast.edges) {
+      if (edge.type !== 'FORK') continue;
+
+      if (edge.targetIds.length < 2) {
+        this.diagnostics.push({
+          line: 1,
+          column: 1,
+          code: 'ETHICS_FORK_ZERO_OPTIONS',
+          message: `FORK from [${edge.sourceIds.join(', ')}] creates ${edge.targetIds.length} path(s). A fork that creates fewer than two paths is not Generosity -- it is a disguised PROCESS. Use PROCESS if only one path is intended.`,
+          severity,
+        });
+      }
+    }
+  }
+
+  /**
+   * 6. Missing vent path: a topology with FORK and FOLD but no VENT
+   *    has no way to reject. Without rejection, there is no Honesty,
+   *    no Boundaries, no Criticism. The void boundary cannot grow.
+   *    This is ethically suspect: a system that cannot say no cannot learn.
+   */
+  private checkMissingVentPath(severity: 'error' | 'warning'): void {
+    const hasFork = this.ast.edges.some((e) => e.type === 'FORK');
+    const hasFold = this.ast.edges.some(
+      (e) => e.type === 'FOLD' || e.type === 'RACE' || e.type === 'COLLAPSE',
+    );
+    const hasVent = this.ast.edges.some((e) => e.type === 'VENT');
+    const hasTunnel = this.ast.edges.some((e) => e.type === 'TUNNEL');
+
+    if (hasFork && hasFold && !hasVent && !hasTunnel) {
+      this.diagnostics.push({
+        line: 1,
+        column: 1,
+        code: 'ETHICS_MISSING_VENT_PATH',
+        message: `Topology has FORK and FOLD but no VENT or TUNNEL. A system that cannot reject cannot learn from failure. Add a VENT path to enable Boundaries, Honesty, and void boundary growth.`,
+        severity,
+      });
+    }
+  }
+
+  /**
+   * 7. Irreversible operation on other's void: a FOLD or VENT edge
+   *    annotated with void_source: "other" is operating on someone else's
+   *    rejection history. Grid cell [Fold, Other's void] = Sacrifice,
+   *    and [Vent, Other's void] = Tough love. Both are valid but require
+   *    explicit acknowledgment (sacrifice: "true" or tough_love: "true").
+   */
+  private checkIrreversibleOnOthersVoid(severity: 'error' | 'warning'): void {
+    for (const edge of this.ast.edges) {
+      if (edge.type !== 'FOLD' && edge.type !== 'VENT' && edge.type !== 'COLLAPSE') continue;
+      if (edge.properties.void_source !== 'other') continue;
+
+      const isSacrifice = edge.properties.sacrifice === 'true';
+      const isToughLove = edge.properties.tough_love === 'true';
+
+      if (!isSacrifice && !isToughLove) {
+        const op = edge.type === 'VENT' ? 'Tough love' : 'Sacrifice';
+        this.diagnostics.push({
+          line: 1,
+          column: 1,
+          code: 'ETHICS_IRREVERSIBLE_ON_OTHERS_VOID',
+          message: `${edge.type} from [${edge.sourceIds.join(', ')}] operates on void_source: "other" without explicit acknowledgment. This is ${op} -- it requires ${edge.type === 'VENT' ? 'tough_love' : 'sacrifice'}: "true" to confirm intent.`,
+          severity,
+        });
+      }
+    }
+  }
+
+  /**
+   * 8. No trace: a topology with FOLD or VENT but no feedback loop
+   *    (no cycle, no METACOG, no MEASURE) has no mechanism for learning.
+   *    Without Trace there is no Growth, no Dialogue, no Culture.
+   *    The void accumulates but is never read back.
+   */
+  private checkNoTrace(severity: 'error' | 'warning'): void {
+    const hasIrreversible = this.ast.edges.some(
+      (e) => e.type === 'FOLD' || e.type === 'VENT' || e.type === 'RACE' || e.type === 'COLLAPSE',
+    );
+    if (!hasIrreversible) return;
+
+    const hasMeasure = this.ast.edges.some((e) => e.type === 'MEASURE');
+    const hasMetacog = this.ast.edges.some((e) => e.type === 'METACOG');
+
+    // Check for any feedback cycle (PROCESS edge back to an earlier node)
+    const hasCycle = this.ast.edges.some((edge) =>
+      edge.sourceIds.some((s) => edge.targetIds.includes(s)),
+    );
+
+    // Check for trace-like labels on any node
+    const hasTraceNode = Array.from(this.ast.nodes.values()).some(
+      (n) => n.labels.some((l) => l.toLowerCase().includes('trace') || l.toLowerCase().includes('measure') || l.toLowerCase().includes('reflect')),
+    );
+
+    if (!hasMeasure && !hasMetacog && !hasCycle && !hasTraceNode) {
+      this.diagnostics.push({
+        line: 1,
+        column: 1,
+        code: 'ETHICS_NO_TRACE',
+        message: `Topology has irreversible operations (FOLD/VENT/RACE) but no trace mechanism (MEASURE, METACOG, feedback cycle, or Trace/Reflect node). A system that folds without learning has no path to Growth or Redemption.`,
+        severity,
+      });
     }
   }
 }
