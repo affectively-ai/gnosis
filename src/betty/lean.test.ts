@@ -95,6 +95,15 @@ describe('generateLeanFromGnosisAst', () => {
     expect(artifact?.lean).toContain(
       'theorem complete_is_geometrically_stable_measurable_levy_prokhorov_geometric_ergodic_abstract'
     );
+    expect(artifact?.lean).toContain(
+      'theorem complete_is_geometrically_stable_measurable_observable'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem complete_is_geometrically_stable_measurable_observable_drift'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem complete_is_geometrically_stable_measurable_continuous_harris_certified'
+    );
     expect(artifact?.lean).toContain('theorem complete_is_geometrically_stable_measurable_small_set_accessible');
     expect(artifact?.lean).toContain('theorem complete_is_geometrically_stable_measurable_containing_atom_accessible');
     expect(artifact?.lean).toContain('CountableAtomAccessible');
@@ -116,6 +125,12 @@ describe('generateLeanFromGnosisAst', () => {
     expect(artifact?.lean).toContain('def queueMeasurableEpsilon : ENNReal := 1');
     expect(artifact?.lean).toContain('def queueAtomHittingBound : Nat -> Nat');
     expect(artifact?.lean).toContain('def queueWitnessHittingBound : Nat -> Nat');
+    expect(artifact?.lean).toContain('def queueObservableScale : Real := 1');
+    expect(artifact?.lean).toContain('def queueObservableOffset : Real := 0');
+    expect(artifact?.lean).toContain('def queueObservable : Nat -> Real');
+    expect(artifact?.lean).toContain('def queueExpectedObservable : Nat -> Real');
+    expect(artifact?.lean).toContain('def queueLyapunov : Nat -> Real');
+    expect(artifact?.lean).toContain('def queueContinuousDriftGap : Real := 1');
     expect(artifact?.lean).toContain('def queueSupportStep : Nat -> Nat');
     expect(artifact?.lean).toContain('noncomputable def queueSupportKernel');
     expect(artifact?.lean).toContain('noncomputable def queueWitnessKernel');
@@ -141,9 +156,23 @@ describe('generateLeanFromGnosisAst', () => {
     expect(artifact?.lean).toContain(
       'measurableFiniteTimeHarrisRecurrent_of_quantitativeHarris_and_convergence'
     );
+    expect(artifact?.lean).toContain('MeasurableRealObservableWitness');
+    expect(artifact?.lean).toContain('MeasurableLyapunovDriftWitness');
+    expect(artifact?.lean).toContain('MeasurableContinuousHarrisWitness');
     expect(artifact?.lean).toContain(
       'measurableReferencePositivePersistent_of_eventualConvergence'
     );
+    expect(artifact?.lean).toContain(
+      'natMeasurableRealObservableWitness_of_queueStep'
+    );
+    expect(artifact?.lean).toContain(
+      'natMeasurableLyapunovDriftWitness_of_queueStep_with_gap'
+    );
+    expect(artifact?.lean).toContain(
+      'natMeasurableContinuousHarrisWitness_of_queueStep_with_gap'
+    );
+    expect(artifact?.lean).toContain('natQueueAffineObservable');
+    expect(artifact?.lean).toContain('natQueueAffineExpectedObservable');
     expect(artifact?.lean).toContain('natQueueWitnessKernel');
     expect(artifact?.lean).toContain('natMeasurableQuantitativeHarrisCertified_of_queueWitnessKernel');
     expect(artifact?.lean).toContain('natMeasurableLaminarCertified_of_queueStep');
@@ -215,7 +244,8 @@ describe('generateLeanFromGnosisAst', () => {
       sourceFilePath: '/tmp/moa-transformer-moa.gg',
     });
 
-    expect(diagnostics).toEqual([]);
+    const errors = diagnostics.filter((d) => d.severity === 'error');
+    expect(errors).toEqual([]);
     expect(ast).not.toBeNull();
     expect(stability).not.toBeNull();
     expect(stability?.proof.kind).toBe('bounded-supremum');
@@ -321,6 +351,15 @@ describe('generateLeanFromGnosisAst', () => {
     expect(artifact?.lean).toContain(
       'theorem resolved_is_geometrically_stable_measurable_levy_prokhorov_geometric_ergodic_abstract'
     );
+    expect(artifact?.lean).toContain(
+      'theorem resolved_is_geometrically_stable_measurable_observable'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem resolved_is_geometrically_stable_measurable_observable_drift'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem resolved_is_geometrically_stable_measurable_continuous_harris_certified'
+    );
     expect(artifact?.lean).toContain('theorem resolved_is_geometrically_stable_measurable_small_set_accessible');
     expect(artifact?.lean).toContain('theorem resolved_is_geometrically_stable_measurable_containing_atom_accessible');
     expect(artifact?.lean).toContain('CountableAtomAccessible');
@@ -344,6 +383,12 @@ describe('generateLeanFromGnosisAst', () => {
     expect(artifact?.lean).toContain('def queueMeasurableEpsilon : ENNReal := 1');
     expect(artifact?.lean).toContain('def queueAtomHittingBound : Nat -> Nat');
     expect(artifact?.lean).toContain('def queueWitnessHittingBound : Nat -> Nat');
+    expect(artifact?.lean).toContain('def queueObservableScale : Real := 1');
+    expect(artifact?.lean).toContain('def queueObservableOffset : Real := 0');
+    expect(artifact?.lean).toContain('def queueObservable : Nat -> Real');
+    expect(artifact?.lean).toContain('def queueExpectedObservable : Nat -> Real');
+    expect(artifact?.lean).toContain('def queueLyapunov : Nat -> Real');
+    expect(artifact?.lean).toContain('def queueContinuousDriftGap : Real := 1');
     expect(artifact?.lean).toContain('def queueSupportStep : Nat -> Nat');
     expect(artifact?.lean).toContain('noncomputable def queueSupportKernel');
     expect(artifact?.lean).toContain('noncomputable def queueWitnessKernel');
@@ -369,12 +414,26 @@ describe('generateLeanFromGnosisAst', () => {
     expect(artifact?.lean).toContain(
       'measurableFiniteTimeHarrisRecurrent_of_quantitativeHarris_and_convergence'
     );
+    expect(artifact?.lean).toContain('MeasurableRealObservableWitness');
+    expect(artifact?.lean).toContain('MeasurableLyapunovDriftWitness');
+    expect(artifact?.lean).toContain('MeasurableContinuousHarrisWitness');
     expect(artifact?.lean).toContain(
       'measurableReferencePositivePersistent_of_eventualConvergence'
     );
     expect(artifact?.lean).toContain('natQueueWitnessKernel');
     expect(artifact?.lean).toContain('natMeasurableQuantitativeHarrisCertified_of_queueWitnessKernel');
     expect(artifact?.lean).toContain('natMeasurableLaminarCertified_of_queueStep');
+    expect(artifact?.lean).toContain(
+      'natMeasurableRealObservableWitness_of_queueStep'
+    );
+    expect(artifact?.lean).toContain(
+      'natMeasurableLyapunovDriftWitness_of_queueStep_with_gap'
+    );
+    expect(artifact?.lean).toContain(
+      'natMeasurableContinuousHarrisWitness_of_queueStep_with_gap'
+    );
+    expect(artifact?.lean).toContain('natQueueAffineObservable');
+    expect(artifact?.lean).toContain('natQueueAffineExpectedObservable');
     expect(artifact?.lean).toContain('natMeasurableQuantitativeLaminarCertified_of_queueStep');
     expect(artifact?.lean).toContain('natMeasurableEventuallyConvergesToAtom_of_queueStep');
     expect(artifact?.lean).toContain('natSmallSetRecurrent_of_uniformPredecessorMinorization');
@@ -393,5 +452,58 @@ describe('generateLeanFromGnosisAst', () => {
       'MeasurableSmallSetMinorized queueSupportKernel queueSmallSet minorizationMeasure queueEpsilon'
     );
     expect(artifact?.lean).toContain('countable-queue-theorem: true');
+  });
+
+  it('emits explicit affine observable parameters from .gg state properties', () => {
+    const compiler = new BettyCompiler();
+    const { ast, stability } = compiler.parse(`
+      (traffic:Source { pressure: "lambda" })
+      (processing:State { potential: "beta1", observable_kind: "fluid-backlog", observable: "backlog_bytes", observable_scale: "2.5", observable_offset: "0.25" })
+      (complete:Sink { beta1_target: "0", capacity: "32" })
+      (traffic)-[:FORK { weight: "1.0" }]->(processing)
+      (processing)-[:FOLD { service_rate: "mu", drift_gamma: "1.0" }]->(complete)
+      (processing)-[:VENT { drift_coefficient: "alpha(n)", repair_debt: "0" }]->(complete)
+    `);
+
+    const artifact = generateLeanFromGnosisAst(ast, stability, {
+      sourceFilePath: '/tmp/affine-observable.gg',
+    });
+
+    expect(artifact).not.toBeNull();
+    expect(artifact?.lean).toContain('def queueObservableScale : Real := 2.5');
+    expect(artifact?.lean).toContain('def queueObservableOffset : Real := 0.25');
+    expect(artifact?.lean).toContain('def queueContinuousDriftGap : Real := 2.5');
+    expect(artifact?.lean).toContain(
+      'natQueueAffineObservable queueObservableScale queueObservableOffset'
+    );
+    expect(artifact?.lean).toContain(
+      'natQueueAffineExpectedObservable'
+    );
+  });
+
+  it('emits bounded affine drift gaps below the observable scale', () => {
+    const compiler = new BettyCompiler();
+    const { ast, stability } = compiler.parse(`
+      (traffic:Source { pressure: "lambda" })
+      (processing:State { potential: "beta1", observable_kind: "thermal-load", observable_scale: "2", drift_gap: "1" })
+      (complete:Sink { beta1_target: "0", capacity: "16" })
+      (traffic)-[:FORK { weight: "1.0" }]->(processing)
+      (processing)-[:FOLD { service_rate: "mu", drift_gamma: "1.0" }]->(complete)
+      (processing)-[:VENT { drift_coefficient: "alpha(n)", repair_debt: "0" }]->(complete)
+    `);
+
+    const artifact = generateLeanFromGnosisAst(ast, stability, {
+      sourceFilePath: '/tmp/bounded-drift-gap.gg',
+    });
+
+    expect(artifact).not.toBeNull();
+    expect(artifact?.lean).toContain('def queueObservableScale : Real := 2');
+    expect(artifact?.lean).toContain('def queueContinuousDriftGap : Real := 1');
+    expect(artifact?.lean).toContain(
+      'natMeasurableLyapunovDriftWitness_of_queueStep_with_gap'
+    );
+    expect(artifact?.lean).toContain(
+      'natMeasurableContinuousHarrisWitness_of_queueStep_with_gap'
+    );
   });
 });

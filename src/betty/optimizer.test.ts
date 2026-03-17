@@ -1,0 +1,372 @@
+import { describe, it, expect } from 'bun:test';
+import {
+  CoarseningPass,
+  CodecRacingPass,
+  WarmupEfficiencyPass,
+  OptimizationPassManager,
+  createDefaultOptimizer,
+} from './optimizer.js';
+import type { GraphAST, ASTNode, ASTEdge } from './compiler.js';
+import type { StabilityReport } from './stability.js';
+
+// ─── Helpers ─────────────────────────────────────────────────────────
+
+function makeNode(id: string, labels: string[] = ['STATE'], properties: Record<string, string> = {}): ASTNode {
+  return { id, labels, properties };
+}
+
+function makeEdge(sourceIds: string[], targetIds: string[], type: string, properties: Record<string, string> = {}): ASTEdge {
+  return { sourceIds, targetIds, type, properties };
+}
+
+function makeAST(nodes: ASTNode[], edges: ASTEdge[]): GraphAST {
+  const nodeMap = new Map<string, ASTNode>();
+  for (const node of nodes) nodeMap.set(node.id, node);
+  return { nodes: nodeMap, edges };
+}
+
+function makeStabilityReport(overrides: Partial<StabilityReport> = {}): StabilityReport {
+  return {
+    enabled: true,
+    kernelEdges: [],
+    spectralRadius: 0.5,
+    supremumBound: null,
+    stateAssessments: [],
+    smallSetNodeIds: [],
+    countableQueue: null,
+    continuousHarris: null,
+    recurrence: { finiteStateCertified: false, steps: [] },
+    harrisRecurrent: false,
+    ventIsolationOk: true,
+    redline: null,
+    geometricCeiling: null,
+    restorativeGamma: null,
+    proof: {
+      theoremName: 'test_stable',
+      kind: 'numeric',
+      assumptions: [],
+      summary: 'test stability',
+      requiresLean: false,
+    },
+    metadata: {
+      redline: null,
+      geometricCeiling: null,
+      spectralRadius: 0.5,
+      supremumBound: null,
+      smallSetNodeIds: [],
+      restorativeGamma: null,
+      finiteStateRecurrent: false,
+      proofKind: 'numeric',
+      theoremName: 'test_stable',
+      countableQueueCertified: false,
+      laminarGeometricTheoremName: null,
+      measurableHarrisTheoremName: null,
+      measurableLaminarTheoremName: null,
+      measurableQuantitativeLaminarTheoremName: null,
+      measurableQuantitativeHarrisTheoremName: null,
+      measurableFiniteTimeHarrisTheoremName: null,
+      measurableHarrisRecurrentTheoremName: null,
+      measurableFiniteTimeGeometricErgodicTheoremName: null,
+      measurableLevyProkhorovGeometricErgodicTheoremName: null,
+      measurableLevyProkhorovGeometricDecayTheoremName: null,
+      measurableLevyProkhorovAbstractGeometricErgodicTheoremName: null,
+      measurableWitnessQuantitativeHarrisTheoremName: null,
+      queueBoundary: null,
+      laminarAtom: null,
+      queuePotential: null,
+      continuousHarris: null,
+    },
+    diagnostics: [],
+    ...overrides,
+  };
+}
+
+// ─── CoarseningPass ──────────────────────────────────────────────────
+
+describe('CoarseningPass', () => {
+  const pass = new CoarseningPass();
+
+  it('has correct theorem ID', () => {
+    expect(pass.theoremId).toBe('THM-RECURSIVE-COARSENING-SYNTHESIS');
+  });
+
+  it('does not fire on small graphs', () => {
+    const ast = makeAST(
+      [makeNode('a'), makeNode('b')],
+      [makeEdge(['a'], ['b'], 'PROCESS')]
+    );
+    const stability = makeStabilityReport();
+    expect(pass.predicate(ast, stability)).toBe(false);
+  });
+
+  it('does not fire without stable state assessments', () => {
+    const ast = makeAST(
+      [makeNode('a'), makeNode('b'), makeNode('c'), makeNode('d')],
+      []
+    );
+    const stability = makeStabilityReport({
+      stateAssessments: [
+        { nodeId: 'a', potential: '1', arrival: '2', service: '1', vent: null, gamma: null, driftExpression: '1', status: 'unstable' },
+      ],
+    });
+    expect(pass.predicate(ast, stability)).toBe(false);
+  });
+
+  it('fires on a graph with enough stable nodes', () => {
+    const ast = makeAST(
+      [makeNode('a'), makeNode('b'), makeNode('c'), makeNode('d')],
+      [makeEdge(['a'], ['b'], 'PROCESS'), makeEdge(['c'], ['d'], 'PROCESS')]
+    );
+    const stability = makeStabilityReport({
+      stateAssessments: [
+        { nodeId: 'a', potential: '1', arrival: '1', service: '3', vent: null, gamma: null, driftExpression: '-2', status: 'stable' },
+        { nodeId: 'b', potential: '1', arrival: '1', service: '3', vent: null, gamma: null, driftExpression: '-2', status: 'stable' },
+        { nodeId: 'c', potential: '1', arrival: '1', service: '3', vent: null, gamma: null, driftExpression: '-2', status: 'stable' },
+        { nodeId: 'd', potential: '1', arrival: '1', service: '3', vent: null, gamma: null, driftExpression: '-2', status: 'stable' },
+      ],
+    });
+    expect(pass.predicate(ast, stability)).toBe(true);
+  });
+
+  it('coarsens connected stable components and preserves drift conservation', () => {
+    const ast = makeAST(
+      [makeNode('a'), makeNode('b'), makeNode('c'), makeNode('sink', ['SINK'])],
+      [
+        makeEdge(['a'], ['b'], 'PROCESS'),
+        makeEdge(['b'], ['c'], 'PROCESS'),
+        makeEdge(['c'], ['sink'], 'FOLD'),
+      ]
+    );
+    const stability = makeStabilityReport({
+      stateAssessments: [
+        { nodeId: 'a', potential: '1', arrival: '2', service: '5', vent: null, gamma: null, driftExpression: '-3', status: 'stable' },
+        { nodeId: 'b', potential: '1', arrival: '3', service: '6', vent: null, gamma: null, driftExpression: '-3', status: 'stable' },
+        { nodeId: 'c', potential: '1', arrival: '1', service: '4', vent: null, gamma: null, driftExpression: '-3', status: 'stable' },
+        { nodeId: 'sink', potential: '0', arrival: null, service: null, vent: null, gamma: null, driftExpression: '0', status: 'stable' },
+      ],
+    });
+
+    const result = pass.apply(ast, stability);
+    expect(result.applied).toBe(true);
+    expect(result.certificates.length).toBeGreaterThan(0);
+
+    // Drift conservation: THM synthesis_sound
+    const cert = result.certificates[0];
+    expect(cert.theoremId).toBe('THM-RECURSIVE-COARSENING-SYNTHESIS');
+    const data = cert.data as { totalFineDrift: number; totalCoarseDrift: number };
+    // Conservation: fine drift should equal coarse drift
+    expect(Math.abs(data.totalFineDrift - data.totalCoarseDrift)).toBeLessThan(0.001);
+
+    // Coarsened graph should have fewer nodes
+    expect(result.ast.nodes.size).toBeLessThan(ast.nodes.size);
+  });
+
+  it('emits diagnostic when coarse node has non-negative drift', () => {
+    const ast = makeAST(
+      [makeNode('a'), makeNode('b'), makeNode('c'), makeNode('d')],
+      [makeEdge(['a'], ['b'], 'PROCESS')]
+    );
+    const stability = makeStabilityReport({
+      stateAssessments: [
+        { nodeId: 'a', potential: '1', arrival: '10', service: '3', vent: null, gamma: null, driftExpression: '7', status: 'stable' },
+        { nodeId: 'b', potential: '1', arrival: '10', service: '3', vent: null, gamma: null, driftExpression: '7', status: 'stable' },
+        { nodeId: 'c', potential: '1', arrival: null, service: null, vent: null, gamma: null, driftExpression: '0', status: 'unknown' },
+        { nodeId: 'd', potential: '1', arrival: null, service: null, vent: null, gamma: null, driftExpression: '0', status: 'unknown' },
+      ],
+    });
+
+    const result = pass.apply(ast, stability);
+    expect(result.diagnostics.some((d) => d.message.includes('non-negative aggregate drift'))).toBe(true);
+  });
+});
+
+// ─── CodecRacingPass ─────────────────────────────────────────────────
+
+describe('CodecRacingPass', () => {
+  const pass = new CodecRacingPass();
+
+  it('has correct theorem ID', () => {
+    expect(pass.theoremId).toBe('THM-TOPO-RACE-SUBSUMPTION');
+  });
+
+  it('does not fire without LAMINAR edges', () => {
+    const ast = makeAST(
+      [makeNode('a'), makeNode('b')],
+      [makeEdge(['a'], ['b'], 'FORK')]
+    );
+    const stability = makeStabilityReport();
+    expect(pass.predicate(ast, stability)).toBe(false);
+  });
+
+  it('fires on LAMINAR edges and certifies zero external deficit', () => {
+    const ast = makeAST(
+      [makeNode('a'), makeNode('b'), makeNode('c')],
+      [makeEdge(['a'], ['b', 'c'], 'LAMINAR', { codecs: '3' })]
+    );
+    const stability = makeStabilityReport();
+
+    expect(pass.predicate(ast, stability)).toBe(true);
+
+    const result = pass.apply(ast, stability);
+    expect(result.applied).toBe(true);
+    expect(result.certificates.length).toBe(1);
+
+    const cert = result.certificates[0];
+    expect(cert.theoremId).toBe('THM-TOPO-RACE-SUBSUMPTION');
+    const data = cert.data as { externalDeficit: number; codecCount: number; internalBeta1: number };
+    expect(data.externalDeficit).toBe(0);
+    expect(data.codecCount).toBe(3);
+    expect(data.internalBeta1).toBe(4); // (3-1) * 2 resources
+  });
+
+  it('handles default codec count of 1', () => {
+    const ast = makeAST(
+      [makeNode('a'), makeNode('b')],
+      [makeEdge(['a'], ['b'], 'LAMINAR')]
+    );
+    const stability = makeStabilityReport();
+    const result = pass.apply(ast, stability);
+    const data = result.certificates[0].data as { codecCount: number };
+    expect(data.codecCount).toBe(1);
+  });
+});
+
+// ─── WarmupEfficiencyPass ────────────────────────────────────────────
+
+describe('WarmupEfficiencyPass', () => {
+  const pass = new WarmupEfficiencyPass();
+
+  it('has correct theorem ID', () => {
+    expect(pass.theoremId).toBe('THM-WARMUP-CONTROLLER');
+  });
+
+  it('does not fire without both FORK and FOLD edges', () => {
+    const ast = makeAST(
+      [makeNode('a'), makeNode('b')],
+      [makeEdge(['a'], ['b'], 'FORK')]
+    );
+    const stability = makeStabilityReport();
+    expect(pass.predicate(ast, stability)).toBe(false);
+  });
+
+  it('fires on fork/fold pairs and computes Wallace drop cross', () => {
+    const ast = makeAST(
+      [makeNode('src'), makeNode('a'), makeNode('b'), makeNode('c'), makeNode('sink')],
+      [
+        makeEdge(['src'], ['a', 'b', 'c'], 'FORK'),
+        makeEdge(['a', 'b', 'c'], ['sink'], 'FOLD'),
+      ]
+    );
+    const stability = makeStabilityReport();
+
+    expect(pass.predicate(ast, stability)).toBe(true);
+
+    const result = pass.apply(ast, stability);
+    expect(result.applied).toBe(true);
+    expect(result.certificates.length).toBe(1);
+
+    const cert = result.certificates[0];
+    expect(cert.theoremId).toBe('THM-WARMUP-CONTROLLER');
+    const data = cert.data as { forkWidth: number; wallaceDropCross: number; warmupWorth: boolean };
+    expect(data.forkWidth).toBe(3);
+    // Wallace for 3-wide fork = 2*(3-1)/(3*3) = 4/9 ≈ 0.444
+    expect(data.wallaceDropCross).toBeGreaterThan(0);
+    expect(data.warmupWorth).toBe(true);
+  });
+
+  it('does not recommend warmup for trivial forks', () => {
+    const ast = makeAST(
+      [makeNode('src'), makeNode('a'), makeNode('sink')],
+      [
+        makeEdge(['src'], ['a'], 'FORK'),
+        makeEdge(['a'], ['sink'], 'FOLD'),
+      ]
+    );
+    const stability = makeStabilityReport();
+    const result = pass.apply(ast, stability);
+    // Fork width 1 = no warmup opportunity
+    expect(result.certificates.length).toBe(0);
+  });
+});
+
+// ─── OptimizationPassManager ─────────────────────────────────────────
+
+describe('OptimizationPassManager', () => {
+  it('runs passes in priority order', () => {
+    const manager = new OptimizationPassManager();
+    const order: string[] = [];
+
+    manager.register({
+      name: 'second',
+      theoremId: 'THM-B',
+      priority: 20,
+      predicate: () => true,
+      apply: (ast, _stability) => {
+        order.push('second');
+        return { ast, diagnostics: [], certificates: [], applied: true };
+      },
+    });
+    manager.register({
+      name: 'first',
+      theoremId: 'THM-A',
+      priority: 10,
+      predicate: () => true,
+      apply: (ast, _stability) => {
+        order.push('first');
+        return { ast, diagnostics: [], certificates: [], applied: true };
+      },
+    });
+
+    const ast = makeAST([], []);
+    const stability = makeStabilityReport();
+    manager.apply(ast, stability);
+
+    expect(order).toEqual(['first', 'second']);
+  });
+
+  it('skips passes whose predicate returns false', () => {
+    const manager = new OptimizationPassManager();
+    manager.register({
+      name: 'skipped',
+      theoremId: 'THM-SKIP',
+      priority: 10,
+      predicate: () => false,
+      apply: (ast) => {
+        throw new Error('should not be called');
+      },
+    });
+
+    const ast = makeAST([], []);
+    const stability = makeStabilityReport();
+    const result = manager.apply(ast, stability);
+    expect(result.passesApplied).toEqual([]);
+  });
+
+  it('accumulates certificates across passes', () => {
+    const manager = createDefaultOptimizer();
+    const ast = makeAST(
+      [makeNode('src'), makeNode('a'), makeNode('b'), makeNode('sink', ['SINK'])],
+      [
+        makeEdge(['src'], ['a', 'b'], 'FORK'),
+        makeEdge(['a', 'b'], ['sink'], 'FOLD'),
+        makeEdge(['src'], ['a'], 'LAMINAR', { codecs: '2' }),
+      ]
+    );
+    const stability = makeStabilityReport({
+      stateAssessments: [
+        { nodeId: 'src', potential: '1', arrival: '1', service: '3', vent: null, gamma: null, driftExpression: '-2', status: 'stable' },
+        { nodeId: 'a', potential: '1', arrival: '1', service: '3', vent: null, gamma: null, driftExpression: '-2', status: 'stable' },
+        { nodeId: 'b', potential: '1', arrival: '1', service: '3', vent: null, gamma: null, driftExpression: '-2', status: 'stable' },
+        { nodeId: 'sink', potential: '0', arrival: null, service: null, vent: null, gamma: null, driftExpression: '0', status: 'stable' },
+      ],
+    });
+
+    const result = manager.apply(ast, stability);
+    // Should have certificates from multiple passes
+    expect(result.certificates.length).toBeGreaterThan(0);
+    const passNames = new Set(result.certificates.map((c) => c.passName));
+    // At minimum: codec-racing and warmup-efficiency should fire
+    expect(passNames.has('codec-racing')).toBe(true);
+    expect(passNames.has('warmup-efficiency')).toBe(true);
+  });
+});
