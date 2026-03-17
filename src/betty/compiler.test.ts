@@ -283,6 +283,16 @@ describe('BettyCompiler', () => {
     expect(stability?.metadata.queueBoundary).toBe(64);
     expect(stability?.metadata.laminarAtom).toBe(0);
     expect(stability?.metadata.queuePotential).toBe('beta1');
+    expect(stability?.continuousHarris?.observableKind).toBe('queue-depth');
+    expect(stability?.continuousHarris?.observableExpression).toBe('beta1');
+    expect(stability?.continuousHarris?.lyapunovExpression).toBe('beta1');
+    expect(stability?.continuousHarris?.smallSetBoundary).toBe(64);
+    expect(stability?.metadata.continuousHarris?.observableDriftTheoremName).toBe(
+      'complete_is_geometrically_stable_measurable_observable_drift'
+    );
+    expect(stability?.metadata.continuousHarris?.continuousHarrisTheoremName).toBe(
+      'complete_is_geometrically_stable_measurable_continuous_harris_certified'
+    );
     expect(stability?.metadata.laminarGeometricTheoremName).toBe(
       'complete_is_geometrically_stable_laminar_geometric_stable'
     );
@@ -331,6 +341,76 @@ describe('BettyCompiler', () => {
     ).toBe(false);
   });
 
+  it('derives an explicit affine continuous observable witness from state properties', () => {
+    const { stability, diagnostics } = compiler.parse(`
+            (traffic:Source { pressure: "lambda" })
+            (processing:State { potential: "beta1", observable_kind: "fluid-backlog", observable: "backlog_bytes", observable_scale: "2.5", observable_offset: "0.25" })
+            (complete:Sink { beta1_target: "0", capacity: "32" })
+            (traffic)-[:FORK { weight: "1.0" }]->(processing)
+            (processing)-[:FOLD { service_rate: "mu", drift_gamma: "1.0" }]->(complete)
+            (processing)-[:VENT { drift_coefficient: "alpha(n)", repair_debt: "0" }]->(complete)
+        `);
+
+    expect(diagnostics.some((d) => d.code === 'ERR_CONTINUOUS_WITNESS_INVALID')).toBe(
+      false
+    );
+    expect(stability?.continuousHarris).toMatchObject({
+      observableKind: 'fluid-backlog',
+      observableExpression: '2.5 * backlog_bytes + 0.25',
+      lyapunovExpression: '2.5 * backlog_bytes + 0.25',
+      expectedObservableExpression: '2.5 * backlog_bytes - 2.25',
+      driftGapExpression: '2.5',
+      observableScale: 2.5,
+      observableOffset: 0.25,
+      driftGap: 2.5,
+      smallSetBoundary: 32,
+    });
+  });
+
+  it('accepts affine drift gaps below the observable scale', () => {
+    const { stability, diagnostics } = compiler.parse(`
+            (traffic:Source { pressure: "lambda" })
+            (processing:State { potential: "beta1", observable_kind: "thermal-load", observable_scale: "2", drift_gap: "1" })
+            (complete:Sink { beta1_target: "0", capacity: "16" })
+            (traffic)-[:FORK { weight: "1.0" }]->(processing)
+            (processing)-[:FOLD { service_rate: "mu", drift_gamma: "1.0" }]->(complete)
+            (processing)-[:VENT { drift_coefficient: "alpha(n)", repair_debt: "0" }]->(complete)
+        `);
+
+    expect(diagnostics.some((d) => d.code === 'ERR_CONTINUOUS_WITNESS_INVALID')).toBe(
+      false
+    );
+    expect(stability?.continuousHarris).toMatchObject({
+      observableKind: 'thermal-load',
+      observableExpression: '2 * thermal_load',
+      lyapunovExpression: '2 * thermal_load',
+      expectedObservableExpression: '2 * thermal_load - 2',
+      driftGapExpression: '1',
+      observableScale: 2,
+      observableOffset: 0,
+      driftGap: 1,
+      smallSetBoundary: 16,
+    });
+  });
+
+  it('rejects continuous witness properties outside the affine queue family', () => {
+    const { stability, diagnostics } = compiler.parse(`
+            (traffic:Source { pressure: "lambda" })
+            (processing:State { potential: "beta1", observable_kind: "thermal-load", observable_scale: "2", drift_gap: "3" })
+            (complete:Sink { beta1_target: "0", capacity: "16" })
+            (traffic)-[:FORK { weight: "1.0" }]->(processing)
+            (processing)-[:FOLD { service_rate: "mu", drift_gamma: "1.0" }]->(complete)
+            (processing)-[:VENT { drift_coefficient: "alpha(n)", repair_debt: "0" }]->(complete)
+        `);
+
+    expect(stability?.continuousHarris).toBeNull();
+    expect(
+      diagnostics.some(
+        (diagnostic) => diagnostic.code === 'ERR_CONTINUOUS_WITNESS_INVALID'
+      )
+    ).toBe(true);
+  });
+
   it('flags repair debt leaking through vents', () => {
     const { diagnostics } = compiler.parse(`
             (traffic:Source { pressure: "1" })
@@ -361,5 +441,189 @@ describe('BettyCompiler', () => {
     expect(diagnostics.some((d) => d.message.includes('routes case'))).toBe(
       false
     );
+  });
+
+  // ── Void Walker Static Lint Rules ──────────────────────────────────
+
+  describe('void walker lint rules', () => {
+    it('warns when eta is outside [0.5, 10.0]', () => {
+      const { diagnostics } = compiler.parse(`
+        (walker { eta: "0.1" })-[:PROCESS]->(sink)
+      `);
+      expect(
+        diagnostics.some((d) => d.code === 'VOID_ETA_UNBOUNDED')
+      ).toBe(true);
+      expect(
+        diagnostics.find((d) => d.code === 'VOID_ETA_UNBOUNDED')?.severity
+      ).toBe('warning');
+    });
+
+    it('accepts eta within [0.5, 10.0]', () => {
+      const { diagnostics } = compiler.parse(`
+        (walker { eta: "5.0" })-[:PROCESS]->(sink)
+      `);
+      expect(
+        diagnostics.some((d) => d.code === 'VOID_ETA_UNBOUNDED')
+      ).toBe(false);
+    });
+
+    it('warns when exploration is outside [0.01, 0.5]', () => {
+      const { diagnostics } = compiler.parse(`
+        (walker { exploration: "0.8" })-[:PROCESS]->(sink)
+      `);
+      expect(
+        diagnostics.some((d) => d.code === 'VOID_EXPLORATION_UNBOUNDED')
+      ).toBe(true);
+    });
+
+    it('accepts exploration within [0.01, 0.5]', () => {
+      const { diagnostics } = compiler.parse(`
+        (walker { exploration: "0.1" })-[:PROCESS]->(sink)
+      `);
+      expect(
+        diagnostics.some((d) => d.code === 'VOID_EXPLORATION_UNBOUNDED')
+      ).toBe(false);
+    });
+
+    it('warns when distribution does not sum to 1.0', () => {
+      const { diagnostics } = compiler.parse(`
+        (src)-[:PROCESS { distribution: "0.3, 0.3, 0.3" }]->(sink)
+      `);
+      expect(
+        diagnostics.some((d) => d.code === 'VOID_COMPLEMENT_DISTRIBUTION_INVALID')
+      ).toBe(true);
+    });
+
+    it('accepts distribution that sums to 1.0', () => {
+      const { diagnostics } = compiler.parse(`
+        (src)-[:PROCESS { distribution: "0.5, 0.3, 0.2" }]->(sink)
+      `);
+      expect(
+        diagnostics.some((d) => d.code === 'VOID_COMPLEMENT_DISTRIBUTION_INVALID')
+      ).toBe(false);
+    });
+
+    it('warns when void boundary decreases along a PROCESS edge', () => {
+      const { diagnostics } = compiler.parse(`
+        (a { void_boundary: "5" })
+        (b { void_boundary: "3" })
+        (a)-[:PROCESS]->(b)
+      `);
+      expect(
+        diagnostics.some((d) => d.code === 'VOID_BOUNDARY_NON_MONOTONE')
+      ).toBe(true);
+    });
+
+    it('accepts monotonically increasing void boundary', () => {
+      const { diagnostics } = compiler.parse(`
+        (a { void_boundary: "3" })
+        (b { void_boundary: "5" })
+        (a)-[:PROCESS]->(b)
+      `);
+      expect(
+        diagnostics.some((d) => d.code === 'VOID_BOUNDARY_NON_MONOTONE')
+      ).toBe(false);
+    });
+
+    it('warns on invalid gait transition (downshift more than one level)', () => {
+      const { diagnostics } = compiler.parse(`
+        (a { gait: "gallop" })
+        (b { gait: "stand" })
+        (a)-[:PROCESS]->(b)
+      `);
+      expect(
+        diagnostics.some((d) => d.code === 'VOID_GAIT_TRANSITION_INVALID')
+      ).toBe(true);
+    });
+
+    it('accepts valid gait upshift', () => {
+      const { diagnostics } = compiler.parse(`
+        (a { gait: "stand" })
+        (b { gait: "canter" })
+        (a)-[:PROCESS]->(b)
+      `);
+      expect(
+        diagnostics.some((d) => d.code === 'VOID_GAIT_TRANSITION_INVALID')
+      ).toBe(false);
+    });
+
+    it('accepts valid gait downshift of one level', () => {
+      const { diagnostics } = compiler.parse(`
+        (a { gait: "canter" })
+        (b { gait: "trot" })
+        (a)-[:PROCESS]->(b)
+      `);
+      expect(
+        diagnostics.some((d) => d.code === 'VOID_GAIT_TRANSITION_INVALID')
+      ).toBe(false);
+    });
+
+    it('warns when PROCESS cycle lacks convergence predicate', () => {
+      const { diagnostics } = compiler.parse(`
+        (a)-[:PROCESS]->(b)
+        (b)-[:PROCESS]->(a)
+      `);
+      expect(
+        diagnostics.some((d) => d.code === 'VOID_METACOG_MISSING_CONVERGENCE')
+      ).toBe(true);
+    });
+
+    it('accepts PROCESS cycle with convergence predicate', () => {
+      const { diagnostics } = compiler.parse(`
+        (a)-[:PROCESS]->(b)
+        (b)-[:PROCESS { convergence: "bounded_decrease" }]->(a)
+      `);
+      expect(
+        diagnostics.some((d) => d.code === 'VOID_METACOG_MISSING_CONVERGENCE')
+      ).toBe(false);
+    });
+
+    it('warns when fork output count differs from fold input count', () => {
+      const { diagnostics } = compiler.parse(`
+        (src)-[:FORK]->(a|b|c)
+        (a|b)-[:FOLD]->(sink)
+      `);
+      expect(
+        diagnostics.some((d) => d.code === 'VOID_CONSERVATION_VIOLATED')
+      ).toBe(true);
+    });
+
+    it('accepts when fork output count equals fold input count', () => {
+      const { diagnostics } = compiler.parse(`
+        (src)-[:FORK]->(a|b)
+        (a|b)-[:FOLD]->(sink)
+      `);
+      expect(
+        diagnostics.some((d) => d.code === 'VOID_CONSERVATION_VIOLATED')
+      ).toBe(false);
+    });
+
+    it('warns when self-loop lacks vanishing/yanking annotations', () => {
+      const { diagnostics } = compiler.parse(`
+        (a)-[:PROCESS]->(a)
+      `);
+      expect(
+        diagnostics.some((d) => d.code === 'VOID_TRACED_MONOIDAL_VIOLATED')
+      ).toBe(true);
+    });
+
+    it('accepts self-loop with vanishing and yanking annotations', () => {
+      const { diagnostics } = compiler.parse(`
+        (a)-[:PROCESS { vanishing: "true", yanking: "true" }]->(a)
+      `);
+      expect(
+        diagnostics.some((d) => d.code === 'VOID_TRACED_MONOIDAL_VIOLATED')
+      ).toBe(false);
+    });
+
+    it('escalates to errors when strict mode is enabled', () => {
+      const { diagnostics } = compiler.parse(`
+        (config { strict: "true" })
+        (walker { eta: "0.1" })-[:PROCESS]->(sink)
+      `);
+      expect(
+        diagnostics.find((d) => d.code === 'VOID_ETA_UNBOUNDED')?.severity
+      ).toBe('error');
+    });
   });
 });

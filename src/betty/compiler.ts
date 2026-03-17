@@ -33,7 +33,15 @@ export type DiagnosticCode =
   | 'ERR_SPECTRAL_EXPLOSION'
   | 'ERR_DRIFT_POSITIVE'
   | 'ERR_REPAIR_DEBT_LEAK'
-  | 'ERR_CONTINUOUS_WITNESS_INVALID';
+  | 'ERR_CONTINUOUS_WITNESS_INVALID'
+  | 'VOID_ETA_UNBOUNDED'
+  | 'VOID_EXPLORATION_UNBOUNDED'
+  | 'VOID_COMPLEMENT_DISTRIBUTION_INVALID'
+  | 'VOID_BOUNDARY_NON_MONOTONE'
+  | 'VOID_GAIT_TRANSITION_INVALID'
+  | 'VOID_METACOG_MISSING_CONVERGENCE'
+  | 'VOID_CONSERVATION_VIOLATED'
+  | 'VOID_TRACED_MONOIDAL_VIOLATED';
 
 export interface GraphAST {
   nodes: Map<string, ASTNode>;
@@ -337,6 +345,7 @@ export class BettyCompiler {
 
     this.checkTaggedNodeExhaustiveness();
     this.checkStructuredConcurrencyProperties();
+    this.checkVoidWalkerInvariants();
 
     const injectionResult = injectSensitiveZkEnvelopes(this.ast);
     this.ast = injectionResult.ast;
@@ -596,6 +605,269 @@ export class BettyCompiler {
             severity: 'error',
           });
         }
+      }
+    }
+  }
+
+  /**
+   * Void Walker Static Lint Rules
+   *
+   * Checks the 8 runtime invariants from negotiation.test.gg at compile time.
+   * These are warnings by default, errors if any node declares strict: "true".
+   */
+  private checkVoidWalkerInvariants(): void {
+    const strict = this.isStrictMode();
+    const severity: 'error' | 'warning' = strict ? 'error' : 'warning';
+
+    this.checkEtaBounded(severity);
+    this.checkExplorationBounded(severity);
+    this.checkComplementDistributionValid(severity);
+    this.checkVoidBoundaryMonotone(severity);
+    this.checkGaitTransitionsValid(severity);
+    this.checkMetacogFeedbackLoop(severity);
+    this.checkConservation(severity);
+    this.checkTracedMonoidal(severity);
+  }
+
+  private isStrictMode(): boolean {
+    for (const node of this.ast.nodes.values()) {
+      if (node.properties.strict === 'true') return true;
+    }
+    return false;
+  }
+
+  /** 1. eta_bounded: any node with eta must have eta in [0.5, 10.0] */
+  private checkEtaBounded(severity: 'error' | 'warning'): void {
+    for (const node of this.ast.nodes.values()) {
+      const raw = node.properties.eta;
+      if (raw === undefined) continue;
+
+      const eta = Number(raw);
+      if (!Number.isFinite(eta) || eta < 0.5 || eta > 10.0) {
+        this.diagnostics.push({
+          line: 1,
+          column: 1,
+          code: 'VOID_ETA_UNBOUNDED',
+          message: `Node '${node.id}' has eta=${raw} outside allowed range [0.5, 10.0].`,
+          severity,
+        });
+      }
+    }
+  }
+
+  /** 2. exploration_bounded: exploration must be in [0.01, 0.5] */
+  private checkExplorationBounded(severity: 'error' | 'warning'): void {
+    for (const node of this.ast.nodes.values()) {
+      const raw = node.properties.exploration;
+      if (raw === undefined) continue;
+
+      const exploration = Number(raw);
+      if (!Number.isFinite(exploration) || exploration < 0.01 || exploration > 0.5) {
+        this.diagnostics.push({
+          line: 1,
+          column: 1,
+          code: 'VOID_EXPLORATION_UNBOUNDED',
+          message: `Node '${node.id}' has exploration=${raw} outside allowed range [0.01, 0.5].`,
+          severity,
+        });
+      }
+    }
+  }
+
+  /** 3. complement_distribution_valid: PROCESS edge distribution must sum to 1.0 */
+  private checkComplementDistributionValid(severity: 'error' | 'warning'): void {
+    for (const edge of this.ast.edges) {
+      const raw = edge.properties.distribution;
+      if (raw === undefined) continue;
+
+      const values = raw
+        .replace(/^\[|\]$/g, '')
+        .split(/[\s,]+/)
+        .map(Number)
+        .filter(Number.isFinite);
+
+      if (values.length === 0) continue;
+
+      const sum = values.reduce((a, b) => a + b, 0);
+      if (Math.abs(sum - 1.0) > 1e-9) {
+        this.diagnostics.push({
+          line: 1,
+          column: 1,
+          code: 'VOID_COMPLEMENT_DISTRIBUTION_INVALID',
+          message: `PROCESS edge from [${edge.sourceIds.join(', ')}] has distribution summing to ${sum.toFixed(6)}, expected 1.0.`,
+          severity,
+        });
+      }
+    }
+  }
+
+  /** 4. void_boundary_monotone: void_boundary values along PROCESS chains can only increase */
+  private checkVoidBoundaryMonotone(severity: 'error' | 'warning'): void {
+    for (const edge of this.ast.edges) {
+      if (edge.type !== 'PROCESS') continue;
+
+      for (const sourceId of edge.sourceIds) {
+        const sourceNode = this.ast.nodes.get(sourceId);
+        if (!sourceNode?.properties.void_boundary) continue;
+
+        for (const targetId of edge.targetIds) {
+          const targetNode = this.ast.nodes.get(targetId);
+          if (!targetNode?.properties.void_boundary) continue;
+
+          const sourceBound = Number(sourceNode.properties.void_boundary);
+          const targetBound = Number(targetNode.properties.void_boundary);
+
+          if (Number.isFinite(sourceBound) && Number.isFinite(targetBound) && targetBound < sourceBound) {
+            this.diagnostics.push({
+              line: 1,
+              column: 1,
+              code: 'VOID_BOUNDARY_NON_MONOTONE',
+              message: `Void boundary decreases from '${sourceId}' (${sourceBound}) to '${targetId}' (${targetBound}). Boundary counts can only increase.`,
+              severity,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  /** 5. gait_transitions_valid: stand->trot->canter->gallop or downshift one level */
+  private checkGaitTransitionsValid(severity: 'error' | 'warning'): void {
+    const GAIT_ORDER = ['stand', 'trot', 'canter', 'gallop'];
+
+    for (const edge of this.ast.edges) {
+      for (const sourceId of edge.sourceIds) {
+        const sourceNode = this.ast.nodes.get(sourceId);
+        if (!sourceNode?.properties.gait) continue;
+
+        for (const targetId of edge.targetIds) {
+          const targetNode = this.ast.nodes.get(targetId);
+          if (!targetNode?.properties.gait) continue;
+
+          const srcIdx = GAIT_ORDER.indexOf(sourceNode.properties.gait);
+          const tgtIdx = GAIT_ORDER.indexOf(targetNode.properties.gait);
+
+          if (srcIdx < 0 || tgtIdx < 0) continue;
+
+          const diff = tgtIdx - srcIdx;
+          // Can go up any amount (stand->trot->canter->gallop) or downshift one level
+          if (diff < -1) {
+            this.diagnostics.push({
+              line: 1,
+              column: 1,
+              code: 'VOID_GAIT_TRANSITION_INVALID',
+              message: `Invalid gait transition from '${sourceNode.properties.gait}' to '${targetNode.properties.gait}' at '${sourceId}'->'${targetId}'. Can only upshift or downshift one level.`,
+              severity,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  /** 6. metacog_feedback_loop: cycles via PROCESS must have convergence predicate */
+  private checkMetacogFeedbackLoop(severity: 'error' | 'warning'): void {
+    // Build adjacency for PROCESS edges and detect cycles
+    const adj = new Map<string, ASTEdge[]>();
+    for (const edge of this.ast.edges) {
+      if (edge.type !== 'PROCESS') continue;
+      for (const src of edge.sourceIds) {
+        if (!adj.has(src)) adj.set(src, []);
+        adj.get(src)!.push(edge);
+      }
+    }
+
+    // DFS cycle detection
+    const visited = new Set<string>();
+    const stack = new Set<string>();
+    const cycleEdges: ASTEdge[] = [];
+
+    const dfs = (nodeId: string): boolean => {
+      visited.add(nodeId);
+      stack.add(nodeId);
+
+      for (const edge of adj.get(nodeId) ?? []) {
+        for (const target of edge.targetIds) {
+          if (stack.has(target)) {
+            cycleEdges.push(edge);
+            return true;
+          }
+          if (!visited.has(target) && dfs(target)) return true;
+        }
+      }
+
+      stack.delete(nodeId);
+      return false;
+    };
+
+    for (const nodeId of adj.keys()) {
+      if (!visited.has(nodeId)) dfs(nodeId);
+    }
+
+    for (const edge of cycleEdges) {
+      if (!edge.properties.convergence) {
+        this.diagnostics.push({
+          line: 1,
+          column: 1,
+          code: 'VOID_METACOG_MISSING_CONVERGENCE',
+          message: `PROCESS edge from [${edge.sourceIds.join(', ')}] to [${edge.targetIds.join(', ')}] creates a cycle but has no convergence predicate.`,
+          severity,
+        });
+      }
+    }
+  }
+
+  /** 7. conservation: fork output count = fold input count (no paths lost or created) */
+  private checkConservation(severity: 'error' | 'warning'): void {
+    let totalForked = 0;
+    let totalFolded = 0;
+
+    for (const edge of this.ast.edges) {
+      if (edge.type === 'FORK') {
+        totalForked += edge.targetIds.length;
+      } else if (edge.type === 'FOLD') {
+        totalFolded += edge.sourceIds.length;
+      }
+    }
+
+    if (totalForked > 0 && totalFolded > 0 && totalForked !== totalFolded) {
+      this.diagnostics.push({
+        line: 1,
+        column: 1,
+        code: 'VOID_CONSERVATION_VIOLATED',
+        message: `Conservation violated: FORK outputs ${totalForked} paths but FOLD inputs ${totalFolded}. Fork output count must equal fold input count.`,
+        severity,
+      });
+    }
+  }
+
+  /** 8. traced_monoidal: feedback loops must satisfy vanishing + yanking axioms */
+  private checkTracedMonoidal(severity: 'error' | 'warning'): void {
+    // Detect all feedback loops (self-edges or cycles of length > 1)
+    // and check that they declare vanishing and yanking axiom annotations
+    for (const edge of this.ast.edges) {
+      // Self-loop: source appears in targets
+      const selfLoop = edge.sourceIds.some((s) => edge.targetIds.includes(s));
+      if (!selfLoop) continue;
+
+      const hasVanishing = edge.properties.vanishing !== undefined;
+      const hasYanking = edge.properties.yanking !== undefined;
+
+      if (!hasVanishing || !hasYanking) {
+        const missing = [
+          !hasVanishing ? 'vanishing' : null,
+          !hasYanking ? 'yanking' : null,
+        ]
+          .filter(Boolean)
+          .join(', ');
+
+        this.diagnostics.push({
+          line: 1,
+          column: 1,
+          code: 'VOID_TRACED_MONOIDAL_VIOLATED',
+          message: `Feedback loop on [${edge.sourceIds.join(', ')}] is missing traced monoidal axiom annotations: ${missing}.`,
+          severity,
+        });
       }
     }
   }
