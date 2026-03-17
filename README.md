@@ -58,11 +58,11 @@ All commands support `--json` and `--sarif` for CI integration.
 
 | Surface | Description |
 |---------|-------------|
-| **Compiler (Betty)** | Static topology checks, UFCS lowering, stability auditing, Lean artifact generation, Betti number computation |
+| **Compiler (Betty)** | Static topology checks, UFCS lowering, stability auditing, coarsening synthesis, Lean artifact generation, Betti number computation |
 | **Runtime** | Graph-native interpreter with tagged values (`Result`, `Option`, `Variant`, `Destructure`, `Delay`), structured concurrency, native frame adapter |
 | **CLI** | `lint`, `analyze`, `verify`, `build`, `run`, `native`, `test`, `mod init`, `mod tidy` |
 | **Module system** | `.gg`/`.mgg` parsing, merged-source loading, cycle rejection, bare-specifier resolution, deterministic lockfiles |
-| **Formal path** | TLA+ module/config generation, Lean proof artifacts, bounded queue certificates, coupled-kernel handoff theorems |
+| **Formal path** | TLA+ module/config generation, Lean proof artifacts, bounded queue certificates, coupled-kernel handoff theorems, recursive coarsening synthesis with fiber-partitioned drift certificates |
 | **CRDT layer** | Topology-native CRDTs with relay adapters |
 | **Capabilities** | Target inference and validation (`workers`, `node`, `bun`) -- fail before deployment |
 | **Auth** | UCAN/ZK execution envelopes, fail-closed runtime authorization |
