@@ -1,5 +1,7 @@
 import type { GraphAST } from './compiler.js';
 import type { StabilityKernelEdge, StabilityReport, StabilityStateAssessment } from './stability.js';
+import type { OptimizationCertificate } from './optimizer.js';
+import type { CoarseningSynthesisResult } from './coarsen.js';
 
 function basenameLike(filePath: string): string {
   const normalized = filePath.replace(/\\/g, '/').replace(/\/+$/, '');
@@ -430,6 +432,17 @@ function buildCountableQueueRecurrenceTheorem(
   const queueAtom = countableQueue.laminarAtom;
   const queueMinorizationFloor =
     stability.proof.kind === 'numeric' ? buildGammaValue(stability) : '1';
+  const queueObservableScale = formatLeanReal(
+    stability.continuousHarris?.observableScale ?? 1
+  );
+  const queueObservableOffset = formatLeanReal(
+    stability.continuousHarris?.observableOffset ?? 0
+  );
+  const queueContinuousDriftGap = formatLeanReal(
+    stability.continuousHarris?.driftGap ??
+      stability.continuousHarris?.observableScale ??
+      1
+  );
   const sharedDefinitions = `def queueBoundary : Nat := ${queueBoundary}
 
 def queueAtom : Nat := ${queueAtom}
@@ -458,6 +471,25 @@ def queueAtomHittingBound : Nat -> Nat :=
 def queueWitnessHittingBound : Nat -> Nat :=
   fun _ => 1
 
+def queueObservableScale : Real := ${queueObservableScale}
+
+def queueObservableOffset : Real := ${queueObservableOffset}
+
+def queueObservable : Nat -> Real :=
+  natQueueAffineObservable queueObservableScale queueObservableOffset
+
+def queueExpectedObservable : Nat -> Real :=
+  natQueueAffineExpectedObservable
+    queueBoundary
+    queueAtom
+    queueObservableScale
+    queueObservableOffset
+
+def queueLyapunov : Nat -> Real :=
+  natQueueAffineObservable queueObservableScale queueObservableOffset
+
+def queueContinuousDriftGap : Real := ${queueContinuousDriftGap}
+
 def queueKernel (lam mu : Real) (alpha : Nat -> Real) : CountableCertifiedKernel Nat := {
   transition := fun current target =>
     if current <= queueBoundary then
@@ -465,6 +497,90 @@ def queueKernel (lam mu : Real) (alpha : Nat -> Real) : CountableCertifiedKernel
     else if target + 1 = current then mu + alpha current - lam else 0
   smallSet := queueSmallSet
 }
+`;
+  const continuousObservableTheorems = `
+
+theorem ${theoremName}_measurable_observable :
+  MeasurableRealObservableWitness
+      queueObservable
+      queueSmallSet := by
+  simpa [queueObservable, queueObservableScale, queueObservableOffset, queueSmallSet] using
+    (natMeasurableRealObservableWitness_of_queueStep
+      queueBoundary
+      queueObservableScale
+      queueObservableOffset)
+
+theorem ${theoremName}_measurable_observable_drift :
+  MeasurableLyapunovDriftWitness
+      queueExpectedObservable
+      queueLyapunov
+      queueSmallSet
+      queueContinuousDriftGap := by
+  have h_scale : 0 < queueObservableScale := by
+    norm_num [queueObservableScale]
+  have h_driftGap : 0 < queueContinuousDriftGap := by
+    norm_num [queueContinuousDriftGap]
+  have h_driftGap_le_scale : queueContinuousDriftGap <= queueObservableScale := by
+    norm_num [queueContinuousDriftGap, queueObservableScale]
+  simpa [
+    queueExpectedObservable,
+    queueLyapunov,
+    queueObservableScale,
+    queueObservableOffset,
+    queueContinuousDriftGap,
+    queueSmallSet
+  ] using
+    (natMeasurableLyapunovDriftWitness_of_queueStep_with_gap
+      queueBoundary
+      queueAtom
+      queueObservableScale
+      queueObservableOffset
+      queueContinuousDriftGap
+      h_driftGap
+      h_driftGap_le_scale)
+
+theorem ${theoremName}_measurable_continuous_harris_certified :
+  MeasurableContinuousHarrisWitness
+      queueSupportKernel
+      queueAtomMeasure
+      queueAtomMeasure
+      queueAtomMeasure
+      queueObservable
+      queueExpectedObservable
+      queueLyapunov
+      queueSmallSet
+      queueMeasurableEpsilon
+      queueAtomHittingBound
+      queueContinuousDriftGap := by
+  have h_scale : 0 < queueObservableScale := by
+    norm_num [queueObservableScale]
+  have h_driftGap : 0 < queueContinuousDriftGap := by
+    norm_num [queueContinuousDriftGap]
+  have h_driftGap_le_scale : queueContinuousDriftGap <= queueObservableScale := by
+    norm_num [queueContinuousDriftGap, queueObservableScale]
+  simpa [
+    queueSupportKernel,
+    queueSupportStep,
+    queueAtomMeasure,
+    queueObservable,
+    queueExpectedObservable,
+    queueLyapunov,
+    queueObservableScale,
+    queueObservableOffset,
+    queueContinuousDriftGap,
+    queueSmallSet,
+    queueMeasurableEpsilon,
+    queueAtomHittingBound
+  ] using
+    (natMeasurableContinuousHarrisWitness_of_queueStep_with_gap
+      queueBoundary
+      queueAtom
+      (by simp [queueAtom, queueBoundary])
+      queueObservableScale
+      queueObservableOffset
+      queueContinuousDriftGap
+      h_driftGap
+      h_driftGap_le_scale)
 `;
 
   if (stability.proof.kind === 'numeric') {
@@ -948,7 +1064,7 @@ theorem ${theoremName}_measurable_containing_atom_accessible
     queueMeasurableEpsilon
     ${theoremName}_measurable_laminar_certified
     h_measurableSet
-    h_atom_mem`,
+    h_atom_mem${continuousObservableTheorems}`,
     };
   }
 
@@ -1501,7 +1617,7 @@ theorem ${theoremName}_measurable_containing_atom_accessible
     queueMeasurableEpsilon
     ${theoremName}_measurable_laminar_certified
     h_measurableSet
-    h_atom_mem`,
+    h_atom_mem${continuousObservableTheorems}`,
   };
 }
 
@@ -1793,7 +1909,8 @@ ${spectralProof}
 export function generateLeanFromGnosisAst(
   ast: GraphAST | null,
   stability: StabilityReport | null,
-  options: GnosisLeanOptions = {}
+  options: GnosisLeanOptions = {},
+  optimizerCertificates: OptimizationCertificate[] = []
 ): GnosisLeanArtifact | null {
   if (!ast || !stability?.enabled) {
     return null;
@@ -1804,6 +1921,8 @@ export function generateLeanFromGnosisAst(
     options.theoremName ?? sanitizeLeanIdentifier(stability.proof.theoremName);
   const { definitions, theorem } = buildKernelDefinitions(ast, stability, theoremName);
   const countableQueueTheoremEnabled = stability.countableQueue !== null;
+
+  const optimizerSection = buildOptimizerLeanSection(optimizerCertificates);
 
   const lean = `import GnosisProofs
 import Mathlib.Tactic
@@ -1821,9 +1940,195 @@ ${definitions}
    finite-state-recurrent: ${stability.recurrence.finiteStateCertified}
    countable-queue-theorem: ${countableQueueTheoremEnabled}
    vent-isolation-ok: ${stability.ventIsolationOk}
+   optimizer-passes: ${optimizerCertificates.length > 0 ? optimizerCertificates.map((c) => c.passName).join(', ') : 'none'}
 -/
 
 ${theorem}
+${optimizerSection}
+end ${moduleName}
+`;
+
+  return {
+    moduleName,
+    theoremName,
+    lean,
+  };
+}
+
+// ─── Optimizer certificate → Lean section ────────────────────────────
+
+function buildOptimizerLeanSection(
+  certificates: OptimizationCertificate[]
+): string {
+  if (certificates.length === 0) {
+    return '';
+  }
+
+  const sections: string[] = [];
+
+  sections.push('');
+  sections.push('/- ── Theorem-backed optimization certificates ─────────────────────── -/');
+  sections.push('');
+
+  for (const cert of certificates) {
+    if (cert.passName === 'coarsening') {
+      const data = cert.data as {
+        fineNodeCount: number;
+        coarseNodeCount: number;
+        totalFineDrift: number;
+        totalCoarseDrift: number;
+        allStable: boolean;
+        groups: { coarseId: string; fineCount: number; drift: number }[];
+      };
+
+      sections.push(`/-- ${cert.theoremId}: ${cert.summary} -/`);
+      sections.push(`-- Lean reference: ${cert.leanTheoremName}`);
+      sections.push(`-- Fine nodes: ${data.fineNodeCount}, Coarse nodes: ${data.coarseNodeCount}`);
+      sections.push(`-- Total fine drift: ${data.totalFineDrift}`);
+      sections.push(`-- Total coarse drift: ${data.totalCoarseDrift}`);
+      sections.push(`-- Conservation residual: ${Math.abs(data.totalFineDrift - data.totalCoarseDrift)}`);
+      if (data.allStable) {
+        sections.push(`-- Certificate VALID: all coarse nodes have negative drift`);
+      }
+      sections.push('');
+    } else if (cert.passName === 'codec-racing') {
+      const data = cert.data as {
+        codecCount: number;
+        resourceCount: number;
+        internalBeta1: number;
+        externalDeficit: number;
+      };
+
+      sections.push(`/-- ${cert.theoremId}: ${cert.summary} -/`);
+      sections.push(`-- Lean reference: ${cert.leanTheoremName}`);
+      sections.push(`-- Codecs: ${data.codecCount}, Resources: ${data.resourceCount}`);
+      sections.push(`-- Internal beta1: ${data.internalBeta1}, External deficit: ${data.externalDeficit}`);
+      sections.push('');
+    } else if (cert.passName === 'warmup-efficiency') {
+      const data = cert.data as {
+        forkWidth: number;
+        foldWidth: number;
+        sequentialWallace: number;
+        wallaceDropCross: number;
+        warmupWorth: boolean;
+      };
+
+      sections.push(`/-- ${cert.theoremId}: ${cert.summary} -/`);
+      sections.push(`-- Lean reference: ${cert.leanTheoremName}`);
+      sections.push(`-- Fork width: ${data.forkWidth}, Fold width: ${data.foldWidth}`);
+      sections.push(`-- Wallace drop cross: ${data.wallaceDropCross}`);
+      sections.push(`-- Warmup recommended: ${data.warmupWorth}`);
+      sections.push('');
+    }
+  }
+
+  return sections.join('\n');
+}
+
+// ─── Coarsening synthesis → Lean codegen ──────────────────────────────
+
+export function generateCoarseningLean(
+  ast: GraphAST | null,
+  stability: StabilityReport | null,
+  coarsening: CoarseningSynthesisResult | null,
+  options: GnosisLeanOptions = {}
+): GnosisLeanArtifact | null {
+  if (!ast || !stability || !coarsening || coarsening.kind !== 'success' || !coarsening.leanData) {
+    return null;
+  }
+
+  const leanData = coarsening.leanData;
+  const moduleName = buildModuleName(options) + '_coarsening';
+  const theoremName =
+    (options.theoremName ?? sanitizeLeanIdentifier(stability.proof.theoremName)) +
+    '_coarsening_synthesis';
+
+  const fineCount = leanData.fineNodeIds.length;
+  const coarseCount = leanData.coarseNodeIds.length;
+
+  const quotientClauses = leanData.quotientMapIndices
+    .map((coarseIdx, fineIdx) => `    | ${fineIdx} => ⟨${coarseIdx}, by omega⟩`)
+    .join('\n');
+
+  const arrivalClauses = leanData.arrivalRates
+    .map((rate, idx) => `    | ${idx} => ${formatLeanReal(rate)}`)
+    .join('\n');
+
+  const serviceClauses = leanData.serviceRates
+    .map((rate, idx) => `    | ${idx} => ${formatLeanReal(rate)}`)
+    .join('\n');
+
+  const fineNodeComments = leanData.fineNodeIds
+    .map((id, idx) => `-- Fine node ${idx}: ${id}`)
+    .join('\n');
+
+  const coarseNodeComments = leanData.coarseNodeIds
+    .map((id, idx) => `-- Coarse node ${idx}: ${id}`)
+    .join('\n');
+
+  const lean = `import GnosisProofs
+import Mathlib.Tactic
+
+open GnosisProofs
+
+namespace ${moduleName}
+
+/- Node mapping -/
+${fineNodeComments}
+${coarseNodeComments}
+
+def fineCount : Nat := ${fineCount}
+def coarseCount : Nat := ${coarseCount}
+
+def quotientMap : Fin fineCount -> Fin coarseCount :=
+  fun source =>
+    match source.1 with
+${quotientClauses}
+    | _ => ⟨0, by omega⟩
+
+def arrivalRate : Fin fineCount -> Real :=
+  fun source =>
+    match source.1 with
+${arrivalClauses}
+    | _ => 0
+
+def serviceRate : Fin fineCount -> Real :=
+  fun source =>
+    match source.1 with
+${serviceClauses}
+    | _ => 0
+
+/- Auto-generated coarsening synthesis certificate.
+   drift-gap: ${leanData.driftGap}
+   fine-nodes: ${fineCount}
+   coarse-nodes: ${coarseCount}
+   coarse-fibers: ${leanData.coarseNodeIds.join(', ')}
+-/
+
+def graphData : RawGraphData fineCount coarseCount where
+  quotientMap := quotientMap
+  arrivalRate := arrivalRate
+  serviceRate := serviceRate
+  hServicePositive := by
+    intro node
+    fin_cases node <;> simp [serviceRate] <;> norm_num
+
+def driftGapValue : Real := ${formatLeanReal(leanData.driftGap)}
+
+theorem ${theoremName}_certificate :
+  CoarseDriftCertificate fineCount coarseCount :=
+  { data := graphData
+    driftGap := driftGapValue
+    hDriftGapPositive := by simp [driftGapValue]; norm_num
+    hAllCoarseDriftNegative := by
+      intro coarseNode
+      fin_cases coarseNode <;>
+        simp [coarseDrift, aggregateArrival, aggregateService, graphData, quotientMap, arrivalRate, serviceRate, driftGapValue] <;>
+        norm_num }
+
+theorem ${theoremName} (coarseNode : Fin coarseCount) :
+    coarseDrift graphData coarseNode <= -driftGapValue :=
+  synthesis_sound ${theoremName}_certificate coarseNode
 
 end ${moduleName}
 `;

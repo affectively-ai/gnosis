@@ -3411,6 +3411,58 @@ theorem tetheredCertifiedKernels_stable
         h_arrival_lt_gamma
         h_floor
 
+/- ── Recursive Coarsening Synthesis ──────────────────────────────────── -/
+
+structure RawGraphData (fineCount coarseCount : Nat) where
+  quotientMap : Fin fineCount -> Fin coarseCount
+  arrivalRate : Fin fineCount -> Real
+  serviceRate : Fin fineCount -> Real
+  hServicePositive : forall node : Fin fineCount, 0 < serviceRate node
+
+def aggregateArrival {fineCount coarseCount : Nat}
+    (data : RawGraphData fineCount coarseCount)
+    (coarseNode : Fin coarseCount) : Real :=
+  Finset.sum Finset.univ fun fineNode =>
+    if data.quotientMap fineNode = coarseNode then data.arrivalRate fineNode else 0
+
+def aggregateService {fineCount coarseCount : Nat}
+    (data : RawGraphData fineCount coarseCount)
+    (coarseNode : Fin coarseCount) : Real :=
+  Finset.sum Finset.univ fun fineNode =>
+    if data.quotientMap fineNode = coarseNode then data.serviceRate fineNode else 0
+
+def coarseDrift {fineCount coarseCount : Nat}
+    (data : RawGraphData fineCount coarseCount)
+    (coarseNode : Fin coarseCount) : Real :=
+  aggregateArrival data coarseNode - aggregateService data coarseNode
+
+structure CoarseDriftCertificate (fineCount coarseCount : Nat) where
+  data : RawGraphData fineCount coarseCount
+  driftGap : Real
+  hDriftGapPositive : 0 < driftGap
+  hAllCoarseDriftNegative :
+    forall coarseNode : Fin coarseCount,
+      coarseDrift data coarseNode <= -driftGap
+
+inductive SynthesisResult (fineCount coarseCount : Nat)
+  | success (certificate : CoarseDriftCertificate fineCount coarseCount)
+  | unstable (witness : Fin coarseCount)
+      (hPositive : 0 <= coarseDrift (certificate : RawGraphData fineCount coarseCount).1 witness)
+  | invalid
+
+theorem synthesis_sound {fineCount coarseCount : Nat}
+    (certificate : CoarseDriftCertificate fineCount coarseCount)
+    (coarseNode : Fin coarseCount) :
+    coarseDrift certificate.data coarseNode <= -certificate.driftGap :=
+  certificate.hAllCoarseDriftNegative coarseNode
+
+theorem certificate_provides_drift_witness {fineCount coarseCount : Nat}
+    (certificate : CoarseDriftCertificate fineCount coarseCount)
+    (coarseNode : Fin coarseCount) :
+    coarseDrift certificate.data coarseNode < 0 := by
+  have h := certificate.hAllCoarseDriftNegative coarseNode
+  linarith [certificate.hDriftGapPositive]
+
 def WorkspaceReady : Prop := True
 
 theorem workspace_ready : WorkspaceReady := by

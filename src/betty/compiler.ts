@@ -6,6 +6,16 @@ import {
   analyzeTopologyStability,
   type StabilityReport,
 } from './stability.js';
+import {
+  createDefaultOptimizer,
+  type OptimizerResult,
+} from './optimizer.js';
+import {
+  extractFiberPartition,
+  validatePartition,
+  synthesizeCoarsening,
+  type CoarseningSynthesisResult,
+} from './coarsen.js';
 
 export interface ASTNode {
   id: string;
@@ -50,7 +60,11 @@ export type DiagnosticCode =
   | 'ETHICS_FORK_ZERO_OPTIONS'
   | 'ETHICS_MISSING_VENT_PATH'
   | 'ETHICS_IRREVERSIBLE_ON_OTHERS_VOID'
-  | 'ETHICS_NO_TRACE';
+  | 'ETHICS_NO_TRACE'
+  | 'ERR_COARSENING_UNCOVERED_NODE'
+  | 'ERR_COARSENING_SERVICE_NOT_POSITIVE'
+  | 'ERR_COARSENING_DRIFT_POSITIVE'
+  | 'ERR_COARSENING_SYMBOLIC_RATE';
 
 export interface GraphAST {
   nodes: Map<string, ASTNode>;
@@ -64,6 +78,8 @@ export interface BettyParseResult {
   diagnostics: Diagnostic[];
   buleyMeasure: number;
   stability: StabilityReport | null;
+  optimizer: OptimizerResult | null;
+  coarseningSynthesis: CoarseningSynthesisResult | null;
 }
 
 const NATIVE_TAGGED_NODE_CASES: Record<string, readonly string[]> = {
@@ -80,6 +96,8 @@ export class BettyCompiler {
   private logs: string[] = [];
   private diagnostics: Diagnostic[] = [];
   private stability: StabilityReport | null = null;
+  private optimizerResult: OptimizerResult | null = null;
+  private coarseningSynthesisResult: CoarseningSynthesisResult | null = null;
   private wasmBridge: QuantumWasmBridge;
 
   constructor() {
@@ -157,6 +175,8 @@ export class BettyCompiler {
         diagnostics: [],
         buleyMeasure: 0,
         stability: null,
+        optimizer: null,
+        coarseningSynthesis: null,
       };
 
     this.logs = [];
@@ -164,6 +184,7 @@ export class BettyCompiler {
     this.b1 = 0;
     this.ast = { nodes: new Map(), edges: [] };
     this.stability = null;
+    this.coarseningSynthesisResult = null;
     this.wasmBridge = new QuantumWasmBridge();
 
     const lines = normalizedInput.split('\n');
@@ -391,6 +412,27 @@ export class BettyCompiler {
     this.stability = analyzeTopologyStability(this.ast, this.b1);
     if (this.stability) {
       this.diagnostics.push(...this.stability.diagnostics);
+
+      // Run theorem-backed optimization passes after stability analysis
+      const optimizer = createDefaultOptimizer();
+      this.optimizerResult = optimizer.apply(this.ast, this.stability);
+      this.ast = this.optimizerResult.ast;
+      this.diagnostics.push(...this.optimizerResult.diagnostics);
+    }
+
+    // Coarsening synthesis pass -- extracts fiber partitions and aggregates drift
+    const partition = extractFiberPartition(this.ast);
+    if (partition && this.stability) {
+      const valDiags = validatePartition(partition, this.stability);
+      this.diagnostics.push(...valDiags);
+      if (!valDiags.some((d) => d.severity === 'error')) {
+        this.coarseningSynthesisResult = synthesizeCoarsening(
+          this.ast,
+          this.stability,
+          partition
+        );
+        this.diagnostics.push(...this.coarseningSynthesisResult.diagnostics);
+      }
     }
 
     const buleyMeasure = this.getBuleyMeasurement();
@@ -399,11 +441,15 @@ export class BettyCompiler {
       this.stability?.spectralRadius !== undefined
         ? `\nSpectral Radius: ${this.stability.spectralRadius.toFixed(3)}`
         : '';
+    const optimizerSummary =
+      this.optimizerResult && this.optimizerResult.passesApplied.length > 0
+        ? `\nOptimizer: ${this.optimizerResult.passesApplied.join(', ')} (${this.optimizerResult.certificates.length} certificate(s))`
+        : '';
     const summary = `[Betty Professional Compiler]\nNodes: ${
       this.ast.nodes.size
     }, Edges: ${this.ast.edges.length}\nBetti: ${
       this.b1
-    }, Buley Measure: ${buleyMeasure.toFixed(2)}${spectralSummary}`;
+    }, Buley Measure: ${buleyMeasure.toFixed(2)}${spectralSummary}${optimizerSummary}`;
 
     return {
       ast: this.ast,
@@ -412,6 +458,8 @@ export class BettyCompiler {
       diagnostics: this.diagnostics,
       buleyMeasure,
       stability: this.stability,
+      optimizer: this.optimizerResult,
+      coarseningSynthesis: this.coarseningSynthesisResult,
     };
   }
 
