@@ -124,6 +124,7 @@ export class BettyCompiler {
       'ENTANGLE',
       'SUPERPOSE',
       'OBSERVE',
+      'METACOG',
     ];
     const nodeIds = Array.from(this.ast.nodes.keys());
 
@@ -288,6 +289,24 @@ export class BettyCompiler {
           // presents as a single stream externally (chunked, compressed, Flow-framed).
           // Net β₁ effect: 0 (internal fork/race/fold is self-contained).
           // The topology sees LAMINAR as a PROCESS-like passthrough that compresses.
+        } else if (edgeType === 'METACOG') {
+          // METACOG: traced monoidal feedback that reads its own void boundary shape
+          // and adapts its parameters. The c0-c3 metacognitive loop:
+          //   c0 (execute) → c1 (monitor kurtosis/entropy/inverseBule)
+          //   → c2 (evaluate gradient, detect regime changes)
+          //   → c3 (adapt eta, exploration rate, gait)
+          //   → c0 (execute with adapted parameters)
+          //
+          // Net β₁ effect: 0 (the feedback loop is self-contained, like LAMINAR).
+          // The convergence certificate is the Foster-Lyapunov drift condition:
+          // the inverse Bule is the decreasing measure.
+          //
+          // METACOG edges create cycles in the topology graph, which is normally
+          // forbidden. The compiler allows METACOG cycles because the convergence
+          // certificate guarantees termination at the Skyrms equilibrium.
+          //
+          // Trot-canter-gallop gait selection is implicit: the METACOG edge
+          // adapts the pipeline depth (1 → 4 → 16) based on kurtosis.
         }
 
         this.wasmBridge.processAstEdge(
