@@ -1,3 +1,58 @@
+// Void primitives — the foundation everything reduces to
+export {
+  // Boundary
+  type VoidBoundary,
+  createVoidBoundary,
+  updateVoidBoundary,
+  decayVoidBoundary,
+  boundaryDimensions,
+  // Complement distribution
+  complementDistribution,
+  sampleComplement,
+  // Measurement
+  type Measurement,
+  measure,
+  shannonEntropy,
+  excessKurtosis,
+  giniCoefficient,
+  inverseBule,
+  // Gait
+  type Gait,
+  GAIT_DEPTH,
+  selectGait,
+  // Timescale
+  type Timescale,
+  TIMESCALE_DECAY,
+  type TimescaleBoundary,
+  createTimescaleBoundary,
+  tickTimescaleBoundary,
+  // Boundary stack
+  type BoundaryStack,
+  createBoundaryStack,
+  upwardConstraint,
+  downwardContext,
+  tickBoundaryStack,
+  flattenStack,
+  measureStack,
+  // Resonance
+  type Resonance,
+  createResonance,
+  // Projection
+  projectBoundary,
+  // Walker
+  type Walker,
+  createWalker,
+  c0Choose,
+  c0Update,
+  c1Measure,
+  c2c3Adapt,
+  // Stack walker
+  type StackWalker,
+  createStackWalker,
+  stepStackWalker,
+  measureStackWalker,
+} from './void.js';
+
 export { GnosisNeo4jBridge } from './neo4j-bridge.js';
 export { GnosisRegistry } from './runtime/registry.js';
 export { GnosisEngine } from './runtime/engine.js';
@@ -63,6 +118,8 @@ export type {
   DiagnosticCode,
 } from './betty/compiler.js';
 export type {
+  StabilityContinuousHarrisWitness,
+  StabilityContinuousObservableKind,
   StabilityKernelEdge,
   StabilityMetadata,
   StabilityProofAssumption,

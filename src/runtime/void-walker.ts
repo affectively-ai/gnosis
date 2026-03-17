@@ -1,111 +1,80 @@
 /**
- * Void Walker Engine -- Core reusable component
+ * Void Walker Engine -- backward-compatible re-exports from gnosis core
  *
- * Generic void walking over any choice space. Not negotiation-specific.
- * This should eventually move to gnosis core.
+ * The primitives now live in src/void.ts. This file re-exports them
+ * so existing consumers (aeon-bazaar, aeon-affectively, etc.) continue
+ * to work without import changes.
+ *
+ * The MetaCogState / c0-c3 negotiation-specific interface is preserved
+ * as a thin wrapper over the domain-agnostic Walker primitive.
  */
 
-// ============================================================================
-// Void Boundary
-// ============================================================================
+// Re-export all core primitives
+export {
+  type VoidBoundary,
+  createVoidBoundary,
+  updateVoidBoundary,
+  decayVoidBoundary,
+  complementDistribution,
+  sampleComplement,
+  shannonEntropy,
+  excessKurtosis,
+  giniCoefficient,
+  inverseBule,
+  type Gait,
+  GAIT_DEPTH,
+  selectGait,
+  type Measurement,
+  measure,
+  // Timescale primitives
+  type Timescale,
+  TIMESCALE_DECAY,
+  type TimescaleBoundary,
+  createTimescaleBoundary,
+  tickTimescaleBoundary,
+  // Stack primitives
+  type BoundaryStack,
+  createBoundaryStack,
+  upwardConstraint,
+  downwardContext,
+  tickBoundaryStack,
+  flattenStack,
+  measureStack,
+  // Resonance
+  type Resonance,
+  createResonance,
+  // Projection
+  projectBoundary,
+  // Walker
+  type Walker,
+  createWalker,
+  c0Choose as walkerChoose,
+  c0Update as walkerUpdate,
+  c1Measure as walkerMeasure,
+  c2c3Adapt as walkerAdapt,
+  // Stack Walker
+  type StackWalker,
+  createStackWalker,
+  stepStackWalker,
+  measureStackWalker,
+} from '../void.js';
 
-export interface VoidBoundary {
-  /** Per-choice rejection counts */
-  counts: number[];
-  /** Total entries in the void */
-  totalEntries: number;
-}
-
-export function createVoidBoundary(numChoices: number): VoidBoundary {
-  return { counts: new Array(numChoices).fill(0), totalEntries: 0 };
-}
-
-export function updateVoidBoundary(
-  boundary: VoidBoundary,
-  choiceIdx: number,
-  magnitude: number = 1,
-): void {
-  boundary.counts[choiceIdx] += magnitude;
-  boundary.totalEntries += magnitude;
-}
-
-export function decayVoidBoundary(boundary: VoidBoundary, factor: number): void {
-  for (let i = 0; i < boundary.counts.length; i++) {
-    boundary.counts[i] *= 1 - factor;
-  }
-  boundary.totalEntries = boundary.counts.reduce((a, b) => a + b, 0);
-}
-
-// ============================================================================
-// Complement Distribution
-// ============================================================================
-
-export function complementDistribution(
-  boundary: VoidBoundary,
-  eta: number = 3.0,
-): number[] {
-  const counts = boundary.counts;
-  const max = Math.max(...counts);
-  const min = Math.min(...counts);
-  const range = max - min;
-  const norm = range > 0
-    ? counts.map((v) => (v - min) / range)
-    : counts.map(() => 0);
-  const weights = norm.map((v) => Math.exp(-eta * v));
-  const sum = weights.reduce((a, b) => a + b, 0);
-  return weights.map((w) => w / sum);
-}
-
-// ============================================================================
-// Measurement
-// ============================================================================
-
-export function shannonEntropy(probs: number[]): number {
-  let h = 0;
-  for (const p of probs) if (p > 0) h -= p * Math.log(p);
-  return h;
-}
-
-export function excessKurtosis(values: number[]): number {
-  const n = values.length;
-  if (n < 2) return 0;
-  const mu = values.reduce((a, b) => a + b, 0) / n;
-  const s2 = values.reduce((s, v) => s + (v - mu) ** 2, 0) / n;
-  if (s2 < 1e-12) return 0;
-  const m4 = values.reduce((s, v) => s + (v - mu) ** 4, 0) / n;
-  return m4 / s2 ** 2 - 3;
-}
-
-export function inverseBule(boundary: VoidBoundary, eta: number, rounds: number): number {
-  if (rounds <= 0) return 0;
-  const maxH = Math.log(boundary.counts.length);
-  const dist = complementDistribution(boundary, eta);
-  return (maxH - shannonEntropy(dist)) / rounds;
-}
-
-export function giniCoefficient(values: number[]): number {
-  const sorted = [...values].sort((a, b) => a - b);
-  const n = sorted.length;
-  const mu = sorted.reduce((a, b) => a + b, 0) / n;
-  if (mu === 0) return 0;
-  let sumDiff = 0;
-  for (let i = 0; i < n; i++)
-    for (let j = 0; j < n; j++) sumDiff += Math.abs(sorted[i] - sorted[j]);
-  return sumDiff / (2 * n * n * mu);
-}
+import {
+  type VoidBoundary,
+  createVoidBoundary,
+  updateVoidBoundary,
+  complementDistribution,
+  sampleComplement,
+  shannonEntropy,
+  excessKurtosis,
+  inverseBule,
+  selectGait,
+  type Gait,
+} from '../void.js';
 
 // ============================================================================
-// Metacognitive Walker (c0-c3)
+// MetaCogState -- negotiation-specific walker (backward compat)
 // ============================================================================
-
-export type Gait = 'stand' | 'trot' | 'canter' | 'gallop';
-
-export const GAIT_DEPTH: Record<Gait, number> = {
-  stand: 1,
-  trot: 1,
-  canter: 4,
-  gallop: 16,
-};
 
 export interface MetaCogState {
   boundary: VoidBoundary;
@@ -136,13 +105,10 @@ export function c0Choose(state: MetaCogState, rng: () => number): number {
   const N = state.boundary.counts.length;
   if (rng() < state.exploration) return Math.floor(rng() * N);
   const dist = complementDistribution(state.boundary, state.eta);
-  const r = rng();
-  let cum = 0;
-  for (let i = 0; i < N; i++) { cum += dist[i]; if (r < cum) return i; }
-  return N - 1;
+  return sampleComplement(dist, rng);
 }
 
-/** c0: Update void boundary after observing outcome */
+/** c0: Update void boundary after observing outcome (negotiation semantics) */
 export function c0Update(
   state: MetaCogState,
   choiceIdx: number,
@@ -171,13 +137,7 @@ export function c1Measure(state: MetaCogState): {
 
 /** c2: Select gait based on kurtosis */
 export function c2SelectGait(kurtosis: number, currentGait: Gait, rounds: number): Gait {
-  if (rounds === 0) return 'stand';
-  if (currentGait === 'stand') return 'trot';
-  if (kurtosis >= 0.5 && currentGait === 'trot' && rounds > 10) return 'canter';
-  if (kurtosis >= 2.0 && currentGait === 'canter' && rounds > 50) return 'gallop';
-  if (kurtosis < 0.0 && currentGait === 'gallop') return 'canter';
-  if (kurtosis < -1.5 && currentGait === 'canter') return 'trot';
-  return currentGait;
+  return selectGait(kurtosis, currentGait, rounds);
 }
 
 /** c3: Adapt parameters based on c2 evaluation */
