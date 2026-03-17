@@ -1,0 +1,87 @@
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { resolve } from 'path';
+
+export default defineConfig({
+  plugins: [react()],
+  root: 'client',
+  publicDir: 'public',
+  build: {
+    outDir: '../dist/client',
+    emptyOutDir: true,
+    // Inline CSS into JS bundle for zero render-blocking requests
+    // This aligns with Aeon-Flux philosophy: "Inlined CSS. No external requests."
+    cssCodeSplit: false,
+    rollupOptions: {
+      input: resolve(__dirname, 'client/index.html'),
+      external: [/hexgrid_wasm/, /@emotions-app\/shared-ui/],
+      output: {
+        manualChunks: {
+          // Split vendor libraries into cacheable chunks
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-three': ['three'],
+        },
+        // Inline small CSS chunks
+        assetFileNames: (assetInfo) => {
+          // Keep CSS inline by not creating separate files
+          if (assetInfo.name?.endsWith('.css')) {
+            return 'assets/[name]-[hash][extname]';
+          }
+          return 'assets/[name]-[hash][extname]';
+        },
+      },
+    },
+  },
+  // Inline CSS during dev too
+  css: {
+    devSourcemap: true,
+  },
+  server: {
+    port: 5198,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8798',
+        changeOrigin: true,
+      },
+      '/ws': {
+        target: 'ws://localhost:8798',
+        ws: true,
+      },
+      '/mcp': {
+        target: 'http://localhost:8798',
+        changeOrigin: true,
+      }
+    },
+  },
+  resolve: {
+    dedupe: ['react', 'react-dom'],
+    alias: [
+      {
+        find: /react\/jsx-dev-runtime(\.js)?$/,
+        replacement: resolve(
+          __dirname,
+          './client/shims/react-jsx-dev-runtime.ts'
+        ),
+      },
+      {
+        find: '@affectively/aeon-preferences',
+        replacement: resolve(
+          __dirname,
+          '../../../open-source/aeon-preferences/src/index.ts'
+        ),
+      },
+      {
+        find: '@',
+        replacement: resolve(__dirname, 'client'),
+      },
+      {
+        find: '@emotions-app/shared-ui',
+        replacement: resolve(__dirname, '../../../shared-ui/src'),
+      },
+      {
+        find: '@affectively/shared-utils',
+        replacement: resolve(__dirname, '../../../shared-utils/src'),
+      },
+    ],
+  },
+});

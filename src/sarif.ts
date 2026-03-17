@@ -78,7 +78,7 @@ function buildSarifLog(
         tool: {
           driver: {
             name,
-            informationUri: 'https://github.com/affectively-ai/gnosis',
+            informationUri: 'https://github.com/forkjoin-ai/gnosis',
             rules,
           },
         },

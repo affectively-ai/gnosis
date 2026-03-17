@@ -297,6 +297,41 @@ UFCS can make graph-heavy code read more linearly without forcing Gnosis into an
 - Implicit extension methods that silently rewrite module boundaries.
 - Dynamic dispatch semantics disguised as syntax sugar.
 
+## Continuous Harris And Formal Synthesis
+
+### Why This Is In Scope
+
+Gnosis already emits Lean artifacts for spectral stability, countable recurrence, and the queue-family measurable witness surface. The next frontier is not "more proofs somewhere else." It is turning ordinary `.gg` syntax into a compiler-driven measurable Harris package that stays honest about what is and is not certified.
+
+### Current Closure
+
+- The compiler can emit bounded affine queue-family theorem bundles: `*_measurable_observable`, `*_measurable_observable_drift`, and `*_measurable_continuous_harris_certified`.
+- State nodes can already declare `observable_kind`, `observable`, `observable_scale`, `observable_offset`, and `drift_gap` for that queue-family bridge.
+- Runtime snapshots can surface the resulting `continuousHarris` witness metadata and theorem names directly.
+
+### Direction
+
+- Keep pushing from syntax toward proof synthesis, not from handwritten Lean toward post-hoc documentation.
+- Separate what is generic queue-family closure from what is still a schema or a future kernel family.
+- Extend the witness surface only when the emitted theorem names, runtime metadata, and docs can all stay aligned.
+
+### Next Surface
+
+- Synthesize measurable small sets from topology syntax instead of hardwiring the queue boundary path.
+- Support richer observable/Lyapunov families than the current bounded affine queue witness.
+- Move beyond queue-support kernels toward non-queue measurable kernels that still admit explicit Harris/minorization data.
+
+### Done When
+
+- A `.gg` topology with continuous observables can emit a measurable kernel plus its small set, drift witness, minorization data, and Harris certificate without hand-supplied Lean glue.
+- The generated theorem family remains specific enough that the runtime can expose exactly what was proved.
+- The formal ledger, README tree, and emitted artifacts all describe the same boundary without translation work from the reader.
+
+### Non-Goals
+
+- Claiming arbitrary continuous-state ergodicity from syntax before the small set and minorization data are actually synthesized.
+- Treating queue-family closure as if it already covered non-queue measurable kernels.
+
 ## Out Of Scope For This Roadmap
 
 - Class-oriented features such as decorators, getters/setters, primary constructors, and extension methods.

@@ -124,4 +124,6 @@ Example families: transformers, CRDTs, synth graphs, privacy flows, edge pipelin
 
 ## License
 
+Copyright Taylor William Buley. All rights reserved.
+
 MPL-2.0

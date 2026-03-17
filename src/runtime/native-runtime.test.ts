@@ -26,6 +26,19 @@ describe('GnosisNativeRuntime', () => {
     expect(snapshot.stabilityMetadata?.queueBoundary).toBe(8);
     expect(snapshot.stabilityMetadata?.laminarAtom).toBe(0);
     expect(snapshot.stabilityMetadata?.queuePotential).toBe('beta1');
+    expect(snapshot.stabilityMetadata?.continuousHarris?.observableKind).toBe(
+      'queue-depth'
+    );
+    expect(
+      snapshot.stabilityMetadata?.continuousHarris?.observableDriftTheoremName
+    ).toBe(
+      `${snapshot.stabilityMetadata?.theoremName}_measurable_observable_drift`
+    );
+    expect(
+      snapshot.stabilityMetadata?.continuousHarris?.continuousHarrisTheoremName
+    ).toBe(
+      `${snapshot.stabilityMetadata?.theoremName}_measurable_continuous_harris_certified`
+    );
     expect(snapshot.stabilityMetadata?.laminarGeometricTheoremName).toBe(
       `${snapshot.stabilityMetadata?.theoremName}_laminar_geometric_stable`
     );

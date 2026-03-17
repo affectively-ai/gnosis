@@ -4,13 +4,23 @@ Parent: [Gnosis Source](../README.md)
 
 Runtime execution surfaces for graph traversal and handler dispatch.
 
+## Stability Metadata Surface
+
+The native runtime snapshot path now carries more than a generic stability flag bundle.
+
+- `countableQueue` marks the emitted `Nat` queue witness used for queue-support-kernel proofs.
+- `continuousHarris` now means a bounded affine queue-family witness, not an arbitrary continuous-state certificate.
+- The payload includes the observable kind, the emitted observable/Lyapunov expressions, the bounded drift gap, and the generated theorem names for `*_measurable_observable_drift` and `*_measurable_continuous_harris_certified`.
+
+The honest boundary is the same as the compiler boundary: runtime metadata can surface the emitted queue-family measurable witness package, but it does not mean Betti has synthesized a measurable small set, minorization witness, or non-queue continuous kernel from syntax.
+
 ## Files
 
 - [registry.ts](./registry.ts): Label-to-handler registration map.
 - [engine.ts](./engine.ts): Topology execution engine for `FORK/RACE/FOLD/VENT` graphs with persistent execution-auth context, fail-closed UCAN edge authorization, case-aware routing from native `.gg` payloads, structured cancellation/timeout semantics for concurrent collapse edges, and programmatic `executeWithResult()` access to final payloads for internal GG-native subsystems.
 - [structured-concurrency.ts](./structured-concurrency.ts): Internal branch-pool core for the Gnosis multiprocessing analogue, owning cancellation, race/fold resolution, and vent/shield outcome normalization for `FORK/RACE/FOLD` execution.
 - [core-handlers.ts](./core-handlers.ts): Built-in `Result`, `Option`, `Variant`, `Destructure`, `Delay`, quantum, and differentiable handlers for native `.gg` data-shaping and execution, including path-aware record destructuring and explicit tuple unpacking.
-- [native-runtime.ts](./native-runtime.ts): Native `.gg` frame runtime adapter over `gnosis_runtime` WASM, with deterministic fallback metrics when WASM is unavailable and compiler-supplied stability metadata attached to emitted frame payloads/snapshots, including the countable queue certificate, the emitted laminar-geometric theorem name, the emitted measurable-Harris theorem name, the emitted measurable-laminar endpoint theorem name, the emitted measurable-quantitative laminar theorem name, the emitted measurable-quantitative Harris theorem name, the emitted measurable witness quantitative Harris theorem name, the emitted measurable abstract Harris-recurrent theorem name, the emitted measurable finite-time geometric-ergodic theorem name, the emitted measurable Lévy-Prokhorov exact-geometric theorem name, the emitted measurable Lévy-Prokhorov geometric-decay theorem name, the emitted measurable abstract Lévy-Prokhorov geometric-ergodic theorem name, and the emitted measurable finite-time Harris theorem name when Betti proves the queue-family proof surface.
+- [native-runtime.ts](./native-runtime.ts): Native `.gg` frame runtime adapter over `gnosis_runtime` WASM, with deterministic fallback metrics when WASM is unavailable and compiler-supplied stability metadata attached to emitted frame payloads/snapshots, including the countable queue certificate, the emitted laminar-geometric theorem name, the emitted measurable-Harris theorem name, the emitted measurable-laminar endpoint theorem name, the emitted measurable-quantitative laminar theorem name, the emitted measurable-quantitative Harris theorem name, the emitted measurable witness quantitative Harris theorem name, the emitted measurable abstract Harris-recurrent theorem name, the emitted measurable finite-time geometric-ergodic theorem name, the emitted measurable Lévy-Prokhorov exact-geometric theorem name, the emitted measurable Lévy-Prokhorov geometric-decay theorem name, the emitted measurable abstract Lévy-Prokhorov geometric-ergodic theorem name, the emitted measurable finite-time Harris theorem name, and the derived `continuousHarris` observable/Lyapunov witness package when Betti proves the bounded affine queue-family proof surface.
 - [renderer-compat.ts](./renderer-compat.ts): 3D renderer compatibility layer targeting `@affectively/aeon-3d` with local fallback.
 - [engine.test.ts](./engine.test.ts): Runtime engine behavior tests.
 - [structured-concurrency.test.ts](./structured-concurrency.test.ts): Core branch-pool tests for race winners, fold venting, and direct cancellation semantics.

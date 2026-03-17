@@ -103,6 +103,7 @@ export class GnosisNativeRuntime {
               queueBoundary: this.stabilityMetadata.queueBoundary,
               laminarAtom: this.stabilityMetadata.laminarAtom,
               queuePotential: this.stabilityMetadata.queuePotential,
+              continuousHarris: this.stabilityMetadata.continuousHarris,
             }
           : undefined,
       })

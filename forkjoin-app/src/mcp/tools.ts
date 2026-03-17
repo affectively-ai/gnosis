@@ -1,0 +1,1222 @@
+import { BettyCompiler, type GraphAST } from '@affectively/gnosis/betty/compiler';
+import {
+  analyzeGnosisSource,
+  formatGnosisViolations,
+  type GnosisComplexityReport,
+} from '@affectively/gnosis/analysis';
+import { generateTlaFromGnosisSource } from '@affectively/gnosis/tla-bridge';
+import { ggReportToSarif } from '@affectively/gnosis/sarif';
+import { GnosisFormatter } from '@affectively/gnosis/formatter';
+import { GnosisNeo4jBridge } from '@affectively/gnosis/neo4j-bridge';
+import { GnosisEngine } from '@affectively/gnosis/runtime/engine';
+import { GnosisRegistry } from '@affectively/gnosis/runtime/registry';
+import { GnosisNativeRuntime } from '@affectively/gnosis/runtime/native-runtime';
+import type { RuntimeTarget } from '@affectively/gnosis/capabilities';
+import { lintDocumentCore } from '@affectively/shared-ui/services/aeon-container/streamed-lint-core';
+import type { StreamedLintLanguage } from '@affectively/shared-ui/services/aeon-container/streamed-lint-types';
+import type {
+  Env,
+  McpToolDefinition,
+  ToolCallResult,
+  ToolInvocationContext,
+} from '../types';
+
+interface DebugDoPayload {
+  ok?: boolean;
+  error?: string;
+  message?: string;
+  [key: string]: unknown;
+}
+
+interface BatchLintDocument {
+  path?: string;
+  language?: string;
+  source?: string;
+}
+
+const PUBLIC_TOOL_DEFINITIONS: McpToolDefinition[] = [
+  {
+    name: 'gnosis_compile',
+    description: 'Compile Gnosis source into topology AST and diagnostics.',
+    access: 'public',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        source: { type: 'string', description: 'Gnosis source code (.gg).' },
+      },
+      required: ['source'],
+    },
+  },
+  {
+    name: 'gnosis_lint',
+    description:
+      'Run compiler diagnostics plus formal analysis violations for Gnosis source.',
+    access: 'public',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        source: { type: 'string' },
+        target: {
+          type: 'string',
+          description: 'Runtime target: agnostic, workers, node, or bun.',
+        },
+      },
+      required: ['source'],
+    },
+  },
+  {
+    name: 'gnosis_analyze',
+    description:
+      'Analyze topology complexity, correctness, and capability requirements for Gnosis.',
+    access: 'public',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        source: { type: 'string' },
+        target: {
+          type: 'string',
+          description: 'Runtime target: agnostic, workers, node, or bun.',
+        },
+      },
+      required: ['source'],
+    },
+  },
+  {
+    name: 'gnosis_verify',
+    description:
+      'Verify Gnosis source with formal constraints and optional TLA generation.',
+    access: 'public',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        source: { type: 'string' },
+        target: { type: 'string' },
+        maxBuley: { type: 'number' },
+        emitTla: { type: 'boolean' },
+        tlaModuleName: { type: 'string' },
+        sourcePath: { type: 'string' },
+      },
+      required: ['source'],
+    },
+  },
+  {
+    name: 'gnosis_generate_tla',
+    description: 'Generate TLA+/CFG from Gnosis source.',
+    access: 'public',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        source: { type: 'string' },
+        moduleName: { type: 'string' },
+        sourcePath: { type: 'string' },
+      },
+      required: ['source'],
+    },
+  },
+  {
+    name: 'gnosis_emit_sarif',
+    description:
+      'Generate SARIF output for Gnosis formal checks and capability violations.',
+    access: 'public',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        source: { type: 'string' },
+        sourcePath: { type: 'string' },
+        target: { type: 'string' },
+        maxBuley: { type: 'number' },
+      },
+      required: ['source'],
+    },
+  },
+  {
+    name: 'gnosis_format',
+    description: 'Format Gnosis source into canonical style.',
+    access: 'public',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        source: { type: 'string' },
+      },
+      required: ['source'],
+    },
+  },
+  {
+    name: 'gnosis_to_neo4j_cypher',
+    description: 'Convert Gnosis source to Neo4j Cypher statements.',
+    access: 'public',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        source: { type: 'string' },
+        nodeLabel: { type: 'string' },
+        idPrefix: { type: 'string' },
+      },
+      required: ['source'],
+    },
+  },
+  {
+    name: 'code_lint_document',
+    description:
+      'Run deterministic lint checks against a single source document.',
+    access: 'public',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string' },
+        language: { type: 'string' },
+        source: { type: 'string' },
+        maxDiagnostics: { type: 'number' },
+      },
+      required: ['source'],
+    },
+  },
+  {
+    name: 'code_lint_batch',
+    description: 'Run deterministic lint checks over a batch of documents.',
+    access: 'public',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        documents: {
+          type: 'array',
+          description: 'Array of { path, language, source } items.',
+        },
+        maxDiagnostics: { type: 'number' },
+      },
+      required: ['documents'],
+    },
+  },
+];
+
+const AUTH_TOOL_DEFINITIONS: McpToolDefinition[] = [
+  {
+    name: 'gnosis_run',
+    description: 'Execute compiled Gnosis topology on the interpreted runtime.',
+    access: 'auth',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        source: { type: 'string' },
+        payload: {},
+      },
+      required: ['source'],
+    },
+  },
+  {
+    name: 'gnosis_native_run',
+    description:
+      'Execute compiled topology edges through GnosisNativeRuntime flow frames.',
+    access: 'auth',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        source: { type: 'string' },
+      },
+      required: ['source'],
+    },
+  },
+  {
+    name: 'gnosis_test_file',
+    description:
+      'Run a single file verification scenario and return pass/fail with details.',
+    access: 'auth',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        source: { type: 'string' },
+        target: { type: 'string' },
+        maxBuley: { type: 'number' },
+      },
+      required: ['source'],
+    },
+  },
+  {
+    name: 'gnosis_test_suite',
+    description: 'Run a suite of Gnosis verification cases in one request.',
+    access: 'auth',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tests: {
+          type: 'array',
+          description: 'Array of { name, source, maxBuley?, target? }.',
+        },
+      },
+      required: ['tests'],
+    },
+  },
+  {
+    name: 'qdoc_create',
+    description: 'Create a QDoc collaborative session state.',
+    access: 'auth',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        guid: { type: 'string' },
+        initialGg: { type: 'string' },
+      },
+    },
+  },
+  {
+    name: 'qdoc_get_state',
+    description: 'Read current QDoc state for the active MCP session.',
+    access: 'auth',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'qdoc_apply_update',
+    description: 'Apply a base64-encoded QDoc update payload.',
+    access: 'auth',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        updateBase64: { type: 'string' },
+      },
+      required: ['updateBase64'],
+    },
+  },
+  {
+    name: 'qdoc_transact',
+    description: 'Apply one or more QDoc transactional operations.',
+    access: 'auth',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        operations: {
+          type: 'array',
+          description: 'QDoc operation list.',
+        },
+      },
+      required: ['operations'],
+    },
+  },
+  {
+    name: 'qdoc_get_delta',
+    description: 'Get base64 state delta payload for the active QDoc session.',
+    access: 'auth',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'dashrelay_connect_qdoc',
+    description:
+      'Attach QDoc session metadata to DashRelay endpoint/room configuration.',
+    access: 'auth',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string' },
+        roomName: { type: 'string' },
+        apiKey: { type: 'string' },
+        clientId: { type: 'string' },
+        webtransportUrl: { type: 'string' },
+        discoveryUrl: { type: 'string' },
+        ephemeral: { type: 'boolean' },
+      },
+    },
+  },
+  {
+    name: 'dashrelay_status',
+    description: 'Inspect DashRelay linkage state for the active QDoc session.',
+    access: 'auth',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'dashrelay_disconnect',
+    description: 'Mark DashRelay linkage disconnected for the active session.',
+    access: 'auth',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'gnosis_forge_deploy',
+    description:
+      'Trigger an Aeon Forge deploy hook for the current Gnosis workspace.',
+    access: 'auth',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectPath: { type: 'string' },
+        branch: { type: 'string' },
+        tag: { type: 'string' },
+        notes: { type: 'string' },
+        dryRun: { type: 'boolean' },
+        metadata: { type: 'object' },
+      },
+    },
+  },
+];
+
+export const GNOSIS_MCP_TOOLS: McpToolDefinition[] = [
+  ...PUBLIC_TOOL_DEFINITIONS,
+  ...AUTH_TOOL_DEFINITIONS,
+];
+
+const TOOL_BY_NAME = new Map<string, McpToolDefinition>(
+  GNOSIS_MCP_TOOLS.map((tool) => [tool.name, tool])
+);
+
+export const PUBLIC_TOOL_NAMES = new Set(
+  PUBLIC_TOOL_DEFINITIONS.map((tool) => tool.name)
+);
+
+export const AUTH_TOOL_NAMES = new Set(
+  AUTH_TOOL_DEFINITIONS.map((tool) => tool.name)
+);
+
+export function getToolByName(name: string): McpToolDefinition | null {
+  return TOOL_BY_NAME.get(name) ?? null;
+}
+
+function requiredString(args: Record<string, unknown>, key: string): string {
+  const value = args[key];
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(`${key} is required and must be a non-empty string.`);
+  }
+  return value;
+}
+
+function optionalString(args: Record<string, unknown>, key: string): string | null {
+  const value = args[key];
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function optionalNumber(args: Record<string, unknown>, key: string): number | null {
+  const value = args[key];
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return null;
+  }
+  return value;
+}
+
+function optionalBoolean(args: Record<string, unknown>, key: string): boolean | null {
+  const value = args[key];
+  return typeof value === 'boolean' ? value : null;
+}
+
+function parseRuntimeTarget(value: unknown): RuntimeTarget {
+  if (typeof value !== 'string') {
+    return 'agnostic';
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === 'agnostic' ||
+    normalized === 'workers' ||
+    normalized === 'node' ||
+    normalized === 'bun'
+  ) {
+    return normalized;
+  }
+
+  return 'agnostic';
+}
+
+function serializeAst(ast: GraphAST | null): Record<string, unknown> | null {
+  if (!ast) {
+    return null;
+  }
+
+  return {
+    nodes: Array.from(ast.nodes.values()),
+    edges: ast.edges,
+  };
+}
+
+function buildToolPayload(value: unknown, isError = false): ToolCallResult {
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify(value, null, 2),
+      },
+    ],
+    ...(isError ? { isError: true } : {}),
+  };
+}
+
+function parseLintLanguage(language: string | null, path: string): StreamedLintLanguage {
+  if (language) {
+    const normalized = language.trim().toLowerCase();
+    if (
+      normalized === 'javascript' ||
+      normalized === 'typescript' ||
+      normalized === 'go' ||
+      normalized === 'python' ||
+      normalized === 'gnosis'
+    ) {
+      return normalized;
+    }
+  }
+
+  if (path.endsWith('.ts') || path.endsWith('.tsx')) {
+    return 'typescript';
+  }
+  if (path.endsWith('.js') || path.endsWith('.jsx')) {
+    return 'javascript';
+  }
+  if (path.endsWith('.go')) {
+    return 'go';
+  }
+  if (path.endsWith('.py')) {
+    return 'python';
+  }
+  if (path.endsWith('.gg')) {
+    return 'gnosis';
+  }
+
+  return 'gnosis';
+}
+
+function resolvePublicRateLimit(env: Env): number {
+  const raw = env.PUBLIC_TOOL_RATE_LIMIT?.trim();
+  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
+  return Number.isFinite(parsed) ? Math.max(1, parsed) : 180;
+}
+
+async function callDebugSessionDo(
+  env: Env,
+  sessionId: string,
+  path: string,
+  method: 'GET' | 'POST',
+  body?: unknown
+): Promise<DebugDoPayload> {
+  const debugId = env.DEBUG_SESSION_DO.idFromName(sessionId);
+  const stub = env.DEBUG_SESSION_DO.get(debugId);
+  const request = new Request(`https://gnosis-debug.internal${path}`, {
+    method,
+    headers: body ? { 'content-type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  const response = await stub.fetch(request);
+  const payload = (await response.json()) as DebugDoPayload;
+  if (!response.ok || payload.ok === false) {
+    const message =
+      typeof payload.message === 'string'
+        ? payload.message
+        : typeof payload.error === 'string'
+        ? payload.error
+        : `Debug session request failed: ${path}`;
+    throw new Error(message);
+  }
+
+  return payload;
+}
+
+async function buildVerifyReport(
+  source: string,
+  target: RuntimeTarget
+): Promise<{
+  report: GnosisComplexityReport;
+  violations: string[];
+  compileDiagnostics: ReturnType<BettyCompiler['getDiagnostics']>;
+}> {
+  const compiler = new BettyCompiler();
+  compiler.parse(source);
+  const compileDiagnostics = compiler.getDiagnostics();
+  const report = await analyzeGnosisSource(source, { target });
+  const violations = formatGnosisViolations(report.correctness);
+  return {
+    report,
+    violations,
+    compileDiagnostics,
+  };
+}
+
+async function invokePublicTool(
+  name: string,
+  args: Record<string, unknown>,
+  context: ToolInvocationContext
+): Promise<ToolCallResult> {
+  switch (name) {
+    case 'gnosis_compile': {
+      const source = requiredString(args, 'source');
+      const compiler = new BettyCompiler();
+      const parse = compiler.parse(source);
+      const diagnostics = compiler.getDiagnostics();
+
+      return buildToolPayload({
+        ok: diagnostics.every((diagnostic) => diagnostic.severity !== 'error'),
+        b1: parse.b1,
+        buleyMeasure: parse.buleyMeasure,
+        output: parse.output,
+        diagnostics,
+        ast: serializeAst(parse.ast),
+        logs: compiler.getLogs(),
+      });
+    }
+
+    case 'gnosis_lint': {
+      const source = requiredString(args, 'source');
+      const target = parseRuntimeTarget(args.target);
+      const lintReport = await buildVerifyReport(source, target);
+
+      return buildToolPayload({
+        ok:
+          lintReport.violations.length === 0 &&
+          lintReport.compileDiagnostics.every(
+            (diagnostic) => diagnostic.severity !== 'error'
+          ) &&
+          lintReport.report.capabilities.issues.every(
+            (issue) => issue.severity !== 'error'
+          ),
+        target,
+        compileDiagnostics: lintReport.compileDiagnostics,
+        violations: lintReport.violations,
+        capabilityIssues: lintReport.report.capabilities.issues,
+        metrics: lintReport.report,
+      });
+    }
+
+    case 'gnosis_analyze': {
+      const source = requiredString(args, 'source');
+      const target = parseRuntimeTarget(args.target);
+      const report = await analyzeGnosisSource(source, { target });
+      return buildToolPayload({
+        ok: report.correctness.ok && report.capabilities.ok,
+        report,
+      });
+    }
+
+    case 'gnosis_verify': {
+      const source = requiredString(args, 'source');
+      const target = parseRuntimeTarget(args.target);
+      const maxBuley = optionalNumber(args, 'maxBuley');
+      const emitTla = optionalBoolean(args, 'emitTla') === true;
+      const moduleName = optionalString(args, 'tlaModuleName');
+      const sourcePath = optionalString(args, 'sourcePath');
+
+      const { report, violations, compileDiagnostics } = await buildVerifyReport(
+        source,
+        target
+      );
+      const capabilityErrors = report.capabilities.issues.filter(
+        (issue) => issue.severity === 'error'
+      );
+      const buleyExceeded =
+        typeof maxBuley === 'number' ? report.buleyNumber > maxBuley : false;
+
+      const tlaResult = emitTla
+        ? generateTlaFromGnosisSource(source, {
+            moduleName: moduleName ?? undefined,
+            sourceFilePath: sourcePath ?? undefined,
+          })
+        : null;
+
+      const ok =
+        violations.length === 0 &&
+        capabilityErrors.length === 0 &&
+        !buleyExceeded &&
+        compileDiagnostics.every((diagnostic) => diagnostic.severity !== 'error');
+
+      return buildToolPayload({
+        ok,
+        target,
+        report,
+        compileDiagnostics,
+        violations,
+        capabilityErrors,
+        maxBuley: typeof maxBuley === 'number' ? maxBuley : null,
+        buleyExceeded,
+        tla: tlaResult,
+      });
+    }
+
+    case 'gnosis_generate_tla': {
+      const source = requiredString(args, 'source');
+      const moduleName = optionalString(args, 'moduleName');
+      const sourcePath = optionalString(args, 'sourcePath');
+      const result = generateTlaFromGnosisSource(source, {
+        moduleName: moduleName ?? undefined,
+        sourceFilePath: sourcePath ?? undefined,
+      });
+
+      return buildToolPayload({
+        ok: true,
+        result,
+      });
+    }
+
+    case 'gnosis_emit_sarif': {
+      const source = requiredString(args, 'source');
+      const sourcePath = optionalString(args, 'sourcePath') ?? '/virtual/main.gg';
+      const target = parseRuntimeTarget(args.target);
+      const maxBuley = optionalNumber(args, 'maxBuley');
+      const { report, violations } = await buildVerifyReport(source, target);
+
+      let sarif: unknown;
+      try {
+        sarif = ggReportToSarif(sourcePath, report, violations, maxBuley);
+      } catch {
+        sarif = {
+          version: '2.1.0',
+          runs: [
+            {
+              tool: {
+                driver: {
+                  name: 'gnosis-gg-lint',
+                  informationUri: 'https://github.com/forkjoin-ai/gnosis',
+                  rules: [],
+                },
+              },
+              results: violations.map((violation, index) => ({
+                ruleId: `gnosis.fallback.${index + 1}`,
+                level: 'error',
+                message: { text: violation },
+              })),
+            },
+          ],
+        };
+      }
+
+      return buildToolPayload({
+        ok: true,
+        sarif,
+      });
+    }
+
+    case 'gnosis_format': {
+      const source = requiredString(args, 'source');
+      const formatter = new GnosisFormatter();
+      const formatted = formatter.format(source);
+      return buildToolPayload({
+        ok: true,
+        formatted,
+      });
+    }
+
+    case 'gnosis_to_neo4j_cypher': {
+      const source = requiredString(args, 'source');
+      const nodeLabel = optionalString(args, 'nodeLabel');
+      const idPrefix = optionalString(args, 'idPrefix');
+      const bridge = new GnosisNeo4jBridge();
+      const cypher = bridge.gglToCypher(source, {
+        nodeLabel: nodeLabel ?? undefined,
+        idPrefix: idPrefix ?? undefined,
+      });
+
+      return buildToolPayload({
+        ok: true,
+        cypher,
+      });
+    }
+
+    case 'code_lint_document': {
+      const source = requiredString(args, 'source');
+      const path = optionalString(args, 'path') ?? '/virtual/document.gg';
+      const language = parseLintLanguage(optionalString(args, 'language'), path);
+      const maxDiagnostics = optionalNumber(args, 'maxDiagnostics');
+      const lint = lintDocumentCore({
+        path,
+        language,
+        content: source,
+        maxDiagnostics:
+          typeof maxDiagnostics === 'number' ? Math.max(1, maxDiagnostics) : 260,
+      });
+      const errors = lint.diagnostics.filter((item) => item.severity === 'error').length;
+      const warnings = lint.diagnostics.filter((item) => item.severity === 'warning').length;
+
+      return buildToolPayload({
+        ok: errors === 0,
+        path,
+        language,
+        engine: lint.engine,
+        supportsWasm: lint.supportsWasm,
+        summary: {
+          total: lint.diagnostics.length,
+          errors,
+          warnings,
+        },
+        diagnostics: lint.diagnostics,
+      });
+    }
+
+    case 'code_lint_batch': {
+      const documentsRaw = args.documents;
+      if (!Array.isArray(documentsRaw) || documentsRaw.length === 0) {
+        throw new Error('documents must be a non-empty array.');
+      }
+
+      const maxDiagnostics = optionalNumber(args, 'maxDiagnostics');
+      const diagnosticsLimit =
+        typeof maxDiagnostics === 'number' ? Math.max(1, maxDiagnostics) : 260;
+
+      const documents: BatchLintDocument[] = documentsRaw.filter(
+        (value): value is BatchLintDocument =>
+          typeof value === 'object' && value !== null && !Array.isArray(value)
+      );
+
+      const results = documents.map((document, index) => {
+        const source = typeof document.source === 'string' ? document.source : '';
+        const path =
+          typeof document.path === 'string' && document.path.trim().length > 0
+            ? document.path.trim()
+            : `/virtual/document-${index + 1}.gg`;
+        const language = parseLintLanguage(
+          typeof document.language === 'string' ? document.language : null,
+          path
+        );
+        const lint = lintDocumentCore({
+          path,
+          language,
+          content: source,
+          maxDiagnostics: diagnosticsLimit,
+        });
+        const errors = lint.diagnostics.filter(
+          (diagnostic) => diagnostic.severity === 'error'
+        ).length;
+
+        return {
+          path,
+          language,
+          ok: errors === 0,
+          engine: lint.engine,
+          diagnostics: lint.diagnostics,
+          summary: {
+            total: lint.diagnostics.length,
+            errors,
+            warnings: lint.diagnostics.filter(
+              (diagnostic) => diagnostic.severity === 'warning'
+            ).length,
+          },
+        };
+      });
+
+      return buildToolPayload({
+        ok: results.every((result) => result.ok),
+        count: results.length,
+        results,
+      });
+    }
+
+    default:
+      throw new Error(`Unknown public tool: ${name}`);
+  }
+}
+
+async function invokeAuthTool(
+  name: string,
+  args: Record<string, unknown>,
+  context: ToolInvocationContext
+): Promise<ToolCallResult> {
+  switch (name) {
+    case 'gnosis_run': {
+      const source = requiredString(args, 'source');
+      const payload = args.payload;
+      const compiler = new BettyCompiler();
+      const parse = compiler.parse(source);
+      if (!parse.ast) {
+        return buildToolPayload(
+          {
+            ok: false,
+            error: 'compile_failed',
+            diagnostics: compiler.getDiagnostics(),
+          },
+          true
+        );
+      }
+
+      const registry = new GnosisRegistry();
+      const engine = new GnosisEngine(registry);
+      const output = await engine.execute(parse.ast, payload ?? 'MCP_RUN');
+
+      return buildToolPayload({
+        ok: true,
+        output,
+        ast: serializeAst(parse.ast),
+        b1: parse.b1,
+        buleyMeasure: parse.buleyMeasure,
+        diagnostics: compiler.getDiagnostics(),
+        logs: compiler.getLogs(),
+      });
+    }
+
+    case 'gnosis_native_run': {
+      const source = requiredString(args, 'source');
+      const compiler = new BettyCompiler();
+      const parse = compiler.parse(source);
+      if (!parse.ast) {
+        return buildToolPayload(
+          {
+            ok: false,
+            error: 'compile_failed',
+            diagnostics: compiler.getDiagnostics(),
+          },
+          true
+        );
+      }
+
+      const runtime = new GnosisNativeRuntime();
+      const snapshot = await runtime.processEdges(parse.ast.edges);
+      return buildToolPayload({
+        ok: true,
+        snapshot,
+        diagnostics: compiler.getDiagnostics(),
+      });
+    }
+
+    case 'gnosis_test_file': {
+      const source = requiredString(args, 'source');
+      const target = parseRuntimeTarget(args.target);
+      const maxBuley = optionalNumber(args, 'maxBuley') ?? 10;
+      const verify = await buildVerifyReport(source, target);
+      const hasCompileErrors = verify.compileDiagnostics.some(
+        (diagnostic) => diagnostic.severity === 'error'
+      );
+      const capabilityErrors = verify.report.capabilities.issues.filter(
+        (issue) => issue.severity === 'error'
+      );
+      const pass =
+        !hasCompileErrors &&
+        verify.violations.length === 0 &&
+        capabilityErrors.length === 0 &&
+        verify.report.buleyNumber <= maxBuley;
+
+      return buildToolPayload({
+        ok: pass,
+        pass,
+        target,
+        maxBuley,
+        buleyNumber: verify.report.buleyNumber,
+        compileDiagnostics: verify.compileDiagnostics,
+        violations: verify.violations,
+        capabilityErrors,
+      });
+    }
+
+    case 'gnosis_test_suite': {
+      const testsRaw = args.tests;
+      if (!Array.isArray(testsRaw) || testsRaw.length === 0) {
+        throw new Error('tests must be a non-empty array.');
+      }
+
+      const results: Array<Record<string, unknown>> = [];
+      let passed = 0;
+
+      for (const testCase of testsRaw) {
+        if (
+          typeof testCase !== 'object' ||
+          testCase === null ||
+          Array.isArray(testCase)
+        ) {
+          continue;
+        }
+
+        const test = testCase as Record<string, unknown>;
+        const name =
+          typeof test.name === 'string' && test.name.trim().length > 0
+            ? test.name.trim()
+            : `test-${results.length + 1}`;
+        const source =
+          typeof test.source === 'string' && test.source.trim().length > 0
+            ? test.source
+            : '';
+        const target = parseRuntimeTarget(test.target);
+        const maxBuley =
+          typeof test.maxBuley === 'number' && Number.isFinite(test.maxBuley)
+            ? test.maxBuley
+            : 10;
+
+        if (source.length === 0) {
+          results.push({
+            name,
+            ok: false,
+            error: 'missing_source',
+          });
+          continue;
+        }
+
+        const verify = await buildVerifyReport(source, target);
+        const hasCompileErrors = verify.compileDiagnostics.some(
+          (diagnostic) => diagnostic.severity === 'error'
+        );
+        const capabilityErrors = verify.report.capabilities.issues.filter(
+          (issue) => issue.severity === 'error'
+        );
+        const ok =
+          !hasCompileErrors &&
+          verify.violations.length === 0 &&
+          capabilityErrors.length === 0 &&
+          verify.report.buleyNumber <= maxBuley;
+
+        if (ok) {
+          passed += 1;
+        }
+
+        results.push({
+          name,
+          ok,
+          target,
+          maxBuley,
+          buleyNumber: verify.report.buleyNumber,
+          violations: verify.violations,
+          capabilityErrors,
+          compileDiagnostics: verify.compileDiagnostics,
+        });
+      }
+
+      return buildToolPayload({
+        ok: passed === results.length,
+        totals: {
+          count: results.length,
+          passed,
+          failed: results.length - passed,
+        },
+        results,
+      });
+    }
+
+    case 'qdoc_create': {
+      const result = await callDebugSessionDo(
+        context.env,
+        context.sessionId,
+        '/qdoc/create',
+        'POST',
+        {
+          guid: optionalString(args, 'guid') ?? undefined,
+          initialGg: optionalString(args, 'initialGg') ?? undefined,
+        }
+      );
+      return buildToolPayload(result);
+    }
+
+    case 'qdoc_get_state': {
+      const result = await callDebugSessionDo(
+        context.env,
+        context.sessionId,
+        '/qdoc/state',
+        'GET'
+      );
+      return buildToolPayload(result);
+    }
+
+    case 'qdoc_apply_update': {
+      const updateBase64 = requiredString(args, 'updateBase64');
+      const result = await callDebugSessionDo(
+        context.env,
+        context.sessionId,
+        '/qdoc/apply-update',
+        'POST',
+        { updateBase64 }
+      );
+      return buildToolPayload(result);
+    }
+
+    case 'qdoc_transact': {
+      const operations = args.operations;
+      if (!Array.isArray(operations) || operations.length === 0) {
+        throw new Error('operations must be a non-empty array.');
+      }
+      const result = await callDebugSessionDo(
+        context.env,
+        context.sessionId,
+        '/qdoc/transact',
+        'POST',
+        { operations }
+      );
+      return buildToolPayload(result);
+    }
+
+    case 'qdoc_get_delta': {
+      const result = await callDebugSessionDo(
+        context.env,
+        context.sessionId,
+        '/qdoc/get-delta',
+        'GET'
+      );
+      return buildToolPayload(result);
+    }
+
+    case 'dashrelay_connect_qdoc': {
+      const result = await callDebugSessionDo(
+        context.env,
+        context.sessionId,
+        '/dashrelay/connect',
+        'POST',
+        {
+          url: optionalString(args, 'url') ?? context.env.DASH_RELAY_WS_URL,
+          roomName: optionalString(args, 'roomName') ?? undefined,
+          apiKey: optionalString(args, 'apiKey') ?? undefined,
+          clientId: optionalString(args, 'clientId') ?? undefined,
+          webtransportUrl:
+            optionalString(args, 'webtransportUrl') ?? context.env.DASH_RELAY_WT_URL,
+          discoveryUrl:
+            optionalString(args, 'discoveryUrl') ?? context.env.DASH_RELAY_DISCOVERY_URL,
+          ephemeral: optionalBoolean(args, 'ephemeral') ?? true,
+        }
+      );
+      return buildToolPayload(result);
+    }
+
+    case 'dashrelay_status': {
+      const result = await callDebugSessionDo(
+        context.env,
+        context.sessionId,
+        '/dashrelay/status',
+        'GET'
+      );
+      return buildToolPayload(result);
+    }
+
+    case 'dashrelay_disconnect': {
+      const result = await callDebugSessionDo(
+        context.env,
+        context.sessionId,
+        '/dashrelay/disconnect',
+        'POST'
+      );
+      return buildToolPayload(result);
+    }
+
+    case 'gnosis_forge_deploy': {
+      const forgeUrlRaw = context.env.AEON_FORGE_DEPLOY_URL?.trim() ?? '';
+      const dryRun = optionalBoolean(args, 'dryRun') === true;
+      const payload = {
+        projectPath: optionalString(args, 'projectPath') ?? '.',
+        branch: optionalString(args, 'branch') ?? 'main',
+        tag: optionalString(args, 'tag') ?? null,
+        notes: optionalString(args, 'notes') ?? null,
+        metadata:
+          typeof args.metadata === 'object' && args.metadata !== null && !Array.isArray(args.metadata)
+            ? args.metadata
+            : {},
+        requestedAt: new Date().toISOString(),
+        sessionId: context.sessionId,
+      };
+
+      if (dryRun) {
+        return buildToolPayload({
+          ok: true,
+          dryRun: true,
+          forgeUrl: forgeUrlRaw.length > 0 ? forgeUrlRaw : null,
+          payload,
+        });
+      }
+
+      if (forgeUrlRaw.length === 0) {
+        return buildToolPayload(
+          {
+            ok: false,
+            error: 'forge_url_not_configured',
+            message:
+              'AEON_FORGE_DEPLOY_URL is not configured for this environment.',
+            payload,
+          },
+          true
+        );
+      }
+
+      const headers = new Headers({
+        'content-type': 'application/json',
+      });
+      if (context.authToken) {
+        headers.set('authorization', `Bearer ${context.authToken}`);
+      }
+
+      const response = await fetch(forgeUrlRaw, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+      const raw = await response.text();
+      const parsedBody = parseJsonMaybe(raw);
+
+      return buildToolPayload({
+        ok: response.ok,
+        status: response.status,
+        body: parsedBody,
+      }, !response.ok);
+    }
+
+    default:
+      throw new Error(`Unknown auth tool: ${name}`);
+  }
+}
+
+function parseJsonMaybe(value: string): unknown {
+  if (value.trim().length === 0) {
+    return null;
+  }
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return value;
+  }
+}
+
+export async function invokeGnosisTool(
+  name: string,
+  args: Record<string, unknown>,
+  context: ToolInvocationContext
+): Promise<ToolCallResult> {
+  if (PUBLIC_TOOL_NAMES.has(name)) {
+    return invokePublicTool(name, args, context);
+  }
+  if (AUTH_TOOL_NAMES.has(name)) {
+    return invokeAuthTool(name, args, context);
+  }
+
+  return buildToolPayload(
+    {
+      ok: false,
+      error: `Unknown tool: ${name}`,
+    },
+    true
+  );
+}
+
+export async function consumePublicToolQuota(
+  env: Env,
+  sessionId: string,
+  toolName: string
+): Promise<{ allowed: boolean; remaining: number; limitPerHour: number }> {
+  const sessionIdObject = env.MCP_SESSION_DO.idFromName(sessionId);
+  const sessionStub = env.MCP_SESSION_DO.get(sessionIdObject);
+  const response = await sessionStub.fetch(
+    new Request('https://gnosis-mcp.internal/consume-public-quota', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        toolName,
+        limitPerHour: resolvePublicRateLimit(env),
+      }),
+    })
+  );
+
+  const payload = (await response.json()) as {
+    allowed?: boolean;
+    remaining?: number;
+    limitPerHour?: number;
+  };
+
+  return {
+    allowed: payload.allowed === true,
+    remaining:
+      typeof payload.remaining === 'number' && Number.isFinite(payload.remaining)
+        ? payload.remaining
+        : 0,
+    limitPerHour:
+      typeof payload.limitPerHour === 'number' &&
+      Number.isFinite(payload.limitPerHour)
+        ? payload.limitPerHour
+        : resolvePublicRateLimit(env),
+  };
+}

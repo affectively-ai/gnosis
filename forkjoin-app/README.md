@@ -1,0 +1,32 @@
+# forkjoin-app
+
+[Parent: apps](../README.md)
+
+Unified Cloudflare Worker + Vite app for `forkjoin.ai`, now shaped as the canonical Gnosis evaluator sanctuary: awe-first homepage, code-first taste, book-first depth, and explicit handoff into IDE, Forge, and AeonOS.
+
+## Capabilities
+
+- Public programming UI routes: `/`, `/ide`, `/repl`, `/playground`, `/docs`, and legal/cookie pages.
+- Homepage procession: language orientation, anti-pitch, real code sample, 5-minute quickstart, sandbox taste, featured Gnosis book rail, and machine/developer discovery rail.
+- Skeptical-evaluator support: side-by-side Gnosis vs TypeScript/Rust comparisons, clearer “what this is / is not” fit signals, and expected-result guidance for the quick sandbox.
+- `/ide` is a canonical IDE handoff page that preserves the current ForkJoin snippet in the launch URL instead of embedding the full IDE locally.
+- Quick sandbox execution model: browser QuickJS for JavaScript/TypeScript, browser `aeon-logic` for TLA, edge API runtime for Gnosis (`VITE_EDGE_AEON_CONTAINER_API` override).
+- MCP/discovery surface: `/mcp`, `/health`, `/llms.txt`, `/llms-full.txt`, `/skills*`, `/.well-known/*`, `/agents.json`.
+- Public and auth-gated Gnosis tools (compile/lint/analyze/verify/TLA/SARIF/run/test/CRDT/DashRelay/deploy hook).
+- Durable Object session continuity with `mcp-session-id` and debug/QDoc session state.
+
+## Key Commands
+
+- `bun nx run forkjoin-app:dev`
+- `bun nx run forkjoin-app:build`
+- `bun nx run forkjoin-app:deploy:dev`
+- `bun nx run forkjoin-app:deploy:stage`
+- `bun nx run forkjoin-app:deploy:prod`
+- `bun nx run forkjoin-app:smoke:deployed`
+
+## Sub-Directories
+
+- [src](./src/README.md)
+- [client](./client/README.md)
+- [scripts](./scripts/README.md)
+- [test](./test/README.md)

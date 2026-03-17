@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Aeon Foundation - Distributed. Collaborative. Alive. Open-source infrastructure for the next web." />
+
+    <title>ForkJoin | Parent company of Aeon Foundation and Affectively</title>
+
+    <!-- Canonical -->
+    <link rel="canonical" href="https://forkjoin.ai/" />
+
+    <!-- Preconnect to critical origins -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- Fonts – loaded asynchronously to avoid render-blocking.
+         display=optional prevents font-swap CLS. -->
+    <link href="https://fonts.googleapis.com/css2?family=Georama:wght@300;400;500;600;700&family=Oranienbaum&display=optional" rel="stylesheet" media="print" onload="this.media='all'" />
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Georama:wght@300;400;500;600;700&family=Oranienbaum&display=optional" rel="stylesheet" /></noscript>
+
+    <!-- Consent-gated GTM bootstrap -->
+    <script>
+    (function(){var STORAGE_KEY='cookie-consent',CONSENT_VERSION='1.0',CONSENT_EVENT='cookieConsentUpdated',BANNER_ID='cookie-consent-banner',GTM_ID='GTM-PK358QZF',loaded=false;function readConsent(){try{if(!window.localStorage)return null;var r=window.localStorage.getItem(STORAGE_KEY);if(!r)return null;var p=JSON.parse(r);if(!p||p.version!==CONSENT_VERSION||!p.consent)return null;return p.consent}catch(e){return null}}function hasConsent(){var c=readConsent();return!!(c&&c.analytics===true)}function persist(v){try{if(!window.localStorage)return;window.localStorage.setItem(STORAGE_KEY,JSON.stringify({version:CONSENT_VERSION,consent:{analytics:!!v},timestamp:Date.now()}));window.dispatchEvent(new Event(CONSENT_EVENT))}catch(e){}}function loadGtm(){if(loaded||!hasConsent())return;loaded=true;window.dataLayer=window.dataLayer||[];window.dataLayer.push({'gtm.start':Date.now(),event:'gtm.js'});var s=document.createElement('script');s.async=true;s.src='https://www.googletagmanager.com/gtm.js?id='+GTM_ID;document.head.appendChild(s)}function removeBanner(){var b=document.getElementById(BANNER_ID);if(b&&b.parentNode)b.parentNode.removeChild(b)}function createBanner(){if(readConsent()||document.getElementById(BANNER_ID))return;var b=document.createElement('div');b.id=BANNER_ID;b.setAttribute('role','region');b.setAttribute('aria-label','Cookie consent');b.style.cssText='position:fixed;left:16px;right:16px;bottom:16px;z-index:9999;max-width:960px;margin:0 auto;padding:14px 16px;border-radius:12px;border:1px solid rgba(255,255,255,0.18);background:rgba(10,10,10,0.95);color:#e5e7eb;box-shadow:0 12px 36px rgba(0,0,0,0.45);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:12px;line-height:1.5';var m=document.createElement('div');m.innerHTML='We use essential cookies to run this site and optional analytics cookies to improve it. <a href="/cookies" style="color:#336699;text-decoration:underline">Cookie Policy</a>';var a=document.createElement('div');a.style.cssText='display:flex;flex-wrap:wrap;gap:8px;margin-top:10px';var rj=document.createElement('button');rj.type='button';rj.textContent='Reject analytics';rj.style.cssText='padding:8px 12px;border-radius:8px;border:1px solid rgba(148,163,184,0.5);background:transparent;color:#cbd5e1;cursor:pointer';rj.onclick=function(){persist(false);removeBanner()};var ac=document.createElement('button');ac.type='button';ac.textContent='Accept analytics';ac.style.cssText='padding:8px 12px;border-radius:8px;border:1px solid #4488aa;background:#5599cc;color:#0a0a0f;cursor:pointer;font-weight:600';ac.onclick=function(){persist(true);loadGtm();removeBanner()};a.appendChild(rj);a.appendChild(ac);b.appendChild(m);b.appendChild(a);document.body.appendChild(b)}if(hasConsent())loadGtm();window.addEventListener(CONSENT_EVENT,function(){if(hasConsent()){loadGtm();removeBanner()}else createBanner()});if(!readConsent()){if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',createBanner,{once:true});else createBanner()}})();
+    </script>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="ForkJoin" />
+    <meta property="og:description" content="Upend your whole stack with speed, privacy, and low-cost infrastructure." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://forkjoin.ai" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="ForkJoin" />
+    <meta name="twitter:description" content="Open-source infrastructure for the next web." />
+
+    <!-- Theme Color -->
+    <meta name="theme-color" content="#0a0a0f" />
+
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      :root {
+        --color-bg: #0a0a0f;
+        --color-bg-secondary: #12121a;
+        --color-text: #f0f0f5;
+        --color-text-secondary: #9090a0;
+        --color-accent: #5599cc;
+        --color-accent-glow: rgba(85, 153, 204, 0.4);
+        --color-success: #22c55e;
+        --color-warning: #f59e0b;
+        --font-sans: 'Georama', -apple-system, BlinkMacSystemFont, sans-serif;
+        --font-serif: 'Oranienbaum', Georgia, Cambria, serif;
+        --font-mono: ui-monospace, 'SFMono-Regular', 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+      }
+
+      html {
+        scroll-behavior: smooth;
+        font-size: clamp(16px, 0.18vw + 15.25px, 18.5px);
+      }
+
+      body {
+        font-family: var(--font-sans);
+        background: var(--color-bg);
+        color: var(--color-text);
+        line-height: 1.6;
+        overflow-x: hidden;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      #root {
+        min-height: 100vh;
+      }
+
+      /* Static hero — painted from HTML before any JS executes.
+         Position: fixed so it never affects document flow (zero CLS). */
+      #static-hero {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #0a0a0f 0%, #12121a 100%);
+        transition: opacity 0.3s ease-out;
+      }
+
+      #static-hero.hidden {
+        display: none;
+      }
+
+      .static-hero-content {
+        text-align: center;
+        padding: 2rem;
+        max-width: 800px;
+      }
+
+      .static-hero-title {
+        font-size: clamp(2.5rem, 8vw, 5rem);
+        font-weight: 300;
+        line-height: 0.96;
+        letter-spacing: -0.045em;
+        margin-bottom: 1.5rem;
+      }
+
+      .static-hero-title span {
+        display: block;
+      }
+
+      .static-hero-accent {
+        background: linear-gradient(135deg, var(--color-accent) 0%, #4488aa 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .static-hero-subtitle {
+        font-size: 1.25rem;
+        color: var(--color-text-secondary);
+        line-height: 1.8;
+      }
+
+      .static-hero-subtitle strong {
+        color: var(--color-text);
+      }
+
+      /* Cursor overlay base styles */
+      .cursor-overlay {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 1000;
+      }
+
+      .cursor-indicator {
+        position: absolute;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        transition: left 0.05s linear, top 0.05s linear;
+        pointer-events: none;
+      }
+
+      .cursor-indicator::after {
+        content: '';
+        position: absolute;
+        inset: -4px;
+        border-radius: 50%;
+        border: 2px solid currentColor;
+        opacity: 0.5;
+        animation: cursor-ring 2s ease-in-out infinite;
+      }
+
+      @keyframes cursor-ring {
+        0%, 100% { transform: scale(1); opacity: 0.5; }
+        50% { transform: scale(1.2); opacity: 0.3; }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Static hero — renders immediately for fast FCP / LCP (no JS needed) -->
+    <div id="static-hero" aria-hidden="true">
+      <div class="static-hero-content">
+        <h1 class="static-hero-title">
+          <span>Distributed.</span>
+          <span>Collaborative.</span>
+          <span class="static-hero-accent">Alive.</span>
+        </h1>
+        <p class="static-hero-subtitle">
+          User-first and future-forward.<br/>
+          <strong>Surface</strong>. <strong>Sync</strong>. <strong>Transport</strong>. <strong>Auth</strong>. <strong>Intelligence</strong>.<br/>
+          Everything you need. Nothing you don't own. <em>No authority.</em>
+        </p>
+      </div>
+    </div>
+    <div id="root"></div>
+    <script type="module" src="/main.tsx"></script>
+  </body>
+</html>

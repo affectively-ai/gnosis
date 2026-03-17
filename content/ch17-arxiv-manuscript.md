@@ -1978,9 +1978,9 @@ $L = \lambda W$,” *Operations Research*, 9(3):383–387, 1961.
 
 [7] J. R. Jackson, “Jobshop-Like Queueing Systems,” *Management Science*, 10(1):131–142, 1963.
 
-[8] T. W. Buley, “Aeon Core Runtime (Flow + Compression) and Test Suite,” open-source implementation, 2026. https://github.com/affectively-ai/aeon
+[8] T. W. Buley, “Aeon Core Runtime (Flow + Compression) and Test Suite,” open-source implementation, 2026. https://github.com/forkjoin-ai/aeon
 
-[9] T. W. Buley, “Fork/Race/Fold Companion Tests,” reproducibility suite, 2026. https://github.com/affectively-ai/aeon/tree/main/docs/ebooks/145-log-rolling-pipelined-prefill/companion-tests
+[9] T. W. Buley, “Fork/Race/Fold Companion Tests,” reproducibility suite, 2026. https://github.com/forkjoin-ai/aeon/tree/main/docs/ebooks/145-log-rolling-pipelined-prefill/companion-tests
 
 [10] R. P. Feynman, A. R. Hibbs, “Quantum Mechanics and Path Integrals,” McGraw-Hill, 1965.
 
@@ -1988,17 +1988,17 @@ $L = \lambda W$,” *Operations Research*, 9(3):383–387, 1961.
 
 [12] L. Lamport, *Specifying Systems: The TLA+ Language and Tools for Hardware and Software Engineers*, Addison-Wesley, 2002.
 
-[13] T. W. Buley, “Aeon Logic: Fork/Race/Fold Temporal Logic Engine and TLC/TLA Compatibility Layer,” open-source implementation, 2026. https://github.com/affectively-ai/aeon-logic
+[13] T. W. Buley, “Aeon Logic: Fork/Race/Fold Temporal Logic Engine and TLC/TLA Compatibility Layer,” open-source implementation, 2026. https://github.com/forkjoin-ai/aeon-logic
 
 [14] Lean FRO Team, “The Lean Theorem Prover (Lean 4),” software and documentation, 2026. https://lean-lang.org
 
-[15] T. W. Buley, “Gnosis: A Topological Programming Language with Self-Hosting Compiler,” open-source implementation, 2026. https://github.com/affectively-ai/gnosis
+[15] T. W. Buley, “Gnosis: A Topological Programming Language with Self-Hosting Compiler,” open-source implementation, 2026. https://github.com/forkjoin-ai/gnosis
 
 [16] EURORDIS-Rare Diseases Europe, “The Diagnosis Odyssey of People Living with a Rare Disease: Survey overview,” Rare Barometer report, 2024. https://www.eurordis.org/wp-content/uploads/2024/05/Diagnosis-Survey-overview-1.pdf
 
 [17] Depository Trust & Clearing Corporation (DTCC), “DTCC 2024 Annual Report,” 2025. (NSCC average daily transaction value: \$2.219 trillion) https://www.dtcc.com/annuals/2024/
 
-[18] T. W. Buley, “Aeon Forge: Deployment and Routing Primitives with Bun-Tested Control-Plane Invariants,” open-source implementation, 2026. https://github.com/affectively-ai/aeon-forge
+[18] T. W. Buley, “Aeon Forge: Deployment and Routing Primitives with Bun-Tested Control-Plane Invariants,” open-source implementation, 2026. https://github.com/forkjoin-ai/aeon-forge
 
 [19] L. M. N. Wu, A. Williams, A. Delaney, D. L. Sherman, P. J. Brophy, “Increasing Internodal Distance in Myelinated Nerves Accelerates Nerve Conduction to a Flat Maximum,” *Current Biology*, 22(20):1957–1961, 2012.
 

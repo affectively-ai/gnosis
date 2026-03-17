@@ -1,0 +1,27 @@
+# Sections
+
+Parent: [../README.md](../README.md)
+
+## Purpose
+
+Homepage sections for the Aeon Foundation marketing surface, including the stack overview and the generic ecosystem layer sections that read from `components/stack-model.ts`.
+
+## Key Files
+
+| File | Size |
+|------|------|
+| `AeonSection.tsx` | 11.7 KB |
+| `AuthSection.tsx` | 14.3 KB |
+| `DashRelaySection.tsx` | 13.6 KB |
+| `DashSection.tsx` | 13.6 KB |
+| `DemoSection.tsx` | 6.6 KB |
+| `EdgeworkSection.tsx` | 14.9 KB |
+| `EcosystemProductSection.tsx` | 9.6 KB |
+| `FluxSection.tsx` | 14.8 KB |
+| `GetStartedSection.tsx` | 10.1 KB |
+| `LatencyRace.tsx` | 6.5 KB |
+| `NeuralSection.tsx` | 12.6 KB |
+| `PhilosophySection.tsx` | 4.9 KB |
+| `RelaySection.tsx` | 12.9 KB |
+| `StackSection.tsx` | 7.8 KB |
+| `TechSection.tsx` | 17.7 KB |

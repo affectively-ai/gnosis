@@ -94,12 +94,21 @@ The relevant theorems live in [`GnosisProofs.lean`](../GnosisProofs.lean):
 - `measurableLevyProkhorovGeometricDecayAfterBurnIn_of_finiteTimeHarrisRecurrent`
 - `measurableLevyProkhorovGeometricErgodic_of_decayAfterBurnIn`
 - `measurableLevyProkhorovGeometricErgodic_of_finiteTimeHarrisRecurrent`
+- `MeasurableContinuousHarrisWitness`
+- `natQueueAffineObservable`
+- `natQueueAffineExpectedObservable`
+- `natMeasurableLyapunovDriftWitness_of_queueStep_with_gap`
+- `natMeasurableContinuousHarrisWitness_of_queueStep_with_gap`
 - `measurableFiniteTimeHarrisRecurrent_of_quantitativeHarris_and_convergence`
 - `natSmallSetRecurrent_of_stepDown`
 - `natSmallSetRecurrent_of_uniformPredecessorMinorization`
 - `natSmallSetRecurrent_of_margin_step`
 - `certifiedKernel_stable`
 - `certifiedKernel_stable_of_drift_certificate`
+- `driftAt_coupledArrivalCertificate`
+- `coupledArrivalCertificate_negative_drift`
+- `coupledCertifiedKernel_stable`
+- `tetheredCertifiedKernels_stable`
 
 ## Betti
 
@@ -109,4 +118,4 @@ Betti's Lean artifact emission should still pass after the proof workspace chang
 bun test open-source/gnosis/src/betty/lean.test.ts
 ```
 
-This confirms that the compiler's generated proof artifact now emits a real `CertifiedKernel` witness that imports the shared proof workspace instead of relying on a local `Unit`/axiom scaffold, and that the measurable queue artifact reaches the emitted exact-convergence, post-burn-in geometric-decay, and abstract geometric-ergodicity Lévy-Prokhorov endpoints as well as the earlier Harris-style endpoints.
+This confirms that the compiler's generated proof artifact now emits a real `CertifiedKernel` witness that imports the shared proof workspace instead of relying on a local `Unit`/axiom scaffold, that the measurable queue artifact reaches the emitted exact-convergence, post-burn-in geometric-decay, and abstract geometric-ergodicity Lévy-Prokhorov endpoints as well as the earlier Harris-style endpoints, that the queue-family bridge now emits bounded affine `*_measurable_observable`, `*_measurable_observable_drift`, and `*_measurable_continuous_harris_certified` theorems over the queue-support kernel, and that the shared proof surface now also carries the bounded coupled-kernel handoff theorem for inter-app arrival pressure.

@@ -1599,5 +1599,5 @@ async function main(): Promise<void> {
 
 const currentFilePath = fileURLToPath(import.meta.url);
 if (process.argv[1] && path.resolve(process.argv[1]) === currentFilePath) {
-  await main();
+  main().catch(console.error);
 }
