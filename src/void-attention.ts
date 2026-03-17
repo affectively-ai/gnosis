@@ -1,0 +1,339 @@
+/**
+ * void-attention.ts -- The identification: void walking IS attention
+ *
+ * complement distribution = softmax(-eta * voidCounts)
+ * neighborhood poisoning  = attention pattern spread
+ * multi-head              = multiple walkers per entity
+ * cross-attention         = walker over joint void surfaces
+ * residual                = void boundary persistence
+ * layer norm              = void decay
+ * feed-forward            = c3 gait adaptation
+ *
+ * This module provides attention primitives built entirely on void.ts.
+ * No new math -- just the re-framing that makes the identification explicit.
+ */
+
+import {
+  type VoidBoundary,
+  type Walker,
+  type Gait,
+  type Measurement,
+  createVoidBoundary,
+  createWalker,
+  complementDistribution,
+  sampleComplement,
+  updateVoidBoundary,
+  decayVoidBoundary,
+  measure,
+  selectGait,
+  c0Choose,
+  c0Update,
+  c1Measure,
+  c2c3Adapt,
+} from './void';
+
+// ============================================================================
+// Void Attention Head = Walker + boundary
+// ============================================================================
+
+/**
+ * A VoidAttentionHead IS a Walker.
+ * attend() = complementDistribution()
+ * reject() = c0Update()
+ * layerNorm() = decayVoidBoundary()
+ */
+export interface VoidAttentionHead {
+  walker: Walker;
+  neighborhoodRadius: number;
+  decayRate: number;
+}
+
+export function createAttentionHead(
+  dimensions: number,
+  eta: number = 2.0,
+  neighborhoodRadius: number = 1,
+  decayRate: number = 0,
+): VoidAttentionHead {
+  return {
+    walker: createWalker(createVoidBoundary(dimensions), eta),
+    neighborhoodRadius,
+    decayRate,
+  };
+}
+
+/** Forward pass = attend = compute complement distribution */
+export function attend(
+  head: VoidAttentionHead,
+  rng?: () => number,
+): { weights: number[]; selected: number; measurement: Measurement } {
+  const weights = complementDistribution(head.walker.boundary, head.walker.eta);
+  const measurement = c1Measure(head.walker);
+  const selected = rng
+    ? sampleComplement(weights, rng)
+    : weights.indexOf(Math.max(...weights));
+  return { weights, selected, measurement };
+}
+
+/** Reject = update void boundary with neighborhood spread */
+export function reject(
+  head: VoidAttentionHead,
+  choiceIdx: number,
+  magnitude: number = 1,
+): void {
+  c0Update(head.walker, choiceIdx, magnitude);
+  const r = head.neighborhoodRadius;
+  if (r > 0) {
+    const n = head.walker.boundary.counts.length;
+    for (let d = 1; d <= r; d++) {
+      const neighborMag = Math.max(1, Math.round(magnitude / d));
+      if (choiceIdx - d >= 0) c0Update(head.walker, choiceIdx - d, neighborMag);
+      if (choiceIdx + d < n) c0Update(head.walker, choiceIdx + d, neighborMag);
+    }
+  }
+}
+
+/** Layer norm = void decay */
+export function layerNorm(head: VoidAttentionHead): void {
+  if (head.decayRate > 0) decayVoidBoundary(head.walker.boundary, head.decayRate);
+}
+
+/** Feed-forward = c2c3 adapt */
+export function feedForward(head: VoidAttentionHead): void {
+  c2c3Adapt(head.walker);
+}
+
+// ============================================================================
+// Cross-Attention Head = Walker over joint void surface
+// ============================================================================
+
+export interface VoidCrossAttentionHead {
+  walker: Walker;
+  dimA: number;
+  dimB: number;
+  neighborhoodRadius: number;
+  decayRate: number;
+}
+
+export function createCrossAttentionHead(
+  dimA: number,
+  dimB: number,
+  eta: number = 2.0,
+  neighborhoodRadius: number = 1,
+  decayRate: number = 0,
+): VoidCrossAttentionHead {
+  return {
+    walker: createWalker(createVoidBoundary(dimA * dimB), eta),
+    dimA,
+    dimB,
+    neighborhoodRadius,
+    decayRate,
+  };
+}
+
+/**
+ * Gated cross-attention: attend to two boundaries + gate by own void.
+ *
+ * score(i, j) = distA[i] * distB[j] * distS[i*dimB + j]
+ *
+ * This is the Skyrms walker: its void boundary over proposals
+ * gates the product of the two marginal complement distributions.
+ */
+export function crossAttend(
+  cross: VoidCrossAttentionHead,
+  boundaryA: VoidBoundary,
+  boundaryB: VoidBoundary,
+  etaA: number,
+  etaB: number,
+  rng?: () => number,
+): { weights: number[]; selected: [number, number]; measurement: Measurement } {
+  const distA = complementDistribution(boundaryA, etaA);
+  const distB = complementDistribution(boundaryB, etaB);
+  const distS = complementDistribution(cross.walker.boundary, cross.walker.eta);
+
+  const N = cross.dimA * cross.dimB;
+  const weights = new Array(N);
+  let sum = 0;
+  for (let i = 0; i < cross.dimA; i++) {
+    for (let j = 0; j < cross.dimB; j++) {
+      const flat = i * cross.dimB + j;
+      const w = distA[i] * distB[j] * distS[flat];
+      weights[flat] = w;
+      sum += w;
+    }
+  }
+  if (sum > 0) for (let k = 0; k < N; k++) weights[k] /= sum;
+
+  const measurement = measure(cross.walker.boundary, cross.walker.eta, cross.walker.steps);
+
+  let selectedFlat: number;
+  if (rng) {
+    selectedFlat = sampleComplement(weights, rng);
+  } else {
+    selectedFlat = weights.indexOf(Math.max(...weights));
+  }
+
+  const selected: [number, number] = [
+    Math.floor(selectedFlat / cross.dimB),
+    selectedFlat % cross.dimB,
+  ];
+
+  return { weights, selected, measurement };
+}
+
+/** Reject a proposal with 2D neighborhood spread */
+export function crossReject(
+  cross: VoidCrossAttentionHead,
+  offerA: number,
+  offerB: number,
+  magnitude: number = 1,
+): void {
+  const flat = offerA * cross.dimB + offerB;
+  c0Update(cross.walker, flat, magnitude);
+
+  const r = cross.neighborhoodRadius;
+  if (r > 0) {
+    for (let da = -r; da <= r; da++) {
+      for (let db = -r; db <= r; db++) {
+        if (da === 0 && db === 0) continue;
+        const nA = offerA + da;
+        const nB = offerB + db;
+        if (nA >= 0 && nA < cross.dimA && nB >= 0 && nB < cross.dimB) {
+          const neighborFlat = nA * cross.dimB + nB;
+          const dist = Math.abs(da) + Math.abs(db);
+          c0Update(cross.walker, neighborFlat, Math.max(1, Math.round(magnitude / dist)));
+        }
+      }
+    }
+  }
+}
+
+export function crossLayerNorm(cross: VoidCrossAttentionHead): void {
+  if (cross.decayRate > 0) decayVoidBoundary(cross.walker.boundary, cross.decayRate);
+}
+
+export function crossFeedForward(cross: VoidCrossAttentionHead): void {
+  c2c3Adapt(cross.walker);
+}
+
+// ============================================================================
+// Void Transformer Block = Multi-Head Self + Cross + Residual + LN + FFN
+// ============================================================================
+
+export interface VoidTransformerBlock {
+  headsA: VoidAttentionHead[];
+  headsB: VoidAttentionHead[];
+  cross: VoidCrossAttentionHead;
+  rounds: number;
+}
+
+export function createTransformerBlock(
+  dimA: number,
+  dimB: number,
+  numHeads: number = 1,
+  eta: number = 2.0,
+  neighborhoodRadius: number = 1,
+  decayRate: number = 0,
+): VoidTransformerBlock {
+  return {
+    headsA: Array.from({ length: numHeads }, () =>
+      createAttentionHead(dimA, eta, neighborhoodRadius, decayRate)),
+    headsB: Array.from({ length: numHeads }, () =>
+      createAttentionHead(dimB, eta, neighborhoodRadius, decayRate)),
+    cross: createCrossAttentionHead(dimA, dimB, eta, neighborhoodRadius, decayRate),
+    rounds: 0,
+  };
+}
+
+export interface TransformerOutput {
+  selfA: { weights: number[]; selected: number; measurement: Measurement }[];
+  selfB: { weights: number[]; selected: number; measurement: Measurement }[];
+  crossOut: { weights: number[]; selected: [number, number]; measurement: Measurement };
+  offerA: number;
+  offerB: number;
+  proposalAccepted: boolean;
+  gaits: { a: Gait; b: Gait; s: Gait };
+}
+
+/**
+ * Forward pass: one round of the void walking transformer.
+ *
+ *   1. Multi-head self-attention (complement distribution per head)
+ *   2. Gated cross-attention (joint surface * gate)
+ *   3. Decision (accept proposal or play own choice)
+ *   4. Residual update (void boundaries absorb outcome)
+ *   5. Layer norm (void decay)
+ *   6. Feed-forward (c3 gait adaptation)
+ */
+export function forward(
+  block: VoidTransformerBlock,
+  payoff: (a: number, b: number) => [number, number],
+  rng: () => number,
+): TransformerOutput {
+  block.rounds++;
+
+  // 1. Multi-head self-attention
+  const selfA = block.headsA.map((h) => attend(h, rng));
+  const selfB = block.headsB.map((h) => attend(h, rng));
+
+  const ownChoiceA = selfA[0].selected;
+  const ownChoiceB = selfB[0].selected;
+
+  // 2. Gated cross-attention
+  const crossOut = crossAttend(
+    block.cross,
+    block.headsA[0].walker.boundary,
+    block.headsB[0].walker.boundary,
+    block.headsA[0].walker.eta,
+    block.headsB[0].walker.eta,
+    rng,
+  );
+  const [proposalA, proposalB] = crossOut.selected;
+
+  // 3. Decision
+  const distA = complementDistribution(block.headsA[0].walker.boundary, block.headsA[0].walker.eta);
+  const distB = complementDistribution(block.headsB[0].walker.boundary, block.headsB[0].walker.eta);
+  const offerA = distA[proposalA] >= distA[ownChoiceA] ? proposalA : ownChoiceA;
+  const offerB = distB[proposalB] >= distB[ownChoiceB] ? proposalB : ownChoiceB;
+  const proposalAccepted = offerA === proposalA && offerB === proposalB;
+
+  // 4. Residual update
+  const [payA, payB] = payoff(offerA, offerB);
+
+  if (payA < payB || payA < 0) {
+    for (const h of block.headsA) reject(h, offerA, payA < 0 ? Math.abs(payA) : 1);
+  }
+  if (payB < payA || payB < 0) {
+    for (const h of block.headsB) reject(h, offerB, payB < 0 ? Math.abs(payB) : 1);
+  }
+  if (offerA !== offerB) {
+    for (const h of block.headsA) reject(h, Math.min(offerB, block.cross.dimA - 1), 1);
+    for (const h of block.headsB) reject(h, Math.min(offerA, block.cross.dimB - 1), 1);
+  }
+  if (!proposalAccepted || offerA !== offerB) {
+    crossReject(block.cross, proposalA, proposalB, proposalAccepted ? 1 : 2);
+  }
+
+  // 5. Layer norm
+  for (const h of block.headsA) layerNorm(h);
+  for (const h of block.headsB) layerNorm(h);
+  crossLayerNorm(block.cross);
+
+  // 6. Feed-forward
+  for (const h of block.headsA) feedForward(h);
+  for (const h of block.headsB) feedForward(h);
+  crossFeedForward(block.cross);
+
+  return {
+    selfA,
+    selfB,
+    crossOut,
+    offerA,
+    offerB,
+    proposalAccepted,
+    gaits: {
+      a: block.headsA[0].walker.gait,
+      b: block.headsB[0].walker.gait,
+      s: block.cross.walker.gait,
+    },
+  };
+}
