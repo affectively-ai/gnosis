@@ -24,6 +24,12 @@
     "test:aeon-framed-transformer": "bun test src/benchmarks/aeon-framed-transformer-benchmark.test.ts && bun ./bin/gnosis.js test examples/benchmarks/aeon-framed-transformer.test.gg && bun ./bin/gnosis.js test examples/transformer/aeon-framed-structural.test.gg",
     "test:moa-transformer-shootout": "bun test src/benchmarks/moa-transformer-shootout-benchmark.test.ts && bun ./bin/gnosis.js test examples/benchmarks/moa-transformer.test.gg",
     "test:moa-transformer-evidence": "bun test src/benchmarks/moa-transformer-evidence-benchmark.test.ts",
+    "test:concurrency": "bun test src/benchmarks/concurrency-benchmark.test.ts",
+    "test:expressiveness": "bun test src/benchmarks/expressiveness-benchmark.test.ts",
+    "test:formal-verification": "bun test src/benchmarks/formal-verification-benchmark.test.ts",
+    "bench:concurrency": "bun run src/benchmarks/concurrency-benchmark.ts",
+    "bench:expressiveness": "bun run src/benchmarks/expressiveness-benchmark.ts",
+    "bench:formal": "bun run src/benchmarks/formal-verification-benchmark.ts",
     "warmup:diff": "bun ./warmup_differential.ts",
     "failure:frontier": "bun ./failure_frontier_search.ts"
   },
