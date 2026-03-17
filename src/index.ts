@@ -226,6 +226,26 @@ export {
   formatGGTestResults,
   formatGGTestDiscoveryResults,
 } from './gg-test-runner.js';
+export {
+  type VoidBoundary,
+  createVoidBoundary,
+  updateVoidBoundary,
+  decayVoidBoundary,
+  complementDistribution,
+  shannonEntropy,
+  excessKurtosis,
+  inverseBule,
+  giniCoefficient,
+  type Gait,
+  type MetaCogState,
+  GAIT_DEPTH,
+  createMetaCogState,
+  c0Choose,
+  c0Update,
+  c1Measure,
+  c2SelectGait,
+  c3Adapt,
+} from './runtime/void-walker.js';
 
 const args = process.argv.slice(2);
 const verboseMode = args.includes('--verbose');
@@ -1121,6 +1141,11 @@ async function main() {
               console.log(
                 `  laminar-proof: queue-boundary=${compilerResult.stability.metadata.queueBoundary ?? 'n/a'} atom=${compilerResult.stability.metadata.laminarAtom ?? 'n/a'} potential=${compilerResult.stability.metadata.queuePotential ?? 'n/a'} theorem=${compilerResult.stability.metadata.laminarGeometricTheoremName ?? 'n/a'} measurable-theorem=${compilerResult.stability.metadata.measurableHarrisTheoremName ?? 'n/a'} measurable-laminar=${compilerResult.stability.metadata.measurableLaminarTheoremName ?? 'n/a'} measurable-quantitative=${compilerResult.stability.metadata.measurableQuantitativeLaminarTheoremName ?? 'n/a'} measurable-q-harris=${compilerResult.stability.metadata.measurableQuantitativeHarrisTheoremName ?? 'n/a'} measurable-finite-harris=${compilerResult.stability.metadata.measurableFiniteTimeHarrisTheoremName ?? 'n/a'} measurable-harris-recurrent=${compilerResult.stability.metadata.measurableHarrisRecurrentTheoremName ?? 'n/a'} measurable-finite-geometric=${compilerResult.stability.metadata.measurableFiniteTimeGeometricErgodicTheoremName ?? 'n/a'} measurable-lp-geometric=${compilerResult.stability.metadata.measurableLevyProkhorovGeometricErgodicTheoremName ?? 'n/a'} measurable-lp-decay=${compilerResult.stability.metadata.measurableLevyProkhorovGeometricDecayTheoremName ?? 'n/a'} measurable-lp-abstract=${compilerResult.stability.metadata.measurableLevyProkhorovAbstractGeometricErgodicTheoremName ?? 'n/a'} measurable-witness-q-harris=${compilerResult.stability.metadata.measurableWitnessQuantitativeHarrisTheoremName ?? 'n/a'}`
               );
+              if (compilerResult.stability.metadata.continuousHarris) {
+                console.log(
+                  `  continuous-proof: kind=${compilerResult.stability.metadata.continuousHarris.observableKind} observable=${compilerResult.stability.metadata.continuousHarris.observableExpression} lyapunov=${compilerResult.stability.metadata.continuousHarris.lyapunovExpression} drift=${compilerResult.stability.metadata.continuousHarris.observableDriftTheoremName} theorem=${compilerResult.stability.metadata.continuousHarris.continuousHarrisTheoremName}`
+                );
+              }
             }
           }
           if (surfaceSteeringMetrics(report.steering.mode)) {
