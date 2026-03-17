@@ -53,6 +53,29 @@ export {
   measureStackWalker,
 } from './void.js';
 
+// Void topology — any GraphAST as a walkable void boundary
+export {
+  type VoidTopology,
+  type ExecutionStep,
+  createVoidTopology,
+  rankForkTargets,
+  selectActiveBranches,
+  sampleSuperposition,
+  recordExecution,
+  recordEdgeTraversal,
+  chooseNext,
+  topologyToBoundaryStack,
+  measureTopology,
+  EDGE_VOID_SEMANTICS,
+} from './void-topology.js';
+
+// Void handlers — make void-walking.gg executable
+export {
+  type VoidWalkingPayload,
+  registerVoidWalkingHandlers,
+  createVoidWalkingPayload,
+} from './void-handlers.js';
+
 export { GnosisNeo4jBridge } from './neo4j-bridge.js';
 export { GnosisRegistry } from './runtime/registry.js';
 export { GnosisEngine } from './runtime/engine.js';
