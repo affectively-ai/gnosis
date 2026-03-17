@@ -578,6 +578,25 @@ describe('BettyCompiler', () => {
       ).toBe(false);
     });
 
+    it('METACOG cycles are exempt from convergence annotation', () => {
+      const { diagnostics } = compiler.parse(`
+        (c0)-[:METACOG]->(c1)
+        (c1)-[:METACOG]->(c0)
+      `);
+      expect(
+        diagnostics.some((d) => d.code === 'VOID_METACOG_MISSING_CONVERGENCE')
+      ).toBe(false);
+    });
+
+    it('suggests METACOG in convergence warning message', () => {
+      const { diagnostics } = compiler.parse(`
+        (a)-[:PROCESS]->(b)
+        (b)-[:PROCESS]->(a)
+      `);
+      const d = diagnostics.find((d) => d.code === 'VOID_METACOG_MISSING_CONVERGENCE');
+      expect(d?.message).toContain('METACOG');
+    });
+
     it('warns when fork output count differs from fold input count', () => {
       const { diagnostics } = compiler.parse(`
         (src)-[:FORK]->(a|b|c)
@@ -613,6 +632,42 @@ describe('BettyCompiler', () => {
       `);
       expect(
         diagnostics.some((d) => d.code === 'VOID_TRACED_MONOIDAL_VIOLATED')
+      ).toBe(false);
+    });
+
+    it('METACOG self-loops are exempt from traced monoidal annotations', () => {
+      const { diagnostics } = compiler.parse(`
+        (c0)-[:METACOG]->(c0)
+      `);
+      expect(
+        diagnostics.some((d) => d.code === 'VOID_TRACED_MONOIDAL_VIOLATED')
+      ).toBe(false);
+    });
+
+    it('warns when METACOG edge carries out-of-bounds eta', () => {
+      const { diagnostics } = compiler.parse(`
+        (c0)-[:METACOG { eta: "15.0" }]->(c1)
+      `);
+      expect(
+        diagnostics.some((d) => d.code === 'VOID_METACOG_PARAMETER_DRIFT')
+      ).toBe(true);
+    });
+
+    it('warns when METACOG edge carries out-of-bounds exploration', () => {
+      const { diagnostics } = compiler.parse(`
+        (c0)-[:METACOG { exploration: "0.9" }]->(c1)
+      `);
+      expect(
+        diagnostics.some((d) => d.code === 'VOID_METACOG_PARAMETER_DRIFT')
+      ).toBe(true);
+    });
+
+    it('accepts METACOG edge with in-bounds parameters', () => {
+      const { diagnostics } = compiler.parse(`
+        (c0)-[:METACOG { eta: "2.0", exploration: "0.1" }]->(c1)
+      `);
+      expect(
+        diagnostics.some((d) => d.code === 'VOID_METACOG_PARAMETER_DRIFT')
       ).toBe(false);
     });
 

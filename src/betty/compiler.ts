@@ -16,7 +16,7 @@ export interface ASTNode {
 export interface ASTEdge {
   sourceIds: string[];
   targetIds: string[];
-  type: string; // FORK, RACE, FOLD, VENT, PROCESS, COLLAPSE, TUNNEL, INTERFERE, OBSERVE, LAMINAR
+  type: string; // FORK, RACE, FOLD, VENT, PROCESS, COLLAPSE, TUNNEL, INTERFERE, OBSERVE, LAMINAR, METACOG
   properties: Record<string, string>;
 }
 
@@ -41,7 +41,8 @@ export type DiagnosticCode =
   | 'VOID_GAIT_TRANSITION_INVALID'
   | 'VOID_METACOG_MISSING_CONVERGENCE'
   | 'VOID_CONSERVATION_VIOLATED'
-  | 'VOID_TRACED_MONOIDAL_VIOLATED';
+  | 'VOID_TRACED_MONOIDAL_VIOLATED'
+  | 'VOID_METACOG_PARAMETER_DRIFT';
 
 export interface GraphAST {
   nodes: Map<string, ASTNode>;
@@ -63,6 +64,7 @@ const NATIVE_TAGGED_NODE_CASES: Record<string, readonly string[]> = {
 };
 
 const STRUCTURED_CONCURRENCY_FAILURES = new Set(['cancel', 'vent', 'shield']);
+const GAIT_ORDER = ['stand', 'trot', 'canter', 'gallop'];
 
 export class BettyCompiler {
   private b1 = 0;
@@ -628,12 +630,21 @@ export class BettyCompiler {
     }
   }
 
-  /**
-   * Void Walker Static Lint Rules
-   *
-   * Checks the 8 runtime invariants from negotiation.test.gg at compile time.
-   * These are warnings by default, errors if any node declares strict: "true".
-   */
+  // ── Void Walker Static Lint ──────────────────────────────────────
+  //
+  // The 8 negotiation invariants, checked at compile time.
+  //
+  // METACOG is the first-class edge for void walker feedback loops.
+  // It carries an implicit Foster-Lyapunov convergence certificate
+  // (the inverse Bule is the decreasing measure) and implicit traced
+  // monoidal structure (vanishing + yanking satisfied by the c0-c3
+  // loop's Skyrms equilibrium guarantee).
+  //
+  // PROCESS edges that form cycles are the *uncertified* path --
+  // the author must supply convergence and axiom annotations manually.
+  //
+  // All 8 rules are warnings by default, errors with strict: "true".
+
   private checkVoidWalkerInvariants(): void {
     const strict = this.isStrictMode();
     const severity: 'error' | 'warning' = strict ? 'error' : 'warning';
@@ -655,7 +666,7 @@ export class BettyCompiler {
     return false;
   }
 
-  /** 1. eta_bounded: any node with eta must have eta in [0.5, 10.0] */
+  /** 1. eta_bounded: eta in [0.5, 10.0] on nodes and METACOG edge properties */
   private checkEtaBounded(severity: 'error' | 'warning'): void {
     for (const node of this.ast.nodes.values()) {
       const raw = node.properties.eta;
@@ -672,9 +683,27 @@ export class BettyCompiler {
         });
       }
     }
+
+    // METACOG edges may carry eta as an adaptation target -- still must be bounded
+    for (const edge of this.ast.edges) {
+      if (edge.type !== 'METACOG') continue;
+      const raw = edge.properties.eta;
+      if (raw === undefined) continue;
+
+      const eta = Number(raw);
+      if (!Number.isFinite(eta) || eta < 0.5 || eta > 10.0) {
+        this.diagnostics.push({
+          line: 1,
+          column: 1,
+          code: 'VOID_METACOG_PARAMETER_DRIFT',
+          message: `METACOG edge carries eta=${raw} outside allowed range [0.5, 10.0]. The c3 adaptation target must respect the same bounds as nodes.`,
+          severity,
+        });
+      }
+    }
   }
 
-  /** 2. exploration_bounded: exploration must be in [0.01, 0.5] */
+  /** 2. exploration_bounded: exploration in [0.01, 0.5] on nodes and METACOG edges */
   private checkExplorationBounded(severity: 'error' | 'warning'): void {
     for (const node of this.ast.nodes.values()) {
       const raw = node.properties.exploration;
@@ -691,9 +720,26 @@ export class BettyCompiler {
         });
       }
     }
+
+    for (const edge of this.ast.edges) {
+      if (edge.type !== 'METACOG') continue;
+      const raw = edge.properties.exploration;
+      if (raw === undefined) continue;
+
+      const exploration = Number(raw);
+      if (!Number.isFinite(exploration) || exploration < 0.01 || exploration > 0.5) {
+        this.diagnostics.push({
+          line: 1,
+          column: 1,
+          code: 'VOID_METACOG_PARAMETER_DRIFT',
+          message: `METACOG edge carries exploration=${raw} outside allowed range [0.01, 0.5].`,
+          severity,
+        });
+      }
+    }
   }
 
-  /** 3. complement_distribution_valid: PROCESS edge distribution must sum to 1.0 */
+  /** 3. complement_distribution_valid: any edge with a distribution must sum to 1.0 */
   private checkComplementDistributionValid(severity: 'error' | 'warning'): void {
     for (const edge of this.ast.edges) {
       const raw = edge.properties.distribution;
@@ -713,17 +759,17 @@ export class BettyCompiler {
           line: 1,
           column: 1,
           code: 'VOID_COMPLEMENT_DISTRIBUTION_INVALID',
-          message: `PROCESS edge from [${edge.sourceIds.join(', ')}] has distribution summing to ${sum.toFixed(6)}, expected 1.0.`,
+          message: `${edge.type} edge from [${edge.sourceIds.join(', ')}] has distribution summing to ${sum.toFixed(6)}, expected 1.0.`,
           severity,
         });
       }
     }
   }
 
-  /** 4. void_boundary_monotone: void_boundary values along PROCESS chains can only increase */
+  /** 4. void_boundary_monotone: boundary counts only increase along PROCESS and METACOG edges */
   private checkVoidBoundaryMonotone(severity: 'error' | 'warning'): void {
     for (const edge of this.ast.edges) {
-      if (edge.type !== 'PROCESS') continue;
+      if (edge.type !== 'PROCESS' && edge.type !== 'METACOG') continue;
 
       for (const sourceId of edge.sourceIds) {
         const sourceNode = this.ast.nodes.get(sourceId);
@@ -752,9 +798,10 @@ export class BettyCompiler {
 
   /** 5. gait_transitions_valid: stand->trot->canter->gallop or downshift one level */
   private checkGaitTransitionsValid(severity: 'error' | 'warning'): void {
-    const GAIT_ORDER = ['stand', 'trot', 'canter', 'gallop'];
-
     for (const edge of this.ast.edges) {
+      // Gait transitions matter on PROCESS and METACOG edges.
+      // METACOG adapts gait implicitly via kurtosis, but the adapted
+      // gait still must obey the transition lattice.
       for (const sourceId of edge.sourceIds) {
         const sourceNode = this.ast.nodes.get(sourceId);
         if (!sourceNode?.properties.gait) continue;
@@ -768,9 +815,7 @@ export class BettyCompiler {
 
           if (srcIdx < 0 || tgtIdx < 0) continue;
 
-          const diff = tgtIdx - srcIdx;
-          // Can go up any amount (stand->trot->canter->gallop) or downshift one level
-          if (diff < -1) {
+          if (tgtIdx - srcIdx < -1) {
             this.diagnostics.push({
               line: 1,
               column: 1,
@@ -784,24 +829,27 @@ export class BettyCompiler {
     }
   }
 
-  /** 6. metacog_feedback_loop: cycles via PROCESS must have convergence predicate */
+  /**
+   * 6. metacog_feedback_loop: PROCESS cycles need explicit convergence predicates.
+   *    METACOG edges are exempt -- their convergence certificate is the
+   *    Foster-Lyapunov drift condition (inverse Bule as decreasing measure).
+   */
   private checkMetacogFeedbackLoop(severity: 'error' | 'warning'): void {
-    // Build adjacency for PROCESS edges and detect cycles
+    // Build adjacency for cycle-forming edge types
     const adj = new Map<string, ASTEdge[]>();
     for (const edge of this.ast.edges) {
-      if (edge.type !== 'PROCESS') continue;
+      if (edge.type !== 'PROCESS' && edge.type !== 'METACOG') continue;
       for (const src of edge.sourceIds) {
         if (!adj.has(src)) adj.set(src, []);
         adj.get(src)!.push(edge);
       }
     }
 
-    // DFS cycle detection
     const visited = new Set<string>();
     const stack = new Set<string>();
     const cycleEdges: ASTEdge[] = [];
 
-    const dfs = (nodeId: string): boolean => {
+    const dfs = (nodeId: string): void => {
       visited.add(nodeId);
       stack.add(nodeId);
 
@@ -809,14 +857,13 @@ export class BettyCompiler {
         for (const target of edge.targetIds) {
           if (stack.has(target)) {
             cycleEdges.push(edge);
-            return true;
+          } else if (!visited.has(target)) {
+            dfs(target);
           }
-          if (!visited.has(target) && dfs(target)) return true;
         }
       }
 
       stack.delete(nodeId);
-      return false;
     };
 
     for (const nodeId of adj.keys()) {
@@ -824,12 +871,15 @@ export class BettyCompiler {
     }
 
     for (const edge of cycleEdges) {
+      // METACOG edges carry implicit convergence -- no annotation needed
+      if (edge.type === 'METACOG') continue;
+
       if (!edge.properties.convergence) {
         this.diagnostics.push({
           line: 1,
           column: 1,
           code: 'VOID_METACOG_MISSING_CONVERGENCE',
-          message: `PROCESS edge from [${edge.sourceIds.join(', ')}] to [${edge.targetIds.join(', ')}] creates a cycle but has no convergence predicate.`,
+          message: `PROCESS edge from [${edge.sourceIds.join(', ')}] to [${edge.targetIds.join(', ')}] creates a cycle but has no convergence predicate. Use a METACOG edge for implicit convergence certification.`,
           severity,
         });
       }
@@ -860,14 +910,20 @@ export class BettyCompiler {
     }
   }
 
-  /** 8. traced_monoidal: feedback loops must satisfy vanishing + yanking axioms */
+  /**
+   * 8. traced_monoidal: feedback loops must satisfy vanishing + yanking axioms.
+   *    METACOG self-loops are exempt -- the c0-c3 loop satisfies both axioms
+   *    via the Skyrms equilibrium guarantee (vanishing: inverse Bule converges
+   *    to zero at equilibrium; yanking: removing the feedback wire yields the
+   *    same steady-state distribution).
+   */
   private checkTracedMonoidal(severity: 'error' | 'warning'): void {
-    // Detect all feedback loops (self-edges or cycles of length > 1)
-    // and check that they declare vanishing and yanking axiom annotations
     for (const edge of this.ast.edges) {
-      // Self-loop: source appears in targets
       const selfLoop = edge.sourceIds.some((s) => edge.targetIds.includes(s));
       if (!selfLoop) continue;
+
+      // METACOG carries implicit traced monoidal structure
+      if (edge.type === 'METACOG') continue;
 
       const hasVanishing = edge.properties.vanishing !== undefined;
       const hasYanking = edge.properties.yanking !== undefined;
@@ -884,7 +940,7 @@ export class BettyCompiler {
           line: 1,
           column: 1,
           code: 'VOID_TRACED_MONOIDAL_VIOLATED',
-          message: `Feedback loop on [${edge.sourceIds.join(', ')}] is missing traced monoidal axiom annotations: ${missing}.`,
+          message: `Feedback loop on [${edge.sourceIds.join(', ')}] is missing traced monoidal axiom annotations: ${missing}. Use a METACOG edge for implicit axiom satisfaction.`,
           severity,
         });
       }
