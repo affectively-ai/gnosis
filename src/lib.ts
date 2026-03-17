@@ -76,6 +76,29 @@ export {
   createVoidWalkingPayload,
 } from './void-handlers.js';
 
+// Void agent — METACOG: the agent primitive
+export {
+  type VoidAgent,
+  type VoidAgentConfig,
+  type PersonalityLayerConfig,
+  type AgentTick,
+  createVoidAgent,
+  bond,
+  perceive,
+  perceiveOther,
+  decide,
+  observe,
+  reflect,
+  adapt,
+  tick,
+  completeTick,
+  step,
+  personalityVector,
+  actionPreferences,
+  rejectionProfile,
+  metacogState,
+} from './void-agent.js';
+
 export { GnosisNeo4jBridge } from './neo4j-bridge.js';
 export { GnosisRegistry } from './runtime/registry.js';
 export { GnosisEngine } from './runtime/engine.js';
