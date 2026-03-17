@@ -292,27 +292,40 @@ describe('WarmupEfficiencyPass', () => {
 // ─── OptimizationPassManager ─────────────────────────────────────────
 
 describe('OptimizationPassManager', () => {
-  it('runs passes in priority order', () => {
+  it('runs transform passes before analyze passes (fork/race/fold paradigm)', () => {
     const manager = new OptimizationPassManager();
     const order: string[] = [];
 
     manager.register({
-      name: 'second',
+      name: 'analyze-second',
       theoremId: 'THM-B',
       priority: 20,
+      kind: 'analyze',
       predicate: () => true,
       apply: (ast, _stability) => {
-        order.push('second');
+        order.push('analyze-second');
         return { ast, diagnostics: [], certificates: [], applied: true };
       },
     });
     manager.register({
-      name: 'first',
+      name: 'transform-first',
       theoremId: 'THM-A',
       priority: 10,
+      kind: 'transform',
       predicate: () => true,
       apply: (ast, _stability) => {
-        order.push('first');
+        order.push('transform-first');
+        return { ast, diagnostics: [], certificates: [], applied: true };
+      },
+    });
+    manager.register({
+      name: 'analyze-third',
+      theoremId: 'THM-C',
+      priority: 30,
+      kind: 'analyze',
+      predicate: () => true,
+      apply: (ast, _stability) => {
+        order.push('analyze-third');
         return { ast, diagnostics: [], certificates: [], applied: true };
       },
     });
@@ -321,7 +334,10 @@ describe('OptimizationPassManager', () => {
     const stability = makeStabilityReport();
     manager.apply(ast, stability);
 
-    expect(order).toEqual(['first', 'second']);
+    // Transform runs first (PROCESS), then all analyze passes (FORK/FOLD)
+    expect(order[0]).toBe('transform-first');
+    expect(order).toContain('analyze-second');
+    expect(order).toContain('analyze-third');
   });
 
   it('skips passes whose predicate returns false', () => {
@@ -330,6 +346,7 @@ describe('OptimizationPassManager', () => {
       name: 'skipped',
       theoremId: 'THM-SKIP',
       priority: 10,
+      kind: 'analyze',
       predicate: () => false,
       apply: (ast) => {
         throw new Error('should not be called');

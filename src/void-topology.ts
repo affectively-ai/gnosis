@@ -121,17 +121,48 @@ export function rankForkTargets(
 }
 
 /**
+ * Result of branch selection at a FORK.
+ * The paradigm (THM-SERVER-OPTIMALITY) requires every FORK to account
+ * for all branches: active branches run, vented branches are explicitly
+ * discarded. No branch may be silently ignored.
+ */
+export interface BranchSelection {
+  /** Branches selected for execution (by gait depth) */
+  active: string[];
+  /** Branches explicitly vented (not selected, tracked in void boundary) */
+  vented: string[];
+}
+
+/**
  * At a FORK, use gait to decide how many branches to run.
  * Stand: 1 (sequential). Trot: 1 (best complement).
  * Canter: up to 4. Gallop: all of them.
+ *
+ * Returns both active and vented branches. The paradigm requires
+ * explicit VENT accounting -- vented branches contribute to the void
+ * boundary (THM-VOID-BOUNDARY-MEASURABLE) and drive the complement
+ * distribution for future decisions (THM-VOID-GRADIENT).
  */
 export function selectActiveBranches(
   vt: VoidTopology,
   targetIds: string[],
-): string[] {
+): BranchSelection {
   const ranked = rankForkTargets(vt, targetIds);
   const depth = GAIT_DEPTH[vt.walker.gait];
-  return ranked.slice(0, Math.min(depth, ranked.length));
+  const cutoff = Math.min(depth, ranked.length);
+  const active = ranked.slice(0, cutoff);
+  const vented = ranked.slice(cutoff);
+
+  // Vented branches accumulate in the void boundary -- they are not
+  // lost but become the negative information that guides future forks.
+  for (const ventedId of vented) {
+    const dimIndex = vt.nodeIndex.get(ventedId);
+    if (dimIndex !== undefined) {
+      updateVoidBoundary(vt.boundary, dimIndex);
+    }
+  }
+
+  return { active, vented };
 }
 
 /**

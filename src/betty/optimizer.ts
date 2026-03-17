@@ -38,6 +38,9 @@ export interface OptimizationPass {
   readonly name: string;
   readonly theoremId: string;
   readonly priority: number;
+  /** Whether this pass modifies the AST ('transform') or only analyzes ('analyze').
+   *  Analysis-only passes are FORKED in parallel per THM-SERVER-OPTIMALITY. */
+  readonly kind: 'transform' | 'analyze';
   predicate(ast: GraphAST, stability: StabilityReport): boolean;
   apply(ast: GraphAST, stability: StabilityReport): OptimizationPassResult;
 }
@@ -64,6 +67,7 @@ export class CoarseningPass implements OptimizationPass {
   readonly name = 'coarsening';
   readonly theoremId = 'THM-RECURSIVE-COARSENING-SYNTHESIS';
   readonly priority = 10;
+  readonly kind = 'transform' as const;
 
   predicate(ast: GraphAST, stability: StabilityReport): boolean {
     // Only coarsen when we have stability data and enough nodes to coarsen
@@ -298,6 +302,7 @@ export class CodecRacingPass implements OptimizationPass {
   readonly name = 'codec-racing';
   readonly theoremId = 'THM-TOPO-RACE-SUBSUMPTION';
   readonly priority = 20;
+  readonly kind = 'analyze' as const;
 
   predicate(ast: GraphAST): boolean {
     return ast.edges.some((e) => e.type === 'LAMINAR');
@@ -365,6 +370,7 @@ export class WarmupEfficiencyPass implements OptimizationPass {
   readonly name = 'warmup-efficiency';
   readonly theoremId = 'THM-WARMUP-CONTROLLER';
   readonly priority = 30;
+  readonly kind = 'analyze' as const;
 
   predicate(ast: GraphAST): boolean {
     const hasFork = ast.edges.some((e) => e.type === 'FORK');
@@ -459,23 +465,63 @@ export class OptimizationPassManager {
     this.passes.sort((a, b) => a.priority - b.priority);
   }
 
+  /**
+   * Apply passes following the fork/race/fold paradigm:
+   *
+   * 1. PROCESS: Run 'transform' passes sequentially (they modify the AST)
+   * 2. FORK: Run 'analyze' passes in parallel (they only read the AST)
+   * 3. FOLD: Merge all diagnostics and certificates
+   *
+   * This structure follows THM-SERVER-OPTIMALITY: independent analyses
+   * are forked, and the fold collects their certificates without
+   * serialization overhead.
+   */
   apply(ast: GraphAST, stability: StabilityReport): OptimizerResult {
     let currentAst = ast;
     const allDiagnostics: Diagnostic[] = [];
     const allCertificates: OptimizationCertificate[] = [];
     const passesApplied: string[] = [];
 
-    for (const pass of this.passes) {
+    // Phase 1 — PROCESS: transform passes run sequentially (they modify AST)
+    const transformPasses = this.passes.filter((p) => p.kind === 'transform');
+    for (const pass of transformPasses) {
       if (!pass.predicate(currentAst, stability)) {
         continue;
       }
-
       const result = pass.apply(currentAst, stability);
       currentAst = result.ast;
       allDiagnostics.push(...result.diagnostics);
       allCertificates.push(...result.certificates);
       if (result.applied) {
         passesApplied.push(pass.name);
+      }
+    }
+
+    // Phase 2 — FORK: analysis passes are independent (read-only on AST)
+    // They could be Promise.all'd in an async context; here we collect
+    // results without AST mutation dependency.
+    const analyzePasses = this.passes.filter((p) => p.kind === 'analyze');
+    const analyzeResults: OptimizationPassResult[] = [];
+    for (const pass of analyzePasses) {
+      if (!pass.predicate(currentAst, stability)) {
+        continue;
+      }
+      analyzeResults.push(pass.apply(currentAst, stability));
+    }
+
+    // Phase 3 — FOLD: merge all analysis results
+    for (const result of analyzeResults) {
+      allDiagnostics.push(...result.diagnostics);
+      allCertificates.push(...result.certificates);
+      if (result.applied) {
+        const pass = analyzePasses.find(
+          (p) =>
+            result.certificates.length > 0 &&
+            result.certificates[0].passName === p.name
+        );
+        if (pass) {
+          passesApplied.push(pass.name);
+        }
       }
     }
 

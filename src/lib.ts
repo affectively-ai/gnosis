@@ -57,6 +57,7 @@ export {
 export {
   type VoidTopology,
   type ExecutionStep,
+  type BranchSelection,
   createVoidTopology,
   rankForkTargets,
   selectActiveBranches,

@@ -64,7 +64,8 @@ export type DiagnosticCode =
   | 'ERR_COARSENING_UNCOVERED_NODE'
   | 'ERR_COARSENING_SERVICE_NOT_POSITIVE'
   | 'ERR_COARSENING_DRIFT_POSITIVE'
-  | 'ERR_COARSENING_SYMBOLIC_RATE';
+  | 'ERR_COARSENING_SYMBOLIC_RATE'
+  | 'ERR_DEFICIT_NONZERO';
 
 export interface GraphAST {
   nodes: Map<string, ASTNode>;
@@ -397,6 +398,7 @@ export class BettyCompiler {
     this.checkStructuredConcurrencyProperties();
     this.checkVoidWalkerInvariants();
     this.checkFoldEthics();
+    this.checkDeficitClosure();
 
     const injectionResult = injectSensitiveZkEnvelopes(this.ast);
     this.ast = injectionResult.ast;
@@ -1258,6 +1260,49 @@ export class BettyCompiler {
         code: 'ETHICS_NO_TRACE',
         message: `Topology has irreversible operations (FOLD/VENT/RACE) but no trace mechanism (MEASURE, METACOG, feedback cycle, or Trace/Reflect node). A system that folds without learning has no path to Growth or Redemption.`,
         severity,
+      });
+    }
+  }
+
+  // ============================================================================
+  // THM-SERVER-OPTIMALITY Paradigm Enforcement: Zero-Deficit Closure
+  //
+  // The formal surface (THM-ZERO-DEFICIT-PRESERVES-INFORMATION) proves that
+  // zero deficit at every layer boundary enables lossless information transport.
+  // Positive deficit at a sink node means unclosed forks -- the topology
+  // cannot achieve the optimal throughput bound (THM-ROTATION-MAKESPAN-BOUND).
+  // ============================================================================
+
+  private checkDeficitClosure(): void {
+    if (this.b1 === 0) {
+      return; // Zero deficit at final boundary -- paradigm satisfied
+    }
+
+    // Find sink nodes
+    const sinkNodes = [...this.ast.nodes.values()].filter((node) =>
+      node.labels.some(
+        (label) =>
+          label.toUpperCase() === 'SINK' || label.toUpperCase() === 'TERMINAL'
+      )
+    );
+
+    // If there are sink nodes declared and beta1 > 0, that's a deficit violation
+    if (sinkNodes.length > 0) {
+      this.diagnostics.push({
+        line: 1,
+        column: 1,
+        code: 'ERR_DEFICIT_NONZERO',
+        message: `Topological deficit violation: β₁=${this.b1} at sink boundary (expected 0). ${this.b1} unclosed fork path(s) remain. By THM-ZERO-DEFICIT-PRESERVES-INFORMATION, positive deficit forces information loss. By THM-ROTATION-MAKESPAN-BOUND, the optimal throughput bound requires zero deficit at every layer boundary. Add FOLD, RACE, or VENT edges to close all fork paths before the sink.`,
+        severity: 'error',
+      });
+    } else if (this.b1 > 0) {
+      // No explicit sink but beta1 > 0 -- warn about unclosed topology
+      this.diagnostics.push({
+        line: 1,
+        column: 1,
+        code: 'ERR_DEFICIT_NONZERO',
+        message: `Topology has final β₁=${this.b1} (${this.b1} unclosed fork path(s)). For optimal throughput (THM-SERVER-OPTIMALITY), all fork paths should collapse to β₁=0 at the topology boundary.`,
+        severity: 'warning',
       });
     }
   }
