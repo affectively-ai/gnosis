@@ -9,6 +9,39 @@
  * as a thin wrapper over the domain-agnostic Walker primitive.
  */
 
+// Re-export void-attention primitives (the identification)
+export {
+  type VoidAttentionHead,
+  type VoidCrossAttentionHead,
+  type VoidTransformerBlock,
+  type VoidAttentionConfig,
+  type AttentionOutput,
+  type CrossAttentionConfig,
+  type CrossAttentionOutput,
+  type VoidTransformerConfig,
+  type TransformerRoundOutput,
+  createAttentionHead,
+  attend,
+  reject as rejectAttention,
+  layerNorm as attentionLayerNorm,
+  feedForward as attentionFeedForward,
+  createCrossAttentionHead,
+  crossAttend,
+  crossReject,
+  crossLayerNorm,
+  crossFeedForward,
+  createTransformerBlock,
+  forward as transformerForward,
+} from '../void-attention.js';
+
+// Re-export void-attention handler primitives (GG execution path)
+export {
+  registerVoidAttentionHandlers,
+  createVoidAttentionPayload,
+  voidAttentionForward,
+  type VoidAttentionPayload,
+} from '../void-attention-handlers.js';
+
 // Re-export all core primitives
 export {
   type VoidBoundary,
