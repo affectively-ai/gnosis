@@ -1482,8 +1482,16 @@ export function analyzeTopologyStability(
 
   const diagnostics: Diagnostic[] = [];
   const nodeIds = [...ast.nodes.keys()];
+
+  // ── FORK: three independent structural analyses ──────────────────
+  // Per THM-SERVER-OPTIMALITY, independent computations are forked.
+  // These three share no data dependencies.
   const outgoingByNodeId = buildOutgoingEdges(ast);
   const incomingByNodeId = buildIncomingEdges(ast);
+  const adjacency = buildAdjacency(ast);
+  // ── FOLD: structural analyses complete ───────────────────────────
+
+  // ── PROCESS chain A: pressure → scaling → kernel → matrix → spectral
   const baseKernel = buildNormalizedKernel(expandEdges(ast));
   const pressureByNodeId = propagatePressure(ast, baseKernel);
   const { scalingByNodeId, rateByNodeId } = computeScalingByNode(
@@ -1492,9 +1500,9 @@ export function analyzeTopologyStability(
     outgoingByNodeId
   );
   const kernelEdges = materializeEffectiveKernel(baseKernel, scalingByNodeId);
-  const adjacency = buildAdjacency(ast);
   const matrix = buildEffectiveMatrix(nodeIds, kernelEdges);
   const spectralRadius = estimateSpectralRadius(matrix);
+  // ── Chain A complete: spectral radius available ──────────────────
   const sinkNodeIds = [...ast.nodes.values()]
     .filter(
       (node) =>
@@ -1559,6 +1567,9 @@ export function analyzeTopologyStability(
     );
   }
 
+  // ── FORK: three independent assessment passes ─────────────────────
+  // Drift assessment, vent isolation, and recurrence witness are
+  // independent analyses that share inputs but not outputs.
   const driftAssessment = assessStateDrift(
     ast,
     pressureByNodeId,
@@ -1567,16 +1578,17 @@ export function analyzeTopologyStability(
     sinkNodeIdSet,
     rateByNodeId
   );
-  diagnostics.push(...driftAssessment.diagnostics);
 
   const ventIsolation = assessVentIsolation(ast, outgoingByNodeId, sinkNodeIdSet);
-  diagnostics.push(...ventIsolation.diagnostics);
 
   const recurrence = buildFiniteStateRecurrenceWitness(
     nodeIds,
     kernelEdges,
     sinkNodeIds
   );
+  // ── FOLD: merge assessment diagnostics ───────────────────────────
+  diagnostics.push(...driftAssessment.diagnostics);
+  diagnostics.push(...ventIsolation.diagnostics);
   const harrisRecurrent = recurrence.finiteStateCertified;
 
   const hasSpectralNoDriftCertificate =

@@ -101,9 +101,23 @@ export function lowerUfcsLine(line: string): string[] {
   return lowerUfcsExpression(expression);
 }
 
+/**
+ * Lower UFCS source.
+ *
+ * Pipeline structure (fork/race/fold paradigm):
+ *   PROCESS(expandStructuredPrimitives) →
+ *   FORK(lines) → per-line PROCESS(lowerUfcsLine) →
+ *   FOLD(join)
+ *
+ * Each line is lowered independently (no cross-line dependencies),
+ * so the per-line map is a natural FORK point.
+ */
 export function lowerUfcsSource(source: string): string {
-  return expandStructuredPrimitivesSource(source)
-    .split('\n')
-    .flatMap((line) => lowerUfcsLine(line))
-    .join('\n');
+  // PROCESS: expand structured primitives (single-pass, must complete first)
+  const expanded = expandStructuredPrimitivesSource(source);
+  // FORK: per-line lowering (independent, parallelizable)
+  const lines = expanded.split('\n');
+  const lowered = lines.flatMap((line) => lowerUfcsLine(line));
+  // FOLD: join results
+  return lowered.join('\n');
 }

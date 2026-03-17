@@ -26,6 +26,17 @@
 (wasm_emitter: Runtime { target: 'aeon_flow_10b' })
 
 // 2. The Compilation Topology
+//
+// Current implementation status (THM-SERVER-OPTIMALITY paradigm audit):
+//   - FORK(lexers)→FOLD: The TypeScript Betty implementation uses a single
+//     sequential pass that handles nodes, edges, and properties inline.
+//     This is a valid PROCESS chain (β₁=0) but does not realize the
+//     parallel fork/fold shown below. The FORK is the target architecture
+//     for the self-hosted Betti compiler.
+//   - stability→optimizer→coarsening: Now follows fork/race/fold --
+//     transform passes run sequentially, analysis passes are forked.
+//   - UFCS lowering: Per-line independent (natural fork point).
+
 source_reader(source_code)
 source_reader.strip_comments()
 
