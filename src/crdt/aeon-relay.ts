@@ -121,6 +121,17 @@ const DEFAULT_QDOC_AEON_RELAY_PRODUCT = 'aeon-relay';
 const DEFAULT_QDOC_AEON_RELAY_READY_STRATEGY: QDocAeonRelayReadyStrategy =
   'snapshot';
 
+interface BufferLike extends Uint8Array {}
+
+interface BufferLikeConstructor {
+  from(input: Uint8Array | string, encoding?: string): BufferLike;
+}
+
+function getBufferConstructor(): BufferLikeConstructor | null {
+  const candidate = (globalThis as { Buffer?: BufferLikeConstructor }).Buffer;
+  return candidate && typeof candidate.from === 'function' ? candidate : null;
+}
+
 function currentTimestamp(): number {
   return Date.now();
 }
@@ -420,8 +431,9 @@ function base64ToBytes(value: string): Uint8Array | null {
       return bytes;
     }
 
-    if (typeof Buffer !== 'undefined') {
-      return new Uint8Array(Buffer.from(value, 'base64'));
+    const BufferCtor = getBufferConstructor();
+    if (BufferCtor) {
+      return new Uint8Array(BufferCtor.from(value, 'base64'));
     }
   } catch {
     return null;

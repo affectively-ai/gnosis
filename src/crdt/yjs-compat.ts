@@ -57,6 +57,11 @@ class MockYText {
 class MockYMap {
   _map = new Map<string, unknown>();
   _observers: Array<(event: unknown) => void> = [];
+  _doc: Doc | null = null;
+
+  get doc(): Doc | null {
+    return this._doc;
+  }
 
   set(k: string, v: unknown): void {
     const action = this._map.has(k) ? 'update' : 'add';
@@ -298,6 +303,7 @@ export class Doc {
     let map = this._maps.get(name);
     if (!map) {
       map = new MockYMap();
+      map._doc = this;
       this._maps.set(name, map);
     }
     return map;
