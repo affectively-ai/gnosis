@@ -11,5 +11,5 @@
 
 (pair)-[:PROCESS]->(router)
 (router)-[:FORK]->(x_pos | x_neg | y_pos | y_neg)
-(x_pos | x_neg | y_pos | y_neg)-[:FOLD { strategy: 'winner-take-all' }]->(recombine)
+(x_pos | x_neg | y_pos | y_neg)-[:FOLD { strategy: 'winner-take-all', request_compression: 'middle-out/request/moe-routing-winner-take-all', reuse_scope: 'corridor', corridor_mode: 'readonly' }]->(recombine)
 (recombine)-[:PROCESS]->(prediction)

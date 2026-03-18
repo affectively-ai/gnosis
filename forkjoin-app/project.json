@@ -1,51 +1,63 @@
 {
   "name": "forkjoin-app",
-  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "open-source/gnosis/forkjoin-app/src",
   "projectType": "application",
-  "tags": ["scope:edge", "scope:mcp", "scope:docs", "type:app"],
+  "tags": [
+    "scope:edge",
+    "scope:mcp",
+    "scope:docs",
+    "type:app"
+  ],
   "targets": {
     "build": {
-      "executor": "nx:run-commands",
+      "executor": "a0:run-commands",
       "options": {
         "cwd": "open-source/gnosis/forkjoin-app",
         "command": "bun run build"
       },
-      "outputs": ["{projectRoot}/dist"]
+      "outputs": [
+        "{projectRoot}/dist"
+      ]
     },
     "dev": {
-      "executor": "nx:run-commands",
+      "executor": "a0:run-commands",
       "options": {
         "cwd": "open-source/gnosis/forkjoin-app",
         "command": "bun run dev"
       }
     },
     "deploy:dev": {
-      "executor": "nx:run-commands",
+      "executor": "a0:run-commands",
       "options": {
         "cwd": "open-source/gnosis/forkjoin-app",
         "command": "bun run deploy:dev"
       },
-      "dependsOn": ["build"]
+      "dependsOn": [
+        "build"
+      ]
     },
     "deploy:stage": {
-      "executor": "nx:run-commands",
+      "executor": "a0:run-commands",
       "options": {
         "cwd": "open-source/gnosis/forkjoin-app",
         "command": "bun run deploy:stage"
       },
-      "dependsOn": ["build"]
+      "dependsOn": [
+        "build"
+      ]
     },
     "deploy:prod": {
-      "executor": "nx:run-commands",
+      "executor": "a0:run-commands",
       "options": {
         "cwd": "open-source/gnosis/forkjoin-app",
         "command": "bun run deploy:prod"
       },
-      "dependsOn": ["build"]
+      "dependsOn": [
+        "build"
+      ]
     },
     "test": {
-      "executor": "nx:run-commands",
+      "executor": "a0:run-commands",
       "options": {
         "cwd": "open-source/gnosis/forkjoin-app",
         "command": "bun run test",
@@ -53,14 +65,14 @@
       }
     },
     "typecheck": {
-      "executor": "nx:run-commands",
+      "executor": "a0:run-commands",
       "options": {
         "cwd": "open-source/gnosis/forkjoin-app",
         "command": "bun run typecheck"
       }
     },
     "lint": {
-      "executor": "@nx/eslint:lint",
+      "executor": "a0:eslint",
       "options": {
         "lintFilePatterns": [
           "open-source/gnosis/forkjoin-app/src/**/*.ts",
@@ -71,14 +83,14 @@
       }
     },
     "smoke:deployed": {
-      "executor": "nx:run-commands",
+      "executor": "a0:run-commands",
       "options": {
         "cwd": "open-source/gnosis/forkjoin-app",
         "command": "bun run smoke:deployed"
       }
     },
     "register-aeonpid": {
-      "executor": "nx:run-commands",
+      "executor": "a0:run-commands",
       "options": {
         "cwd": "open-source/gnosis/forkjoin-app",
         "command": "bun ../../../scripts/register-aeonpid.ts forkjoin-app production"

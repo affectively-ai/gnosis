@@ -7,5 +7,5 @@
 (prediction: Tensor { role: 'output' })
 
 (pair)-[:FORK]->(left_branch | right_branch)
-(left_branch | right_branch)-[:FOLD { strategy: 'winner-take-all' }]->(recombine)
+(left_branch | right_branch)-[:FOLD { strategy: 'winner-take-all', request_compression: 'middle-out/request/fold-training-winner-take-all', reuse_scope: 'corridor', corridor_mode: 'readonly' }]->(recombine)
 (recombine)-[:PROCESS]->(prediction)

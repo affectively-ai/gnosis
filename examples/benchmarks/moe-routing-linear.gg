@@ -11,5 +11,5 @@
 
 (pair)-[:PROCESS]->(router)
 (router)-[:FORK]->(x_pos | x_neg | y_pos | y_neg)
-(x_pos | x_neg | y_pos | y_neg)-[:FOLD { strategy: 'linear' }]->(recombine)
+(x_pos | x_neg | y_pos | y_neg)-[:FOLD { strategy: 'linear', request_compression: 'middle-out/request/moe-routing-linear', reuse_scope: 'corridor', corridor_mode: 'readonly' }]->(recombine)
 (recombine)-[:PROCESS]->(prediction)

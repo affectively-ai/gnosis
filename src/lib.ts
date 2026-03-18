@@ -379,3 +379,22 @@ export type {
   NeuralGraphData,
   LoadTopologyOptions,
 } from './neural-compat.js';
+
+export {
+  GnosisTypeScriptBridgeError,
+  compileTypeScriptToGnosis,
+  executeTypeScriptWithGnosis,
+  registerTypeScriptBridgeHandlers,
+} from './ts-bridge.js';
+
+export type {
+  ExecuteTypeScriptWithGnosisOptions,
+  GnosisTypeScriptBridgeBinding,
+  GnosisTypeScriptBridgeBindings,
+  GnosisTypeScriptBridgeErrorLocation,
+  GnosisTypeScriptBridgeExpression,
+  GnosisTypeScriptBridgeNodePlan,
+  GnosisTypeScriptBridgeOptions,
+  GnosisTypeScriptBridgeResult,
+  GnosisTypeScriptBridgeWave,
+} from './ts-bridge.js';

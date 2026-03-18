@@ -54,6 +54,10 @@ bun ./bin/gnosis.js mod tidy
 
 All commands support `--json` and `--sarif` for CI integration.
 
+For TypeScript orchestration entrypoints, [`gnode`](./gnode/README.md) compiles a strict TS subset into GG, prints an Aeon-style lane schedule, and runs the result through Gnosis today. The native landing zone for those compiled processes is [`x-gnosis`](../x-gnosis/README.md) and its Rust transport surface in [`gnosis-uring`](../x-gnosis/gnosis-uring/README.md).
+
+That surface now also has a checked-in toy runtime shootout for `echo`, `fib`, and `Promise.all` fanout entrypoints across `gnode`, Bun, `tsx`, `ts-node`, plain Node on compiled JavaScript, and Deno when Deno is installed. The larger sample counts are meant to run in Cloud Build, not on a laptop.
+
 ## What You Get
 
 | Surface | Description |
@@ -61,6 +65,7 @@ All commands support `--json` and `--sarif` for CI integration.
 | **Compiler (Betty)** | Static topology checks, UFCS lowering, stability auditing, coarsening synthesis, Lean artifact generation, Betti number computation |
 | **Runtime** | Graph-native interpreter with tagged values (`Result`, `Option`, `Variant`, `Destructure`, `Delay`), structured concurrency, `QDoc`-backed MiddleOut request compression/tunneling, native frame adapter |
 | **CLI** | `lint`, `analyze`, `verify`, `build`, `run`, `native`, `test`, `mod init`, `mod tidy` |
+| **`gnode` TS runtime** | Rust-fronted runner that compiles orchestration-shaped `.ts` into `.gg`, surfaces cannon/linear schedules, and preserves GG telemetry passthrough |
 | **Module system** | `.gg`/`.mgg` parsing, merged-source loading, cycle rejection, bare-specifier resolution, deterministic lockfiles |
 | **Formal path** | TLA+ module/config generation, Lean proof artifacts, bounded queue certificates, coupled-kernel handoff theorems, recursive coarsening synthesis with fiber-partitioned drift certificates |
 | **CRDT layer** | Topology-native CRDTs with `QDoc`, the corridor/superposition primitive `QCorridor`, relay adapters, typed change-event contracts, and the substrate for MiddleOut request compression |
@@ -119,6 +124,7 @@ Example families: transformers, CRDTs, synth graphs, privacy flows, edge pipelin
 ## Repository Guide
 
 - [src](./src/README.md) -- compiler, runtime, CLI, module tooling, auth, CRDT, benchmarks
+- [gnode](./gnode/README.md) -- Rust-fronted TypeScript-to-GG runner and schedule surface
 - [examples](./examples/README.md) -- executable examples and `.test.gg` suites
 - [bindings](./bindings/README.md) -- subprocess-based client bindings for non-TS hosts
 - [content](./content/README.md) -- manuscript and companion publication content

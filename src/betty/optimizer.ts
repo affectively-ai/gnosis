@@ -372,10 +372,20 @@ export class WarmupEfficiencyPass implements OptimizationPass {
   readonly priority = 30;
   readonly kind = 'analyze' as const;
 
+  private isMiddleOutCompressed(edge: ASTEdge): boolean {
+    return (
+      typeof edge.properties.corridor === 'string' ||
+      typeof edge.properties.request_compression === 'string' ||
+      typeof edge.properties.requestCompression === 'string'
+    );
+  }
+
   predicate(ast: GraphAST): boolean {
     const hasFork = ast.edges.some((e) => e.type === 'FORK');
     const hasFold = ast.edges.some(
-      (e) => e.type === 'FOLD' || e.type === 'COLLAPSE'
+      (e) =>
+        (e.type === 'FOLD' || e.type === 'COLLAPSE') &&
+        !this.isMiddleOutCompressed(e)
     );
     return hasFork && hasFold;
   }
@@ -386,7 +396,9 @@ export class WarmupEfficiencyPass implements OptimizationPass {
 
     const forkEdges = ast.edges.filter((e) => e.type === 'FORK');
     const foldEdges = ast.edges.filter(
-      (e) => e.type === 'FOLD' || e.type === 'COLLAPSE'
+      (e) =>
+        (e.type === 'FOLD' || e.type === 'COLLAPSE') &&
+        !this.isMiddleOutCompressed(e)
     );
 
     // Identify fork→fold pairs that form staged pipelines

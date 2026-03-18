@@ -14,7 +14,7 @@
 (result: Result { theorem: 'exact-cost-floor-attained' })
 
 (origin)-[:FORK]->(left | middle | right)
-(middle)-[:VENT { floor_unit: '1' }]->(vent_middle)
-(right)-[:VENT { floor_unit: '1' }]->(vent_right)
-(left | vent_middle | vent_right)-[:FOLD { strategy: 'single-survivor-after-vent' }]->(finish)
+(middle)-[:VENT { floor_unit: '1', condition: 'exact-floor-middle' }]->(vent_middle)
+(right)-[:VENT { floor_unit: '1', condition: 'exact-floor-right' }]->(vent_right)
+(left | vent_middle | vent_right)-[:FOLD { strategy: 'single-survivor-after-vent', request_compression: 'middle-out/request/failure-universality-cost-floor-exact', reuse_scope: 'corridor', corridor_mode: 'readonly' }]->(finish)
 (finish)-[:PROCESS]->(result)

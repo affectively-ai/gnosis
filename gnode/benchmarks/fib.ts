@@ -1,0 +1,21 @@
+function fibonacci(n: number): number {
+  const normalized = Math.max(0, Math.trunc(n));
+  if (normalized < 2) {
+    return normalized;
+  }
+
+  let previous = 0;
+  let current = 1;
+  for (let index = 2; index <= normalized; index += 1) {
+    const next = previous + current;
+    previous = current;
+    current = next;
+  }
+
+  return current;
+}
+
+export function app(input: { n: number }): number {
+  const value = fibonacci(input.n);
+  return value;
+}

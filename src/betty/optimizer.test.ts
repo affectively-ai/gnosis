@@ -287,6 +287,26 @@ describe('WarmupEfficiencyPass', () => {
     // Fork width 1 = no warmup opportunity
     expect(result.certificates.length).toBe(0);
   });
+
+  it('skips warmup advisories for explicit MiddleOut request-compression folds', () => {
+    const ast = makeAST(
+      [makeNode('src'), makeNode('a'), makeNode('b'), makeNode('sink')],
+      [
+        makeEdge(['src'], ['a', 'b'], 'FORK'),
+        makeEdge(['a', 'b'], ['sink'], 'FOLD', {
+          corridor: 'middle-out/request/test',
+          reuse_scope: 'corridor',
+        }),
+      ]
+    );
+    const stability = makeStabilityReport();
+
+    expect(pass.predicate(ast, stability)).toBe(false);
+
+    const result = pass.apply(ast, stability);
+    expect(result.certificates.length).toBe(0);
+    expect(result.diagnostics.length).toBe(0);
+  });
 });
 
 // ─── OptimizationPassManager ─────────────────────────────────────────

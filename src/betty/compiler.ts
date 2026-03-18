@@ -317,9 +317,9 @@ export class BettyCompiler {
           edgeType === 'COLLAPSE' ||
           edgeType === 'OBSERVE'
         ) {
-      // OBSERVE triggers collapse — reading forces superposition to resolve
-      // The topology is append-only (no GC). beta1=0 means converged, not deleted.
-      this.b1 = Math.max(0, this.b1 - (sources.length - 1));
+          // OBSERVE triggers collapse — reading forces superposition to resolve
+          // The topology is append-only (no GC). beta1=0 means converged, not deleted.
+          this.b1 = Math.max(0, this.b1 - (sources.length - 1));
         } else if (edgeType === 'RACE' || edgeType === 'INTERFERE') {
           this.b1 = Math.max(
             0,
@@ -959,23 +959,36 @@ export class BettyCompiler {
 
   /** 7. conservation: fork output count = fold input count (no paths lost or created) */
   private checkConservation(severity: 'error' | 'warning'): void {
-    let totalForked = 0;
-    let totalFolded = 0;
-
     for (const edge of this.ast.edges) {
-      if (edge.type === 'FORK') {
-        totalForked += edge.targetIds.length;
-      } else if (edge.type === 'FOLD') {
-        totalFolded += edge.sourceIds.length;
+      if (edge.type !== 'FOLD') {
+        continue;
       }
-    }
 
-    if (totalForked > 0 && totalFolded > 0 && totalForked !== totalFolded) {
+      const foldSources = edge.sourceIds.map((sourceId) => sourceId.trim());
+      const coveringFork = this.ast.edges.find((candidate) => {
+        if (candidate.type !== 'FORK') {
+          return false;
+        }
+
+        const forkTargets = candidate.targetIds.map((targetId) => targetId.trim());
+        return foldSources.every((sourceId) => forkTargets.includes(sourceId));
+      });
+
+      if (!coveringFork) {
+        continue;
+      }
+
+      const forkWidth = coveringFork.targetIds.length;
+      const foldWidth = foldSources.length;
+      if (forkWidth === foldWidth) {
+        continue;
+      }
+
       this.diagnostics.push({
         line: 1,
         column: 1,
         code: 'VOID_CONSERVATION_VIOLATED',
-        message: `Conservation violated: FORK outputs ${totalForked} paths but FOLD inputs ${totalFolded}. Fork output count must equal fold input count.`,
+        message: `Conservation violated: FORK outputs ${forkWidth} paths but FOLD inputs ${foldWidth}. Fork output count must equal fold input count.`,
         severity,
       });
     }

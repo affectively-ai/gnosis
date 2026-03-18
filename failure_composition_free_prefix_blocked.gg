@@ -16,6 +16,6 @@
 (origin)-[:FORK]->(left_0 | right_0)
 (left_0)-[:PROCESS]->(left_1)
 (right_0)-[:PROCESS]->(right_1)
-(left_1 | right_1)-[:FOLD { strategy: 'single-survivor' }]->(finish)
+(left_1 | right_1)-[:FOLD { strategy: 'single-survivor', request_compression: 'middle-out/request/failure-composition-free-prefix-blocked', reuse_scope: 'corridor', corridor_mode: 'readonly' }]->(finish)
 (finish)-[:PROCESS]->(boundary)
 (boundary)-[:PROCESS]->(result)

@@ -1,0 +1,12 @@
+# Minimal upload context for gnode benchmark builds.
+
+*
+!package.json
+!bun.lock
+!tsconfig.json
+!tsconfig.base.json
+!nx.json
+!open-source/
+open-source/*
+!open-source/gnosis/
+!open-source/gnosis/**

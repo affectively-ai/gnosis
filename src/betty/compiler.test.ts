@@ -301,6 +301,20 @@ describe('BettyCompiler', () => {
     ).toBe(false);
   });
 
+  it('does not over-count conservation across staged folds and later races', () => {
+    const compiler = new BettyCompiler();
+    const { diagnostics } = compiler.parse(`
+            (request)-[:FORK]->(prefetch_a|prefetch_b|prefetch_c)
+            (prefetch_a|prefetch_b|prefetch_c)-[:FOLD { strategy: "bundle" }]->(bundle)
+            (route)-[:FORK]->(bundle|origin)
+            (bundle|origin)-[:RACE { expect: "ready" }]->(ready)
+        `);
+
+    expect(
+      diagnostics.some((d) => d.code === 'VOID_CONSERVATION_VIOLATED')
+    ).toBe(false);
+  });
+
   it('rejects unstable thermodynamic cycles with spectral explosion', () => {
     const { diagnostics, stability } = compiler.parse(`
             (inbound:Source { pressure: "5" })

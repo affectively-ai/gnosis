@@ -44,7 +44,8 @@
     }
   },
   "bin": {
-    "gnosis": "./bin/gnosis.js"
+    "gnosis": "./bin/gnosis.js",
+    "gnode": "./bin/gnode.js"
   },
   "scripts": {
     "build": "tsc",
@@ -67,6 +68,7 @@
     "bench:concurrency": "bun run src/benchmarks/concurrency-benchmark.ts",
     "bench:expressiveness": "bun run src/benchmarks/expressiveness-benchmark.ts",
     "bench:formal": "bun run src/benchmarks/formal-verification-benchmark.ts",
+    "bench:gnode-runtimes": "node ./gnode/benchmarks/runtime-shootout.mjs",
     "warmup:diff": "bun ./warmup_differential.ts",
     "failure:frontier": "bun ./failure_frontier_search.ts"
   },

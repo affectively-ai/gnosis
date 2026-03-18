@@ -13,6 +13,6 @@
 
 (query)-[:PROCESS]->(sketch_gate)
 (sketch_gate)-[:FORK]->(definite_miss | maybe_hit)
-(definite_miss)-[:VENT { on: 'reject' }]->(wasted_scan)
+(definite_miss)-[:VENT { condition: 'reject' }]->(wasted_scan)
 (maybe_hit)-[:PROCESS]->(exact_lookup)
 (definite_miss | exact_lookup)-[:RACE { expect: 'reject-or-confirm' }]->(answer)

@@ -11,6 +11,6 @@
 (readiness: State { phase: 'warmed' })
 
 (body)-[:FORK]->(circulation | temperature | coordination)
-(circulation | temperature | coordination)-[:FOLD { strategy: 'readiness' }]->(readiness)
+(circulation | temperature | coordination)-[:FOLD { strategy: 'readiness', request_compression: 'middle-out/request/warmup-physical-biological', reuse_scope: 'corridor', corridor_mode: 'readonly' }]->(readiness)
 (readiness)-[:PROCESS]->(performance: Output)
 (readiness)-[:VENT { condition: 'cooldown', drift_coefficient: '2', repair_debt: '0' }]->(heat_loss)

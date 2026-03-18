@@ -15,7 +15,7 @@
 
 (body)-[:FORK]->(circulation | temperature | coordination)
 (temperature)-[:PROCESS]->(fatigue)
-(circulation | temperature | coordination)-[:FOLD { strategy: 'readiness' }]->(readiness)
+(circulation | temperature | coordination)-[:FOLD { strategy: 'readiness', request_compression: 'middle-out/request/warmup-invert-physical-biological', reuse_scope: 'corridor', corridor_mode: 'readonly' }]->(readiness)
 (temperature | fatigue)-[:INTERFERE { mode: 'destructive' }]->(heat_debt)
 (readiness | heat_debt)-[:FOLD { strategy: 'subtract-fatigue' }]->(strained_state)
 (strained_state)-[:PROCESS]->(performance: Output)

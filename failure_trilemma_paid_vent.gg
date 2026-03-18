@@ -13,7 +13,7 @@
 (result: Result { theorem: 'collapse-paid-by-vent' })
 
 (origin)-[:FORK]->(left | right)
-(right)-[:VENT]->(vented_loss)
+(right)-[:VENT { condition: 'vent-payment' }]->(vented_loss)
 (left)-[:PROCESS]->(survivor_mask)
-(survivor_mask | vented_loss)-[:FOLD { strategy: 'single-survivor-after-vent' }]->(collapse)
+(survivor_mask | vented_loss)-[:FOLD { strategy: 'single-survivor-after-vent', request_compression: 'middle-out/request/failure-trilemma-paid-vent', reuse_scope: 'corridor', corridor_mode: 'readonly' }]->(collapse)
 (collapse)-[:PROCESS]->(result)

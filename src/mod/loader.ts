@@ -104,15 +104,28 @@ interface ModuleResolverState {
   candidateBase?: string;
 }
 
+function resolveBundledTopologyUrl(relativePath: string): URL | null {
+  const moduleUrl = import.meta.url;
+  if (typeof moduleUrl !== 'string' || moduleUrl.length === 0) {
+    return null;
+  }
+
+  try {
+    return new URL(relativePath, moduleUrl);
+  } catch {
+    return null;
+  }
+}
+
 const MODULE_LOADER_TOPOLOGY_URL_CANDIDATES = [
-  new URL('./loader.gg', import.meta.url),
-  new URL('../../src/mod/loader.gg', import.meta.url),
-];
+  resolveBundledTopologyUrl('./loader.gg'),
+  resolveBundledTopologyUrl('../../src/mod/loader.gg'),
+].filter((candidate): candidate is URL => candidate !== null);
 
 const MODULE_RESOLVER_TOPOLOGY_URL_CANDIDATES = [
-  new URL('./resolver.gg', import.meta.url),
-  new URL('../../src/mod/resolver.gg', import.meta.url),
-];
+  resolveBundledTopologyUrl('./resolver.gg'),
+  resolveBundledTopologyUrl('../../src/mod/resolver.gg'),
+].filter((candidate): candidate is URL => candidate !== null);
 
 let moduleLoaderTopologyAst: GraphAST | null = null;
 let moduleResolverTopologyAst: GraphAST | null = null;

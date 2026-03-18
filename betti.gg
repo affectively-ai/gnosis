@@ -42,7 +42,7 @@ source_reader.strip_comments()
 
 (strip_comments)-[:FORK]->(node_lexer | edge_lexer | property_lexer)
 
-(node_lexer | edge_lexer | property_lexer)-[:FOLD { strategy: 'merge-ast' }]->(raw_ast)
+(node_lexer | edge_lexer | property_lexer)-[:FOLD { strategy: 'merge-ast', request_compression: 'middle-out/request/betti-ast', reuse_scope: 'corridor', corridor_mode: 'readonly' }]->(raw_ast)
 
 raw_ast.ast_assembler().betti_verifier().verify_result()
 

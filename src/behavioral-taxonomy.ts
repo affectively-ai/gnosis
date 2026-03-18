@@ -219,10 +219,40 @@ const BEHAVIOR_INTERVENTION_KINDS = [
   'leverage',
 ] as const satisfies readonly BehavioralExecutionInterventionKind[];
 
+function resolveBundledBehavioralTaxonomyUrl(relativePath: string): URL | null {
+  const moduleUrl = import.meta.url;
+  if (typeof moduleUrl !== 'string' || moduleUrl.length === 0) {
+    return null;
+  }
+
+  try {
+    return new URL(relativePath, moduleUrl);
+  } catch {
+    return null;
+  }
+}
+
+function resolveCurrentBehavioralTaxonomyFilePath(): string | null {
+  const moduleUrl = import.meta.url;
+  if (typeof moduleUrl !== 'string' || moduleUrl.length === 0) {
+    return null;
+  }
+
+  try {
+    return fileURLToPath(moduleUrl);
+  } catch {
+    return null;
+  }
+}
+
 const DEFAULT_DATASET_URL_CANDIDATES = [
-  new URL('../../behavioral-taxonomy/data/behavioralLoops.json', import.meta.url),
-  new URL('../../../docs/data-archives/behavioralLoops.json', import.meta.url),
-] as const;
+  resolveBundledBehavioralTaxonomyUrl(
+    '../../behavioral-taxonomy/data/behavioralLoops.json'
+  ),
+  resolveBundledBehavioralTaxonomyUrl(
+    '../../../docs/data-archives/behavioralLoops.json'
+  ),
+].filter((candidate): candidate is URL => candidate !== null);
 
 const VALENCE_PREREQUISITES: Record<string, string[]> = {
   DOMINANCE: ['TRUST'],
@@ -1597,7 +1627,11 @@ async function main(): Promise<void> {
   }
 }
 
-const currentFilePath = fileURLToPath(import.meta.url);
-if (process.argv[1] && path.resolve(process.argv[1]) === currentFilePath) {
+const currentFilePath = resolveCurrentBehavioralTaxonomyFilePath();
+if (
+  currentFilePath &&
+  process.argv[1] &&
+  path.resolve(process.argv[1]) === currentFilePath
+) {
   main().catch(console.error);
 }

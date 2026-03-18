@@ -16,4 +16,4 @@
 (point_query)-[:FORK]->(memtable_probe | sstable_probe)
 (memtable)-[:PROCESS]->(memtable_probe)
 (sorted_run)-[:PROCESS]->(sstable_probe)
-(memtable_probe | sstable_probe)-[:FOLD { strategy: 'prefer-compacted' }]->(answer: Result)
+(memtable_probe | sstable_probe)-[:FOLD { strategy: 'prefer-compacted', request_compression: 'middle-out/request/warmup-structural-amortized', reuse_scope: 'corridor', corridor_mode: 'readonly' }]->(answer: Result)

@@ -173,6 +173,23 @@ export type {
   GnosisTlaBridgeResult,
   GnosisTlaBridgeOptions,
 } from './tla-bridge.js';
+export {
+  GnosisTypeScriptBridgeError,
+  compileTypeScriptToGnosis,
+  executeTypeScriptWithGnosis,
+  registerTypeScriptBridgeHandlers,
+} from './ts-bridge.js';
+export type {
+  ExecuteTypeScriptWithGnosisOptions,
+  GnosisTypeScriptBridgeBinding,
+  GnosisTypeScriptBridgeBindings,
+  GnosisTypeScriptBridgeErrorLocation,
+  GnosisTypeScriptBridgeExpression,
+  GnosisTypeScriptBridgeNodePlan,
+  GnosisTypeScriptBridgeOptions,
+  GnosisTypeScriptBridgeResult,
+  GnosisTypeScriptBridgeWave,
+} from './ts-bridge.js';
 export * from './capabilities/index.js';
 export * from './auth/index.js';
 
@@ -283,8 +300,22 @@ export {
 
 const args = process.argv.slice(2);
 const verboseMode = args.includes('--verbose');
+
+function resolveCurrentGnosisFilePath(): string | null {
+  const moduleUrl = import.meta.url;
+  if (typeof moduleUrl !== 'string' || moduleUrl.length === 0) {
+    return null;
+  }
+
+  try {
+    return fileURLToPath(moduleUrl);
+  } catch {
+    return null;
+  }
+}
+
 const GNOSIS_PACKAGE_ROOT = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
+  path.dirname(resolveCurrentGnosisFilePath() ?? process.cwd()),
   '..'
 );
 
@@ -1897,7 +1928,10 @@ function isCliEntrypoint(): boolean {
 
   try {
     const entryPath = path.resolve(argvPath);
-    const currentPath = fileURLToPath(import.meta.url);
+    const currentPath = resolveCurrentGnosisFilePath();
+    if (!currentPath) {
+      return false;
+    }
     return entryPath === currentPath;
   } catch {
     return false;

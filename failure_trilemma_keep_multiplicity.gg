@@ -14,7 +14,7 @@
 (result: Result { theorem: 'no-free-collapse' })
 
 (origin)-[:FORK]->(left | right)
-(left | right)-[:FOLD { strategy: 'preserve-multiplicity' }]->(survivor_set)
+(left | right)-[:FOLD { strategy: 'preserve-multiplicity', request_compression: 'middle-out/request/failure-trilemma-keep-multiplicity', reuse_scope: 'corridor', corridor_mode: 'readonly' }]->(survivor_set)
 (survivor_set)-[:PROCESS]->(boundary)
 (boundary)-[:PROCESS]->(keep_multiplicity)
 (keep_multiplicity)-[:PROCESS]->(result)

@@ -20,4 +20,4 @@
 (false_positive)-[:FORK]->(shadow_lookup | full_scan)
 (exact_lookup | shadow_lookup | full_scan)-[:FOLD { strategy: 'overconfirm' }]->(overworked_answer)
 (overworked_answer | false_positive)-[:INTERFERE { mode: 'destructive' }]->(answer)
-(answer)-[:VENT { on: 'discard-excess' }]->(waste_heat)
+(answer)-[:VENT { condition: 'discard-excess' }]->(waste_heat)
