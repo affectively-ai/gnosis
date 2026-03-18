@@ -4,13 +4,13 @@
   "license": "MPL-2.0",
   "description": "Ink-based TUI REPL for the gnosis functional logic-based programming language",
   "type": "module",
-  "main": "./src/lib.ts",
-  "types": "./src/lib.ts",
+  "main": "./dist/lib.js",
+  "types": "./dist/lib.d.ts",
   "exports": {
     ".": {
-      "import": "./src/lib.ts",
-      "types": "./src/lib.ts",
-      "default": "./src/lib.ts"
+      "import": "./dist/lib.js",
+      "types": "./dist/lib.d.ts",
+      "default": "./dist/lib.js"
     },
     "./crdt": {
       "import": "./src/crdt/index.ts",
@@ -74,6 +74,7 @@
   },
   "dependencies": {
     "@affectively/auth": "workspace:*",
+    "@a0n/aeon": "workspace:*",
     "@a0n/aeon-logic": "workspace:*",
     "@a0n/aeon-pipelines": "workspace:*",
     "chalk": "^5.3.0",

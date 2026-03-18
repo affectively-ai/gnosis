@@ -9,7 +9,7 @@ import {
   FrameReassembler,
   RACE,
   type FlowFrame,
-} from '../../../aeon/dist/index.js';
+} from '@a0n/aeon/flow';
 import { parseGgProgram } from '@a0n/aeon-logic';
 import { lowerUfcsSource } from '../ufcs.js';
 import {

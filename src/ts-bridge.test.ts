@@ -1,12 +1,17 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'bun:test';
 import { QDoc } from './crdt/index.js';
 import { GnosisCoreCache } from './runtime/core-cache.js';
 import {
   compileTypeScriptToGnosis,
+  deserializeTypeScriptBridgeResult,
   executeTypeScriptWithGnosis,
+  renderTypeScriptBridgeRuntimeModule,
+  serializeTypeScriptBridgeResult,
+  transpileTypeScriptBridgeRuntimeModule,
 } from './ts-bridge.js';
 
 describe('TypeScript to Gnosis bridge', () => {
@@ -170,6 +175,230 @@ describe('TypeScript to Gnosis bridge', () => {
       expect(result.payload).toBe(7);
     } finally {
       fs.rmSync(tempDirectory, { recursive: true, force: true });
+    }
+  });
+
+  it('hydrates a serialized compiled artifact without reparsing the GG topology', async () => {
+    const source = `
+      function internalStep(input: number) {
+        return input + 2;
+      }
+
+      export function app(input: number) {
+        const value = internalStep(input);
+        return value;
+      }
+    `;
+
+    const compiled = compileTypeScriptToGnosis(source, {
+      exportName: 'app',
+      sourceFilePath: 'serialized-app.ts',
+    });
+    const hydrated = deserializeTypeScriptBridgeResult(
+      serializeTypeScriptBridgeResult(compiled)
+    );
+
+    expect(hydrated.runtimeBindingNames).toEqual(compiled.runtimeBindingNames);
+
+    const result = await executeTypeScriptWithGnosis({
+      compiled: hydrated,
+      input: 5,
+      bindings: {
+        internalStep: (input: number) => input + 2,
+      },
+    });
+
+    expect(result.payload).toBe(7);
+  });
+
+  it('executes against a cached runtime module outside the source tree', async () => {
+    const sourceDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'gnode-source-')
+    );
+    const runtimeDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'gnode-runtime-')
+    );
+    const modulePath = path.join(sourceDirectory, 'app.ts');
+    const helperPath = path.join(sourceDirectory, 'helper.ts');
+      const runtimeModulePath = path.join(runtimeDirectory, 'runtime-bridge.ts');
+
+    fs.writeFileSync(
+      helperPath,
+      `
+        export function internalStep(input: number) {
+          return input + 2;
+        }
+      `,
+      'utf8'
+    );
+    fs.writeFileSync(
+      modulePath,
+      `
+        import { internalStep } from './helper';
+
+        export function app(input: number) {
+          const value = internalStep(input);
+          return value;
+        }
+      `,
+      'utf8'
+    );
+
+    try {
+      const source = fs.readFileSync(modulePath, 'utf8');
+      const compiled = compileTypeScriptToGnosis(source, {
+        exportName: 'app',
+        sourceFilePath: modulePath,
+      });
+      const runtimeModule = renderTypeScriptBridgeRuntimeModule(
+        source,
+        modulePath,
+        compiled.runtimeBindingNames,
+        { specifierStyle: 'absolute-url' }
+      );
+
+      fs.writeFileSync(runtimeModulePath, runtimeModule.moduleSource, 'utf8');
+
+      const result = await executeTypeScriptWithGnosis({
+        compiled,
+        runtimeModulePath,
+        input: 5,
+      });
+
+      expect(result.payload).toBe(7);
+    } finally {
+      fs.rmSync(sourceDirectory, { recursive: true, force: true });
+      fs.rmSync(runtimeDirectory, { recursive: true, force: true });
+    }
+  });
+
+  it('rewrites explicit .ts imports when a cached runtime module executes outside the source tree', async () => {
+    const sourceDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'gnode-source-ts-')
+    );
+    const runtimeDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'gnode-runtime-ts-')
+    );
+    const modulePath = path.join(sourceDirectory, 'app.ts');
+    const helperPath = path.join(sourceDirectory, 'helper.ts');
+    const runtimeModulePath = path.join(runtimeDirectory, 'runtime-bridge.mjs');
+
+    fs.writeFileSync(
+      helperPath,
+      `
+        export function internalStep(input: number) {
+          return input + 3;
+        }
+      `,
+      'utf8'
+    );
+    fs.writeFileSync(
+      modulePath,
+      `
+        import { internalStep } from './helper.ts';
+
+        export function app(input: number) {
+          const value = internalStep(input);
+          return value;
+        }
+      `,
+      'utf8'
+    );
+
+    try {
+      const source = fs.readFileSync(modulePath, 'utf8');
+      const compiled = compileTypeScriptToGnosis(source, {
+        exportName: 'app',
+        sourceFilePath: modulePath,
+      });
+      const runtimeModule = transpileTypeScriptBridgeRuntimeModule(
+        source,
+        modulePath,
+        compiled.runtimeBindingNames,
+        { specifierStyle: 'absolute-url' }
+      );
+
+      expect(runtimeModule.javascriptSource).toContain(
+        pathToFileURL(helperPath).href
+      );
+
+      fs.writeFileSync(runtimeModulePath, runtimeModule.javascriptSource, 'utf8');
+
+      const result = await executeTypeScriptWithGnosis({
+        compiled,
+        runtimeModulePath,
+        input: 5,
+      });
+
+      expect(result.payload).toBe(8);
+    } finally {
+      fs.rmSync(sourceDirectory, { recursive: true, force: true });
+      fs.rmSync(runtimeDirectory, { recursive: true, force: true });
+    }
+  });
+
+  it('rewrites explicit .js imports back to source modules for cached runtime execution', async () => {
+    const sourceDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'gnode-source-js-')
+    );
+    const runtimeDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'gnode-runtime-js-')
+    );
+    const modulePath = path.join(sourceDirectory, 'app.ts');
+    const helperPath = path.join(sourceDirectory, 'helper.ts');
+    const runtimeModulePath = path.join(runtimeDirectory, 'runtime-bridge.mjs');
+
+    fs.writeFileSync(
+      helperPath,
+      `
+        export function internalStep(input: number) {
+          return input + 4;
+        }
+      `,
+      'utf8'
+    );
+    fs.writeFileSync(
+      modulePath,
+      `
+        import { internalStep } from './helper.js';
+
+        export function app(input: number) {
+          const value = internalStep(input);
+          return value;
+        }
+      `,
+      'utf8'
+    );
+
+    try {
+      const source = fs.readFileSync(modulePath, 'utf8');
+      const compiled = compileTypeScriptToGnosis(source, {
+        exportName: 'app',
+        sourceFilePath: modulePath,
+      });
+      const runtimeModule = transpileTypeScriptBridgeRuntimeModule(
+        source,
+        modulePath,
+        compiled.runtimeBindingNames,
+        { specifierStyle: 'absolute-url' }
+      );
+
+      expect(runtimeModule.javascriptSource).toContain(
+        pathToFileURL(helperPath).href
+      );
+
+      fs.writeFileSync(runtimeModulePath, runtimeModule.javascriptSource, 'utf8');
+
+      const result = await executeTypeScriptWithGnosis({
+        compiled,
+        runtimeModulePath,
+        input: 5,
+      });
+
+      expect(result.payload).toBe(9);
+    } finally {
+      fs.rmSync(sourceDirectory, { recursive: true, force: true });
+      fs.rmSync(runtimeDirectory, { recursive: true, force: true });
     }
   });
 

@@ -2,7 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
-import { BettyCompiler, type GraphAST } from './betty/compiler.js';
+import {
+  BettyCompiler,
+  type ASTEdge,
+  type ASTNode,
+  type GraphAST,
+} from './betty/compiler.js';
 import {
   GnosisEngine,
   type GnosisEngineExecutionResult,
@@ -12,7 +17,7 @@ import {
 import { GnosisRegistry, type GnosisHandlerContext } from './runtime/registry.js';
 
 type SupportedFunctionNode =
-  | ts.FunctionDeclaration
+  | (ts.FunctionDeclaration & { body: ts.FunctionBody })
   | ts.FunctionExpression
   | ts.ArrowFunction;
 
@@ -143,6 +148,31 @@ export interface GnosisTypeScriptBridgeResult {
   readonly ast: GraphAST;
   readonly nodePlans: readonly GnosisTypeScriptBridgeNodePlan[];
   readonly schedule: readonly GnosisTypeScriptBridgeWave[];
+  readonly runtimeBindingNames: readonly string[];
+}
+
+export interface SerializedGraphAST {
+  readonly nodes: readonly ASTNode[];
+  readonly edges: readonly ASTEdge[];
+}
+
+export interface SerializedGnosisTypeScriptBridgeResult
+  extends Omit<GnosisTypeScriptBridgeResult, 'ast'> {
+  readonly ast: SerializedGraphAST;
+}
+
+export interface GnosisTypeScriptBridgeRuntimeModule {
+  readonly bindingNames: readonly string[];
+  readonly moduleSource: string;
+}
+
+export interface TranspiledGnosisTypeScriptBridgeRuntimeModule
+  extends GnosisTypeScriptBridgeRuntimeModule {
+  readonly javascriptSource: string;
+}
+
+export interface GnosisTypeScriptBridgeRuntimeModuleOptions {
+  readonly specifierStyle?: 'relative' | 'absolute-url';
 }
 
 export type GnosisTypeScriptBridgeBinding = (
@@ -159,6 +189,7 @@ export interface ExecuteTypeScriptWithGnosisOptions {
   readonly sourceFilePath?: string;
   readonly exportName?: string;
   readonly modulePath?: string;
+  readonly runtimeModulePath?: string;
   readonly moduleExports?: GnosisTypeScriptBridgeBindings;
   readonly bindings?: GnosisTypeScriptBridgeBindings;
   readonly input?: unknown;
@@ -227,6 +258,214 @@ function createSourceFile(
     true,
     scriptKind
   );
+}
+
+const RELATIVE_MODULE_FILE_EXTENSIONS = [
+  '.ts',
+  '.tsx',
+  '.mts',
+  '.cts',
+  '.js',
+  '.jsx',
+  '.mjs',
+  '.cjs',
+  '.json',
+] as const;
+
+function isRelativeModuleSpecifier(specifier: string): boolean {
+  return specifier.startsWith('./') || specifier.startsWith('../');
+}
+
+function splitModuleSpecifierSuffix(
+  specifier: string
+): { readonly bare: string; readonly suffix: string } {
+  const suffixStart = specifier.search(/[?#]/u);
+  return suffixStart === -1
+    ? { bare: specifier, suffix: '' }
+    : {
+        bare: specifier.slice(0, suffixStart),
+        suffix: specifier.slice(suffixStart),
+      };
+}
+
+function hasExplicitModuleExtension(specifier: string): boolean {
+  const { bare } = splitModuleSpecifierSuffix(specifier);
+  return RELATIVE_MODULE_FILE_EXTENSIONS.some((extension) =>
+    bare.endsWith(extension)
+  );
+}
+
+function resolveExplicitRelativeModuleCandidates(
+  bareSpecifier: string
+): readonly string[] {
+  const extension = path.extname(bareSpecifier);
+  if (extension.length === 0) {
+    return [bareSpecifier];
+  }
+
+  const extensionlessSpecifier = bareSpecifier.slice(0, -extension.length);
+  switch (extension) {
+    case '.js':
+      return [
+        bareSpecifier,
+        `${extensionlessSpecifier}.ts`,
+        `${extensionlessSpecifier}.tsx`,
+        `${extensionlessSpecifier}.mts`,
+        `${extensionlessSpecifier}.cts`,
+        `${extensionlessSpecifier}.jsx`,
+        `${extensionlessSpecifier}.mjs`,
+        `${extensionlessSpecifier}.cjs`,
+      ];
+    case '.jsx':
+      return [
+        bareSpecifier,
+        `${extensionlessSpecifier}.tsx`,
+        `${extensionlessSpecifier}.ts`,
+        `${extensionlessSpecifier}.js`,
+      ];
+    case '.mjs':
+      return [
+        bareSpecifier,
+        `${extensionlessSpecifier}.mts`,
+        `${extensionlessSpecifier}.ts`,
+        `${extensionlessSpecifier}.js`,
+      ];
+    case '.cjs':
+      return [
+        bareSpecifier,
+        `${extensionlessSpecifier}.cts`,
+        `${extensionlessSpecifier}.ts`,
+        `${extensionlessSpecifier}.js`,
+      ];
+    default:
+      return [bareSpecifier];
+  }
+}
+
+function tryResolveRelativeModuleSpecifier(
+  specifier: string,
+  sourceFilePath: string,
+  specifierStyle: 'relative' | 'absolute-url' = 'relative'
+): string {
+  if (!isRelativeModuleSpecifier(specifier)) {
+    return specifier;
+  }
+
+  const { bare, suffix } = splitModuleSpecifierSuffix(specifier);
+  const sourceDirectory = path.dirname(path.resolve(sourceFilePath));
+  const candidatePaths = hasExplicitModuleExtension(specifier)
+    ? resolveExplicitRelativeModuleCandidates(bare).map((candidateBare) =>
+        path.resolve(sourceDirectory, candidateBare)
+      )
+    : RELATIVE_MODULE_FILE_EXTENSIONS.flatMap((extension) => {
+        const absoluteBasePath = path.resolve(sourceDirectory, bare);
+        return [
+          `${absoluteBasePath}${extension}`,
+          path.join(absoluteBasePath, `index${extension}`),
+        ];
+      });
+
+  if (
+    specifierStyle === 'relative' &&
+    hasExplicitModuleExtension(specifier)
+  ) {
+    return specifier;
+  }
+
+  for (const candidatePath of candidatePaths) {
+    if (!fs.existsSync(candidatePath)) {
+      continue;
+    }
+
+    if (specifierStyle === 'absolute-url') {
+      return `${pathToFileURL(candidatePath).href}${suffix}`;
+    }
+
+    const relativePath = path.relative(sourceDirectory, candidatePath);
+    const normalizedRelativePath = relativePath.replace(/\\/gu, '/');
+    const resolvedSpecifier = normalizedRelativePath.startsWith('.')
+      ? normalizedRelativePath
+      : `./${normalizedRelativePath}`;
+    return `${resolvedSpecifier}${suffix}`;
+  }
+
+  return specifier;
+}
+
+function collectModuleSpecifierNodes(
+  sourceFile: ts.SourceFile
+): readonly ts.StringLiteralLike[] {
+  const nodes: ts.StringLiteralLike[] = [];
+
+  const visit = (node: ts.Node): void => {
+    if (
+      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteralLike(node.moduleSpecifier)
+    ) {
+      nodes.push(node.moduleSpecifier);
+    }
+
+    if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword
+    ) {
+      const [firstArgument] = node.arguments;
+      if (firstArgument && ts.isStringLiteralLike(firstArgument)) {
+        nodes.push(firstArgument);
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+  return nodes;
+}
+
+function rewriteRelativeImportSpecifiers(
+  sourceText: string,
+  sourceFilePath: string,
+  specifierStyle: 'relative' | 'absolute-url' = 'relative'
+): string {
+  const sourceFile = createSourceFile(sourceText, sourceFilePath);
+  const replacements = collectModuleSpecifierNodes(sourceFile)
+    .map((node) => {
+      const resolvedSpecifier = tryResolveRelativeModuleSpecifier(
+        node.text,
+        sourceFilePath,
+        specifierStyle
+      );
+      if (resolvedSpecifier === node.text) {
+        return null;
+      }
+
+      return {
+        start: node.getStart(sourceFile),
+        end: node.end,
+        text: JSON.stringify(resolvedSpecifier),
+      };
+    })
+    .filter(
+      (
+        replacement
+      ): replacement is {
+        readonly start: number;
+        readonly end: number;
+        readonly text: string;
+      } => replacement !== null
+    )
+    .sort((left, right) => right.start - left.start);
+
+  let rewrittenSource = sourceText;
+  for (const replacement of replacements) {
+    rewrittenSource =
+      rewrittenSource.slice(0, replacement.start) +
+      replacement.text +
+      rewrittenSource.slice(replacement.end);
+  }
+
+  return rewrittenSource;
 }
 
 function hasModifier(
@@ -331,23 +570,29 @@ function collectFunctions(
 
   for (const statement of sourceFile.statements) {
     if (ts.isFunctionDeclaration(statement)) {
+      if (!statement.body) {
+        continue;
+      }
+      const functionDeclaration = statement as ts.FunctionDeclaration & {
+        body: ts.FunctionBody;
+      };
       const localName =
-        statement.name?.text ??
+        functionDeclaration.name?.text ??
         `__default_export_${String(anonymousDefaultCount++)}`;
       functionsByLocalName.set(localName, {
         localName,
-        node: statement,
+        node: functionDeclaration,
       });
 
-      if (hasModifier(statement, ts.SyntaxKind.ExportKeyword)) {
+      if (hasModifier(functionDeclaration, ts.SyntaxKind.ExportKeyword)) {
         if (
-          statement.name &&
-          !hasModifier(statement, ts.SyntaxKind.DefaultKeyword)
+          functionDeclaration.name &&
+          !hasModifier(functionDeclaration, ts.SyntaxKind.DefaultKeyword)
         ) {
-          exportsByName.set(statement.name.text, localName);
+          exportsByName.set(functionDeclaration.name.text, localName);
         }
 
-        if (hasModifier(statement, ts.SyntaxKind.DefaultKeyword)) {
+        if (hasModifier(functionDeclaration, ts.SyntaxKind.DefaultKeyword)) {
           exportsByName.set('default', localName);
         }
       }
@@ -424,6 +669,21 @@ function collectRuntimeBindingNames(sourceFile: ts.SourceFile): readonly string[
   const names = new Set<string>();
 
   for (const statement of sourceFile.statements) {
+    if (ts.isImportDeclaration(statement) && statement.importClause) {
+      if (statement.importClause.name) {
+        names.add(statement.importClause.name.text);
+      }
+
+      const namedBindings = statement.importClause.namedBindings;
+      if (namedBindings && ts.isNamedImports(namedBindings)) {
+        for (const element of namedBindings.elements) {
+          names.add(element.name.text);
+        }
+      }
+
+      continue;
+    }
+
     if (ts.isFunctionDeclaration(statement) && statement.name) {
       names.add(statement.name.text);
       continue;
@@ -446,6 +706,151 @@ function collectRuntimeBindingNames(sourceFile: ts.SourceFile): readonly string[
   }
 
   return [...names].sort((left, right) => left.localeCompare(right));
+}
+
+function normalizeRuntimeBindingNames(
+  names: readonly string[]
+): readonly string[] {
+  return [...new Set(names)].sort((left, right) => left.localeCompare(right));
+}
+
+function serializeGraphAst(ast: GraphAST): SerializedGraphAST {
+  return {
+    nodes: [...ast.nodes.values()].map((node) => ({
+      id: node.id,
+      labels: [...node.labels],
+      properties: { ...node.properties },
+    })),
+    edges: ast.edges.map((edge) => ({
+      sourceIds: [...edge.sourceIds],
+      targetIds: [...edge.targetIds],
+      type: edge.type,
+      properties: { ...edge.properties },
+    })),
+  };
+}
+
+function deserializeGraphAst(ast: SerializedGraphAST): GraphAST {
+  return {
+    nodes: new Map(
+      ast.nodes.map((node) => [
+        node.id,
+        {
+          id: node.id,
+          labels: [...node.labels],
+          properties: { ...node.properties },
+        },
+      ])
+    ),
+    edges: ast.edges.map((edge) => ({
+      sourceIds: [...edge.sourceIds],
+      targetIds: [...edge.targetIds],
+      type: edge.type,
+      properties: { ...edge.properties },
+    })),
+  };
+}
+
+function jsxEmitForPath(sourceFilePath: string): ts.JsxEmit {
+  if (sourceFilePath.endsWith('.tsx') || sourceFilePath.endsWith('.jsx')) {
+    return ts.JsxEmit.ReactJSX;
+  }
+
+  return ts.JsxEmit.Preserve;
+}
+
+export function renderTypeScriptBridgeRuntimeModule(
+  sourceText: string,
+  sourceFilePath: string,
+  runtimeBindingNames?: readonly string[],
+  options: GnosisTypeScriptBridgeRuntimeModuleOptions = {}
+): GnosisTypeScriptBridgeRuntimeModule {
+  const absoluteSourcePath = path.resolve(sourceFilePath);
+  const rewrittenSourceText = rewriteRelativeImportSpecifiers(
+    sourceText,
+    absoluteSourcePath,
+    options.specifierStyle ?? 'relative'
+  );
+  const bindingNames = normalizeRuntimeBindingNames(
+    runtimeBindingNames ??
+      collectRuntimeBindingNames(
+        createSourceFile(rewrittenSourceText, absoluteSourcePath)
+      )
+  );
+
+  if (bindingNames.length === 0) {
+    return {
+      bindingNames,
+      moduleSource: rewrittenSourceText,
+    };
+  }
+
+  const bindingLiteral = bindingNames
+    .map((bindingName) => `  ${JSON.stringify(bindingName)}: ${bindingName},`)
+    .join('\n');
+
+  return {
+    bindingNames,
+    moduleSource: `${rewrittenSourceText}\n\nexport const __gnode_bridge_runtime_bindings = {\n${bindingLiteral}\n};\n`,
+  };
+}
+
+export function transpileTypeScriptBridgeRuntimeModule(
+  sourceText: string,
+  sourceFilePath: string,
+  runtimeBindingNames?: readonly string[],
+  options: GnosisTypeScriptBridgeRuntimeModuleOptions = {}
+): TranspiledGnosisTypeScriptBridgeRuntimeModule {
+  const rendered = renderTypeScriptBridgeRuntimeModule(
+    sourceText,
+    sourceFilePath,
+    runtimeBindingNames,
+    options
+  );
+
+  if (rendered.bindingNames.length === 0) {
+    return {
+      ...rendered,
+      javascriptSource: '',
+    };
+  }
+
+  const transpiled = ts.transpileModule(rendered.moduleSource, {
+    fileName: path.resolve(sourceFilePath),
+    compilerOptions: {
+      target: ts.ScriptTarget.ES2022,
+      module: ts.ModuleKind.ESNext,
+      moduleResolution: ts.ModuleResolutionKind.NodeNext,
+      jsx: jsxEmitForPath(sourceFilePath),
+      esModuleInterop: true,
+      verbatimModuleSyntax: true,
+    },
+  });
+
+  return {
+    ...rendered,
+    javascriptSource: transpiled.outputText,
+  };
+}
+
+export function serializeTypeScriptBridgeResult(
+  compiled: GnosisTypeScriptBridgeResult
+): SerializedGnosisTypeScriptBridgeResult {
+  return {
+    ...compiled,
+    runtimeBindingNames: [...compiled.runtimeBindingNames],
+    ast: serializeGraphAst(compiled.ast),
+  };
+}
+
+export function deserializeTypeScriptBridgeResult(
+  serialized: SerializedGnosisTypeScriptBridgeResult
+): GnosisTypeScriptBridgeResult {
+  return {
+    ...serialized,
+    runtimeBindingNames: [...serialized.runtimeBindingNames],
+    ast: deserializeGraphAst(serialized.ast),
+  };
 }
 
 function selectEntrypoint(
@@ -1047,28 +1452,86 @@ function renderTopologySource(
   return `${lines.join('\n')}\n`;
 }
 
-function compileToAst(ggSource: string): GraphAST {
-  const compiler = new BettyCompiler();
-  const parsed = compiler.parse(ggSource);
-  const errors = parsed.diagnostics.filter(
-    (diagnostic) => diagnostic.severity === 'error'
-  );
+function createBridgeAstNode(
+  nodeId: string,
+  label: GnosisTypeScriptBridgeHandlerLabel
+): ASTNode {
+  return {
+    id: nodeId,
+    labels: [label],
+    properties: {},
+  };
+}
 
-  if (!parsed.ast || errors.length > 0) {
-    const details = errors
-      .map(
-        (diagnostic) =>
-          `${diagnostic.line}:${diagnostic.column} ${diagnostic.message}`
-      )
-      .join('\n');
-    throw new Error(
-      details.length > 0
-        ? `Failed to compile generated GG bridge topology:\n${details}`
-        : 'Failed to compile generated GG bridge topology.'
+function createBridgeAstEdge(
+  sourceIds: readonly string[],
+  targetIds: readonly string[],
+  type: string
+): ASTEdge {
+  return {
+    sourceIds: [...sourceIds],
+    targetIds: [...targetIds],
+    type,
+    properties: {},
+  };
+}
+
+function buildBridgeAst(
+  entryPlan: GnosisTypeScriptBridgeEntryPlan,
+  operations: readonly GnosisTypeScriptBridgeOperation[]
+): GraphAST {
+  const ast: GraphAST = {
+    nodes: new Map([[entryPlan.nodeId, createBridgeAstNode(entryPlan.nodeId, entryPlan.handlerLabel)]]),
+    edges: [],
+  };
+
+  let currentNodeId = entryPlan.nodeId;
+
+  for (const operation of operations) {
+    if (operation.kind === 'parallel') {
+      for (const branch of operation.branches) {
+        ast.nodes.set(
+          branch.nodeId,
+          createBridgeAstNode(branch.nodeId, branch.handlerLabel)
+        );
+      }
+
+      ast.nodes.set(
+        operation.joinPlan.nodeId,
+        createBridgeAstNode(
+          operation.joinPlan.nodeId,
+          operation.joinPlan.handlerLabel
+        )
+      );
+      ast.edges.push(
+        createBridgeAstEdge(
+          [currentNodeId],
+          operation.branches.map((branch) => branch.nodeId),
+          'FORK'
+        )
+      );
+      ast.edges.push(
+        createBridgeAstEdge(
+          operation.branches.map((branch) => branch.nodeId),
+          [operation.joinPlan.nodeId],
+          'FOLD'
+        )
+      );
+      currentNodeId = operation.joinPlan.nodeId;
+      continue;
+    }
+
+    ast.nodes.set(
+      operation.plan.nodeId,
+      createBridgeAstNode(operation.plan.nodeId, operation.plan.handlerLabel)
     );
+    ast.edges.push(
+      createBridgeAstEdge([currentNodeId], [operation.plan.nodeId], 'PROCESS')
+    );
+    currentNodeId = operation.plan.nodeId;
   }
 
-  return parsed.ast;
+  return ast;
 }
 
 function buildSchedule(
@@ -1212,9 +1675,10 @@ export function compileTypeScriptToGnosis(
     sourceFilePath,
     ggSource,
     topologySource: ggSource,
-    ast: compileToAst(ggSource),
+    ast: buildBridgeAst(entryPlan, state.operations),
     nodePlans: state.nodePlans,
     schedule: buildSchedule(state.operations),
+    runtimeBindingNames: collectRuntimeBindingNames(sourceFile),
   };
 }
 
@@ -1443,8 +1907,18 @@ export function registerTypeScriptBridgeHandlers(
 async function loadRuntimeBindings(
   options: ExecuteTypeScriptWithGnosisOptions
 ): Promise<GnosisTypeScriptBridgeBindings> {
+  const importedRuntimeModule =
+    options.runtimeModulePath !== undefined
+      ? ((await import(
+          pathToFileURL(path.resolve(options.runtimeModulePath)).href
+        )) as {
+          readonly __gnode_bridge_runtime_bindings?: GnosisTypeScriptBridgeBindings;
+        })
+      : null;
   const sourceFilePath =
-    options.sourceFilePath ?? options.modulePath ?? options.compiled?.sourceFilePath;
+    options.sourceFilePath ??
+    options.modulePath ??
+    options.compiled?.sourceFilePath;
   const sourceText =
     options.sourceText ??
     (sourceFilePath && fs.existsSync(sourceFilePath)
@@ -1452,7 +1926,9 @@ async function loadRuntimeBindings(
       : undefined);
 
   const importedModule =
-    sourceText && sourceFilePath
+    importedRuntimeModule !== null
+      ? importedRuntimeModule.__gnode_bridge_runtime_bindings ?? {}
+      : sourceText && sourceFilePath
       ? await loadRuntimeBridgeModuleBindings(sourceText, sourceFilePath)
       : options.modulePath !== undefined
         ? ((await import(
@@ -1472,10 +1948,12 @@ async function loadRuntimeBridgeModuleBindings(
   sourceFilePath: string
 ): Promise<GnosisTypeScriptBridgeBindings> {
   const absoluteSourcePath = path.resolve(sourceFilePath);
-  const sourceFile = createSourceFile(sourceText, absoluteSourcePath);
-  const runtimeBindingNames = collectRuntimeBindingNames(sourceFile);
+  const renderedModule = renderTypeScriptBridgeRuntimeModule(
+    sourceText,
+    absoluteSourcePath
+  );
 
-  if (runtimeBindingNames.length === 0) {
+  if (renderedModule.bindingNames.length === 0) {
     return {};
   }
 
@@ -1489,12 +1967,7 @@ async function loadRuntimeBridgeModuleBindings(
       .slice(2, 8)}.ts`
   );
 
-  const bindingLiteral = runtimeBindingNames
-    .map((bindingName) => `  ${JSON.stringify(bindingName)}: ${bindingName},`)
-    .join('\n');
-  const tempModuleSource = `${sourceText}\n\nexport const __gnode_bridge_runtime_bindings = {\n${bindingLiteral}\n};\n`;
-
-  fs.writeFileSync(tempModulePath, tempModuleSource, 'utf8');
+  fs.writeFileSync(tempModulePath, renderedModule.moduleSource, 'utf8');
 
   try {
     const moduleNamespace = (await import(

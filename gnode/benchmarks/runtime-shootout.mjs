@@ -43,12 +43,18 @@ function readNumberSetting(flagName, envName, fallback) {
     .slice(2)
     .find((value) => value.startsWith(`--${flagName}=`));
   const rawValue =
-    rawFlag?.slice(flagName.length + 3) ?? process.env[envName] ?? `${fallback}`;
+    rawFlag?.slice(flagName.length + 3) ??
+    process.env[envName] ??
+    `${fallback}`;
   const parsed = Number.parseInt(rawValue, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-const warmupRuns = readNumberSetting('warmup', 'GNODE_RUNTIME_SHOOTOUT_WARMUP', 1);
+const warmupRuns = readNumberSetting(
+  'warmup',
+  'GNODE_RUNTIME_SHOOTOUT_WARMUP',
+  1
+);
 const measuredRuns = readNumberSetting(
   'iterations',
   'GNODE_RUNTIME_SHOOTOUT_ITERATIONS',
@@ -109,7 +115,11 @@ async function runCommand(command, args, cwd, extraEnv = {}) {
 }
 
 async function commandExists(command) {
-  const result = await runCommand('sh', ['-lc', `command -v ${command}`], repoRoot);
+  const result = await runCommand(
+    'sh',
+    ['-lc', `command -v ${command}`],
+    repoRoot
+  );
   return result.exitCode === 0;
 }
 
@@ -123,6 +133,9 @@ async function compileNodeFixtures(outputDir) {
       'nodenext',
       '--moduleResolution',
       'nodenext',
+      '--types',
+      'node',
+      '--skipLibCheck',
       '--outDir',
       outputDir,
       ...examples.map((example) => example.sourcePath),
@@ -131,7 +144,9 @@ async function compileNodeFixtures(outputDir) {
   );
 
   if (result.exitCode !== 0) {
-    throw new Error(`Failed to compile Node fixtures:\n${result.stderr}`);
+    throw new Error(
+      `Failed to compile Node fixtures:\n${result.stderr || result.stdout}`
+    );
   }
 }
 
@@ -139,11 +154,15 @@ async function measureRuntime(runtime, example) {
   for (let run = 0; run < warmupRuns; run += 1) {
     const warmup = await runtime.execute(example);
     if (warmup.exitCode !== 0) {
-      throw new Error(`${runtime.name} failed warmup for ${example.name}:\n${warmup.stderr}`);
+      throw new Error(
+        `${runtime.name} failed warmup for ${example.name}:\n${warmup.stderr}`
+      );
     }
     if (warmup.stdout.trim() !== example.expectedStdout) {
       throw new Error(
-        `${runtime.name} produced unexpected output for ${example.name}: '${warmup.stdout.trim()}'`
+        `${runtime.name} produced unexpected output for ${
+          example.name
+        }: '${warmup.stdout.trim()}'`
       );
     }
   }
@@ -154,11 +173,15 @@ async function measureRuntime(runtime, example) {
     const result = await runtime.execute(example);
     const elapsedMs = performance.now() - started;
     if (result.exitCode !== 0) {
-      throw new Error(`${runtime.name} failed for ${example.name}:\n${result.stderr}`);
+      throw new Error(
+        `${runtime.name} failed for ${example.name}:\n${result.stderr}`
+      );
     }
     if (result.stdout.trim() !== example.expectedStdout) {
       throw new Error(
-        `${runtime.name} produced unexpected output for ${example.name}: '${result.stdout.trim()}'`
+        `${runtime.name} produced unexpected output for ${
+          example.name
+        }: '${result.stdout.trim()}'`
       );
     }
     samples.push(elapsedMs);
@@ -197,7 +220,13 @@ async function main() {
         execute: async (example) =>
           await runCommand(
             'node',
-            [gnodeBinPath, 'run', example.sourcePath, '--input-json', example.inputJson],
+            [
+              gnodeBinPath,
+              'run',
+              example.sourcePath,
+              '--input-json',
+              example.inputJson,
+            ],
             repoRoot
           ),
       },
@@ -205,7 +234,11 @@ async function main() {
         name: 'bun',
         available: await commandExists('bun'),
         execute: async (example) =>
-          await runCommand('bun', [invokeAppPath, example.sourcePath, example.inputJson], repoRoot),
+          await runCommand(
+            'bun',
+            [invokeAppPath, example.sourcePath, example.inputJson],
+            repoRoot
+          ),
       },
       {
         name: 'tsx',
@@ -233,7 +266,11 @@ async function main() {
         execute: async (example) =>
           await runCommand(
             'node',
-            [invokeAppPath, path.join(compiledOutputDir, example.compiledName), example.inputJson],
+            [
+              invokeAppPath,
+              path.join(compiledOutputDir, example.compiledName),
+              example.inputJson,
+            ],
             repoRoot
           ),
       },
@@ -243,7 +280,14 @@ async function main() {
         execute: async (example) =>
           await runCommand(
             'deno',
-            ['run', '--quiet', '--allow-read', invokeAppPath, example.sourcePath, example.inputJson],
+            [
+              'run',
+              '--quiet',
+              '--allow-read',
+              invokeAppPath,
+              example.sourcePath,
+              example.inputJson,
+            ],
             repoRoot
           ),
       },
@@ -280,7 +324,8 @@ async function main() {
 }
 
 main().catch((error) => {
-  const message = error instanceof Error ? error.stack ?? error.message : String(error);
+  const message =
+    error instanceof Error ? error.stack ?? error.message : String(error);
   process.stderr.write(`${message}\n`);
   process.exitCode = 1;
 });

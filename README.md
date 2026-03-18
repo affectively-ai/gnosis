@@ -54,9 +54,11 @@ bun ./bin/gnosis.js mod tidy
 
 All commands support `--json` and `--sarif` for CI integration.
 
-For TypeScript orchestration entrypoints, [`gnode`](./gnode/README.md) compiles a strict TS subset into GG, prints an Aeon-style lane schedule, and runs the result through Gnosis today. The native landing zone for those compiled processes is [`x-gnosis`](../x-gnosis/README.md) and its Rust transport surface in [`gnosis-uring`](../x-gnosis/gnosis-uring/README.md).
+For TypeScript orchestration entrypoints, [`gnode`](./gnode/README.md) compiles a strict TS subset into GG, prints an Aeon-style lane schedule, and runs the result through Gnosis today. The shared CLI now keeps a daily daisy-chain cache of compiled GG artifacts plus stable runtime binding modules, and the wrapper tracks its own bundle freshness from an exact dependency manifest instead of scanning whole source trees before every run. Use `--trace-timings` on a single `gnode run` to see the cold-versus-warm path directly. The native landing zone for those compiled processes is [`x-gnosis`](../x-gnosis/README.md) and its Rust transport surface in [`gnosis-uring`](../x-gnosis/gnosis-uring/README.md).
 
-That surface now also has a checked-in toy runtime shootout for `echo`, `fib`, and `Promise.all` fanout entrypoints across `gnode`, Bun, `tsx`, `ts-node`, plain Node on compiled JavaScript, and Deno when Deno is installed. The larger sample counts are meant to run in Cloud Build, not on a laptop.
+That surface now also has a checked-in toy runtime shootout for `echo`, `fib`, and `Promise.all` fanout entrypoints across `gnode`, Bun, `tsx`, `ts-node`, plain Node on compiled JavaScript, and Deno when Deno is installed. Run the local smoke through `pnpm --dir open-source/gnosis run bench:gnode-runtimes`; the larger sample counts belong on Cloud Build, not on a laptop.
+
+The current single-request snapshot is also documented in [`gnode/README.md`](./gnode/README.md): on March 18, 2026, the toy direct smoke measured `gnode` at `294.37ms` cold and `25.01ms` warm via `--trace-timings`, versus Bun at `82.05ms` cold and `57.96ms` warm on the same app. The warm-hit story is now real; the remaining problem is cold artifact synthesis.
 
 ## What You Get
 
