@@ -265,21 +265,69 @@ function parseNonnegativeInt(raw: string | undefined, fallback: number): number 
   return Math.trunc(parsed);
 }
 
+function parseHeteroMoAFabricLayerCounts(
+  node: ASTNode
+): Record<StabilityHeteroMoAFabricLayerKind, number> {
+  const inferredCounts: Record<StabilityHeteroMoAFabricLayerKind, number> = {
+    cpu: 0,
+    gpu: 0,
+    npu: 0,
+    wasm: 0,
+  };
+
+  for (const layer of (node.properties.backend_layers ?? '')
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter((value): value is StabilityHeteroMoAFabricLayerKind =>
+      value === 'cpu' ||
+      value === 'gpu' ||
+      value === 'npu' ||
+      value === 'wasm'
+    )) {
+    inferredCounts[layer] += 1;
+  }
+
+  return {
+    cpu: parseNonnegativeInt(
+      node.properties.cpu_lanes,
+      inferredCounts.cpu
+    ),
+    gpu: parseNonnegativeInt(
+      node.properties.gpu_lanes,
+      inferredCounts.gpu
+    ),
+    npu: parseNonnegativeInt(
+      node.properties.npu_lanes,
+      inferredCounts.npu
+    ),
+    wasm: parseNonnegativeInt(
+      node.properties.wasm_lanes,
+      inferredCounts.wasm
+    ),
+  };
+}
+
 function buildHeteroMoAFabricWitnesses(
   ast: GraphAST,
   theoremName: string
 ): StabilityHeteroMoAFabricWitness[] {
   const fabricNodes = [...ast.nodes.values()].filter(
     (node) =>
-      node.properties.primitive === 'HeteroMoAFabric' &&
+      (node.properties.primitive === 'HeteroMoAFabric' ||
+        Boolean(node.properties.backend_layers) ||
+        Boolean(node.properties.cpu_lanes) ||
+        Boolean(node.properties.gpu_lanes) ||
+        Boolean(node.properties.npu_lanes) ||
+        Boolean(node.properties.wasm_lanes)) &&
       !node.id.includes('__')
   );
 
   return fabricNodes.map((node) => {
-    const cpuLaneCount = parseNonnegativeInt(node.properties.cpu_lanes, 0);
-    const gpuLaneCount = parseNonnegativeInt(node.properties.gpu_lanes, 0);
-    const npuLaneCount = parseNonnegativeInt(node.properties.npu_lanes, 0);
-    const wasmLaneCount = parseNonnegativeInt(node.properties.wasm_lanes, 0);
+    const inferredLaneCounts = parseHeteroMoAFabricLayerCounts(node);
+    const cpuLaneCount = inferredLaneCounts.cpu;
+    const gpuLaneCount = inferredLaneCounts.gpu;
+    const npuLaneCount = inferredLaneCounts.npu;
+    const wasmLaneCount = inferredLaneCounts.wasm;
     const activeLayerCount = parseNonnegativeInt(
       node.properties.active_layers,
       [cpuLaneCount, gpuLaneCount, npuLaneCount, wasmLaneCount].filter(
@@ -1185,7 +1233,10 @@ function collectBranchReachability(
     for (const edge of outgoingByNodeId.get(current) ?? []) {
       const edgeType = edge.type.toUpperCase();
       const isConvergenceBarrier =
-        COLLAPSE_EDGE_TYPES.has(edgeType) && edge.sourceIds.length > 1;
+        (COLLAPSE_EDGE_TYPES.has(edgeType) ||
+          edgeType === 'RACE' ||
+          edgeType === 'INTERFERE') &&
+        edge.sourceIds.length > 1;
       if (isConvergenceBarrier) {
         continue;
       }

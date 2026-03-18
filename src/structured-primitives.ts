@@ -17,6 +17,55 @@ const EDGE_PATTERN =
 const ARRAY_LITERAL_PATTERN = /^\[(.*)\]$/;
 const MAX_STRUCTURED_PRIMITIVE_PASSES = 8;
 
+function countOccurrences(input: string, token: string): number {
+  return input.split(token).length - 1;
+}
+
+function collectStructuredPrimitiveUnits(source: string): string[] {
+  const lines = source.split('\n');
+  const units: string[] = [];
+
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index] ?? '';
+    const trimmed = line.trim();
+
+    if (
+      trimmed.length === 0 ||
+      trimmed.includes('-[:') ||
+      !/\(\s*[A-Za-z_][A-Za-z0-9_]*\s*:\s*(StructuredMoA|WallingtonRotation|WorthingtonWhip|HeteroMoAFabric)\b/.test(
+        trimmed
+      )
+    ) {
+      units.push(line);
+      continue;
+    }
+
+    let balance =
+      countOccurrences(line, '(') - countOccurrences(line, ')');
+    let endIndex = index;
+    const buffer = [trimmed];
+
+    while (balance > 0 && endIndex + 1 < lines.length) {
+      endIndex += 1;
+      const nextLine = lines[endIndex] ?? '';
+      buffer.push(nextLine.trim());
+      balance +=
+        countOccurrences(nextLine, '(') - countOccurrences(nextLine, ')');
+    }
+
+    const candidate = buffer.join(' ');
+    if (parseStructuredPrimitive(candidate)) {
+      units.push(candidate);
+      index = endIndex;
+      continue;
+    }
+
+    units.push(line);
+  }
+
+  return units;
+}
+
 function readAliasedProperty(
   properties: Readonly<Record<string, string>>,
   ...keys: readonly string[]
@@ -1039,9 +1088,9 @@ export function expandStructuredPrimitivesSource(source: string): string {
     passIndex < MAX_STRUCTURED_PRIMITIVE_PASSES;
     passIndex++
   ) {
-    const lines = expandedSource.split('\n');
-    const primitives = lines
-      .map((line) => parseStructuredPrimitive(line))
+    const units = collectStructuredPrimitiveUnits(expandedSource);
+    const primitives = units
+      .map((unit) => parseStructuredPrimitive(unit))
       .filter(
         (primitive): primitive is StructuredPrimitive => primitive !== null
       );
@@ -1051,14 +1100,14 @@ export function expandStructuredPrimitivesSource(source: string): string {
     }
 
     const primitiveIds = new Set(primitives.map((primitive) => primitive.id));
-    expandedSource = lines
-      .flatMap((line) => {
-        const primitive = parseStructuredPrimitive(line);
+    expandedSource = units
+      .flatMap((unit) => {
+        const primitive = parseStructuredPrimitive(unit);
         if (primitive) {
           return expandStructuredPrimitive(primitive);
         }
 
-        return [rewriteIncomingPrimitiveTargets(line, primitiveIds)];
+        return [rewriteIncomingPrimitiveTargets(unit, primitiveIds)];
       })
       .join('\n');
   }

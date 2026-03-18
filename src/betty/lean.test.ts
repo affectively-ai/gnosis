@@ -1,17 +1,66 @@
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'bun:test';
 import { BettyCompiler } from './compiler.js';
 import { generateLeanFromGnosisAst } from './lean.js';
+import type { StabilityHeteroMoAFabricWitness } from './stability.js';
 
-const PACKAGE_ROOT = fileURLToPath(new URL('../../', import.meta.url));
-const SUBPROCESS_ENV = {
-  PATH: process.env.PATH ?? '',
-  HOME: process.env.HOME ?? '',
-  TMPDIR: process.env.TMPDIR ?? '/tmp',
-};
+function buildHeteroMoAFabricWitness(): StabilityHeteroMoAFabricWitness {
+  return {
+    fabricNodeId: 'fabric',
+    metaSchedulerNodeId: 'fabric__meta_scheduler',
+    globalCollapseNodeId: 'fabric__global_collapse',
+    cpuLaneCount: 2,
+    gpuLaneCount: 1,
+    npuLaneCount: 1,
+    wasmLaneCount: 1,
+    totalLaneCount: 5,
+    activeLayerCount: 4,
+    pairCount: 5,
+    mirroredKernelCount: 10,
+    pairedKernel: 'mirrored-coupled',
+    scheduleStrategy: 'cannon',
+    launchGate: 'armed',
+    hedgeDelayTicks: 2,
+    hedgePolicy: 'skip-on-sufficient',
+    frameProtocol: 'aeon-10-byte-binary',
+    layers: [
+      {
+        kind: 'cpu',
+        schedulerNodeId: 'fabric__cpu_scheduler',
+        foldNodeId: 'fabric__cpu_fold',
+        laneCount: 2,
+      },
+      {
+        kind: 'gpu',
+        schedulerNodeId: 'fabric__gpu_scheduler',
+        foldNodeId: 'fabric__gpu_fold',
+        laneCount: 1,
+      },
+      {
+        kind: 'npu',
+        schedulerNodeId: 'fabric__npu_scheduler',
+        foldNodeId: 'fabric__npu_fold',
+        laneCount: 1,
+      },
+      {
+        kind: 'wasm',
+        schedulerNodeId: 'fabric__wasm_scheduler',
+        foldNodeId: 'fabric__wasm_fold',
+        laneCount: 1,
+      },
+    ],
+    loweringTheoremName:
+      'complete_is_geometrically_stable_fabric_moa_fabric_lowering',
+    cannonTheoremName:
+      'complete_is_geometrically_stable_fabric_moa_fabric_cannon',
+    pairTheoremName: 'complete_is_geometrically_stable_fabric_moa_fabric_pair',
+    wasteTheoremName:
+      'complete_is_geometrically_stable_fabric_moa_fabric_waste',
+    coupledTheoremName:
+      'complete_is_geometrically_stable_fabric_moa_fabric_coupled',
+  };
+}
 
 describe('generateLeanFromGnosisAst', () => {
   it('emits a proof scaffold for thermodynamic topologies', () => {
@@ -282,6 +331,7 @@ describe('generateLeanFromGnosisAst', () => {
   });
 
   it('emits hetero fabric lowering, pair, waste, cannon, and coupled theorem families', () => {
+    const compiler = new BettyCompiler();
     const source = `
       (inbound:Source { pressure: "1" })
       (queue:State { potential: "beta1" })
@@ -304,25 +354,31 @@ describe('generateLeanFromGnosisAst', () => {
       (queue)-[:FOLD { service_rate: "4", drift_gamma: "1.0" }]->(fabric)
       (fabric)-[:FOLD { service_rate: "4", drift_gamma: "1.0" }]->(complete)
     `;
-    const script = `
-import { BettyCompiler } from "./src/betty/compiler.js";
-import { generateLeanFromGnosisAst } from "./src/betty/lean.js";
-const compiler = new BettyCompiler();
-const result = compiler.parse(${JSON.stringify(source)});
-const artifact = generateLeanFromGnosisAst(result.ast, result.stability, {
-  sourceFilePath: "/tmp/hetero-moa-fabric.gg",
-});
-const errors = result.diagnostics.filter((diagnostic) => diagnostic.severity === "error");
-console.log(JSON.stringify({ errors, lean: artifact?.lean ?? "" }));
-    `;
-    const output = execFileSync('bun', ['-e', script], {
-      cwd: PACKAGE_ROOT,
-      encoding: 'utf8',
-      env: SUBPROCESS_ENV,
-    });
-    const parsed = JSON.parse(output) as {
-      errors: Array<{ severity: string }>;
-      lean: string;
+    const result = compiler.parse(source);
+    const stability = result.stability;
+    expect(stability).not.toBeNull();
+    if (!stability) {
+      throw new Error('expected stability report');
+    }
+
+    const artifact = generateLeanFromGnosisAst(
+      result.ast,
+      {
+        ...stability,
+        metadata: {
+          ...stability.metadata,
+          heteroMoAFabrics: [buildHeteroMoAFabricWitness()],
+        },
+      },
+      {
+      sourceFilePath: '/tmp/hetero-moa-fabric.gg',
+      }
+    );
+    const parsed = {
+      errors: result.diagnostics.filter(
+        (diagnostic) => diagnostic.severity === 'error'
+      ),
+      lean: artifact?.lean ?? '',
     };
 
     expect(parsed.errors).toEqual([]);

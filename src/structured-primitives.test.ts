@@ -326,4 +326,30 @@ describe('structured GG primitives', () => {
     expect(metaCollapse?.properties.frame_protocol).toBe('aeon-10-byte-binary');
     expect(program.nodes.find((node) => node.id === 'fabric__wasm__scheduler')).toBeDefined();
   });
+
+  test('expands multiline HeteroMoAFabric declarations before UFCS lowering', () => {
+    const normalized = lowerUfcsSource(`
+(prompt: FlowFrame { role: 'prompt-sequence' })
+(fabric: HeteroMoAFabric {
+  cpuLanes: '1',
+  gpuLanes: '1',
+  hedgeDelayTicks: '2',
+  frameProtocol: 'aeon-10-byte-binary'
+})
+(prompt)-[:PROCESS]->(fabric)
+`);
+    const program = parseGgProgram(normalized);
+
+    expect(normalized).toContain("(fabric: FlowFrame { primitive: 'HeteroMoAFabric'");
+    expect(program.nodes.find((node) => node.id === 'fabric__cpu__scheduler')).toBeDefined();
+    expect(program.nodes.find((node) => node.id === 'fabric__gpu__scheduler')).toBeDefined();
+    expect(
+      program.edges.find(
+        (edge) =>
+          edge.type === 'PROCESS' &&
+          edge.sourceIds[0] === 'prompt' &&
+          edge.targetIds[0] === 'fabric__ingress'
+      )
+    ).toBeDefined();
+  });
 });
