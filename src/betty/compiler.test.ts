@@ -269,6 +269,38 @@ describe('BettyCompiler', () => {
     ).toBe(false);
   });
 
+  it('treats race and interfere edges as branch-closing evidence for debt and ethics checks', () => {
+    const compiler = new BettyCompiler();
+    const { diagnostics, b1 } = compiler.parse(`
+            (origin)-[:FORK]->(left|middle|right)
+            (left|middle)-[:INTERFERE { mode: "destructive" }]->(repair)
+            (repair|right)-[:RACE { expect: "winner" }]->(winner)
+        `);
+
+    expect(b1).toBe(0);
+    expect(
+      diagnostics.some((d) => d.code === 'ETHICS_MISSING_VENT_PATH')
+    ).toBe(false);
+    expect(diagnostics.some((d) => d.code === 'ETHICS_NO_TRACE')).toBe(false);
+    expect(
+      diagnostics.some((d) => d.code === 'ERR_DEFICIT_NONZERO')
+    ).toBe(false);
+  });
+
+  it('accepts fold evidence that arrives transitively through branch-local processing', () => {
+    const compiler = new BettyCompiler();
+    const { diagnostics } = compiler.parse(`
+            (origin)-[:FORK]->(left|right)
+            (left)-[:PROCESS]->(left_scored)
+            (right)-[:PROCESS]->(right_scored)
+            (left_scored|right_scored)-[:FOLD { strategy: "pick-min" }]->(winner)
+        `);
+
+    expect(
+      diagnostics.some((d) => d.code === 'ETHICS_FOLD_WITHOUT_EVIDENCE')
+    ).toBe(false);
+  });
+
   it('rejects unstable thermodynamic cycles with spectral explosion', () => {
     const { diagnostics, stability } = compiler.parse(`
             (inbound:Source { pressure: "5" })

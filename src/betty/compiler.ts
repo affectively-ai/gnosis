@@ -90,6 +90,13 @@ const NATIVE_TAGGED_NODE_CASES: Record<string, readonly string[]> = {
 
 const STRUCTURED_CONCURRENCY_FAILURES = new Set(['cancel', 'vent', 'shield']);
 const GAIT_ORDER = ['stand', 'trot', 'canter', 'gallop'];
+const TRACE_SUPPORTING_EDGE_TYPES = new Set([
+  'MEASURE',
+  'METACOG',
+  'RACE',
+  'INTERFERE',
+]);
+const IMPLICIT_VENT_EDGE_TYPES = new Set(['RACE', 'INTERFERE']);
 
 export class BettyCompiler {
   private b1 = 0;
@@ -310,9 +317,14 @@ export class BettyCompiler {
           edgeType === 'COLLAPSE' ||
           edgeType === 'OBSERVE'
         ) {
-          // OBSERVE triggers collapse — reading forces superposition to resolve
-          // The topology is append-only (no GC). beta1=0 means converged, not deleted.
-          this.b1 = Math.max(0, this.b1 - (sources.length - 1));
+      // OBSERVE triggers collapse — reading forces superposition to resolve
+      // The topology is append-only (no GC). beta1=0 means converged, not deleted.
+      this.b1 = Math.max(0, this.b1 - (sources.length - 1));
+        } else if (edgeType === 'RACE' || edgeType === 'INTERFERE') {
+          this.b1 = Math.max(
+            0,
+            this.b1 - Math.max(0, sources.length - targets.length)
+          );
         } else if (edgeType === 'VENT') {
           this.b1 = Math.max(0, this.b1 - 1);
         } else if (edgeType === 'LAMINAR') {
@@ -1057,17 +1069,7 @@ export class BettyCompiler {
     for (const edge of foldEdges) {
       // Check if any source node has void evidence
       const hasEvidence = edge.sourceIds.some((srcId) => {
-        const node = this.ast.nodes.get(srcId.trim());
-        if (!node) return false;
-        // Has explicit void boundary, or has upstream RACE/FORK that produces tombstones
-        if (node.properties.void_boundary !== undefined) return true;
-        if (node.properties.void_density !== undefined) return true;
-        // Check if any incoming edge to this node is a type that produces void
-        return this.ast.edges.some(
-          (e) =>
-            e.targetIds.map((t) => t.trim()).includes(srcId.trim()) &&
-            (e.type === 'RACE' || e.type === 'FORK' || e.type === 'SUPERPOSE'),
-        );
+        return this.hasUpstreamVoidEvidence(srcId.trim(), new Set());
       });
 
       if (!hasEvidence) {
@@ -1188,8 +1190,23 @@ export class BettyCompiler {
     );
     const hasVent = this.ast.edges.some((e) => e.type === 'VENT');
     const hasTunnel = this.ast.edges.some((e) => e.type === 'TUNNEL');
+    const hasImplicitVent = this.ast.edges.some((e) =>
+      IMPLICIT_VENT_EDGE_TYPES.has(e.type)
+    );
+    const preservesMultiplicity = this.ast.edges.some(
+      (e) =>
+        e.type === 'FOLD' &&
+        e.properties.strategy?.trim().toLowerCase() === 'preserve-multiplicity'
+    );
 
-    if (hasFork && hasFold && !hasVent && !hasTunnel) {
+    if (
+      hasFork &&
+      hasFold &&
+      !hasVent &&
+      !hasTunnel &&
+      !hasImplicitVent &&
+      !preservesMultiplicity
+    ) {
       this.diagnostics.push({
         line: 1,
         column: 1,
@@ -1240,8 +1257,9 @@ export class BettyCompiler {
     );
     if (!hasIrreversible) return;
 
-    const hasMeasure = this.ast.edges.some((e) => e.type === 'MEASURE');
-    const hasMetacog = this.ast.edges.some((e) => e.type === 'METACOG');
+    const hasTraceSupportingEdge = this.ast.edges.some((e) =>
+      TRACE_SUPPORTING_EDGE_TYPES.has(e.type)
+    );
 
     // Check for any feedback cycle (PROCESS edge back to an earlier node)
     const hasCycle = this.ast.edges.some((edge) =>
@@ -1253,7 +1271,7 @@ export class BettyCompiler {
       (n) => n.labels.some((l) => l.toLowerCase().includes('trace') || l.toLowerCase().includes('measure') || l.toLowerCase().includes('reflect')),
     );
 
-    if (!hasMeasure && !hasMetacog && !hasCycle && !hasTraceNode) {
+    if (!hasTraceSupportingEdge && !hasCycle && !hasTraceNode) {
       this.diagnostics.push({
         line: 1,
         column: 1,
@@ -1305,5 +1323,57 @@ export class BettyCompiler {
         severity: 'warning',
       });
     }
+  }
+
+  private hasUpstreamVoidEvidence(
+    nodeId: string,
+    seen: Set<string>
+  ): boolean {
+    if (seen.has(nodeId)) {
+      return false;
+    }
+    seen.add(nodeId);
+
+    const node = this.ast.nodes.get(nodeId);
+    if (!node) {
+      return false;
+    }
+    if (
+      node.properties.void_boundary !== undefined ||
+      node.properties.void_density !== undefined
+    ) {
+      return true;
+    }
+
+    const incomingEdges = this.ast.edges.filter((edge) =>
+      edge.targetIds.map((targetId) => targetId.trim()).includes(nodeId)
+    );
+
+    for (const edge of incomingEdges) {
+      if (
+        edge.type === 'FORK' ||
+        edge.type === 'RACE' ||
+        edge.type === 'SUPERPOSE' ||
+        edge.type === 'VENT' ||
+        edge.type === 'INTERFERE'
+      ) {
+        return true;
+      }
+
+      if (
+        edge.type === 'PROCESS' ||
+        edge.type === 'LAMINAR' ||
+        edge.type === 'OBSERVE' ||
+        edge.type === 'MEASURE'
+      ) {
+        for (const sourceId of edge.sourceIds) {
+          if (this.hasUpstreamVoidEvidence(sourceId.trim(), seen)) {
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
   }
 }
