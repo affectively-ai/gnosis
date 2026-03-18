@@ -10,6 +10,7 @@ Native UCAN/ZK/custodial integration helpers for Gnosis runtime authorization.
 - [bootstrap.ts](./bootstrap.ts): topology-local auth bootstrap pass that preflights native UCAN/value-shaping nodes to derive `executionAuth` before the main boundary-walk gate.
 - [handlers.ts](./handlers.ts): Built-in runtime handlers (`UCAN*`, `ZK*`, `CustodialSigner`, sync/materialization ZK envelopes).
 - [auto-zk.ts](./auto-zk.ts): automatic AST injection for sensitive sync/materialization ZK envelope nodes.
+- [encoding.ts](./encoding.ts): runtime-neutral Base64/Base64URL/hex codecs used by auth surfaces that need to run in browser, Bun, and Node without a hard `Buffer` dependency.
 - [tee-attestation.ts](./tee-attestation.ts): HALT attestation signing/verification, execution-envelope checks, and nonce replay protection.
 - [zk-onchain-verifier.ts](./zk-onchain-verifier.ts): EVM `eth_call` proof-verifier adapter used by `ZKExecutionGate`.
 - [index.ts](./index.ts): Public exports.
@@ -71,6 +72,10 @@ Additional runtime labels:
 
 - Explicit callback: `payload.proofVerifier(input) => boolean`
 - EVM JSON-RPC adapter: set `verifierRpcUrl` and `verifierAddress` (optional `verifierMethodSelector`, `verifierBlockTag`, `verifierTimeoutMs`, `verifierProofEncoding`).
+
+Browser/runtime compatibility note:
+
+- `tee-attestation.ts` and `zk-onchain-verifier.ts` now route binary encoding through `encoding.ts` so browser bundles can import the auth surface without pulling `node:buffer`.
 
 Compiler/runtime auto-injection:
 
