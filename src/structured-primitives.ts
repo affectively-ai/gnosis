@@ -1,7 +1,8 @@
 type StructuredPrimitiveKind =
   | 'StructuredMoA'
   | 'WallingtonRotation'
-  | 'WorthingtonWhip';
+  | 'WorthingtonWhip'
+  | 'HeteroMoAFabric';
 
 interface StructuredPrimitive {
   readonly id: string;
@@ -10,7 +11,7 @@ interface StructuredPrimitive {
 }
 
 const STRUCTURED_PRIMITIVE_PATTERN =
-  /^\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(StructuredMoA|WallingtonRotation|WorthingtonWhip)\s*(?:{([^}]*)})?\s*\)\s*$/;
+  /^\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(StructuredMoA|WallingtonRotation|WorthingtonWhip|HeteroMoAFabric)\s*(?:{([^}]*)})?\s*\)\s*$/;
 const EDGE_PATTERN =
   /^\(([^)]+)\)\s*-\[:([A-Z]+)(?:\s*{([^}]*)})?\]->\s*\(([^)]+)\)\s*$/;
 const ARRAY_LITERAL_PATTERN = /^\[(.*)\]$/;
@@ -73,6 +74,18 @@ function parsePositiveInt(
   }
 
   return Math.max(1, Math.floor(parsed));
+}
+
+function parseNonnegativeInt(
+  rawValue: string | undefined,
+  fallback: number
+): number {
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallback;
+  }
+
+  return Math.max(0, Math.floor(parsed));
 }
 
 function parseNameList(rawValue: string | undefined): readonly string[] {
@@ -654,6 +667,355 @@ function expandWorthingtonWhipPrimitive(
   return lines;
 }
 
+function expandHeteroMoAFabricPrimitive(
+  primitive: StructuredPrimitive
+): readonly string[] {
+  let cpuLanes = parseNonnegativeInt(
+    readAliasedProperty(primitive.properties, 'cpuLanes', 'cpu_lanes'),
+    1
+  );
+  const gpuLanes = parseNonnegativeInt(
+    readAliasedProperty(primitive.properties, 'gpuLanes', 'gpu_lanes'),
+    0
+  );
+  const npuLanes = parseNonnegativeInt(
+    readAliasedProperty(primitive.properties, 'npuLanes', 'npu_lanes'),
+    0
+  );
+  const wasmLanes = parseNonnegativeInt(
+    readAliasedProperty(
+      primitive.properties,
+      'wasmLanes',
+      'wasm_lanes',
+      'browserLanes',
+      'browser_lanes'
+    ),
+    0
+  );
+  if (cpuLanes + gpuLanes + npuLanes + wasmLanes === 0) {
+    cpuLanes = 1;
+  }
+
+  const blocks = parsePositiveInt(primitive.properties.blocks, 1);
+  const activeBlocks = Math.min(
+    blocks,
+    parsePositiveInt(
+      primitive.properties.activeBlocks ?? primitive.properties.active_blocks,
+      blocks
+    )
+  );
+  const heads = parsePositiveInt(primitive.properties.heads, 1);
+  const activeHeads = Math.min(
+    heads,
+    parsePositiveInt(
+      primitive.properties.activeHeads ?? primitive.properties.active_heads,
+      heads
+    )
+  );
+  const stages = parsePositiveInt(primitive.properties.stages, 1);
+  const chunks = parsePositiveInt(primitive.properties.chunks, 1);
+  const pairedKernel =
+    readAliasedProperty(
+      primitive.properties,
+      'pairedKernel',
+      'paired_kernel'
+    ) ?? 'mirror';
+  const scheduleStrategy =
+    readAliasedProperty(
+      primitive.properties,
+      'scheduleStrategy',
+      'schedule_strategy'
+    ) ?? 'cannon';
+  const launchGate =
+    readAliasedProperty(primitive.properties, 'launchGate', 'launch_gate') ??
+    'armed';
+  const hedgeDelayTicks = String(
+    parsePositiveInt(
+      readAliasedProperty(
+        primitive.properties,
+        'hedgeDelayTicks',
+        'hedge_delay_ticks'
+      ),
+      1
+    )
+  );
+  const hedgePolicy =
+    readAliasedProperty(primitive.properties, 'hedgePolicy', 'hedge_policy') ??
+    'race';
+  const frameProtocol =
+    readAliasedProperty(
+      primitive.properties,
+      'frameProtocol',
+      'frame_protocol'
+    ) ?? 'aeon-10-byte-binary';
+  const corridorBase =
+    readAliasedProperty(primitive.properties, 'corridor', 'corridor_base') ??
+    primitive.id;
+  const corridorMode =
+    readAliasedProperty(
+      primitive.properties,
+      'corridorMode',
+      'corridor_mode'
+    ) ?? 'readwrite';
+  const reuseScope =
+    readAliasedProperty(primitive.properties, 'reuseScope', 'reuse_scope') ??
+    'corridor';
+  const failureMode = primitive.properties.failure ?? 'vent';
+  const traceLabel =
+    readAliasedProperty(primitive.properties, 'traceLabel', 'trace_label') ??
+    'CorridorTrace';
+  const ventLabel =
+    readAliasedProperty(primitive.properties, 'ventLabel', 'vent_label') ??
+    'VoidBoundary';
+  const ventCondition =
+    readAliasedProperty(
+      primitive.properties,
+      'ventCondition',
+      'vent_condition'
+    ) ?? 'corridor-reject';
+  const observableKind =
+    readAliasedProperty(
+      primitive.properties,
+      'observableKind',
+      'observable_kind'
+    ) ?? 'queue-depth';
+  const observable = primitive.properties.observable ?? 'beta1';
+  const observableScale =
+    readAliasedProperty(
+      primitive.properties,
+      'observableScale',
+      'observable_scale'
+    ) ?? '1';
+  const observableOffset =
+    readAliasedProperty(
+      primitive.properties,
+      'observableOffset',
+      'observable_offset'
+    ) ?? '0';
+  const driftGap =
+    readAliasedProperty(primitive.properties, 'driftGap', 'drift_gap') ?? '1';
+
+  const backends = [
+    { name: 'cpu', lanes: cpuLanes, role: 'cpu-control-helix' },
+    { name: 'gpu', lanes: gpuLanes, role: 'gpu-wave-helix' },
+    { name: 'npu', lanes: npuLanes, role: 'npu-route-helix' },
+    { name: 'wasm', lanes: wasmLanes, role: 'wasm-browser-helix' },
+  ].filter((backend) => backend.lanes > 0);
+
+  const outputProperties = renderPrimitiveProperties({
+    primitive: 'HeteroMoAFabric',
+    cpu_lanes: String(cpuLanes),
+    gpu_lanes: String(gpuLanes),
+    npu_lanes: String(npuLanes),
+    wasm_lanes: String(wasmLanes),
+    paired_kernel: pairedKernel,
+    schedule_strategy: scheduleStrategy,
+    launch_gate: launchGate,
+    hedge_delay_ticks: hedgeDelayTicks,
+    hedge_policy: hedgePolicy,
+    frame_protocol: frameProtocol,
+    active_layers: String(backends.length),
+  });
+
+  const lines: string[] = [];
+  lines.push(
+    `// HeteroMoAFabric '${primitive.id}' expanded into backend-diverse mirrored MoA lanes with a cannon/helix meta race and laminar stream collapse.`
+  );
+  lines.push(
+    `(${primitive.id}__ingress: FlowFrame { role: 'hetero-moa-ingress', primitive: 'HeteroMoAFabric' })`
+  );
+  lines.push(
+    `(${primitive.id}__launch_gate: RoutingGate { role: 'paired-launch-gate', gate: '${launchGate}', schedule: '${scheduleStrategy}', frame_protocol: '${frameProtocol}' })`
+  );
+  lines.push(
+    `(${primitive.id}__meta_scheduler: RotationScheduler { schedule: '${scheduleStrategy}', stages: '${Math.max(
+      1,
+      backends.length
+    )}', chunks: '${Math.max(1, backends.length)}', role: 'meta-helix-race' })`
+  );
+  lines.push(
+    `(${primitive.id}__global_collapse: FoldOperator { role: 'meta-layer-collapse', boundary: 'meta-race', strategy: '${scheduleStrategy}' })`
+  );
+  lines.push(
+    renderNode(`${primitive.id}__global_trace`, traceLabel, {
+      role: 'meta-layer-trace',
+      corridor: `${corridorBase}/meta`,
+      boundary: 'meta-race',
+      primitive: 'HeteroMoAFabric',
+    })
+  );
+  lines.push(
+    renderNode(`${primitive.id}__global_void`, ventLabel, {
+      role: 'meta-layer-void',
+      corridor: `${corridorBase}/meta`,
+      boundary: 'meta-race',
+      primitive: 'HeteroMoAFabric',
+    })
+  );
+  lines.push(`(${primitive.id}: FlowFrame${outputProperties})`);
+  lines.push(`(${primitive.id}__ingress)-[:PROCESS]->(${primitive.id}__launch_gate)`);
+  lines.push(
+    `(${primitive.id}__launch_gate)-[:PROCESS]->(${primitive.id}__meta_scheduler)`
+  );
+  lines.push(
+    `(${primitive.id}__meta_scheduler)-[:FORK { schedule: '${scheduleStrategy}', gate: '${launchGate}', helix: 'meta' }]->(${backends
+      .map((backend) => `${primitive.id}__${backend.name}__scheduler`)
+      .join(' | ')})`
+  );
+
+  const layerOutputs: string[] = [];
+  for (const backend of backends) {
+    const schedulerId = `${primitive.id}__${backend.name}__scheduler`;
+    const foldId = `${primitive.id}__${backend.name}__fold`;
+    const traceId = `${primitive.id}__${backend.name}__trace`;
+    const voidId = `${primitive.id}__${backend.name}__void`;
+    const layerCorridor = `${corridorBase}/${backend.name}/layer`;
+
+    lines.push(
+      `(${schedulerId}: RotationScheduler { schedule: '${scheduleStrategy}', stages: '${backend.lanes}', chunks: '${backend.lanes}', role: '${backend.role}', device_affinity: '${backend.name}', cursor_mode: 'helix' })`
+    );
+    lines.push(
+      `(${foldId}: FoldOperator { role: '${backend.name}-layer-collapse', boundary: '${backend.name}-layer', strategy: '${scheduleStrategy}' })`
+    );
+    lines.push(
+      renderNode(traceId, traceLabel, {
+        role: `${backend.name}-layer-trace`,
+        corridor: layerCorridor,
+        boundary: `${backend.name}-layer`,
+        primitive: 'HeteroMoAFabric',
+      })
+    );
+    lines.push(
+      renderNode(voidId, ventLabel, {
+        role: `${backend.name}-layer-void`,
+        corridor: layerCorridor,
+        boundary: `${backend.name}-layer`,
+        primitive: 'HeteroMoAFabric',
+      })
+    );
+
+    const pairOutputs: string[] = [];
+    for (let laneIndex = 0; laneIndex < backend.lanes; laneIndex++) {
+      const laneBase = `${primitive.id}__${backend.name}_${laneIndex}`;
+      const primaryId = `${laneBase}__primary`;
+      const shadowId = `${laneBase}__shadow`;
+      const pairId = `${laneBase}__pair`;
+      const pairTraceId = `${laneBase}__trace`;
+      const pairVoidId = `${laneBase}__void`;
+      const pairCorridor = `${corridorBase}/${backend.name}/lane-${laneIndex}/pair`;
+      pairOutputs.push(pairTraceId);
+
+      lines.push(
+        `(${pairId}: RoutingGate { role: 'paired-kernel-adjudicator', backend: '${backend.name}', lane: '${laneIndex}', pair_kernel: '${pairedKernel}', hedge_delay_ticks: '${hedgeDelayTicks}', hedge_policy: '${hedgePolicy}', frame_protocol: '${frameProtocol}', device_affinity: '${backend.name}' })`
+      );
+      lines.push(
+        renderNode(pairTraceId, traceLabel, {
+          role: 'paired-kernel-trace',
+          corridor: pairCorridor,
+          boundary: 'paired-kernel',
+          backend: backend.name,
+          lane: String(laneIndex),
+          primitive: 'HeteroMoAFabric',
+        })
+      );
+      lines.push(
+        renderNode(pairVoidId, ventLabel, {
+          role: 'paired-kernel-void',
+          corridor: pairCorridor,
+          boundary: 'paired-kernel',
+          backend: backend.name,
+          lane: String(laneIndex),
+          primitive: 'HeteroMoAFabric',
+        })
+      );
+      lines.push(
+        `(${primaryId}: StructuredMoA { blocks: '${blocks}', activeBlocks: '${activeBlocks}', heads: '${heads}', activeHeads: '${activeHeads}', stages: '${stages}', chunks: '${chunks}', corridor: '${corridorBase}/${backend.name}/lane-${laneIndex}/primary', failure: '${failureMode}', corridor_mode: '${corridorMode}', reuse_scope: '${reuseScope}', observable_kind: '${observableKind}', observable: '${observable}', observable_scale: '${observableScale}', observable_offset: '${observableOffset}', drift_gap: '${driftGap}', pair_role: 'primary', device_affinity: '${backend.name}', lane: '${laneIndex}' })`
+      );
+      lines.push(
+        `(${shadowId}: StructuredMoA { blocks: '${blocks}', activeBlocks: '${activeBlocks}', heads: '${heads}', activeHeads: '${activeHeads}', stages: '${stages}', chunks: '${chunks}', corridor: '${corridorBase}/${backend.name}/lane-${laneIndex}/shadow', failure: '${failureMode}', corridor_mode: '${corridorMode}', reuse_scope: '${reuseScope}', observable_kind: '${observableKind}', observable: '${observable}', observable_scale: '${observableScale}', observable_offset: '${observableOffset}', drift_gap: '${driftGap}', pair_role: 'shadow', device_affinity: '${backend.name}', lane: '${laneIndex}' })`
+      );
+      lines.push(
+        `(${schedulerId})-[:FORK { schedule: '${scheduleStrategy}', gate: '${launchGate}', backend: '${backend.name}', lane: '${laneIndex}' }]->(${primaryId} | ${shadowId})`
+      );
+      lines.push(
+        `(${primaryId} | ${shadowId})-[:RACE${renderEdgeProperties({
+          strategy: scheduleStrategy,
+          boundary: 'paired-kernel',
+          corridor: pairCorridor,
+          corridor_mode: corridorMode,
+          reuse_scope: reuseScope,
+          failure: failureMode,
+          hedge_delay_ticks: hedgeDelayTicks,
+          hedge_policy: hedgePolicy,
+          pair_kernel: pairedKernel,
+          frame_protocol: frameProtocol,
+          backend: backend.name,
+          lane: String(laneIndex),
+        })}]->(${pairId})`
+      );
+      lines.push(`(${pairId})-[:PROCESS]->(${pairTraceId})`);
+      lines.push(
+        `(${pairId})-[:VENT${renderEdgeProperties({
+          condition: ventCondition,
+          corridor: pairCorridor,
+          repair_debt: '0',
+          drift_coefficient: '0',
+        })}]->(${pairVoidId})`
+      );
+    }
+
+    lines.push(
+      `(${pairOutputs.join(
+        ' | '
+      )})-[:FOLD${renderEdgeProperties({
+        strategy: scheduleStrategy,
+        boundary: `${backend.name}-layer`,
+        corridor: layerCorridor,
+        corridor_mode: corridorMode,
+        reuse_scope: reuseScope,
+        failure: failureMode,
+        device_affinity: backend.name,
+      })}]->(${foldId})`
+    );
+    lines.push(`(${foldId})-[:PROCESS]->(${traceId})`);
+    lines.push(
+      `(${foldId})-[:VENT${renderEdgeProperties({
+        condition: ventCondition,
+        corridor: layerCorridor,
+        repair_debt: '0',
+        drift_coefficient: '0',
+      })}]->(${voidId})`
+    );
+    layerOutputs.push(traceId);
+  }
+
+  lines.push(
+    `(${layerOutputs.join(
+      ' | '
+    )})-[:FOLD${renderEdgeProperties({
+      strategy: scheduleStrategy,
+      boundary: 'meta-race',
+      corridor: `${corridorBase}/meta`,
+      corridor_mode: corridorMode,
+      reuse_scope: reuseScope,
+      failure: failureMode,
+      frame_protocol: frameProtocol,
+    })}]->(${primitive.id}__global_collapse)`
+  );
+  lines.push(`(${primitive.id}__global_collapse)-[:PROCESS]->(${primitive.id}__global_trace)`);
+  lines.push(
+    `(${primitive.id}__global_collapse)-[:VENT${renderEdgeProperties({
+      condition: ventCondition,
+      corridor: `${corridorBase}/meta`,
+      repair_debt: '0',
+      drift_coefficient: '0',
+    })}]->(${primitive.id}__global_void)`
+  );
+  lines.push(`(${primitive.id}__global_trace)-[:PROCESS]->(${primitive.id})`);
+
+  return lines;
+}
+
 function expandStructuredPrimitive(
   primitive: StructuredPrimitive
 ): readonly string[] {
@@ -664,6 +1026,8 @@ function expandStructuredPrimitive(
       return expandWallingtonRotationPrimitive(primitive);
     case 'WorthingtonWhip':
       return expandWorthingtonWhipPrimitive(primitive);
+    case 'HeteroMoAFabric':
+      return expandHeteroMoAFabricPrimitive(primitive);
   }
 }
 

@@ -1,8 +1,17 @@
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'bun:test';
 import { BettyCompiler } from './compiler.js';
 import { generateLeanFromGnosisAst } from './lean.js';
+
+const PACKAGE_ROOT = fileURLToPath(new URL('../../', import.meta.url));
+const SUBPROCESS_ENV = {
+  PATH: process.env.PATH ?? '',
+  HOME: process.env.HOME ?? '',
+  TMPDIR: process.env.TMPDIR ?? '/tmp',
+};
 
 describe('generateLeanFromGnosisAst', () => {
   it('emits a proof scaffold for thermodynamic topologies', () => {
@@ -270,6 +279,72 @@ describe('generateLeanFromGnosisAst', () => {
     expect(artifact?.lean).toContain('spectrallyStable_of_nilpotent');
     expect(artifact?.lean).toContain('certifiedKernel_stable_of_supremum');
     expect(artifact?.lean).not.toContain('(h_drift_floor :');
+  });
+
+  it('emits hetero fabric lowering, pair, waste, cannon, and coupled theorem families', () => {
+    const source = `
+      (inbound:Source { pressure: "1" })
+      (queue:State { potential: "beta1" })
+      (fabric: HeteroMoAFabric {
+        cpuLanes: "2",
+        gpuLanes: "1",
+        npuLanes: "1",
+        wasmLanes: "1",
+        blocks: "1",
+        activeBlocks: "1",
+        heads: "1",
+        activeHeads: "1",
+        hedgeDelayTicks: "2",
+        launchGate: "armed",
+        scheduleStrategy: "cannon",
+        frameProtocol: "aeon-10-byte-binary"
+      })
+      (complete:Sink { beta1_target: "0", capacity: "64" })
+      (inbound)-[:FORK { weight: "1.0" }]->(queue)
+      (queue)-[:FOLD { service_rate: "4", drift_gamma: "1.0" }]->(fabric)
+      (fabric)-[:FOLD { service_rate: "4", drift_gamma: "1.0" }]->(complete)
+    `;
+    const script = `
+import { BettyCompiler } from "./src/betty/compiler.js";
+import { generateLeanFromGnosisAst } from "./src/betty/lean.js";
+const compiler = new BettyCompiler();
+const result = compiler.parse(${JSON.stringify(source)});
+const artifact = generateLeanFromGnosisAst(result.ast, result.stability, {
+  sourceFilePath: "/tmp/hetero-moa-fabric.gg",
+});
+const errors = result.diagnostics.filter((diagnostic) => diagnostic.severity === "error");
+console.log(JSON.stringify({ errors, lean: artifact?.lean ?? "" }));
+    `;
+    const output = execFileSync('bun', ['-e', script], {
+      cwd: PACKAGE_ROOT,
+      encoding: 'utf8',
+      env: SUBPROCESS_ENV,
+    });
+    const parsed = JSON.parse(output) as {
+      errors: Array<{ severity: string }>;
+      lean: string;
+    };
+
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.lean).toContain('hetero-moa-fabrics: fabric');
+    expect(parsed.lean).toContain(
+      'theorem complete_is_geometrically_stable_fabric_moa_fabric_lowering'
+    );
+    expect(parsed.lean).toContain(
+      'theorem complete_is_geometrically_stable_fabric_moa_fabric_cannon'
+    );
+    expect(parsed.lean).toContain(
+      'theorem complete_is_geometrically_stable_fabric_moa_fabric_pair'
+    );
+    expect(parsed.lean).toContain(
+      'theorem complete_is_geometrically_stable_fabric_moa_fabric_waste'
+    );
+    expect(parsed.lean).toContain(
+      'theorem complete_is_geometrically_stable_fabric_moa_fabric_coupled'
+    );
+    expect(parsed.lean).toContain('pairedKernel_stable_of_mirrorAligned');
+    expect(parsed.lean).toContain('pairedCoupledCertifiedKernels_stable');
+    expect(parsed.lean).toContain('aeon-10-byte-binary');
   });
 
   it('emits a numeric countable queue recurrence bridge', () => {

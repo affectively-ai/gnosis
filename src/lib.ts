@@ -185,6 +185,9 @@ export type {
 export type {
   StabilityContinuousHarrisWitness,
   StabilityContinuousObservableKind,
+  StabilityHeteroMoAFabricLayerKind,
+  StabilityHeteroMoAFabricLayerWitness,
+  StabilityHeteroMoAFabricWitness,
   StabilityKernelEdge,
   StabilityMetadata,
   StabilityProofAssumption,

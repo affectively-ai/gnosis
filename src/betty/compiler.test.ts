@@ -1,6 +1,15 @@
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'fs';
+import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'bun:test';
 import { BettyCompiler } from './compiler.js';
+
+const PACKAGE_ROOT = fileURLToPath(new URL('../../', import.meta.url));
+const SUBPROCESS_ENV = {
+  PATH: process.env.PATH ?? '',
+  HOME: process.env.HOME ?? '',
+  TMPDIR: process.env.TMPDIR ?? '/tmp',
+};
 
 describe('BettyCompiler', () => {
   const compiler = new BettyCompiler();
@@ -254,6 +263,96 @@ describe('BettyCompiler', () => {
         `);
 
     expect(diagnostics.some((d) => d.code === 'ETHICS_NO_TRACE')).toBe(false);
+  });
+
+  it('captures hetero fabric theorem families after lowering paired backend-diverse MoA lanes', () => {
+    const source = `
+            (inbound:Source { pressure: "1" })
+            (queue:State { potential: "beta1" })
+            (fabric: HeteroMoAFabric {
+              cpuLanes: "2",
+              gpuLanes: "1",
+              npuLanes: "1",
+              wasmLanes: "1",
+              blocks: "1",
+              activeBlocks: "1",
+              heads: "1",
+              activeHeads: "1",
+              hedgeDelayTicks: "2",
+              launchGate: "armed",
+              scheduleStrategy: "cannon",
+              frameProtocol: "aeon-10-byte-binary"
+            })
+            (complete:Sink { beta1_target: "0", capacity: "64" })
+            (inbound)-[:FORK { weight: "1.0" }]->(queue)
+            (queue)-[:FOLD { service_rate: "4", drift_gamma: "1.0" }]->(fabric)
+            (fabric)-[:FOLD { service_rate: "4", drift_gamma: "1.0" }]->(complete)
+        `;
+    const script = `
+import { BettyCompiler } from "./src/betty/compiler.js";
+const compiler = new BettyCompiler();
+const result = compiler.parse(${JSON.stringify(source)});
+const errors = result.diagnostics.filter((diagnostic) => diagnostic.severity === "error");
+console.log(JSON.stringify({ errors, fabrics: result.stability?.metadata.heteroMoAFabrics ?? [] }));
+    `;
+    const output = execFileSync('bun', ['-e', script], {
+      cwd: PACKAGE_ROOT,
+      encoding: 'utf8',
+      env: SUBPROCESS_ENV,
+    });
+    const parsed = JSON.parse(output) as {
+      errors: Array<{ severity: string }>;
+      fabrics: Array<Record<string, unknown>>;
+    };
+
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.fabrics).toHaveLength(1);
+
+    const fabric = parsed.fabrics[0];
+    expect(fabric).toMatchObject({
+      fabricNodeId: 'fabric',
+      cpuLaneCount: 2,
+      gpuLaneCount: 1,
+      npuLaneCount: 1,
+      wasmLaneCount: 1,
+      totalLaneCount: 5,
+      activeLayerCount: 4,
+      pairCount: 5,
+      mirroredKernelCount: 10,
+      scheduleStrategy: 'cannon',
+      launchGate: 'armed',
+      hedgeDelayTicks: 2,
+      hedgePolicy: 'race',
+      frameProtocol: 'aeon-10-byte-binary',
+      loweringTheoremName:
+        'complete_is_geometrically_stable_fabric_moa_fabric_lowering',
+      cannonTheoremName:
+        'complete_is_geometrically_stable_fabric_moa_fabric_cannon',
+      pairTheoremName:
+        'complete_is_geometrically_stable_fabric_moa_fabric_pair',
+      wasteTheoremName:
+        'complete_is_geometrically_stable_fabric_moa_fabric_waste',
+      coupledTheoremName:
+        'complete_is_geometrically_stable_fabric_moa_fabric_coupled',
+    });
+    expect(
+      (fabric.layers as Array<{ kind: string }>).map((layer) => layer.kind)
+    ).toEqual([
+      'cpu',
+      'gpu',
+      'npu',
+      'wasm',
+    ]);
+    expect(
+      (fabric.layers as Array<{ schedulerNodeId: string }>).map(
+        (layer) => layer.schedulerNodeId
+      )
+    ).toEqual([
+      'fabric__cpu__scheduler',
+      'fabric__gpu__scheduler',
+      'fabric__npu__scheduler',
+      'fabric__wasm__scheduler',
+    ]);
   });
 
   it('treats raw request-compression collapse edges as trace- and vent-honest after lowering', () => {

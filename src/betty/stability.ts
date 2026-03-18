@@ -119,6 +119,41 @@ export interface StabilityContinuousHarrisWitness {
   continuousHarrisTheoremName: string;
 }
 
+export type StabilityHeteroMoAFabricLayerKind = 'cpu' | 'gpu' | 'npu' | 'wasm';
+
+export interface StabilityHeteroMoAFabricLayerWitness {
+  kind: StabilityHeteroMoAFabricLayerKind;
+  schedulerNodeId: string;
+  foldNodeId: string;
+  laneCount: number;
+}
+
+export interface StabilityHeteroMoAFabricWitness {
+  fabricNodeId: string;
+  metaSchedulerNodeId: string | null;
+  globalCollapseNodeId: string | null;
+  cpuLaneCount: number;
+  gpuLaneCount: number;
+  npuLaneCount: number;
+  wasmLaneCount: number;
+  totalLaneCount: number;
+  activeLayerCount: number;
+  pairCount: number;
+  mirroredKernelCount: number;
+  pairedKernel: string;
+  scheduleStrategy: string;
+  launchGate: string;
+  hedgeDelayTicks: number;
+  hedgePolicy: string;
+  frameProtocol: string;
+  layers: StabilityHeteroMoAFabricLayerWitness[];
+  loweringTheoremName: string;
+  cannonTheoremName: string;
+  pairTheoremName: string;
+  wasteTheoremName: string;
+  coupledTheoremName: string;
+}
+
 export interface StabilityMetadata {
   redline: number | null;
   geometricCeiling: number | null;
@@ -146,6 +181,7 @@ export interface StabilityMetadata {
   laminarAtom: number | null;
   queuePotential: string | null;
   continuousHarris: StabilityContinuousHarrisWitness | null;
+  heteroMoAFabrics?: StabilityHeteroMoAFabricWitness[];
 }
 
 export interface StabilityReport {
@@ -219,6 +255,116 @@ function parseFinite(raw: string | undefined): number | null {
   }
   const parsed = Number(raw);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseNonnegativeInt(raw: string | undefined, fallback: number): number {
+  const parsed = parseFinite(raw);
+  if (parsed === null || parsed < 0) {
+    return fallback;
+  }
+  return Math.trunc(parsed);
+}
+
+function buildHeteroMoAFabricWitnesses(
+  ast: GraphAST,
+  theoremName: string
+): StabilityHeteroMoAFabricWitness[] {
+  const fabricNodes = [...ast.nodes.values()].filter(
+    (node) =>
+      node.properties.primitive === 'HeteroMoAFabric' &&
+      !node.id.includes('__')
+  );
+
+  return fabricNodes.map((node) => {
+    const cpuLaneCount = parseNonnegativeInt(node.properties.cpu_lanes, 0);
+    const gpuLaneCount = parseNonnegativeInt(node.properties.gpu_lanes, 0);
+    const npuLaneCount = parseNonnegativeInt(node.properties.npu_lanes, 0);
+    const wasmLaneCount = parseNonnegativeInt(node.properties.wasm_lanes, 0);
+    const activeLayerCount = parseNonnegativeInt(
+      node.properties.active_layers,
+      [cpuLaneCount, gpuLaneCount, npuLaneCount, wasmLaneCount].filter(
+        (laneCount) => laneCount > 0
+      ).length
+    );
+    const totalLaneCount =
+      cpuLaneCount + gpuLaneCount + npuLaneCount + wasmLaneCount;
+    const pairNodes = [...ast.nodes.values()].filter(
+      (candidate) =>
+        candidate.id.startsWith(`${node.id}__`) &&
+        candidate.properties.role === 'paired-kernel-adjudicator'
+    );
+    const mirroredKernelCount = [...ast.nodes.values()].filter(
+      (candidate) =>
+        candidate.id.startsWith(`${node.id}__`) &&
+        (candidate.properties.pair_role === 'primary' ||
+          candidate.properties.pair_role === 'shadow')
+    ).length;
+    const normalizedFabricId = sanitizeIdentifier(node.id) || 'fabric';
+    const theoremPrefix = `${theoremName}_${normalizedFabricId}_moa_fabric`;
+    const layers: StabilityHeteroMoAFabricLayerWitness[] = (
+      [
+        {
+          kind: 'cpu' as const,
+          laneCount: cpuLaneCount,
+        },
+        {
+          kind: 'gpu' as const,
+          laneCount: gpuLaneCount,
+        },
+        {
+          kind: 'npu' as const,
+          laneCount: npuLaneCount,
+        },
+        {
+          kind: 'wasm' as const,
+          laneCount: wasmLaneCount,
+        },
+      ] satisfies Array<{
+        kind: StabilityHeteroMoAFabricLayerKind;
+        laneCount: number;
+      }>
+    )
+      .filter((layer) => layer.laneCount > 0)
+      .map((layer) => ({
+        ...layer,
+        schedulerNodeId: `${node.id}__${layer.kind}__scheduler`,
+        foldNodeId: `${node.id}__${layer.kind}__fold`,
+      }));
+
+    return {
+      fabricNodeId: node.id,
+      metaSchedulerNodeId: ast.nodes.has(`${node.id}__meta_scheduler`)
+        ? `${node.id}__meta_scheduler`
+        : null,
+      globalCollapseNodeId: ast.nodes.has(`${node.id}__global_collapse`)
+        ? `${node.id}__global_collapse`
+        : null,
+      cpuLaneCount,
+      gpuLaneCount,
+      npuLaneCount,
+      wasmLaneCount,
+      totalLaneCount,
+      activeLayerCount,
+      pairCount: pairNodes.length > 0 ? pairNodes.length : totalLaneCount,
+      mirroredKernelCount:
+        mirroredKernelCount > 0 ? mirroredKernelCount : totalLaneCount * 2,
+      pairedKernel: node.properties.paired_kernel ?? 'mirror',
+      scheduleStrategy: node.properties.schedule_strategy ?? 'cannon',
+      launchGate: node.properties.launch_gate ?? 'armed',
+      hedgeDelayTicks: parseNonnegativeInt(
+        node.properties.hedge_delay_ticks,
+        1
+      ),
+      hedgePolicy: node.properties.hedge_policy ?? 'race',
+      frameProtocol: node.properties.frame_protocol ?? 'aeon-10-byte-binary',
+      layers,
+      loweringTheoremName: `${theoremPrefix}_lowering`,
+      cannonTheoremName: `${theoremPrefix}_cannon`,
+      pairTheoremName: `${theoremPrefix}_pair`,
+      wasteTheoremName: `${theoremPrefix}_waste`,
+      coupledTheoremName: `${theoremPrefix}_coupled`,
+    };
+  });
 }
 
 function readScalarTerm(raw: string | undefined): ScalarTerm {
@@ -1642,6 +1788,8 @@ export function analyzeTopologyStability(
     requiresLean: proofKind === 'symbolic-reneging' || proofKind === 'bounded-supremum',
   };
 
+  const heteroMoAFabrics = buildHeteroMoAFabricWitnesses(ast, theoremName);
+
   const metadata: StabilityMetadata = {
     redline,
     geometricCeiling,
@@ -1703,6 +1851,7 @@ export function analyzeTopologyStability(
     laminarAtom: countableQueue?.laminarAtom ?? null,
     queuePotential: countableQueue?.potential ?? null,
     continuousHarris,
+    heteroMoAFabrics,
   };
 
   return {

@@ -245,4 +245,85 @@ describe('structured GG primitives', () => {
     expect(traceToSink).toBeDefined();
     expect(ventEdge?.properties.condition).toBe('corridor-reject');
   });
+
+  test('expands HeteroMoAFabric into backend layers, mirrored kernels, and one global laminar collapse', () => {
+    const normalized = lowerUfcsSource(`
+(prompt: FlowFrame { role: 'prompt-sequence' })
+(fabric: HeteroMoAFabric { cpuLanes: '2', gpuLanes: '1', npuLanes: '1', wasmLanes: '1', blocks: '1', activeBlocks: '1', heads: '1', activeHeads: '1', stages: '1', chunks: '1', hedgeDelayTicks: '2', corridor: 'fabric-corridor', frameProtocol: 'aeon-10-byte-binary' })
+(prompt)-[:PROCESS]->(fabric)
+(fabric)-[:PROCESS]->(sink:Tensor)
+`);
+    const program = parseGgProgram(normalized);
+
+    const ingressEdge = program.edges.find(
+      (edge) =>
+        edge.type === 'PROCESS' &&
+        edge.sourceIds[0] === 'prompt' &&
+        edge.targetIds[0] === 'fabric__ingress'
+    );
+    const egressEdge = program.edges.find(
+      (edge) =>
+        edge.type === 'PROCESS' &&
+        edge.sourceIds[0] === 'fabric' &&
+        edge.targetIds[0] === 'sink:Tensor'
+    );
+    const globalCollapseEdge = program.edges.find(
+      (edge) =>
+        edge.type === 'FOLD' &&
+        edge.targetIds[0] === 'fabric__global_collapse'
+    );
+    const pairRace = program.edges.find(
+      (edge) =>
+        edge.type === 'RACE' &&
+        edge.targetIds[0] === 'fabric__cpu_0__pair'
+    );
+
+    expect(normalized).toContain('(fabric__launch_gate: RoutingGate');
+    expect(normalized).toContain('(fabric__meta_scheduler: RotationScheduler');
+    expect(normalized).toContain('(fabric__cpu__scheduler: RotationScheduler');
+    expect(normalized).toContain('(fabric__gpu__scheduler: RotationScheduler');
+    expect(normalized).toContain('(fabric__npu__scheduler: RotationScheduler');
+    expect(normalized).toContain('(fabric__wasm__scheduler: RotationScheduler');
+    expect(normalized).toContain('(fabric__cpu_0__primary__outer_rotation: RotationScheduler');
+    expect(normalized).toContain('(fabric__cpu_0__shadow__outer_rotation: RotationScheduler');
+    expect(normalized).toContain('(fabric__cpu_0__pair: RoutingGate');
+    expect(normalized).toContain('(fabric__global_trace: CorridorTrace');
+    expect(ingressEdge).toBeDefined();
+    expect(egressEdge).toBeDefined();
+    expect(globalCollapseEdge?.sourceIds).toEqual([
+      'fabric__cpu__trace',
+      'fabric__gpu__trace',
+      'fabric__npu__trace',
+      'fabric__wasm__trace',
+    ]);
+    expect(pairRace?.properties.hedge_delay_ticks).toBe('2');
+    expect(pairRace?.properties.frame_protocol).toBe('aeon-10-byte-binary');
+  });
+
+  test('accepts snake_case HeteroMoAFabric properties and preserves pair/corridor metadata', () => {
+    const normalized = lowerUfcsSource(`
+(fabric: HeteroMoAFabric { cpu_lanes: '1', gpu_lanes: '1', npu_lanes: '0', wasm_lanes: '1', blocks: '1', active_blocks: '1', heads: '1', active_heads: '1', schedule_strategy: 'cannon', launch_gate: 'armed', paired_kernel: 'mirror', hedge_delay_ticks: '3', hedge_policy: 'race', frame_protocol: 'aeon-10-byte-binary', corridor: 'spring-ammo', corridor_mode: 'readonly', reuse_scope: 'corridor' })
+`);
+    const program = parseGgProgram(normalized);
+
+    const pairRace = program.edges.find(
+      (edge) =>
+        edge.type === 'RACE' &&
+        edge.targetIds[0] === 'fabric__gpu_0__pair'
+    );
+    const metaCollapse = program.edges.find(
+      (edge) =>
+        edge.type === 'FOLD' &&
+        edge.targetIds[0] === 'fabric__global_collapse'
+    );
+
+    expect(pairRace?.properties.strategy).toBe('cannon');
+    expect(pairRace?.properties.hedge_delay_ticks).toBe('3');
+    expect(pairRace?.properties.pair_kernel).toBe('mirror');
+    expect(pairRace?.properties.corridor).toBe('spring-ammo/gpu/lane-0/pair');
+    expect(pairRace?.properties.corridor_mode).toBe('readonly');
+    expect(pairRace?.properties.reuse_scope).toBe('corridor');
+    expect(metaCollapse?.properties.frame_protocol).toBe('aeon-10-byte-binary');
+    expect(program.nodes.find((node) => node.id === 'fabric__wasm__scheduler')).toBeDefined();
+  });
 });

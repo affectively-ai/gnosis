@@ -94,6 +94,7 @@ Higher-order graph shapes for recurring patterns:
 - `WallingtonRotation` -- chunk-level pipelined processing
 - `WorthingtonWhip` -- shard-level fork/rotate/fold
 - `StructuredMoA` -- sparse expert routing across attention blocks, now lowered with explicit corridor/trace/vent request-compression boundaries
+- `HeteroMoAFabric` -- backend-diverse mirrored `StructuredMoA` lanes with per-layer cannon/helix rotation, paired-kernel race/adjudication, and one laminar global collapse
 
 ### UFCS Sugar
 

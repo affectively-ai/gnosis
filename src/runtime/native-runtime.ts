@@ -104,6 +104,7 @@ export class GnosisNativeRuntime {
               laminarAtom: this.stabilityMetadata.laminarAtom,
               queuePotential: this.stabilityMetadata.queuePotential,
               continuousHarris: this.stabilityMetadata.continuousHarris,
+              heteroMoAFabrics: this.stabilityMetadata.heteroMoAFabrics,
             }
           : undefined,
       })

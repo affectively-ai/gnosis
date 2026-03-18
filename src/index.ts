@@ -158,6 +158,11 @@ export type {
   DiagnosticCode,
 } from './betty/compiler.js';
 export type {
+  StabilityContinuousHarrisWitness,
+  StabilityContinuousObservableKind,
+  StabilityHeteroMoAFabricLayerKind,
+  StabilityHeteroMoAFabricLayerWitness,
+  StabilityHeteroMoAFabricWitness,
   StabilityKernelEdge,
   StabilityMetadata,
   StabilityProofAssumption,
@@ -1211,6 +1216,11 @@ async function main() {
                   `  continuous-proof: kind=${compilerResult.stability.metadata.continuousHarris.observableKind} observable=${compilerResult.stability.metadata.continuousHarris.observableExpression} lyapunov=${compilerResult.stability.metadata.continuousHarris.lyapunovExpression} drift=${compilerResult.stability.metadata.continuousHarris.observableDriftTheoremName} theorem=${compilerResult.stability.metadata.continuousHarris.continuousHarrisTheoremName}`
                 );
               }
+            }
+            for (const fabric of compilerResult.stability.metadata.heteroMoAFabrics ?? []) {
+              console.log(
+                `  hetero-fabric: id=${fabric.fabricNodeId} layers=${fabric.activeLayerCount} lanes=${fabric.totalLaneCount} pairs=${fabric.pairCount} mirrored=${fabric.mirroredKernelCount} schedule=${fabric.scheduleStrategy} gate=${fabric.launchGate} hedge=${fabric.hedgeDelayTicks} protocol=${fabric.frameProtocol} lowering=${fabric.loweringTheoremName} cannon=${fabric.cannonTheoremName} pair=${fabric.pairTheoremName} waste=${fabric.wasteTheoremName} coupled=${fabric.coupledTheoremName}`
+              );
             }
           }
           if (surfaceSteeringMetrics(report.steering.mode)) {

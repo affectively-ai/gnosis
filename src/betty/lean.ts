@@ -1,5 +1,9 @@
 import type { GraphAST } from './compiler.js';
-import type { StabilityKernelEdge, StabilityReport, StabilityStateAssessment } from './stability.js';
+import type {
+  StabilityKernelEdge,
+  StabilityReport,
+  StabilityStateAssessment,
+} from './stability.js';
 import type { OptimizationCertificate } from './optimizer.js';
 import type { CoarseningSynthesisResult } from './coarsen.js';
 
@@ -1906,6 +1910,139 @@ ${spectralProof}
   };
 }
 
+function buildHeteroMoAFabricSection(
+  stability: StabilityReport,
+  theoremName: string
+): string {
+  const fabrics = stability.metadata.heteroMoAFabrics ?? [];
+  if (fabrics.length === 0) {
+    return '';
+  }
+
+  const driftFloorType = stability.proof.assumptions.find(
+    (assumption) => assumption.name === 'h_drift_floor'
+  )?.leanType;
+  const driftFloorAssumption =
+    driftFloorType ?? `forall n : Nat, driftAt (driftCertificate lam mu alpha) n <= -${buildGammaValue(stability)}`;
+
+  const sections = fabrics.map((fabric) => {
+    const prefix = sanitizeLeanIdentifier(`${fabric.fabricNodeId}_hetero_fabric`);
+    const layerSummary = fabric.layers
+      .map(
+        (layer) =>
+          `${layer.kind}:${layer.laneCount}@${layer.schedulerNodeId}->${layer.foldNodeId}`
+      )
+      .join(', ');
+
+    let pairDefinition = `noncomputable def ${prefix}_pair : MirroredKernelPair topologyNodeCount := {
+  primary := kernel
+  shadow := kernel
+}`;
+    let pairExpression = `${prefix}_pair`;
+    let kernelExpression = 'kernel';
+    let theoremParameters = '';
+    let theoremInvocation = theoremName;
+    let certificateExpression: string | null = null;
+
+    if (stability.proof.kind === 'numeric') {
+      certificateExpression = 'driftCertificate';
+    } else if (stability.proof.kind !== 'bounded-supremum') {
+      pairDefinition = `noncomputable def ${prefix}_pair (lam mu : Real) (alpha : Nat -> Real) :
+    MirroredKernelPair topologyNodeCount := {
+  primary := kernel lam mu alpha
+  shadow := kernel lam mu alpha
+}`;
+      pairExpression = `(${prefix}_pair lam mu alpha)`;
+      kernelExpression = '(kernel lam mu alpha)';
+      theoremParameters = `
+  (lam mu : Real)
+  (alpha : Nat -> Real)
+  (h_drift_floor : ${driftFloorAssumption})`;
+      theoremInvocation = `${theoremName} lam mu alpha h_drift_floor`;
+      certificateExpression = '(driftCertificate lam mu alpha)';
+    }
+
+    const loweringTheorem = `theorem ${fabric.loweringTheoremName} :
+  ${prefix}_mirrored_kernel_count = 2 * ${prefix}_pair_count := by
+  native_decide`;
+    const cannonTheorem = `theorem ${fabric.cannonTheoremName} :
+  0 < ${prefix}_total_lanes ∧ 0 < ${prefix}_active_layers := by
+  native_decide`;
+    const pairTheorem = `theorem ${fabric.pairTheoremName}${theoremParameters} :
+  GeometricStability ${pairExpression}.primary ∧ GeometricStability ${pairExpression}.shadow := by
+  have h_base : GeometricStability ${kernelExpression} := by
+    exact ${theoremInvocation}
+  apply pairedKernel_stable_of_mirrorAligned
+  · exact h_base
+  · rfl`;
+    const wasteTheorem = `theorem ${fabric.wasteTheoremName} :
+  ${prefix}_frame_header_bytes = 10 ∧
+    ${prefix}_pair_count <= ${prefix}_mirrored_kernel_count := by
+  native_decide`;
+
+    const coupledTheorem =
+      certificateExpression === null
+        ? `-- ${fabric.coupledTheoremName} requires a drift-enabled kernel and is omitted for proof-kind ${stability.proof.kind}.`
+        : `theorem ${fabric.coupledTheoremName}${theoremParameters} :
+  (GeometricStability ${pairExpression}.primary ∧ GeometricStability ${pairExpression}.shadow) ∧
+    (GeometricStability (coupledCertifiedKernel ${pairExpression}.primary 0) ∧
+      GeometricStability (coupledCertifiedKernel ${pairExpression}.shadow 0)) := by
+  have h_base : GeometricStability ${kernelExpression} := by
+    exact ${theoremInvocation}
+  have h_gamma : 0 < ${certificateExpression}.gamma := h_base.2.1
+  have h_floor :
+      forall queueDepth : Nat,
+        driftAt ${certificateExpression} queueDepth <= -${certificateExpression}.gamma := h_base.2.2
+  apply pairedCoupledCertifiedKernels_stable
+    (upstream := ${pairExpression})
+    (downstream := ${pairExpression})
+    (certificate := ${certificateExpression})
+    (arrivalPressure := 0)
+  · exact h_base
+  · rfl
+  · rfl
+  · rfl
+  · exact h_base.1
+  · norm_num
+  · simpa using h_gamma
+  · exact h_floor`;
+
+    return `/- Heterogeneous MoA fabric certificate family for '${fabric.fabricNodeId}'.
+   layers: ${layerSummary || 'none'}
+   schedule: ${fabric.scheduleStrategy}
+   launch-gate: ${fabric.launchGate}
+   hedge-delay-ticks: ${fabric.hedgeDelayTicks}
+   hedge-policy: ${fabric.hedgePolicy}
+   frame-protocol: ${fabric.frameProtocol}
+   paired-kernel: ${fabric.pairedKernel}
+-/
+def ${prefix}_cpu_lanes : Nat := ${fabric.cpuLaneCount}
+def ${prefix}_gpu_lanes : Nat := ${fabric.gpuLaneCount}
+def ${prefix}_npu_lanes : Nat := ${fabric.npuLaneCount}
+def ${prefix}_wasm_lanes : Nat := ${fabric.wasmLaneCount}
+def ${prefix}_total_lanes : Nat := ${fabric.totalLaneCount}
+def ${prefix}_active_layers : Nat := ${fabric.activeLayerCount}
+def ${prefix}_pair_count : Nat := ${fabric.pairCount}
+def ${prefix}_mirrored_kernel_count : Nat := ${fabric.mirroredKernelCount}
+def ${prefix}_hedge_delay_ticks : Nat := ${fabric.hedgeDelayTicks}
+def ${prefix}_frame_header_bytes : Nat := 10
+
+${pairDefinition}
+
+${loweringTheorem}
+
+${cannonTheorem}
+
+${pairTheorem}
+
+${wasteTheorem}
+
+${coupledTheorem}`;
+  });
+
+  return `\n${sections.join('\n\n')}\n`;
+}
+
 export function generateLeanFromGnosisAst(
   ast: GraphAST | null,
   stability: StabilityReport | null,
@@ -1921,6 +2058,10 @@ export function generateLeanFromGnosisAst(
     options.theoremName ?? sanitizeLeanIdentifier(stability.proof.theoremName);
   const { definitions, theorem } = buildKernelDefinitions(ast, stability, theoremName);
   const countableQueueTheoremEnabled = stability.countableQueue !== null;
+  const heteroMoAFabricSection = buildHeteroMoAFabricSection(
+    stability,
+    theoremName
+  );
 
   const optimizerSection = buildOptimizerLeanSection(optimizerCertificates);
 
@@ -1940,10 +2081,15 @@ ${definitions}
    finite-state-recurrent: ${stability.recurrence.finiteStateCertified}
    countable-queue-theorem: ${countableQueueTheoremEnabled}
    vent-isolation-ok: ${stability.ventIsolationOk}
+   hetero-moa-fabrics: ${
+     stability.metadata.heteroMoAFabrics?.map((fabric) => fabric.fabricNodeId).join(', ') ??
+     'none'
+   }
    optimizer-passes: ${optimizerCertificates.length > 0 ? optimizerCertificates.map((c) => c.passName).join(', ') : 'none'}
 -/
 
 ${theorem}
+${heteroMoAFabricSection}
 ${optimizerSection}
 end ${moduleName}
 `;

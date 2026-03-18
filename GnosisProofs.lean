@@ -3412,6 +3412,75 @@ theorem tetheredCertifiedKernels_stable
         h_arrival_lt_gamma
         h_floor
 
+structure MirroredKernelPair (nodeCount : Nat) where
+  primary : CertifiedKernel nodeCount
+  shadow : CertifiedKernel nodeCount
+
+def mirrorAligned (pair : MirroredKernelPair nodeCount) : Prop :=
+  pair.shadow = pair.primary
+
+theorem spectrallyStable_shadow_of_mirrorAligned
+    [NeZero nodeCount]
+    (pair : MirroredKernelPair nodeCount)
+    (h_primary : SpectrallyStable pair.primary)
+    (h_mirror : mirrorAligned pair) :
+    SpectrallyStable pair.shadow := by
+  rw [h_mirror]
+  exact h_primary
+
+theorem geometricallyStable_shadow_of_mirrorAligned
+    [NeZero nodeCount]
+    (pair : MirroredKernelPair nodeCount)
+    (h_primary : GeometricStability pair.primary)
+    (h_mirror : mirrorAligned pair) :
+    GeometricStability pair.shadow := by
+  rw [h_mirror]
+  exact h_primary
+
+theorem pairedKernel_stable_of_mirrorAligned
+    [NeZero nodeCount]
+    (pair : MirroredKernelPair nodeCount)
+    (h_primary : GeometricStability pair.primary)
+    (h_mirror : mirrorAligned pair) :
+    GeometricStability pair.primary ∧ GeometricStability pair.shadow := by
+  exact ⟨h_primary, geometricallyStable_shadow_of_mirrorAligned pair h_primary h_mirror⟩
+
+theorem pairedCoupledCertifiedKernels_stable
+    [NeZero upstreamCount]
+    [NeZero downstreamCount]
+    (upstream : MirroredKernelPair upstreamCount)
+    (downstream : MirroredKernelPair downstreamCount)
+    (certificate : DriftCertificate)
+    (arrivalPressure : Real)
+    (h_upstream : GeometricStability upstream.primary)
+    (h_upstream_mirror : mirrorAligned upstream)
+    (h_downstream : downstream.primary.drift = some certificate)
+    (h_downstream_mirror : mirrorAligned downstream)
+    (h_downstream_spectral : SpectrallyStable downstream.primary)
+    (h_arrival_nonnegative : 0 ≤ arrivalPressure)
+    (h_arrival_lt_gamma : arrivalPressure < certificate.gamma)
+    (h_floor : forall queueDepth : Nat, driftAt certificate queueDepth <= -certificate.gamma) :
+    (GeometricStability upstream.primary ∧ GeometricStability upstream.shadow) ∧
+      (GeometricStability (coupledCertifiedKernel downstream.primary arrivalPressure) ∧
+        GeometricStability (coupledCertifiedKernel downstream.shadow arrivalPressure)) := by
+  have h_upstream_pair :=
+    pairedKernel_stable_of_mirrorAligned upstream h_upstream h_upstream_mirror
+  have h_downstream_primary :=
+    coupledCertifiedKernel_stable
+      downstream.primary
+      certificate
+      arrivalPressure
+      h_downstream
+      h_downstream_spectral
+      h_arrival_nonnegative
+      h_arrival_lt_gamma
+      h_floor
+  have h_downstream_shadow :
+      GeometricStability (coupledCertifiedKernel downstream.shadow arrivalPressure) := by
+    rw [h_downstream_mirror]
+    exact h_downstream_primary
+  exact ⟨h_upstream_pair, ⟨h_downstream_primary, h_downstream_shadow⟩⟩
+
 /- ── Recursive Coarsening Synthesis ──────────────────────────────────── -/
 
 structure RawGraphData (fineCount coarseCount : Nat) where
