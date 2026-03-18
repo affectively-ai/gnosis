@@ -3,7 +3,11 @@ import { describe, it, expect } from 'bun:test';
 import { BettyCompiler } from './compiler.js';
 
 describe('BettyCompiler', () => {
-  const compiler = new BettyCompiler();
+  const compiler = {
+    parse(input: string) {
+      return new BettyCompiler().parse(input);
+    },
+  };
 
   it('should parse simple node declarations', () => {
     const { ast } = compiler.parse('(a:Process {key: "val"})');

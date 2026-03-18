@@ -11,7 +11,8 @@ Together these reports now cover the full Chapter 17 learned boundary:
 - where sparse nonlinear selection is the correct inductive bias,
 - how sharply the boundary opens as additive recombination becomes necessary,
 - how Aeon framing plus out-of-order reassembly interacts with the same fold boundary on a toy transformer battery,
-- and where a recursively rotated sparse transformer stays accuracy-competitive against a dense baseline while activating materially fewer chains.
+- where a recursively rotated sparse transformer stays accuracy-competitive against a dense baseline while activating materially fewer chains,
+- and how a backend-diverse mirrored `HeteroMoAFabric` race compares against a sequential baseline while preserving per-run telemetry and Cloud Run provenance.
 
 ## Files
 
@@ -34,3 +35,5 @@ Together these reports now cover the full Chapter 17 learned boundary:
 - `moa-transformer-shootout-benchmark.test.ts`: regression tests for the MoA shootout report and the paired `.test.gg` benchmark modules, using a reduced deterministic test config plus cached report reuse instead of rerunning the paper-scale default benchmark inside the unit suite.
 - `moa-transformer-evidence-benchmark.ts`: paper-oriented evidence layer over the MoA shootout, adding a workload-size sweep, a sparsity ablation matrix, and timing summaries that track where the MoA accuracy gap closes while timing and frame savings persist; it now reuses the unchanged regular baseline across MoA-only ablations instead of retraining identical dense baselines.
 - `moa-transformer-evidence-benchmark.test.ts`: regression tests for the MoA evidence report and its sweep/ablation claims, now backed by one cached reduced-size benchmark report so the suite checks the qualitative evidence instead of competing with paper-scale runtime noise.
+- `hetero-moa-fabric-benchmark.ts`: benchmark harness for the mirrored `HeteroMoAFabric` runtime, comparing a sequential baseline against the hetero race path, surfacing Cloud Run env metadata, and preserving winner/loser/vent telemetry for proof-backed evidence capture.
+- `hetero-moa-fabric-benchmark.test.ts`: regression tests for the hetero-fabric benchmark report and Cloud Run provenance detection.

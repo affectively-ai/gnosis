@@ -65,12 +65,12 @@ The current single-request snapshot is also documented in [`gnode/README.md`](./
 | Surface | Description |
 |---------|-------------|
 | **Compiler (Betty)** | Static topology checks, UFCS lowering, stability auditing, coarsening synthesis, Lean artifact generation, Betti number computation |
-| **Runtime** | Graph-native interpreter with tagged values (`Result`, `Option`, `Variant`, `Destructure`, `Delay`), structured concurrency, `QDoc`-backed MiddleOut request compression/tunneling, native frame adapter |
+| **Runtime** | Graph-native interpreter with tagged values (`Result`, `Option`, `Variant`, `Destructure`, `Delay`), structured concurrency, `QDoc`-backed MiddleOut request compression/tunneling, native frame adapter, and a hetero-fabric race layer that can use CPU, WebGPU, WebNN, WASM/browser, or env-bound CUDA/vendor-NPU runners |
 | **CLI** | `lint`, `analyze`, `verify`, `build`, `run`, `native`, `test`, `mod init`, `mod tidy` |
 | **`gnode` TS runtime** | Rust-fronted runner that compiles orchestration-shaped `.ts` into `.gg`, surfaces cannon/linear schedules, and preserves GG telemetry passthrough |
 | **Module system** | `.gg`/`.mgg` parsing, merged-source loading, cycle rejection, bare-specifier resolution, deterministic lockfiles |
 | **Formal path** | TLA+ module/config generation, Lean proof artifacts, bounded queue certificates, coupled-kernel handoff theorems, recursive coarsening synthesis with fiber-partitioned drift certificates |
-| **CRDT layer** | Topology-native CRDTs with `QDoc`, the corridor/superposition primitive `QCorridor`, relay adapters, typed change-event contracts, and the substrate for MiddleOut request compression |
+| **CRDT layer** | Topology-native CRDTs with `QDoc`, the corridor/superposition primitive `QCorridor`, relay adapters, typed change-event contracts, the substrate for MiddleOut request compression, and the decayed community-memory surface used by hetero-fabric backend racing |
 | **Capabilities** | Target inference and validation (`workers`, `node`, `bun`) -- fail before deployment |
 | **Auth** | UCAN/ZK execution envelopes, fail-closed runtime authorization, and browser-safe binary auth helpers |
 | **REPL** | Interactive TUI for topology exploration |
@@ -94,7 +94,7 @@ Higher-order graph shapes for recurring patterns:
 - `WallingtonRotation` -- chunk-level pipelined processing
 - `WorthingtonWhip` -- shard-level fork/rotate/fold
 - `StructuredMoA` -- sparse expert routing across attention blocks, now lowered with explicit corridor/trace/vent request-compression boundaries
-- `HeteroMoAFabric` -- backend-diverse mirrored `StructuredMoA` lanes with per-layer cannon/helix rotation, paired-kernel race/adjudication, and one laminar global collapse
+- `HeteroMoAFabric` -- backend-diverse mirrored `StructuredMoA` lanes with per-layer cannon/helix rotation, paired-kernel race/adjudication, one laminar global collapse, and a runtime plan that can bind to CPU, WebGPU, WebNN, WASM/browser, and env-driven CUDA or vendor-NPU runners
 
 ### UFCS Sugar
 

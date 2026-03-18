@@ -11,8 +11,19 @@ The native runtime snapshot path now carries more than a generic stability flag 
 - `countableQueue` marks the emitted `Nat` queue witness used for queue-support-kernel proofs.
 - `continuousHarris` now means a bounded affine queue-family witness, not an arbitrary continuous-state certificate.
 - The payload includes the observable kind, the emitted observable/Lyapunov expressions, the bounded drift gap, and the generated theorem names for `*_measurable_observable_drift` and `*_measurable_continuous_harris_certified`.
+- `heteroMoAFabrics` carries the lowered `HeteroMoAFabric` theorem family, lane counts, per-layer scheduler/fold node ids, paired-kernel metadata, and the fixed `aeon-10-byte-binary` stream header contract used by the native frame surface.
 
 The honest boundary is the same as the compiler boundary: runtime metadata can surface the emitted queue-family measurable witness package, but it does not mean Betti has synthesized a measurable small set, minorization witness, or non-queue continuous kernel from syntax.
+
+## Heterogeneous Fabric Surface
+
+The runtime now includes a first-class hetero-fabric race layer for lowered `HeteroMoAFabric` graphs.
+
+- It races mirrored `primary` / `shadow` kernels per lane, applies hedge-delay skipping when a sufficient primary finishes before the shadow launches, and vents disagreements explicitly.
+- It supports CPU, CUDA-style command backends, WebGPU, WebNN, vendor NPU command runners, and WASM/browser lanes through the same plan model, using whatever backends are actually available at runtime.
+- It records `winnerBytes`, `loserBytes`, `loserCompletions`, `ventShare`, `skippedHedges`, wall/CPU time, queue occupancy, cursor position, and acceptance time per run.
+- It can persist decayed backend scoring, cursor state, and run records into a `QDoc` community-memory log and federate that memory through the DashRelay/Aeon relay path.
+- Environment-driven command backends currently bind through `GNOSIS_CUDA_RUNNER`, `GNOSIS_VENDOR_NPU_RUNNER`, `GNOSIS_WASM_RUNNER`, `GNOSIS_DASHRELAY_URL`, `GNOSIS_AEON_RELAY_URL`, and related auth/token env vars consumed by the relay helpers.
 
 ## Files
 
@@ -22,11 +33,13 @@ The honest boundary is the same as the compiler boundary: runtime metadata can s
 - [structured-concurrency.ts](./structured-concurrency.ts): Internal branch-pool core for the Gnosis multiprocessing analogue, owning cancellation, race/fold resolution, and vent/shield outcome normalization for `FORK/RACE/FOLD` execution.
 - [core-handlers.ts](./core-handlers.ts): Built-in `Result`, `Option`, `Variant`, `Destructure`, `Delay`, quantum, and differentiable handlers for native `.gg` data-shaping and execution, including path-aware record destructuring and explicit tuple unpacking.
 - [native-runtime.ts](./native-runtime.ts): Native `.gg` frame runtime adapter over `gnosis_runtime` WASM, with deterministic fallback metrics when WASM is unavailable and compiler-supplied stability metadata attached to emitted frame payloads/snapshots, including the countable queue certificate, the emitted laminar-geometric theorem name, the emitted measurable-Harris theorem name, the emitted measurable-laminar endpoint theorem name, the emitted measurable-quantitative laminar theorem name, the emitted measurable-quantitative Harris theorem name, the emitted measurable witness quantitative Harris theorem name, the emitted measurable abstract Harris-recurrent theorem name, the emitted measurable finite-time geometric-ergodic theorem name, the emitted measurable Lévy-Prokhorov exact-geometric theorem name, the emitted measurable Lévy-Prokhorov geometric-decay theorem name, the emitted measurable abstract Lévy-Prokhorov geometric-ergodic theorem name, the emitted measurable finite-time Harris theorem name, and the derived `continuousHarris` observable/Lyapunov witness package when Betti proves the bounded affine queue-family proof surface.
+- [hetero-fabric.ts](./hetero-fabric.ts): Heterogeneous backend race runtime for lowered `HeteroMoAFabric` plans, including mirrored paired-kernel execution, hedge-delay skipping, pair venting, Aeon 10-byte frame encoding, QDoc-backed decayed community memory, DashRelay/Aeon relay helpers, and env-driven command backends for CUDA-style, vendor-NPU, and WASM/browser runners.
 - [renderer-compat.ts](./renderer-compat.ts): 3D renderer compatibility layer targeting `@a0n/aeon-3d` with local fallback.
 - [core-cache.test.ts](./core-cache.test.ts): Runtime cache tests covering `QDoc` corridor materialization and event emission.
 - [engine.test.ts](./engine.test.ts): Runtime engine behavior tests.
 - [structured-concurrency.test.ts](./structured-concurrency.test.ts): Core branch-pool tests for race winners, fold venting, and direct cancellation semantics.
 - [native-runtime.test.ts](./native-runtime.test.ts): Native runtime edge-processing and metrics tests.
+- [hetero-fabric.test.ts](./hetero-fabric.test.ts): Hetero-fabric runtime tests covering hedge skipping, disagreement venting, community-memory decay, and DashRelay/Aeon env parsing.
 - [renderer-compat.test.ts](./renderer-compat.test.ts): Topology renderer compatibility tests.
 
 ## Native Value And Execution Primitives
