@@ -64,6 +64,7 @@ import type { GnosisExecutionAuthContext } from './auth/index.js';
 import {
   NeuralEngine,
   GPUEngine,
+  WebGPUEngine,
   WebNNEngine,
   Translator,
   NeuronRepository,
@@ -80,6 +81,7 @@ import type {
   AdapterTrainingConfig,
   NeuralGraphData,
   LoadTopologyOptions,
+  NeuralHeteroFabricOptions,
 } from './neural-compat.js';
 
 export {
@@ -104,6 +106,7 @@ export {
 export {
   NeuralEngine,
   GPUEngine,
+  WebGPUEngine,
   WebNNEngine,
   Translator,
   NeuronRepository,
@@ -121,7 +124,9 @@ export type {
   AdapterTrainingConfig,
   NeuralGraphData,
   LoadTopologyOptions,
+  NeuralHeteroFabricOptions,
 };
+export * from './runtime/hetero-fabric.js';
 export type {
   GnosisModuleImport,
   GnosisModuleExport,

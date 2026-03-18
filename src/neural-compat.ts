@@ -7,6 +7,16 @@ import {
 } from '@a0n/aeon-logic/browser';
 import { Pipeline } from '@a0n/aeon-pipelines/pipeline';
 import { lowerUfcsSource } from './ufcs.js';
+import {
+  createCommandFabricBackendsFromEnv,
+  runHeteroMoAFabric,
+  type HeteroMoAFabricBackendDescriptor,
+  type HeteroMoAFabricCommunityMemory,
+  type HeteroMoAFabricPlan,
+  type HeteroMoAFabricRunOptions,
+  type HeteroMoAFabricRunResult,
+} from './runtime/hetero-fabric.js';
+import type { QDoc } from './crdt/qdoc.js';
 
 export interface Neuron {
   id: string;
@@ -50,6 +60,78 @@ const GG_FILE_EXTENSIONS = ['.gg', '.ggx', '.mgg'];
 
 export interface LoadTopologyOptions {
   preserveWeights?: boolean;
+}
+
+export interface NeuralHeteroFabricOptions
+  extends Omit<
+    HeteroMoAFabricRunOptions,
+    'plan' | 'inputDocument' | 'communityMemory'
+  > {
+  plan?: Partial<HeteroMoAFabricPlan>;
+  backends?: HeteroMoAFabricBackendDescriptor[];
+  includeEnvCommandBackends?: boolean;
+  inputDocument?: QDoc | null;
+  communityMemory?: HeteroMoAFabricCommunityMemory | null;
+}
+
+interface WebGpuNavigatorLike {
+  gpu?: {
+    requestAdapter?: () => Promise<WebGpuAdapterLike | null> | WebGpuAdapterLike | null;
+  };
+}
+
+interface WebGpuAdapterLike {
+  requestDevice?: () => Promise<WebGpuDeviceLike> | WebGpuDeviceLike;
+}
+
+interface WebGpuBufferLike {
+  mapAsync?: (mode: number) => Promise<void>;
+  getMappedRange?: () => ArrayBuffer;
+  unmap?: () => void;
+  destroy?: () => void;
+}
+
+interface WebGpuQueueLike {
+  writeBuffer?: (
+    buffer: WebGpuBufferLike,
+    bufferOffset: number,
+    data: ArrayBuffer | ArrayBufferView
+  ) => void;
+  submit?: (commands: readonly unknown[]) => void;
+}
+
+interface WebGpuComputePassEncoderLike {
+  setPipeline?: (pipeline: unknown) => void;
+  setBindGroup?: (index: number, bindGroup: unknown) => void;
+  dispatchWorkgroups?: (x: number) => void;
+  end?: () => void;
+}
+
+interface WebGpuCommandEncoderLike {
+  beginComputePass?: () => WebGpuComputePassEncoderLike;
+  copyBufferToBuffer?: (
+    source: WebGpuBufferLike,
+    sourceOffset: number,
+    destination: WebGpuBufferLike,
+    destinationOffset: number,
+    size: number
+  ) => void;
+  finish?: () => unknown;
+}
+
+interface WebGpuDeviceLike {
+  queue: WebGpuQueueLike;
+  createBuffer?: (descriptor: {
+    size: number;
+    usage: number;
+    mappedAtCreation?: boolean;
+  }) => WebGpuBufferLike;
+  createShaderModule?: (descriptor: { code: string }) => unknown;
+  createBindGroupLayout?: (descriptor: unknown) => unknown;
+  createPipelineLayout?: (descriptor: unknown) => unknown;
+  createComputePipeline?: (descriptor: unknown) => unknown;
+  createBindGroup?: (descriptor: unknown) => unknown;
+  createCommandEncoder?: () => WebGpuCommandEncoderLike;
 }
 
 export const TOPIC_DOMAIN_TRANSFORMER_TOPOLOGY_FILE =
@@ -730,6 +812,327 @@ export class GPUEngine {
   }
 }
 
+export class WebGPUEngine extends GPUEngine {
+  adapter: WebGpuAdapterLike | null = null;
+  device: WebGpuDeviceLike | null = null;
+  isReady = false;
+
+  private gpuWeights = new Float32Array();
+  private gpuBiases = new Float32Array();
+  private gpuActivations = new Uint32Array();
+
+  override async init(): Promise<void> {
+    await super.init();
+    const globalNavigator =
+      typeof navigator === 'undefined'
+        ? undefined
+        : (navigator as WebGpuNavigatorLike);
+
+    const adapter = await globalNavigator?.gpu?.requestAdapter?.();
+    if (!adapter?.requestDevice) {
+      this.isReady = false;
+      return;
+    }
+
+    this.adapter = adapter;
+    this.device = await adapter.requestDevice();
+    this.isReady = this.device !== null;
+  }
+
+  override prepareBuffers(
+    size: number,
+    weights: Float32Array,
+    biases: Float32Array,
+    batchSize = 1
+  ): void {
+    super.prepareBuffers(size, weights, biases, batchSize);
+    this.gpuWeights = new Float32Array(weights);
+    this.gpuBiases = new Float32Array(biases);
+  }
+
+  override setActivations(activations: string[]): void {
+    super.setActivations(activations);
+    this.gpuActivations = new Uint32Array(
+      activations.map((activation) => {
+        const normalized = normalizeActivation(activation);
+        if (normalized === 'relu') {
+          return 1;
+        }
+        if (normalized === 'tanh') {
+          return 2;
+        }
+        return 0;
+      })
+    );
+  }
+
+  override async runTick(inputs: Float32Array): Promise<Float32Array> {
+    if (!this.isReady || !this.device) {
+      return super.runTick(inputs);
+    }
+
+    if (this.networkSize === 0 || this.batchSize <= 0) {
+      return super.runTick(inputs);
+    }
+
+    const totalSize = this.networkSize * this.batchSize;
+    if (inputs.length !== totalSize) {
+      throw new Error(
+        `Input size mismatch. Expected ${totalSize}, got ${inputs.length}`
+      );
+    }
+
+    const output = await this.tryRunWebGpu(inputs, totalSize);
+    if (output) {
+      return output;
+    }
+
+    return super.runTick(inputs);
+  }
+
+  private resolveBufferUsage(name: string, fallback: number): number {
+    const globalUsage = (globalThis as Record<string, unknown>).GPUBufferUsage;
+    if (
+      typeof globalUsage === 'object' &&
+      globalUsage !== null &&
+      name in globalUsage &&
+      typeof (globalUsage as Record<string, unknown>)[name] === 'number'
+    ) {
+      return (globalUsage as Record<string, number>)[name];
+    }
+    return fallback;
+  }
+
+  private resolveMapModeRead(): number {
+    const globalMode = (globalThis as Record<string, unknown>).GPUMapMode;
+    if (
+      typeof globalMode === 'object' &&
+      globalMode !== null &&
+      'READ' in globalMode &&
+      typeof (globalMode as Record<string, unknown>).READ === 'number'
+    ) {
+      return (globalMode as Record<string, number>).READ;
+    }
+    return 1;
+  }
+
+  private async tryRunWebGpu(
+    inputs: Float32Array,
+    totalSize: number
+  ): Promise<Float32Array | null> {
+    const device = this.device;
+    if (
+      !device?.createBuffer ||
+      !device.createShaderModule ||
+      !device.createBindGroupLayout ||
+      !device.createPipelineLayout ||
+      !device.createComputePipeline ||
+      !device.createBindGroup ||
+      !device.createCommandEncoder ||
+      !device.queue.writeBuffer ||
+      !device.queue.submit
+    ) {
+      return null;
+    }
+
+    try {
+      const shader = `
+struct Meta {
+  networkSize : u32,
+  totalSize : u32,
+  _pad0 : u32,
+  _pad1 : u32,
+}
+
+@group(0) @binding(0) var<storage, read> weights : array<f32>;
+@group(0) @binding(1) var<storage, read> biases : array<f32>;
+@group(0) @binding(2) var<storage, read> inputs : array<f32>;
+@group(0) @binding(3) var<storage, read> activations : array<u32>;
+@group(0) @binding(4) var<storage, read_write> outputs : array<f32>;
+@group(0) @binding(5) var<uniform> meta : Meta;
+
+fn tanhApprox(x: f32) -> f32 {
+  let doubled = exp(2.0 * x);
+  return (doubled - 1.0) / (doubled + 1.0);
+}
+
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
+  let index = gid.x;
+  if (index >= meta.totalSize) {
+    return;
+  }
+
+  let batch = index / meta.networkSize;
+  let target = index % meta.networkSize;
+  let rowOffset = target * meta.networkSize;
+  let batchOffset = batch * meta.networkSize;
+  var sum = biases[target];
+
+  for (var source: u32 = 0u; source < meta.networkSize; source = source + 1u) {
+    sum = sum + weights[rowOffset + source] * inputs[batchOffset + source];
+  }
+
+  let activation = activations[target];
+  if (activation == 1u) {
+    outputs[index] = max(sum, 0.0);
+    return;
+  }
+  if (activation == 2u) {
+    outputs[index] = tanhApprox(sum);
+    return;
+  }
+
+  outputs[index] = sum;
+}
+      `.trim();
+
+      const shaderModule = device.createShaderModule({ code: shader });
+      const bindGroupLayout = device.createBindGroupLayout({
+        entries: [
+          {
+            binding: 0,
+            visibility: 4,
+            buffer: { type: 'read-only-storage' },
+          },
+          {
+            binding: 1,
+            visibility: 4,
+            buffer: { type: 'read-only-storage' },
+          },
+          {
+            binding: 2,
+            visibility: 4,
+            buffer: { type: 'read-only-storage' },
+          },
+          {
+            binding: 3,
+            visibility: 4,
+            buffer: { type: 'read-only-storage' },
+          },
+          {
+            binding: 4,
+            visibility: 4,
+            buffer: { type: 'storage' },
+          },
+          {
+            binding: 5,
+            visibility: 4,
+            buffer: { type: 'uniform' },
+          },
+        ],
+      });
+      const pipelineLayout = device.createPipelineLayout({
+        bindGroupLayouts: [bindGroupLayout],
+      });
+      const pipeline = device.createComputePipeline({
+        layout: pipelineLayout,
+        compute: {
+          module: shaderModule,
+          entryPoint: 'main',
+        },
+      });
+
+      const storageUsage =
+        this.resolveBufferUsage('STORAGE', 0x0080) |
+        this.resolveBufferUsage('COPY_DST', 0x0008) |
+        this.resolveBufferUsage('COPY_SRC', 0x0004);
+      const uniformUsage =
+        this.resolveBufferUsage('UNIFORM', 0x0040) |
+        this.resolveBufferUsage('COPY_DST', 0x0008);
+      const readUsage =
+        this.resolveBufferUsage('MAP_READ', 0x0001) |
+        this.resolveBufferUsage('COPY_DST', 0x0008);
+
+      const weightsBuffer = device.createBuffer({
+        size: this.gpuWeights.byteLength,
+        usage: storageUsage,
+      });
+      const biasesBuffer = device.createBuffer({
+        size: this.gpuBiases.byteLength,
+        usage: storageUsage,
+      });
+      const inputBuffer = device.createBuffer({
+        size: inputs.byteLength,
+        usage: storageUsage,
+      });
+      const activationBuffer = device.createBuffer({
+        size: this.gpuActivations.byteLength,
+        usage: storageUsage,
+      });
+      const outputBuffer = device.createBuffer({
+        size: totalSize * Float32Array.BYTES_PER_ELEMENT,
+        usage: storageUsage,
+      });
+      const metaBuffer = device.createBuffer({
+        size: Uint32Array.BYTES_PER_ELEMENT * 4,
+        usage: uniformUsage,
+      });
+      const readbackBuffer = device.createBuffer({
+        size: totalSize * Float32Array.BYTES_PER_ELEMENT,
+        usage: readUsage,
+      });
+
+      device.queue.writeBuffer(weightsBuffer, 0, this.gpuWeights);
+      device.queue.writeBuffer(biasesBuffer, 0, this.gpuBiases);
+      device.queue.writeBuffer(inputBuffer, 0, inputs);
+      device.queue.writeBuffer(activationBuffer, 0, this.gpuActivations);
+      device.queue.writeBuffer(
+        metaBuffer,
+        0,
+        new Uint32Array([this.networkSize, totalSize, 0, 0])
+      );
+
+      const bindGroup = device.createBindGroup({
+        layout: bindGroupLayout,
+        entries: [
+          { binding: 0, resource: { buffer: weightsBuffer } },
+          { binding: 1, resource: { buffer: biasesBuffer } },
+          { binding: 2, resource: { buffer: inputBuffer } },
+          { binding: 3, resource: { buffer: activationBuffer } },
+          { binding: 4, resource: { buffer: outputBuffer } },
+          { binding: 5, resource: { buffer: metaBuffer } },
+        ],
+      });
+
+      const encoder = device.createCommandEncoder();
+      const pass = encoder.beginComputePass?.();
+      pass?.setPipeline?.(pipeline);
+      pass?.setBindGroup?.(0, bindGroup);
+      pass?.dispatchWorkgroups?.(Math.max(1, Math.ceil(totalSize / 64)));
+      pass?.end?.();
+      encoder.copyBufferToBuffer?.(
+        outputBuffer,
+        0,
+        readbackBuffer,
+        0,
+        totalSize * Float32Array.BYTES_PER_ELEMENT
+      );
+      device.queue.submit([encoder.finish?.()]);
+
+      await readbackBuffer.mapAsync?.(this.resolveMapModeRead());
+      const mappedRange = readbackBuffer.getMappedRange?.();
+      if (!mappedRange) {
+        readbackBuffer.unmap?.();
+        return null;
+      }
+
+      const output = new Float32Array(mappedRange.slice(0));
+      readbackBuffer.unmap?.();
+      weightsBuffer.destroy?.();
+      biasesBuffer.destroy?.();
+      inputBuffer.destroy?.();
+      activationBuffer.destroy?.();
+      outputBuffer.destroy?.();
+      metaBuffer.destroy?.();
+      readbackBuffer.destroy?.();
+      return output;
+    } catch {
+      return null;
+    }
+  }
+}
+
 export class WebNNEngine extends GPUEngine {
   context: unknown = null;
   builder: unknown = null;
@@ -791,6 +1194,7 @@ async function verifyTopology(topologySource: string): Promise<void> {
 
 export class NeuralEngine {
   gpu: GPUEngine;
+  webgpu: WebGPUEngine;
   npu: WebNNEngine;
   neuronRepo: NeuronRepository;
   synapseRepo: SynapseRepository;
@@ -820,6 +1224,7 @@ export class NeuralEngine {
     this.customTopologyProvided = topologySource !== undefined;
     this.topologySource = topologySource ?? TOPIC_DOMAIN_TRANSFORMER_TOPOLOGY;
     this.gpu = new GPUEngine();
+    this.webgpu = new WebGPUEngine();
     this.npu = new WebNNEngine();
     this.neuronRepo = new NeuronRepository(this.store);
     this.synapseRepo = new SynapseRepository(this.store);
@@ -845,6 +1250,12 @@ export class NeuralEngine {
 
     await this.gpu.init();
     this.gpu.batchSize = Math.max(1, this.adapterTrainingConfig.microBatchSize);
+
+    await this.webgpu.init();
+    this.webgpu.batchSize = Math.max(
+      1,
+      this.adapterTrainingConfig.microBatchSize
+    );
 
     await this.npu.init();
     if (this.npu.isReady) {
@@ -895,6 +1306,18 @@ export class NeuralEngine {
       0.001
     );
 
+    if (this.webgpu.isReady) {
+      this.webgpu.prepareBuffers(
+        flattened.size,
+        flattened.weights,
+        flattened.biases,
+        this.gpu.batchSize
+      );
+      this.webgpu.setActivations(
+        this.neurons.map((neuron) => neuron.activation)
+      );
+    }
+
     if (this.npu.isReady) {
       await this.npu.prepareModel(
         flattened.size,
@@ -902,9 +1325,164 @@ export class NeuralEngine {
         flattened.biases,
         this.gpu.batchSize
       );
+      this.npu.setActivations(this.neurons.map((neuron) => neuron.activation));
     }
 
     return flattened;
+  }
+
+  async getHeteroFabricBackends(
+    options: {
+      includeEnvCommandBackends?: boolean;
+      backends?: HeteroMoAFabricBackendDescriptor[];
+    } = {}
+  ): Promise<HeteroMoAFabricBackendDescriptor[]> {
+    const flattened = await this.compile();
+    const activations = this.neurons.map((neuron) => neuron.activation);
+    const batchSize = this.gpu.batchSize;
+    const descriptors: HeteroMoAFabricBackendDescriptor[] = [
+      {
+        id: 'cpu-js',
+        label: 'CPU lane',
+        kind: 'cpu',
+        layer: 'cpu',
+        priority: 1,
+        detail: 'Deterministic in-process CPU execution',
+        execute: async (input) => {
+          const engine = new GPUEngine();
+          await engine.init();
+          engine.prepareBuffers(
+            flattened.size,
+            flattened.weights,
+            flattened.biases,
+            batchSize
+          );
+          engine.setActivations(activations);
+          return {
+            value: await engine.runTick(
+              this.toFloat32Input(input, flattened.size * batchSize)
+            ),
+          };
+        },
+      },
+    ];
+
+    if (this.webgpu.isReady) {
+      descriptors.push({
+        id: 'webgpu-browser',
+        label: 'WebGPU lane',
+        kind: 'webgpu',
+        layer: 'gpu',
+        priority: 3,
+        detail: 'Browser WebGPU compute shader execution',
+        execute: async (input) => {
+          const engine = new WebGPUEngine();
+          await engine.init();
+          engine.prepareBuffers(
+            flattened.size,
+            flattened.weights,
+            flattened.biases,
+            batchSize
+          );
+          engine.setActivations(activations);
+          return {
+            value: await engine.runTick(
+              this.toFloat32Input(input, flattened.size * batchSize)
+            ),
+          };
+        },
+      });
+    }
+
+    if (this.npu.isReady) {
+      descriptors.push({
+        id: 'webnn-browser',
+        label: 'WebNN lane',
+        kind: 'webnn',
+        layer: 'npu',
+        priority: 4,
+        detail: 'Browser WebNN/NPU execution when available',
+        execute: async (input) => {
+          const engine = new WebNNEngine();
+          await engine.init();
+          if (!engine.isReady) {
+            throw new Error('WebNN backend is unavailable');
+          }
+          await engine.prepareModel(
+            flattened.size,
+            flattened.weights,
+            flattened.biases,
+            batchSize
+          );
+          engine.setActivations(activations);
+          return {
+            value: await engine.runTick(
+              this.toFloat32Input(input, flattened.size * batchSize)
+            ),
+          };
+        },
+      });
+    }
+
+    if (options.includeEnvCommandBackends !== false) {
+      descriptors.push(...createCommandFabricBackendsFromEnv());
+    }
+
+    if (options.backends) {
+      descriptors.push(...options.backends);
+    }
+
+    return descriptors;
+  }
+
+  async runHeteroMoAFabric(
+    inputs: Float32Array,
+    options: NeuralHeteroFabricOptions = {}
+  ): Promise<HeteroMoAFabricRunResult> {
+    const backends = await this.getHeteroFabricBackends({
+      includeEnvCommandBackends: options.includeEnvCommandBackends,
+      backends: options.backends,
+    });
+
+    return runHeteroMoAFabric(backends, inputs, {
+      ...options,
+      plan: options.plan,
+      inputDocument: options.inputDocument,
+      communityMemory: options.communityMemory,
+    });
+  }
+
+  private toFloat32Input(input: unknown, expectedLength?: number): Float32Array {
+    const resize = (candidate: Float32Array): Float32Array => {
+      if (
+        expectedLength === undefined ||
+        expectedLength <= 0 ||
+        candidate.length === expectedLength
+      ) {
+        return candidate;
+      }
+      const resized = new Float32Array(expectedLength);
+      resized.set(candidate.slice(0, expectedLength));
+      return resized;
+    };
+
+    if (input instanceof Float32Array) {
+      return resize(input);
+    }
+    if (ArrayBuffer.isView(input)) {
+      const view = input as ArrayBufferView;
+      return resize(
+        new Float32Array(
+        view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength)
+        )
+      );
+    }
+    if (Array.isArray(input)) {
+      return resize(
+        new Float32Array(input.map((value) => Number(value) || 0))
+      );
+    }
+    throw new Error('Neural hetero fabric inputs must be Float32Array-compatible');
   }
 
   async runTick(inputs: Float32Array): Promise<Float32Array> {

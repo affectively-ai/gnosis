@@ -98,4 +98,37 @@ describe('NeuralEngine (.gg-native)', () => {
       'Topology file must end with .gg or .ggx or .mgg'
     );
   });
+
+  test('runs the hetero fabric runtime on the compiled neural graph', async () => {
+    const engine = new NeuralEngine();
+    engine.setAdapterTrainingConfig({ microBatchSize: 1 });
+    await engine.loadTopology(
+      `
+      (a: Tensor { activation: 'identity', bias: '0.0' })
+      (a)-[:PROCESS]->(b: Tensor { activation: 'tanh', bias: '0.1' })
+      `.trim()
+    );
+    const compiled = await engine.compile();
+
+    const result = await engine.runHeteroMoAFabric(
+      new Float32Array(compiled.size).fill(1),
+      {
+        plan: {
+          hedgeDelayMs: 0,
+          laneCounts: {
+            cpu: 1,
+            gpu: 0,
+            npu: 0,
+            wasm: 0,
+          },
+        },
+        includeEnvCommandBackends: false,
+      }
+    );
+
+    expect(result.winner?.backendId).toBe('cpu-js');
+    expect(result.winner?.value).toBeInstanceOf(Float32Array);
+    expect((result.winner?.value as Float32Array).length).toBe(compiled.size);
+    expect(result.frame).not.toBeNull();
+  });
 });

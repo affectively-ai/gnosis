@@ -1,0 +1,1385 @@
+import type { StabilityHeteroMoAFabricWitness } from '../betty/stability.js';
+import { QDoc } from '../crdt/qdoc.js';
+import {
+  QDocAeonRelay,
+  type QDocAeonRelayConfig,
+  type QDocAeonRelayStatus,
+} from '../crdt/aeon-relay.js';
+
+const FLOW_HEADER_SIZE = 10;
+const DEFAULT_FLOW_STREAM_ID = 1;
+const DEFAULT_HEDGE_DELAY_MS = 1;
+const DEFAULT_DECAY_HALF_LIFE_MS = 60 * 60 * 1000;
+
+export type HeteroMoAFabricLayerKind = 'cpu' | 'gpu' | 'npu' | 'wasm';
+
+export type HeteroMoAFabricBackendKind =
+  | 'cpu'
+  | 'webgpu'
+  | 'cuda'
+  | 'webnn'
+  | 'vendor-npu'
+  | 'wasm';
+
+export type HeteroMoAFabricScheduleStrategy =
+  | 'linear'
+  | 'parallel'
+  | 'collapse'
+  | 'cannon';
+
+export type HeteroMoAFabricLaunchGateState = 'armed' | 'open' | 'closed';
+
+export type HeteroMoAFabricPairRole = 'primary' | 'shadow' | 'adjudicator';
+
+export interface HeteroMoAFabricBackendResult {
+  value: unknown;
+  bytes?: Uint8Array;
+  cpuTimeMs?: number;
+  detail?: string;
+}
+
+export interface HeteroMoAFabricExecutionContext {
+  readonly signal: AbortSignal;
+  readonly role: HeteroMoAFabricPairRole;
+  readonly lane: number;
+  readonly layer: HeteroMoAFabricLayerKind;
+  readonly cursorPosition: number;
+  readonly frameProtocol: string;
+  readonly inputDocument?: QDoc | null;
+  readonly communityMemory?: HeteroMoAFabricCommunityMemory | null;
+}
+
+export interface HeteroMoAFabricBackendDescriptor {
+  readonly id: string;
+  readonly label: string;
+  readonly kind: HeteroMoAFabricBackendKind;
+  readonly layer: HeteroMoAFabricLayerKind;
+  readonly priority?: number;
+  readonly available?: boolean;
+  readonly detail?: string;
+  execute(
+    input: unknown,
+    context: HeteroMoAFabricExecutionContext
+  ): Promise<HeteroMoAFabricBackendResult>;
+}
+
+export interface HeteroMoAFabricLaneCounts {
+  cpu: number;
+  gpu: number;
+  npu: number;
+  wasm: number;
+}
+
+export interface HeteroMoAFabricPlan {
+  readonly fabricNodeId?: string;
+  readonly pairedKernel: string;
+  readonly scheduleStrategy: HeteroMoAFabricScheduleStrategy;
+  readonly launchGate: HeteroMoAFabricLaunchGateState;
+  readonly hedgeDelayMs: number;
+  readonly hedgePolicy: string;
+  readonly frameProtocol: string;
+  readonly laneCounts: HeteroMoAFabricLaneCounts;
+}
+
+export interface HeteroMoAFabricRunOptions {
+  readonly fabricKey?: string;
+  readonly plan?: Partial<HeteroMoAFabricPlan>;
+  readonly inputDocument?: QDoc | null;
+  readonly communityMemory?: HeteroMoAFabricCommunityMemory | null;
+  readonly compareOutputs?: (left: unknown, right: unknown) => boolean;
+  readonly isSufficient?: (result: HeteroMoAFabricAttempt) => boolean;
+  readonly streamId?: number;
+  readonly sequence?: number;
+  readonly nowMs?: () => number;
+  readonly wallClockMs?: () => number;
+}
+
+export interface HeteroMoAFabricAttempt {
+  readonly backendId: string;
+  readonly backendKind: HeteroMoAFabricBackendKind;
+  readonly backendLabel: string;
+  readonly layer: HeteroMoAFabricLayerKind;
+  readonly role: HeteroMoAFabricPairRole;
+  readonly lane: number;
+  readonly cursorPosition: number;
+  readonly status: 'success' | 'error' | 'aborted' | 'skipped' | 'vented';
+  readonly value?: unknown;
+  readonly bytes: Uint8Array;
+  readonly cpuTimeMs: number;
+  readonly wallTimeMs: number;
+  readonly startedAtMs: number;
+  readonly finishedAtMs: number;
+  readonly detail?: string;
+}
+
+export interface HeteroMoAFabricPairResult {
+  readonly layer: HeteroMoAFabricLayerKind;
+  readonly lane: number;
+  readonly cursorPosition: number;
+  readonly primary: HeteroMoAFabricAttempt;
+  readonly shadow: HeteroMoAFabricAttempt;
+  readonly accepted: HeteroMoAFabricAttempt | null;
+  readonly escalated: boolean;
+  readonly agreed: boolean;
+  readonly shadowSkipped: boolean;
+}
+
+export interface HeteroMoAFabricLayerResult {
+  readonly layer: HeteroMoAFabricLayerKind;
+  readonly cursorStart: number;
+  readonly cursorEnd: number;
+  readonly selectedBackends: readonly string[];
+  readonly pairs: readonly HeteroMoAFabricPairResult[];
+  readonly winner: HeteroMoAFabricAttempt | null;
+}
+
+export interface HeteroMoAFabricTelemetry {
+  readonly winnerBytes: number;
+  readonly loserBytes: number;
+  readonly loserCompletions: number;
+  readonly ventShare: number;
+  readonly skippedHedges: number;
+  readonly wallTimeMs: number;
+  readonly cpuTimeMs: number;
+  readonly queueOccupancy: number;
+  readonly cursorPosition: number;
+  readonly acceptedAtMs: number;
+}
+
+export interface HeteroMoAFabricRunResult {
+  readonly fabricKey: string;
+  readonly gateOpened: boolean;
+  readonly frameProtocol: string;
+  readonly winner: HeteroMoAFabricAttempt | null;
+  readonly frame: Uint8Array | null;
+  readonly layerResults: readonly HeteroMoAFabricLayerResult[];
+  readonly telemetry: HeteroMoAFabricTelemetry;
+}
+
+export interface HeteroMoAFabricBackendScore {
+  score: number;
+  wins: number;
+  successes: number;
+  failures: number;
+  disagreements: number;
+  skippedHedges: number;
+  lastUpdatedAt: number;
+}
+
+export interface HeteroMoAFabricRunRecord {
+  id: string;
+  fabricKey: string;
+  acceptedBackendId?: string;
+  acceptedLayer?: HeteroMoAFabricLayerKind;
+  winnerBytes: number;
+  loserBytes: number;
+  loserCompletions: number;
+  skippedHedges: number;
+  ventShare: number;
+  wallTimeMs: number;
+  cpuTimeMs: number;
+  queueOccupancy: number;
+  cursorPosition: number;
+  createdAt: number;
+}
+
+export interface HeteroMoAFabricCommunityMemoryOptions {
+  readonly doc?: QDoc;
+  readonly relayConfig?: QDocAeonRelayConfig | null;
+  readonly namespace?: string;
+  readonly decayHalfLifeMs?: number;
+}
+
+type MutableOccupancyCounter = {
+  inflight: number;
+  peak: number;
+};
+
+type RunningAttempt = {
+  controller: AbortController;
+  promise: Promise<HeteroMoAFabricAttempt>;
+};
+
+function nowMs(): number {
+  return globalThis.performance?.now?.() ?? Date.now();
+}
+
+function wallClockMs(): number {
+  return Date.now();
+}
+
+function defaultProcessEnv(): Record<string, string | undefined> {
+  if (typeof process === 'undefined') {
+    return {};
+  }
+  return process.env as Record<string, string | undefined>;
+}
+
+function clampLaneCount(value: number | undefined, fallback: number): number {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+  return Math.max(0, Math.floor(value ?? fallback));
+}
+
+function createLaneCounts(
+  partial: Partial<HeteroMoAFabricLaneCounts> | undefined
+): HeteroMoAFabricLaneCounts {
+  const laneCounts: HeteroMoAFabricLaneCounts = {
+    cpu: clampLaneCount(partial?.cpu, 1),
+    gpu: clampLaneCount(partial?.gpu, 0),
+    npu: clampLaneCount(partial?.npu, 0),
+    wasm: clampLaneCount(partial?.wasm, 0),
+  };
+
+  if (
+    laneCounts.cpu + laneCounts.gpu + laneCounts.npu + laneCounts.wasm ===
+    0
+  ) {
+    laneCounts.cpu = 1;
+  }
+
+  return laneCounts;
+}
+
+function stableStringify(value: unknown): string {
+  if (value === null) {
+    return 'null';
+  }
+  if (typeof value === 'undefined') {
+    return 'undefined';
+  }
+  if (typeof value === 'string') {
+    return JSON.stringify(value);
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return JSON.stringify(value);
+  }
+  if (typeof value === 'bigint') {
+    return JSON.stringify(value.toString(10));
+  }
+  if (value instanceof Uint8Array) {
+    return JSON.stringify(Array.from(value));
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => stableStringify(entry)).join(',')}]`;
+  }
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(String(value));
+}
+
+function toBytes(
+  value: unknown,
+  inputDocument?: QDoc | null,
+  explicitBytes?: Uint8Array
+): Uint8Array {
+  if (explicitBytes) {
+    return explicitBytes;
+  }
+  if (value instanceof Uint8Array) {
+    return value;
+  }
+  if (ArrayBuffer.isView(value)) {
+    const view = value as ArrayBufferView;
+    return new Uint8Array(
+      view.buffer.slice(
+        view.byteOffset,
+        view.byteOffset + view.byteLength
+      )
+    );
+  }
+  if (value instanceof ArrayBuffer) {
+    return new Uint8Array(value.slice(0));
+  }
+  if (inputDocument) {
+    return inputDocument.encodeStateAsUpdate();
+  }
+  return new TextEncoder().encode(stableStringify(value));
+}
+
+function encodeAeon10ByteFrame(
+  streamId: number,
+  sequence: number,
+  flags: number,
+  payload: Uint8Array
+): Uint8Array {
+  const buffer = new Uint8Array(FLOW_HEADER_SIZE + payload.length);
+  const view = new DataView(buffer.buffer);
+  view.setUint16(0, streamId, false);
+  view.setUint32(2, sequence >>> 0, false);
+  view.setUint8(6, flags);
+  buffer[7] = (payload.length >> 16) & 0xff;
+  buffer[8] = (payload.length >> 8) & 0xff;
+  buffer[9] = payload.length & 0xff;
+  buffer.set(payload, FLOW_HEADER_SIZE);
+  return buffer;
+}
+
+function decayMultiplier(deltaMs: number, halfLifeMs: number): number {
+  if (deltaMs <= 0 || halfLifeMs <= 0) {
+    return 1;
+  }
+  return 2 ** (-deltaMs / halfLifeMs);
+}
+
+function applyDecay(
+  record: HeteroMoAFabricBackendScore,
+  atMs: number,
+  halfLifeMs: number
+): HeteroMoAFabricBackendScore {
+  const factor = decayMultiplier(atMs - record.lastUpdatedAt, halfLifeMs);
+  return {
+    ...record,
+    score: record.score * factor,
+    wins: record.wins * factor,
+    successes: record.successes * factor,
+    failures: record.failures * factor,
+    disagreements: record.disagreements * factor,
+    skippedHedges: record.skippedHedges * factor,
+    lastUpdatedAt: atMs,
+  };
+}
+
+function defaultCompareOutputs(left: unknown, right: unknown): boolean {
+  return stableStringify(left) === stableStringify(right);
+}
+
+function createDefaultPlan(
+  partial: Partial<HeteroMoAFabricPlan> | undefined
+): HeteroMoAFabricPlan {
+  return {
+    fabricNodeId: partial?.fabricNodeId,
+    pairedKernel: partial?.pairedKernel ?? 'mirror',
+    scheduleStrategy: partial?.scheduleStrategy ?? 'cannon',
+    launchGate: partial?.launchGate ?? 'armed',
+    hedgeDelayMs: Math.max(
+      0,
+      Math.floor(partial?.hedgeDelayMs ?? DEFAULT_HEDGE_DELAY_MS)
+    ),
+    hedgePolicy: partial?.hedgePolicy ?? 'race',
+    frameProtocol: partial?.frameProtocol ?? 'aeon-10-byte-binary',
+    laneCounts: createLaneCounts(partial?.laneCounts),
+  };
+}
+
+function laneCountForLayer(
+  plan: HeteroMoAFabricPlan,
+  layer: HeteroMoAFabricLayerKind
+): number {
+  switch (layer) {
+    case 'cpu':
+      return plan.laneCounts.cpu;
+    case 'gpu':
+      return plan.laneCounts.gpu;
+    case 'npu':
+      return plan.laneCounts.npu;
+    case 'wasm':
+      return plan.laneCounts.wasm;
+  }
+}
+
+function isSuccessfulAttempt(
+  attempt: HeteroMoAFabricAttempt
+): attempt is HeteroMoAFabricAttempt & { status: 'success'; value: unknown } {
+  return attempt.status === 'success';
+}
+
+function emptyAttempt(
+  backend: HeteroMoAFabricBackendDescriptor,
+  role: HeteroMoAFabricPairRole,
+  lane: number,
+  cursorPosition: number,
+  startedAtMs: number,
+  finishedAtMs: number,
+  detail: string,
+  status: HeteroMoAFabricAttempt['status']
+): HeteroMoAFabricAttempt {
+  return {
+    backendId: backend.id,
+    backendKind: backend.kind,
+    backendLabel: backend.label,
+    layer: backend.layer,
+    role,
+    lane,
+    cursorPosition,
+    status,
+    bytes: new Uint8Array(),
+    cpuTimeMs: 0,
+    wallTimeMs: Math.max(0, finishedAtMs - startedAtMs),
+    startedAtMs,
+    finishedAtMs,
+    detail,
+  };
+}
+
+function startBackendAttempt(
+  backend: HeteroMoAFabricBackendDescriptor,
+  input: unknown,
+  context: Omit<HeteroMoAFabricExecutionContext, 'signal'>,
+  occupancy: MutableOccupancyCounter,
+  clock: () => number
+): RunningAttempt {
+  const controller = new AbortController();
+  const startedAtMs = clock();
+  occupancy.inflight += 1;
+  occupancy.peak = Math.max(occupancy.peak, occupancy.inflight);
+
+  return {
+    controller,
+    promise: (async (): Promise<HeteroMoAFabricAttempt> => {
+      try {
+        const result = await backend.execute(input, {
+          ...context,
+          signal: controller.signal,
+        });
+        const finishedAtMs = clock();
+        const bytes = toBytes(result.value, context.inputDocument, result.bytes);
+        return {
+          backendId: backend.id,
+          backendKind: backend.kind,
+          backendLabel: backend.label,
+          layer: backend.layer,
+          role: context.role,
+          lane: context.lane,
+          cursorPosition: context.cursorPosition,
+          status: 'success',
+          value: result.value,
+          bytes,
+          cpuTimeMs: Math.max(0, result.cpuTimeMs ?? finishedAtMs - startedAtMs),
+          wallTimeMs: Math.max(0, finishedAtMs - startedAtMs),
+          startedAtMs,
+          finishedAtMs,
+          detail: result.detail,
+        };
+      } catch (error) {
+        const finishedAtMs = clock();
+        const detail =
+          error instanceof Error ? error.message : String(error ?? 'unknown');
+        return {
+          backendId: backend.id,
+          backendKind: backend.kind,
+          backendLabel: backend.label,
+          layer: backend.layer,
+          role: context.role,
+          lane: context.lane,
+          cursorPosition: context.cursorPosition,
+          status: controller.signal.aborted ? 'aborted' : 'error',
+          bytes: new Uint8Array(),
+          cpuTimeMs: 0,
+          wallTimeMs: Math.max(0, finishedAtMs - startedAtMs),
+          startedAtMs,
+          finishedAtMs,
+          detail,
+        };
+      } finally {
+        occupancy.inflight = Math.max(0, occupancy.inflight - 1);
+      }
+    })(),
+  };
+}
+
+function candidateLayers(
+  descriptors: readonly HeteroMoAFabricBackendDescriptor[]
+): readonly HeteroMoAFabricLayerKind[] {
+  const present = new Set<HeteroMoAFabricLayerKind>();
+  for (const descriptor of descriptors) {
+    if (descriptor.available === false) {
+      continue;
+    }
+    present.add(descriptor.layer);
+  }
+  return ['cpu', 'gpu', 'npu', 'wasm'].filter((layer) =>
+    present.has(layer as HeteroMoAFabricLayerKind)
+  ) as HeteroMoAFabricLayerKind[];
+}
+
+function sortBackends(
+  descriptors: readonly HeteroMoAFabricBackendDescriptor[]
+): HeteroMoAFabricBackendDescriptor[] {
+  return [...descriptors].sort((left, right) => {
+    const leftPriority = left.priority ?? 0;
+    const rightPriority = right.priority ?? 0;
+    if (leftPriority !== rightPriority) {
+      return rightPriority - leftPriority;
+    }
+    return left.id.localeCompare(right.id);
+  });
+}
+
+async function maybeWaitForShadow(
+  delayMs: number
+): Promise<void> {
+  if (delayMs <= 0) {
+    return;
+  }
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, delayMs);
+  });
+}
+
+async function runMirroredPair(
+  primaryBackend: HeteroMoAFabricBackendDescriptor,
+  shadowBackend: HeteroMoAFabricBackendDescriptor,
+  input: unknown,
+  layer: HeteroMoAFabricLayerKind,
+  lane: number,
+  cursorPosition: number,
+  plan: HeteroMoAFabricPlan,
+  options: Required<
+    Pick<
+      HeteroMoAFabricRunOptions,
+      'compareOutputs' | 'isSufficient' | 'nowMs'
+    >
+  > &
+    Pick<HeteroMoAFabricRunOptions, 'communityMemory' | 'inputDocument'>,
+  occupancy: MutableOccupancyCounter
+): Promise<HeteroMoAFabricPairResult> {
+  const baseContext = {
+    lane,
+    layer,
+    cursorPosition,
+    frameProtocol: plan.frameProtocol,
+    inputDocument: options.inputDocument,
+    communityMemory: options.communityMemory,
+  } as const;
+  const primaryAttempt = startBackendAttempt(
+    primaryBackend,
+    input,
+    {
+      ...baseContext,
+      role: 'primary',
+    },
+    occupancy,
+    options.nowMs
+  );
+
+  if (plan.hedgeDelayMs <= 0) {
+    const shadowAttempt = startBackendAttempt(
+      shadowBackend,
+      input,
+      {
+        ...baseContext,
+        role: 'shadow',
+      },
+      occupancy,
+      options.nowMs
+    );
+    const [primary, shadow] = await Promise.all([
+      primaryAttempt.promise,
+      shadowAttempt.promise,
+    ]);
+    const agreed =
+      isSuccessfulAttempt(primary) &&
+      isSuccessfulAttempt(shadow) &&
+      options.compareOutputs(primary.value, shadow.value);
+    const accepted =
+      agreed && primary.finishedAtMs <= shadow.finishedAtMs
+        ? primary
+        : agreed
+        ? shadow
+        : null;
+    const ventedPrimary =
+      accepted === null
+        ? {
+            ...primary,
+            status: 'vented' as const,
+            detail:
+              primary.detail ?? 'vented after mirrored pair disagreement',
+          }
+        : primary;
+    const ventedShadow =
+      accepted === null
+        ? {
+            ...shadow,
+            status: 'vented' as const,
+            detail:
+              shadow.detail ?? 'vented after mirrored pair disagreement',
+          }
+        : shadow;
+
+    return {
+      layer,
+      lane,
+      cursorPosition,
+      primary: ventedPrimary,
+      shadow: ventedShadow,
+      accepted,
+      escalated: !agreed,
+      agreed,
+      shadowSkipped: false,
+    };
+  }
+
+  const primary = await primaryAttempt.promise;
+  if (
+    isSuccessfulAttempt(primary) &&
+    options.isSufficient(primary) &&
+    plan.hedgePolicy === 'race'
+  ) {
+    const skipped = emptyAttempt(
+      shadowBackend,
+      'shadow',
+      lane,
+      cursorPosition,
+      primary.finishedAtMs,
+      primary.finishedAtMs,
+      'shadow skipped after sufficient primary result',
+      'skipped'
+    );
+    return {
+      layer,
+      lane,
+      cursorPosition,
+      primary,
+      shadow: skipped,
+      accepted: primary,
+      escalated: false,
+      agreed: true,
+      shadowSkipped: true,
+    };
+  }
+
+  await maybeWaitForShadow(plan.hedgeDelayMs);
+  const shadowAttempt = startBackendAttempt(
+    shadowBackend,
+    input,
+    {
+      ...baseContext,
+      role: 'shadow',
+    },
+    occupancy,
+    options.nowMs
+  );
+  const shadow = await shadowAttempt.promise;
+  const agreed =
+    isSuccessfulAttempt(primary) &&
+    isSuccessfulAttempt(shadow) &&
+    options.compareOutputs(primary.value, shadow.value);
+  const accepted =
+    agreed && primary.finishedAtMs <= shadow.finishedAtMs
+      ? primary
+      : agreed
+      ? shadow
+      : null;
+  const ventedPrimary =
+    accepted === null
+      ? {
+          ...primary,
+          status: 'vented' as const,
+          detail:
+            primary.detail ?? 'vented after mirrored pair disagreement',
+        }
+      : primary;
+  const ventedShadow =
+    accepted === null
+      ? {
+          ...shadow,
+          status: 'vented' as const,
+          detail:
+            shadow.detail ?? 'vented after mirrored pair disagreement',
+        }
+      : shadow;
+
+  return {
+    layer,
+    lane,
+    cursorPosition,
+    primary: ventedPrimary,
+    shadow: ventedShadow,
+    accepted,
+    escalated: !agreed,
+    agreed,
+    shadowSkipped: false,
+  };
+}
+
+function buildFabricKey(
+  descriptors: readonly HeteroMoAFabricBackendDescriptor[],
+  options: HeteroMoAFabricRunOptions,
+  plan: HeteroMoAFabricPlan
+): string {
+  if (options.fabricKey) {
+    return options.fabricKey;
+  }
+  if (plan.fabricNodeId) {
+    return plan.fabricNodeId;
+  }
+  return `fabric:${descriptors.map((descriptor) => descriptor.id).sort().join('|')}`;
+}
+
+async function selectLayerBackends(
+  fabricKey: string,
+  layer: HeteroMoAFabricLayerKind,
+  descriptors: readonly HeteroMoAFabricBackendDescriptor[],
+  width: number,
+  communityMemory: HeteroMoAFabricCommunityMemory | null | undefined,
+  atMs: number
+): Promise<{
+  cursorStart: number;
+  cursorEnd: number;
+  selected: readonly HeteroMoAFabricBackendDescriptor[];
+}> {
+  const available = sortBackends(
+    descriptors.filter((descriptor) => descriptor.available !== false)
+  );
+  if (available.length === 0 || width <= 0) {
+    return {
+      cursorStart: 0,
+      cursorEnd: 0,
+      selected: [],
+    };
+  }
+
+  const ranked = communityMemory
+    ? communityMemory.rankBackends(fabricKey, available, atMs)
+    : available;
+  const cursorStart = communityMemory
+    ? communityMemory.currentCursor(fabricKey, layer)
+    : 0;
+  const selected: HeteroMoAFabricBackendDescriptor[] = [];
+  for (let laneIndex = 0; laneIndex < width; laneIndex++) {
+    const index = (cursorStart + laneIndex) % ranked.length;
+    selected.push(ranked[index] ?? ranked[0]);
+  }
+  const cursorEnd = (cursorStart + width) % ranked.length;
+  if (communityMemory) {
+    communityMemory.advanceCursor(fabricKey, layer, cursorEnd, atMs);
+  }
+  return {
+    cursorStart,
+    cursorEnd,
+    selected,
+  };
+}
+
+export class HeteroMoAFabricCommunityMemory {
+  private readonly doc: QDoc;
+  private readonly relay: QDocAeonRelay | null;
+  private readonly namespace: string;
+  private readonly halfLifeMs: number;
+  private readonly backendScores;
+  private readonly layerCursors;
+  private readonly runLog;
+
+  constructor(options: HeteroMoAFabricCommunityMemoryOptions = {}) {
+    this.doc = options.doc ?? new QDoc({ guid: 'hetero-moa-fabric-community' });
+    this.relay = options.relayConfig
+      ? new QDocAeonRelay(this.doc, options.relayConfig)
+      : null;
+    this.namespace = options.namespace?.trim() || 'hetero_moa_fabric';
+    this.halfLifeMs = Math.max(
+      1,
+      Math.floor(options.decayHalfLifeMs ?? DEFAULT_DECAY_HALF_LIFE_MS)
+    );
+    this.backendScores = this.doc.getMap<HeteroMoAFabricBackendScore>(
+      `${this.namespace}_backend_scores`
+    );
+    this.layerCursors = this.doc.getMap<{
+      cursor: number;
+      lastUpdatedAt: number;
+    }>(`${this.namespace}_layer_cursors`);
+    this.runLog = this.doc.getArray<HeteroMoAFabricRunRecord>(
+      `${this.namespace}_run_log`
+    );
+  }
+
+  get relayStatus(): QDocAeonRelayStatus | null {
+    return this.relay?.status ?? null;
+  }
+
+  async connectRelay(): Promise<void> {
+    if (!this.relay) {
+      return;
+    }
+    await this.relay.connect();
+  }
+
+  disconnectRelay(): void {
+    this.relay?.disconnect();
+  }
+
+  currentCursor(
+    fabricKey: string,
+    layer: HeteroMoAFabricLayerKind
+  ): number {
+    const current = this.layerCursors.get(`${fabricKey}:${layer}`);
+    return Math.max(0, Math.floor(current?.cursor ?? 0));
+  }
+
+  advanceCursor(
+    fabricKey: string,
+    layer: HeteroMoAFabricLayerKind,
+    cursor: number,
+    atMs = wallClockMs()
+  ): void {
+    this.layerCursors.set(`${fabricKey}:${layer}`, {
+      cursor: Math.max(0, Math.floor(cursor)),
+      lastUpdatedAt: atMs,
+    });
+  }
+
+  rankBackends(
+    fabricKey: string,
+    descriptors: readonly HeteroMoAFabricBackendDescriptor[],
+    atMs = wallClockMs()
+  ): HeteroMoAFabricBackendDescriptor[] {
+    return [...descriptors].sort((left, right) => {
+      const leftScore = this.readBackendScore(fabricKey, left.id, atMs);
+      const rightScore = this.readBackendScore(fabricKey, right.id, atMs);
+      if (leftScore.score !== rightScore.score) {
+        return rightScore.score - leftScore.score;
+      }
+      const leftPriority = left.priority ?? 0;
+      const rightPriority = right.priority ?? 0;
+      if (leftPriority !== rightPriority) {
+        return rightPriority - leftPriority;
+      }
+      return left.id.localeCompare(right.id);
+    });
+  }
+
+  readBackendScore(
+    fabricKey: string,
+    backendId: string,
+    atMs = wallClockMs()
+  ): HeteroMoAFabricBackendScore {
+    const raw = this.backendScores.get(`${fabricKey}:${backendId}`);
+    if (!raw) {
+      return {
+        score: 0,
+        wins: 0,
+        successes: 0,
+        failures: 0,
+        disagreements: 0,
+        skippedHedges: 0,
+        lastUpdatedAt: atMs,
+      };
+    }
+    const decayed = applyDecay(raw, atMs, this.halfLifeMs);
+    this.backendScores.set(`${fabricKey}:${backendId}`, decayed);
+    return decayed;
+  }
+
+  recordRun(
+    fabricKey: string,
+    result: HeteroMoAFabricRunResult,
+    atMs = wallClockMs()
+  ): void {
+    const attempted = new Map<string, HeteroMoAFabricAttempt>();
+    for (const layerResult of result.layerResults) {
+      for (const pair of layerResult.pairs) {
+        attempted.set(pair.primary.backendId, pair.primary);
+        attempted.set(pair.shadow.backendId, pair.shadow);
+      }
+    }
+
+    for (const [backendId, attempt] of attempted.entries()) {
+      const next = applyDecay(
+        this.readBackendScore(fabricKey, backendId, atMs),
+        atMs,
+        this.halfLifeMs
+      );
+      const won = result.winner?.backendId === backendId ? 1 : 0;
+      const succeeded = attempt.status === 'success' ? 1 : 0;
+      const failed =
+        attempt.status === 'error' ||
+        attempt.status === 'vented' ||
+        attempt.status === 'aborted'
+          ? 1
+          : 0;
+      const disagreement = result.layerResults.some((layerResult) =>
+        layerResult.pairs.some(
+          (pair) =>
+            pair.escalated &&
+            (pair.primary.backendId === backendId ||
+              pair.shadow.backendId === backendId)
+        )
+      )
+        ? 1
+        : 0;
+      const skipped = attempt.status === 'skipped' ? 1 : 0;
+      const scoreDelta =
+        won * 3 +
+        succeeded * 1 -
+        failed * 2 -
+        disagreement * 2 +
+        skipped * 0.5;
+      this.backendScores.set(`${fabricKey}:${backendId}`, {
+        score: next.score + scoreDelta,
+        wins: next.wins + won,
+        successes: next.successes + succeeded,
+        failures: next.failures + failed,
+        disagreements: next.disagreements + disagreement,
+        skippedHedges: next.skippedHedges + skipped,
+        lastUpdatedAt: atMs,
+      });
+    }
+
+    this.runLog.push([
+      {
+        id: `${fabricKey}:${atMs}`,
+        fabricKey,
+        acceptedBackendId: result.winner?.backendId,
+        acceptedLayer: result.winner?.layer,
+        winnerBytes: result.telemetry.winnerBytes,
+        loserBytes: result.telemetry.loserBytes,
+        loserCompletions: result.telemetry.loserCompletions,
+        skippedHedges: result.telemetry.skippedHedges,
+        ventShare: result.telemetry.ventShare,
+        wallTimeMs: result.telemetry.wallTimeMs,
+        cpuTimeMs: result.telemetry.cpuTimeMs,
+        queueOccupancy: result.telemetry.queueOccupancy,
+        cursorPosition: result.telemetry.cursorPosition,
+        createdAt: atMs,
+      },
+    ]);
+  }
+
+  runs(): HeteroMoAFabricRunRecord[] {
+    return this.runLog.toArray();
+  }
+
+  snapshotScores(
+    fabricKey: string,
+    atMs = wallClockMs()
+  ): Record<string, HeteroMoAFabricBackendScore> {
+    const snapshot: Record<string, HeteroMoAFabricBackendScore> = {};
+    for (const [key] of this.backendScores.entries()) {
+      if (!key.startsWith(`${fabricKey}:`)) {
+        continue;
+      }
+      snapshot[key.slice(fabricKey.length + 1)] = this.readBackendScore(
+        fabricKey,
+        key.slice(fabricKey.length + 1),
+        atMs
+      );
+    }
+    return snapshot;
+  }
+}
+
+export function createHeteroMoAFabricPlanFromWitness(
+  witness: StabilityHeteroMoAFabricWitness
+): HeteroMoAFabricPlan {
+  return {
+    fabricNodeId: witness.fabricNodeId,
+    pairedKernel: witness.pairedKernel,
+    scheduleStrategy:
+      witness.scheduleStrategy as HeteroMoAFabricScheduleStrategy,
+    launchGate: witness.launchGate as HeteroMoAFabricLaunchGateState,
+    hedgeDelayMs: Math.max(0, witness.hedgeDelayTicks),
+    hedgePolicy: witness.hedgePolicy,
+    frameProtocol: witness.frameProtocol,
+    laneCounts: {
+      cpu: witness.cpuLaneCount,
+      gpu: witness.gpuLaneCount,
+      npu: witness.npuLaneCount,
+      wasm: witness.wasmLaneCount,
+    },
+  };
+}
+
+export function createDashRelayConfigFromEnv(
+  env: Record<string, string | undefined> = defaultProcessEnv()
+): QDocAeonRelayConfig | null {
+  const url =
+    env.GNOSIS_DASHRELAY_URL ??
+    env.DASHRELAY_URL ??
+    env.GNOSIS_AEON_RELAY_URL ??
+    env.AEON_RELAY_URL;
+  const roomName =
+    env.GNOSIS_DASHRELAY_ROOM ??
+    env.DASHRELAY_ROOM ??
+    env.GNOSIS_AEON_RELAY_ROOM ??
+    env.AEON_RELAY_ROOM;
+
+  if (!url || !roomName) {
+    return null;
+  }
+
+  return {
+    url,
+    roomName,
+    apiKey:
+      env.GNOSIS_DASHRELAY_KEY ??
+      env.DASHRELAY_API_KEY ??
+      env.GNOSIS_AEON_RELAY_KEY ??
+      env.AEON_RELAY_KEY,
+    clientId:
+      env.GNOSIS_DASHRELAY_CLIENT_ID ??
+      env.DASHRELAY_CLIENT_ID ??
+      env.GNOSIS_AEON_RELAY_CLIENT_ID ??
+      env.AEON_RELAY_CLIENT_ID,
+    protocol:
+      env.GNOSIS_DASHRELAY_PROTOCOL ??
+      env.DASHRELAY_PROTOCOL ??
+      env.GNOSIS_AEON_RELAY_PROTOCOL ??
+      env.AEON_RELAY_PROTOCOL ??
+      'dashrelay-v1',
+    joinMode:
+      env.GNOSIS_DASHRELAY_MODE ??
+      env.DASHRELAY_MODE ??
+      env.GNOSIS_AEON_RELAY_MODE ??
+      env.AEON_RELAY_MODE ??
+      'qdoc-authoritative',
+    relayProduct:
+      env.GNOSIS_DASHRELAY_PRODUCT ??
+      env.DASHRELAY_PRODUCT ??
+      env.GNOSIS_AEON_RELAY_PRODUCT ??
+      env.AEON_RELAY_PRODUCT ??
+      'aeon-relay',
+    readyStrategy:
+      env.GNOSIS_DASHRELAY_READY_STRATEGY === 'joined' ? 'joined' : 'snapshot',
+  };
+}
+
+function parseCommandSpec(raw: string): string[] {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) {
+    throw new Error('Runner command cannot be empty');
+  }
+  if (trimmed.startsWith('[')) {
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (
+      !Array.isArray(parsed) ||
+      parsed.length === 0 ||
+      !parsed.every((entry) => typeof entry === 'string' && entry.trim().length > 0)
+    ) {
+      throw new Error('Runner JSON command must be a non-empty string array');
+    }
+    return parsed;
+  }
+  return trimmed.split(/\s+/);
+}
+
+export interface CommandFabricBackendOptions {
+  readonly id: string;
+  readonly label: string;
+  readonly kind: Exclude<HeteroMoAFabricBackendKind, 'cpu' | 'webgpu' | 'webnn'>;
+  readonly layer: HeteroMoAFabricLayerKind;
+  readonly command: readonly string[] | string;
+  readonly priority?: number;
+  readonly detail?: string;
+}
+
+export function createCommandFabricBackend(
+  options: CommandFabricBackendOptions
+): HeteroMoAFabricBackendDescriptor {
+  const command =
+    typeof options.command === 'string'
+      ? parseCommandSpec(options.command)
+      : [...options.command];
+
+  if (command.length === 0) {
+    throw new Error(`Command backend '${options.id}' requires a non-empty command`);
+  }
+
+  return {
+    id: options.id,
+    label: options.label,
+    kind: options.kind,
+    layer: options.layer,
+    priority: options.priority,
+    detail: options.detail,
+    async execute(input, context) {
+      const { spawn } = await import('node:child_process');
+      const child = spawn(command[0], command.slice(1), {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: process.env,
+      });
+      const payload = JSON.stringify({
+        input: stableStringify(input),
+        frameProtocol: context.frameProtocol,
+        lane: context.lane,
+        role: context.role,
+        layer: context.layer,
+      });
+      child.stdin.write(payload);
+      child.stdin.end();
+
+      context.signal.addEventListener(
+        'abort',
+        () => {
+          child.kill();
+        },
+        { once: true }
+      );
+
+      const stdoutChunks: Buffer[] = [];
+      const stderrChunks: Buffer[] = [];
+      child.stdout.on('data', (chunk) => stdoutChunks.push(Buffer.from(chunk)));
+      child.stderr.on('data', (chunk) => stderrChunks.push(Buffer.from(chunk)));
+      const [exitCode] = await new Promise<
+        [number | null, NodeJS.Signals | null]
+      >((resolve) => {
+        child.once('close', (code, signal) => resolve([code, signal]));
+      });
+
+      if (exitCode !== 0) {
+        throw new Error(
+          Buffer.concat(stderrChunks).toString('utf8') ||
+            `${options.id} exited with code ${exitCode}`
+        );
+      }
+
+      const stdout = Buffer.concat(stdoutChunks).toString('utf8').trim();
+      if (stdout.length === 0) {
+        return {
+          value: null,
+          bytes: new Uint8Array(),
+          detail: `${options.id} returned an empty payload`,
+        };
+      }
+
+      const parsed = JSON.parse(stdout) as {
+        value?: unknown;
+        bytesBase64?: string;
+        cpuTimeMs?: number;
+        detail?: string;
+      };
+
+      return {
+        value: parsed.value,
+        bytes: parsed.bytesBase64
+          ? Uint8Array.from(Buffer.from(parsed.bytesBase64, 'base64'))
+          : undefined,
+        cpuTimeMs: parsed.cpuTimeMs,
+        detail: parsed.detail,
+      };
+    },
+  };
+}
+
+export function createCommandFabricBackendsFromEnv(
+  env: Record<string, string | undefined> = defaultProcessEnv()
+): HeteroMoAFabricBackendDescriptor[] {
+  const backends: HeteroMoAFabricBackendDescriptor[] = [];
+  const runnerSpecs = [
+    {
+      value: env.GNOSIS_CUDA_RUNNER,
+      options: {
+        id: 'cuda-env',
+        label: 'CUDA runner',
+        kind: 'cuda' as const,
+        layer: 'gpu' as const,
+        detail: 'Configured through GNOSIS_CUDA_RUNNER',
+      },
+    },
+    {
+      value: env.GNOSIS_VENDOR_NPU_RUNNER,
+      options: {
+        id: 'vendor-npu-env',
+        label: 'Vendor NPU runner',
+        kind: 'vendor-npu' as const,
+        layer: 'npu' as const,
+        detail: 'Configured through GNOSIS_VENDOR_NPU_RUNNER',
+      },
+    },
+    {
+      value: env.GNOSIS_WASM_RUNNER,
+      options: {
+        id: 'wasm-env',
+        label: 'WASM runner',
+        kind: 'wasm' as const,
+        layer: 'wasm' as const,
+        detail: 'Configured through GNOSIS_WASM_RUNNER',
+      },
+    },
+  ] as const;
+
+  for (const runner of runnerSpecs) {
+    if (!runner.value) {
+      continue;
+    }
+    backends.push(
+      createCommandFabricBackend({
+        ...runner.options,
+        command: runner.value,
+      })
+    );
+  }
+
+  return backends;
+}
+
+export async function runHeteroMoAFabric(
+  descriptors: readonly HeteroMoAFabricBackendDescriptor[],
+  input: unknown,
+  options: HeteroMoAFabricRunOptions = {}
+): Promise<HeteroMoAFabricRunResult> {
+  const plan = createDefaultPlan(options.plan);
+  const activeDescriptors = descriptors.filter(
+    (descriptor) => descriptor.available !== false
+  );
+  const fabricKey = buildFabricKey(activeDescriptors, options, plan);
+  const layers = candidateLayers(activeDescriptors);
+  const compareOutputs = options.compareOutputs ?? defaultCompareOutputs;
+  const sufficient =
+    options.isSufficient ??
+    ((attempt: HeteroMoAFabricAttempt): boolean =>
+      isSuccessfulAttempt(attempt));
+  const clock = options.nowMs ?? nowMs;
+  const wallClock = options.wallClockMs ?? wallClockMs;
+  const occupancy: MutableOccupancyCounter = { inflight: 0, peak: 0 };
+  const runStartedAt = clock();
+  const layerResults: HeteroMoAFabricLayerResult[] = [];
+  let gateOpened = plan.launchGate !== 'closed';
+
+  for (const layer of layers) {
+    const width = laneCountForLayer(plan, layer);
+    const layerDescriptors = activeDescriptors.filter(
+      (descriptor) => descriptor.layer === layer
+    );
+    const selection = await selectLayerBackends(
+      fabricKey,
+      layer,
+      layerDescriptors,
+      width,
+      options.communityMemory,
+      wallClock()
+    );
+    const pairs: HeteroMoAFabricPairResult[] = [];
+
+    const runLane = async (
+      backend: HeteroMoAFabricBackendDescriptor,
+      lane: number
+    ): Promise<HeteroMoAFabricPairResult> => {
+      const shadowBackend =
+        selection.selected.length > 1
+          ? selection.selected[(lane + 1) % selection.selected.length] ?? backend
+          : backend;
+      return runMirroredPair(
+        backend,
+        shadowBackend,
+        input,
+        layer,
+        lane,
+        selection.cursorStart + lane,
+        plan,
+        {
+          compareOutputs,
+          isSufficient: sufficient,
+          nowMs: clock,
+          communityMemory: options.communityMemory,
+          inputDocument: options.inputDocument,
+        },
+        occupancy
+      );
+    };
+
+    const selected = selection.selected;
+    if (plan.scheduleStrategy === 'linear') {
+      for (let lane = 0; lane < selected.length; lane++) {
+        const backend = selected[lane];
+        const pair = await runLane(backend, lane);
+        pairs.push(pair);
+        if (pair.accepted) {
+          break;
+        }
+      }
+    } else {
+      const pairResults = await Promise.all(
+        selected.map((backend, lane) => runLane(backend, lane))
+      );
+      pairs.push(...pairResults);
+    }
+
+    const winner = [...pairs]
+      .filter((pair) => pair.accepted !== null)
+      .map((pair) => pair.accepted as HeteroMoAFabricAttempt)
+      .sort((left, right) => left.finishedAtMs - right.finishedAtMs)[0] ?? null;
+
+    layerResults.push({
+      layer,
+      cursorStart: selection.cursorStart,
+      cursorEnd: selection.cursorEnd,
+      selectedBackends: selection.selected.map((descriptor) => descriptor.id),
+      pairs,
+      winner,
+    });
+  }
+
+  const winners = layerResults
+    .map((result) => result.winner)
+    .filter((winner): winner is HeteroMoAFabricAttempt => winner !== null)
+    .sort((left, right) => left.finishedAtMs - right.finishedAtMs);
+  const winner = winners[0] ?? null;
+  const acceptedAtMs = winner?.finishedAtMs ?? clock();
+  const attempts = layerResults.flatMap((layerResult) =>
+    layerResult.pairs.flatMap((pair) => [pair.primary, pair.shadow])
+  );
+  const skippedHedges = attempts.filter(
+    (attempt) => attempt.status === 'skipped'
+  ).length;
+  const loserAttempts = attempts.filter(
+    (attempt) =>
+      attempt.status === 'success' &&
+      (!winner || attempt.backendId !== winner.backendId || attempt.role !== winner.role)
+  );
+  const loserCompletions = loserAttempts.length;
+  const loserBytes = loserAttempts.reduce(
+    (sum, attempt) => sum + attempt.bytes.length,
+    0
+  );
+  const winnerBytes = winner?.bytes.length ?? 0;
+  const ventedAttempts = attempts.filter(
+    (attempt) =>
+      attempt.status === 'error' ||
+      attempt.status === 'vented' ||
+      attempt.status === 'aborted'
+  ).length;
+  const cpuTimeMs = attempts.reduce(
+    (sum, attempt) => sum + attempt.cpuTimeMs,
+    0
+  );
+  const cursorPosition =
+    layerResults.length === 0
+      ? 0
+      : Math.max(...layerResults.map((result) => result.cursorEnd));
+  if (winner === null && layerResults.length > 0) {
+    gateOpened = false;
+  }
+
+  const payload = winner?.bytes ?? new Uint8Array();
+  const frame =
+    winner && plan.frameProtocol === 'aeon-10-byte-binary'
+      ? encodeAeon10ByteFrame(
+          options.streamId ?? DEFAULT_FLOW_STREAM_ID,
+          options.sequence ?? 1,
+          0,
+          payload
+        )
+      : winner
+      ? payload
+      : null;
+
+  const result: HeteroMoAFabricRunResult = {
+    fabricKey,
+    gateOpened,
+    frameProtocol: plan.frameProtocol,
+    winner,
+    frame,
+    layerResults,
+    telemetry: {
+      winnerBytes,
+      loserBytes,
+      loserCompletions,
+      ventShare: attempts.length === 0 ? 0 : ventedAttempts / attempts.length,
+      skippedHedges,
+      wallTimeMs: Math.max(0, acceptedAtMs - runStartedAt),
+      cpuTimeMs,
+      queueOccupancy: occupancy.peak,
+      cursorPosition,
+      acceptedAtMs,
+    },
+  };
+
+  options.communityMemory?.recordRun(fabricKey, result, wallClock());
+  return result;
+}

@@ -363,6 +363,7 @@ export {
 export {
   NeuralEngine,
   GPUEngine,
+  WebGPUEngine,
   WebNNEngine,
   Translator,
   NeuronRepository,
@@ -381,7 +382,9 @@ export type {
   AdapterTrainingConfig,
   NeuralGraphData,
   LoadTopologyOptions,
+  NeuralHeteroFabricOptions,
 } from './neural-compat.js';
+export * from './runtime/hetero-fabric.js';
 
 export {
   GnosisTypeScriptBridgeError,
