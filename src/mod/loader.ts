@@ -168,7 +168,7 @@ function fileExists(filePath: string): boolean {
 
 function readBundledTopologySource(urlCandidates: readonly URL[]): string {
   for (const candidate of urlCandidates) {
-    const filePath = fileURLToPath(candidate);
+    const filePath = fileURLToPath(candidate.href);
     if (fileExists(filePath)) {
       return fsSync.readFileSync(filePath, 'utf-8');
     }

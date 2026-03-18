@@ -262,7 +262,7 @@ const VALENCE_PREREQUISITES: Record<string, string[]> = {
 
 function resolveDefaultDatasetPath(): string {
   for (const candidateUrl of DEFAULT_DATASET_URL_CANDIDATES) {
-    const candidatePath = fileURLToPath(candidateUrl);
+    const candidatePath = fileURLToPath(candidateUrl.href);
     if (existsSync(candidatePath)) {
       return candidatePath;
     }
