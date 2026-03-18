@@ -168,6 +168,10 @@ interface ParsedTopology {
   readonly metrics: MoaTransformerTopologyMetrics;
 }
 
+let defaultTopologySuitePromise:
+  | Promise<Record<MoaTransformerFamily, ParsedTopology>>
+  | undefined;
+
 interface BlockSpec {
   readonly id: string;
   readonly streamBaseId: number;
@@ -1206,6 +1210,13 @@ async function loadDefaultTopologySuite(): Promise<
   >;
 }
 
+async function loadDefaultTopologySuiteCached(): Promise<
+  Record<MoaTransformerFamily, ParsedTopology>
+> {
+  defaultTopologySuitePromise ??= loadDefaultTopologySuite();
+  return defaultTopologySuitePromise;
+}
+
 function assertComparableCapacity(
   topologies: Record<MoaTransformerFamily, ParsedTopology>
 ): GnosisMoaTransformerShootoutReport['sharedCapacity'] {
@@ -1307,10 +1318,52 @@ function trainFamily(
   };
 }
 
+function buildFamilyReport(
+  family: MoaTransformerFamily,
+  topologies: Record<MoaTransformerFamily, ParsedTopology>,
+  config: MoaTransformerShootoutConfig,
+  trainSamples: readonly Sample[],
+  evalSamples: readonly Sample[]
+): MoaTransformerFamilyReport {
+  const trained = trainFamily(family, config, trainSamples, evalSamples);
+  const summary = summarizeSeedMetrics(trained.seedMetrics);
+  const metrics = topologies[family].metrics;
+
+  return {
+    topologyPath: topologies[family].path,
+    topologyNodeCount: metrics.nodeCount,
+    topologyEdgeCount: metrics.edgeCount,
+    structuralBeta1: metrics.structuralBeta1,
+    transformerletCount: metrics.transformerletCount,
+    headChainCount: metrics.headChainCount,
+    rotationStageCount: metrics.rotationStageCount,
+    parameterCount: metrics.parameterCount,
+    usesOuterRouter: metrics.usesOuterRouter,
+    ...summary,
+    samplePredictions: samplePredictions(
+      family,
+      trained.trainedParameters,
+      config.samplePoints,
+      config
+    ),
+  };
+}
+
+export async function runGnosisMoaTransformerFamilyBenchmark(
+  family: MoaTransformerFamily,
+  config: MoaTransformerShootoutConfig = makeDefaultMoaTransformerShootoutConfig()
+): Promise<MoaTransformerFamilyReport> {
+  const topologies = await loadDefaultTopologySuiteCached();
+  assertComparableCapacity(topologies);
+  const trainSamples = buildSamples(config.trainAxis);
+  const evalSamples = buildSamples(config.evalAxis);
+  return buildFamilyReport(family, topologies, config, trainSamples, evalSamples);
+}
+
 export async function runGnosisMoaTransformerShootoutBenchmark(
   config: MoaTransformerShootoutConfig = makeDefaultMoaTransformerShootoutConfig()
 ): Promise<GnosisMoaTransformerShootoutReport> {
-  const topologies = await loadDefaultTopologySuite();
+  const topologies = await loadDefaultTopologySuiteCached();
   const sharedCapacity = assertComparableCapacity(topologies);
   const trainSamples = buildSamples(config.trainAxis);
   const evalSamples = buildSamples(config.evalAxis);
@@ -1320,28 +1373,13 @@ export async function runGnosisMoaTransformerShootoutBenchmark(
     MoaTransformerFamilyReport
   >;
   for (const family of Object.keys(topologies) as MoaTransformerFamily[]) {
-    const trained = trainFamily(family, config, trainSamples, evalSamples);
-    const summary = summarizeSeedMetrics(trained.seedMetrics);
-    const metrics = topologies[family].metrics;
-
-    families[family] = {
-      topologyPath: topologies[family].path,
-      topologyNodeCount: metrics.nodeCount,
-      topologyEdgeCount: metrics.edgeCount,
-      structuralBeta1: metrics.structuralBeta1,
-      transformerletCount: metrics.transformerletCount,
-      headChainCount: metrics.headChainCount,
-      rotationStageCount: metrics.rotationStageCount,
-      parameterCount: metrics.parameterCount,
-      usesOuterRouter: metrics.usesOuterRouter,
-      ...summary,
-      samplePredictions: samplePredictions(
-        family,
-        trained.trainedParameters,
-        config.samplePoints,
-        config
-      ),
-    };
+    families[family] = buildFamilyReport(
+      family,
+      topologies,
+      config,
+      trainSamples,
+      evalSamples
+    );
   }
 
   return {

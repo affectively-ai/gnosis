@@ -7,6 +7,265 @@ interface UfcsExpression {
 
 const IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const QUALIFIED_IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_.]*$/;
+const EDGE_PATTERN =
+  /^\(([^)]+)\)\s*-\[:([A-Z]+)(?:\s*{([^}]*)})?\]->\s*\(([^)]+)\)\s*$/;
+const MIDDLE_OUT_COLLAPSE_TYPES = new Set(['RACE', 'FOLD', 'COLLAPSE']);
+
+function parseProperties(propertiesRaw?: string): Record<string, string> {
+  if (!propertiesRaw) {
+    return {};
+  }
+
+  const properties: Record<string, string> = {};
+  const pairs = propertiesRaw.match(
+    /(\w+)\s*:\s*('[^']*'|"[^"]*"|\[[^\]]*\]|[^,]+)/g
+  );
+  if (!pairs) {
+    return properties;
+  }
+
+  for (const pair of pairs) {
+    const separator = pair.indexOf(':');
+    if (separator < 0) {
+      continue;
+    }
+
+    const key = pair.slice(0, separator).trim();
+    const value = pair
+      .slice(separator + 1)
+      .trim()
+      .replace(/^['"]|['"]$/g, '');
+
+    if (key.length > 0 && value.length > 0) {
+      properties[key] = value;
+    }
+  }
+
+  return properties;
+}
+
+function renderProperties(properties: Readonly<Record<string, string>>): string {
+  const entries = Object.entries(properties);
+  if (entries.length === 0) {
+    return '';
+  }
+
+  return ` { ${entries
+    .map(([key, value]) => `${key}: '${value}'`)
+    .join(', ')} }`;
+}
+
+function renderNode(
+  id: string,
+  label: string,
+  properties: Readonly<Record<string, string>>
+): string {
+  return `(${id}: ${label}${renderProperties(properties)})`;
+}
+
+function readAliasedProperty(
+  properties: Readonly<Record<string, string>>,
+  ...keys: readonly string[]
+): string | undefined {
+  for (const key of keys) {
+    const value = properties[key];
+    if (typeof value === 'string' && value.length > 0) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+function isEnabledValue(raw: string | undefined): boolean {
+  if (!raw) {
+    return false;
+  }
+
+  const normalized = raw.trim().toLowerCase();
+  return !['false', '0', 'off', 'none', 'disabled'].includes(normalized);
+}
+
+function parseNodeId(segment: string): string | null {
+  const match = segment.trim().match(/^([A-Za-z_][A-Za-z0-9_]*)/);
+  return match?.[1] ?? null;
+}
+
+function sanitizeIdentifierPart(value: string): string {
+  const normalized = value
+    .replace(/[^A-Za-z0-9_]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+/, '')
+    .replace(/_+$/, '');
+
+  return normalized.length > 0 ? normalized : 'corridor';
+}
+
+function shouldExpandMiddleOutCompression(
+  edgeType: string,
+  properties: Readonly<Record<string, string>>
+): boolean {
+  if (!MIDDLE_OUT_COLLAPSE_TYPES.has(edgeType)) {
+    return false;
+  }
+
+  const requestCompression = readAliasedProperty(
+    properties,
+    'request_compression',
+    'requestCompression',
+    'middle_out',
+    'middleOut'
+  );
+  if (requestCompression) {
+    return isEnabledValue(requestCompression);
+  }
+
+  const sharedMiddle = readAliasedProperty(
+    properties,
+    'shared_middle',
+    'sharedMiddle'
+  );
+  return isEnabledValue(sharedMiddle);
+}
+
+function resolveMiddleOutCorridorKey(
+  properties: Readonly<Record<string, string>>,
+  primaryTargetId: string,
+  edgeIndex: number
+): string {
+  const explicit = readAliasedProperty(
+    properties,
+    'request_compression',
+    'requestCompression',
+    'middle_out',
+    'middleOut',
+    'corridor'
+  );
+  if (explicit && !['true', '1', 'yes', 'on'].includes(explicit.toLowerCase())) {
+    return explicit;
+  }
+
+  const sharedMiddle = readAliasedProperty(
+    properties,
+    'shared_middle',
+    'sharedMiddle'
+  );
+  if (
+    sharedMiddle &&
+    !['true', '1', 'yes', 'on'].includes(sharedMiddle.toLowerCase())
+  ) {
+    return sharedMiddle;
+  }
+
+  return `middle-out/${sanitizeIdentifierPart(primaryTargetId)}_${edgeIndex}`;
+}
+
+function expandMiddleOutRequestCompressionSource(source: string): string {
+  const lines = source.split('\n');
+  const expanded: string[] = [];
+  let corridorEdgeIndex = 0;
+
+  for (const line of lines) {
+    const indent = line.match(/^\s*/)?.[0] ?? '';
+    const trimmedLine = line.trim();
+    const match = trimmedLine.match(EDGE_PATTERN);
+    if (!match) {
+      expanded.push(line);
+      continue;
+    }
+
+    const sourceRaw = match[1]?.trim() ?? '';
+    const edgeType = match[2]?.trim().toUpperCase() ?? '';
+    const properties = parseProperties(match[3]?.trim());
+    const targetRaw = match[4]?.trim() ?? '';
+
+    if (!shouldExpandMiddleOutCompression(edgeType, properties)) {
+      expanded.push(line);
+      continue;
+    }
+
+    corridorEdgeIndex += 1;
+    const primaryTargetId =
+      parseNodeId(targetRaw.split('|')[0] ?? '') ??
+      `request_compression_target_${corridorEdgeIndex}`;
+    const corridorKey = resolveMiddleOutCorridorKey(
+      properties,
+      primaryTargetId,
+      corridorEdgeIndex
+    );
+    const corridorMode =
+      readAliasedProperty(properties, 'corridor_mode', 'corridorMode') ??
+      'readwrite';
+    const reuseScope =
+      readAliasedProperty(properties, 'reuse_scope', 'reuseScope') ??
+      'corridor';
+    const failureMode = properties.failure ?? 'vent';
+    const boundaryLabel =
+      readAliasedProperty(properties, 'boundary_label', 'boundaryLabel') ??
+      'CorridorBoundary';
+    const traceLabel =
+      readAliasedProperty(properties, 'trace_label', 'traceLabel') ??
+      'CorridorTrace';
+    const ventLabel =
+      readAliasedProperty(properties, 'vent_label', 'ventLabel') ??
+      'VoidBoundary';
+    const ventCondition =
+      readAliasedProperty(properties, 'vent_condition', 'ventCondition') ??
+      'corridor-reject';
+    const boundaryId = `${primaryTargetId}__request_compression_${corridorEdgeIndex}`;
+    const traceId = `${boundaryId}__trace`;
+    const voidId = `${boundaryId}__void`;
+
+    const normalizedProperties = { ...properties };
+    delete normalizedProperties.request_compression;
+    delete normalizedProperties.requestCompression;
+    delete normalizedProperties.middle_out;
+    delete normalizedProperties.middleOut;
+    delete normalizedProperties.shared_middle;
+    delete normalizedProperties.sharedMiddle;
+    normalizedProperties.corridor = corridorKey;
+    normalizedProperties.corridor_mode = corridorMode;
+    normalizedProperties.reuse_scope = reuseScope;
+    normalizedProperties.failure = failureMode;
+
+    expanded.push(
+      `${indent}(${sourceRaw})-[:${edgeType}${renderProperties(
+        normalizedProperties
+      )}]->(${boundaryId})`
+    );
+    expanded.push(
+      `${indent}${renderNode(boundaryId, boundaryLabel, {
+        role: 'middle-out-request-compression-boundary',
+        corridor: corridorKey,
+        collapse: edgeType.toLowerCase(),
+      })}`
+    );
+    expanded.push(
+      `${indent}${renderNode(traceId, traceLabel, {
+        role: 'middle-out-request-compression-trace',
+        corridor: corridorKey,
+      })}`
+    );
+    expanded.push(
+      `${indent}${renderNode(voidId, ventLabel, {
+        role: 'middle-out-request-compression-void',
+        corridor: corridorKey,
+      })}`
+    );
+    expanded.push(`${indent}(${boundaryId})-[:PROCESS]->(${traceId})`);
+    expanded.push(
+      `${indent}(${boundaryId})-[:VENT${renderProperties({
+        condition: ventCondition,
+        corridor: corridorKey,
+        repair_debt: '0',
+        drift_coefficient: '0',
+      })}]->(${voidId})`
+    );
+    expanded.push(`${indent}(${traceId})-[:PROCESS]->(${targetRaw})`);
+  }
+
+  return expanded.join('\n');
+}
 
 function isIdentifier(value: string): boolean {
   return IDENTIFIER_PATTERN.test(value);
@@ -118,6 +377,7 @@ export function lowerUfcsSource(source: string): string {
   // FORK: per-line lowering (independent, parallelizable)
   const lines = expanded.split('\n');
   const lowered = lines.flatMap((line) => lowerUfcsLine(line));
+  const normalized = expandMiddleOutRequestCompressionSource(lowered.join('\n'));
   // FOLD: join results
-  return lowered.join('\n');
+  return normalized;
 }

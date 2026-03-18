@@ -59,11 +59,11 @@ All commands support `--json` and `--sarif` for CI integration.
 | Surface | Description |
 |---------|-------------|
 | **Compiler (Betty)** | Static topology checks, UFCS lowering, stability auditing, coarsening synthesis, Lean artifact generation, Betti number computation |
-| **Runtime** | Graph-native interpreter with tagged values (`Result`, `Option`, `Variant`, `Destructure`, `Delay`), structured concurrency, native frame adapter |
+| **Runtime** | Graph-native interpreter with tagged values (`Result`, `Option`, `Variant`, `Destructure`, `Delay`), structured concurrency, `QDoc`-backed MiddleOut request compression/tunneling, native frame adapter |
 | **CLI** | `lint`, `analyze`, `verify`, `build`, `run`, `native`, `test`, `mod init`, `mod tidy` |
 | **Module system** | `.gg`/`.mgg` parsing, merged-source loading, cycle rejection, bare-specifier resolution, deterministic lockfiles |
 | **Formal path** | TLA+ module/config generation, Lean proof artifacts, bounded queue certificates, coupled-kernel handoff theorems, recursive coarsening synthesis with fiber-partitioned drift certificates |
-| **CRDT layer** | Topology-native CRDTs with relay adapters and typed change-event contracts |
+| **CRDT layer** | Topology-native CRDTs with `QDoc`, the corridor/superposition primitive `QCorridor`, relay adapters, typed change-event contracts, and the substrate for MiddleOut request compression |
 | **Capabilities** | Target inference and validation (`workers`, `node`, `bun`) -- fail before deployment |
 | **Auth** | UCAN/ZK execution envelopes, fail-closed runtime authorization, and browser-safe binary auth helpers |
 | **REPL** | Interactive TUI for topology exploration |
@@ -86,7 +86,7 @@ Higher-order graph shapes for recurring patterns:
 
 - `WallingtonRotation` -- chunk-level pipelined processing
 - `WorthingtonWhip` -- shard-level fork/rotate/fold
-- `StructuredMoA` -- sparse expert routing across attention blocks
+- `StructuredMoA` -- sparse expert routing across attention blocks, now lowered with explicit corridor/trace/vent request-compression boundaries
 
 ### UFCS Sugar
 
@@ -111,6 +111,8 @@ x.double()
 ## Corpus
 
 The repo includes 300+ `.gg` topologies, 30+ `.test.gg` suites, 30+ TypeScript tests, 15 host-language bindings, and 600+ generated TLA artifacts.
+
+Top-level witness topologies now also include [`aeon_object.gg`](./aeon_object.gg), a minimal AEON constitution that folds address, capability, witness, storage scope, replication policy, and projection into one launchable materialization plan.
 
 Example families: transformers, CRDTs, synth graphs, privacy flows, edge pipelines, failure-boundary witnesses.
 

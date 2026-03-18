@@ -292,6 +292,13 @@ const GaitAdaptHandler: GnosisHandler = async (p: VoidAttentionPayload) => {
   return p;
 };
 
+async function invokeVoidAttentionHandler(
+  handler: GnosisHandler,
+  payload: VoidAttentionPayload,
+): Promise<VoidAttentionPayload> {
+  return handler(payload, {}, undefined) as Promise<VoidAttentionPayload>;
+}
+
 // ============================================================================
 // Measurement Handler (c1)
 // ============================================================================
@@ -355,8 +362,8 @@ export function createVoidAttentionPayload(
   dimB: number,
   payoff: (a: number, b: number) => [number, number],
   rng: () => number = Math.random,
-  neighborhoodRadius: number = 1,
-  decayRate: number = 0,
+  neighborhoodRadius = 1,
+  decayRate = 0,
 ): VoidAttentionPayload {
   const boundaryA = createVoidBoundary(dimA);
   const boundaryB = createVoidBoundary(dimB);
@@ -389,33 +396,33 @@ export async function voidAttentionForward(
   let p = payload;
 
   // 1. Self-attention
-  p = await ComplementDistributionAHandler(p) as VoidAttentionPayload;
-  p = await ComplementDistributionBHandler(p) as VoidAttentionPayload;
-  p = await ComplementDistributionCrossHandler(p) as VoidAttentionPayload;
+  p = await invokeVoidAttentionHandler(ComplementDistributionAHandler, p);
+  p = await invokeVoidAttentionHandler(ComplementDistributionBHandler, p);
+  p = await invokeVoidAttentionHandler(ComplementDistributionCrossHandler, p);
 
   // 2. Cross-attention
-  p = await OuterProductHandler(p) as VoidAttentionPayload;
-  p = await GatedProductHandler(p) as VoidAttentionPayload;
+  p = await invokeVoidAttentionHandler(OuterProductHandler, p);
+  p = await invokeVoidAttentionHandler(GatedProductHandler, p);
 
   // 3. Decision
-  p = await SampleAHandler(p) as VoidAttentionPayload;
-  p = await SampleBHandler(p) as VoidAttentionPayload;
-  p = await SampleCrossHandler(p) as VoidAttentionPayload;
-  p = await AcceptIfHigherWeightHandler(p) as VoidAttentionPayload;
+  p = await invokeVoidAttentionHandler(SampleAHandler, p);
+  p = await invokeVoidAttentionHandler(SampleBHandler, p);
+  p = await invokeVoidAttentionHandler(SampleCrossHandler, p);
+  p = await invokeVoidAttentionHandler(AcceptIfHigherWeightHandler, p);
 
   // 4. Interaction
-  p = await EvaluatePayoffHandler(p) as VoidAttentionPayload;
+  p = await invokeVoidAttentionHandler(EvaluatePayoffHandler, p);
 
   // 5. Residual update
-  p = await ResidualUpdateAHandler(p) as VoidAttentionPayload;
-  p = await ResidualUpdateBHandler(p) as VoidAttentionPayload;
-  p = await ResidualUpdateCrossHandler(p) as VoidAttentionPayload;
+  p = await invokeVoidAttentionHandler(ResidualUpdateAHandler, p);
+  p = await invokeVoidAttentionHandler(ResidualUpdateBHandler, p);
+  p = await invokeVoidAttentionHandler(ResidualUpdateCrossHandler, p);
 
   // 6. Layer norm
-  p = await VoidDecayHandler(p) as VoidAttentionPayload;
+  p = await invokeVoidAttentionHandler(VoidDecayHandler, p);
 
   // 7. Feed-forward
-  p = await GaitAdaptHandler(p) as VoidAttentionPayload;
+  p = await invokeVoidAttentionHandler(GaitAdaptHandler, p);
 
   return p;
 }

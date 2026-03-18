@@ -103,6 +103,7 @@ export {
 export { GnosisNeo4jBridge } from './neo4j-bridge.js';
 export { GnosisRegistry } from './runtime/registry.js';
 export { GnosisEngine } from './runtime/engine.js';
+export { GnosisCoreCache } from './runtime/core-cache.js';
 export { BettyCompiler } from './betty/compiler.js';
 export { generateLeanFromGnosisAst } from './betty/lean.js';
 export {
@@ -155,7 +156,24 @@ export {
   summarizeSteeringTraceRecords,
 } from './steering-trace.js';
 
-export type { GnosisHandler } from './runtime/registry.js';
+export type { GnosisHandler, GnosisHandlerContext } from './runtime/registry.js';
+export type {
+  GnosisEngineExecutionCacheState,
+  GnosisEngineExecutionResult,
+  GnosisEngineExecuteOptions,
+  GnosisEngineOptions,
+} from './runtime/engine.js';
+export type {
+  GnosisCoreCacheMode,
+  GnosisCoreCacheReuseScope,
+  GnosisCoreCacheExecutionOptions,
+  GnosisCoreCacheSession,
+  GnosisCoreCacheMetrics,
+  GnosisCoreCacheEntry,
+  GnosisCoreCacheCorridorRecord,
+  GnosisCoreCacheEvent,
+  GnosisCoreCacheLookup,
+} from './runtime/core-cache.js';
 export type {
   GraphAST,
   ASTNode,
@@ -250,6 +268,7 @@ export * from './auth/index.js';
 
 // Quantum CRDT — the only state model
 export {
+  QCorridor,
   QDoc,
   QMap,
   QArray,
@@ -278,6 +297,20 @@ export {
   mergeUpdates,
 } from './crdt/index.js';
 export type {
+  QCorridorOptions,
+  QCorridorExecutionOptions,
+  QCorridorMode,
+  QCorridorReuseScope,
+  QCorridorSession,
+  QCorridorMetrics,
+  QCorridorEntry,
+  QCorridorRecord,
+  QCorridorEvent,
+  QCorridorEvidence,
+  QCorridorObservation,
+  QCorridorObservationRole,
+  QCorridorObservationStatus,
+  QCorridorLookup,
   QDocOptions,
   QDocDelta,
   QDocDeltaNode,

@@ -79,4 +79,27 @@ describe('TLA bridge', () => {
       '\\* EFFECT_NODE sync declared={"fs.local"} inferred={"auth.zk"}'
     );
   });
+
+  it('emits corridor targets and middle-out request compression laws for raw request-compression edges', () => {
+    const source = [
+      '(seed)-[:FORK]->(left|right)',
+      `(left|right)-[:RACE { request_compression: 'middle-out/tla-proof', reuse_scope: 'corridor' }]->(sink)`,
+      '(sink)-[:PROCESS]->(done)',
+    ].join('\n');
+
+    const result = generateTlaFromGnosisSource(source, {
+      moduleName: 'MiddleOutRequestCompressionSpec',
+    });
+
+    expect(result.tla).toContain('MODULE MiddleOutRequestCompressionSpec');
+    expect(result.tla).toContain('CORRIDOR_TARGETS == {');
+    expect(result.tla).toContain(
+      'EventuallyMiddleOutCompression == IF HasCorridorTargets THEN <> (active \\cap CORRIDOR_TARGETS # {}) ELSE TRUE'
+    );
+    expect(result.tla).toContain(
+      'FirstSufficientCompression == IF HasCorridorTargets THEN <> ((active \\cap CORRIDOR_TARGETS # {}) /\\ beta1 <= Cardinality(CORRIDOR_TARGETS)) ELSE TRUE'
+    );
+    expect(result.cfg).toContain('PROPERTY EventuallyMiddleOutCompression');
+    expect(result.cfg).toContain('PROPERTY FirstSufficientCompression');
+  });
 });

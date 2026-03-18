@@ -10,6 +10,13 @@ import {
 } from '../auth/core.js';
 import { registerCoreAuthHandlers } from '../auth/handlers.js';
 import { registerCoreRuntimeHandlers } from './core-handlers.js';
+import {
+  GnosisCoreCache,
+  type GnosisCoreCacheExecutionOptions,
+  type GnosisCoreCacheObservation,
+  type GnosisCoreCacheMetrics,
+  type GnosisCoreCacheSession,
+} from './core-cache.js';
 import { injectSensitiveZkEnvelopes } from '../auth/auto-zk.js';
 import type { GnosisHandler, GnosisHandlerContext } from './registry.js';
 import {
@@ -27,15 +34,41 @@ import {
 
 export interface GnosisEngineOptions {
   onEdgeEvaluated?: (edge: ASTEdge) => Promise<void> | void;
+  coreCache?: GnosisCoreCache | null;
 }
 
 export interface GnosisEngineExecuteOptions {
   executionAuth?: GnosisExecutionAuthContext | null;
+  cache?: GnosisCoreCacheExecutionOptions | null;
+}
+
+export interface GnosisEngineExecutionCacheState {
+  status: 'miss' | 'hit' | 'tunnel' | 'bypass';
+  corridorKey?: string;
+  requestKey?: string;
+  reuseScope?: 'exact' | 'corridor';
 }
 
 export interface GnosisEngineExecutionResult {
   logs: string;
   payload: unknown;
+  cache?: GnosisEngineExecutionCacheState;
+}
+
+interface GnosisFreshExecutionResult {
+  logs: string;
+  payload: unknown;
+  cacheMetrics: GnosisCoreCacheMetrics;
+}
+
+function createEmptyCacheMetrics(): GnosisCoreCacheMetrics {
+  return {
+    collapseCount: 0,
+    firstSufficientCount: 0,
+    ventCount: 0,
+    repairDebt: 0,
+    lastWinnerPath: null,
+  };
 }
 
 export class GnosisEngine {
@@ -44,6 +77,7 @@ export class GnosisEngine {
   private tracker: ReynoldsTracker;
   private onEdgeEvaluated: ((edge: ASTEdge) => Promise<void> | void) | null;
   private runtimeExecutionAuth: GnosisExecutionAuthContext | null = null;
+  private readonly runtimeCoreCache: GnosisCoreCache | null;
 
   constructor(registry?: GnosisRegistry, options: GnosisEngineOptions = {}) {
     this.registry = registry || new GnosisRegistry();
@@ -52,6 +86,7 @@ export class GnosisEngine {
     this.bridge = new QuantumWasmBridge();
     this.tracker = new ReynoldsTracker(128); // Default capacity
     this.onEdgeEvaluated = options.onEdgeEvaluated ?? null;
+    this.runtimeCoreCache = options.coreCache ?? null;
   }
 
   public async execute(
@@ -68,13 +103,123 @@ export class GnosisEngine {
     initialPayload: any = null,
     options: GnosisEngineExecuteOptions = {}
   ): Promise<GnosisEngineExecutionResult> {
+    const cacheSession = await this.prepareCacheSession(
+      ast,
+      initialPayload,
+      options
+    );
+
     if (ast.edges.length === 0) {
       return {
         logs: '[Engine] No graph to execute.',
         payload: initialPayload,
+        ...(cacheSession
+          ? {
+              cache: this.buildCacheState(
+                cacheSession.mode === 'bypass' ? 'bypass' : 'miss',
+                cacheSession
+              ),
+            }
+          : {}),
       };
     }
 
+    if (!this.runtimeCoreCache || !cacheSession) {
+      const result = await this.executeFreshWithResult(
+        ast,
+        initialPayload,
+        options,
+        null
+      );
+      return {
+        logs: result.logs,
+        payload: result.payload,
+      };
+    }
+
+    if (cacheSession.mode === 'bypass') {
+      const result = await this.executeFreshWithResult(
+        ast,
+        initialPayload,
+        options,
+        cacheSession
+      );
+      return {
+        logs: result.logs,
+        payload: result.payload,
+        cache: this.buildCacheState('bypass', cacheSession),
+      };
+    }
+
+    const lookup = this.runtimeCoreCache.lookup<unknown>(cacheSession);
+    if (lookup.kind === 'hit') {
+      const cached = this.runtimeCoreCache.readPayload(lookup.entry);
+      if (cached.found) {
+        return this.buildCachedExecutionResult(
+          'hit',
+          cached.payload,
+          cacheSession,
+          lookup.entry.winnerPath ?? null
+        );
+      }
+    }
+
+    if (lookup.kind === 'tunnel') {
+      const payload = await lookup.promise;
+      return this.buildCachedExecutionResult('tunnel', payload, cacheSession);
+    }
+
+    if (cacheSession.mode === 'readwrite') {
+      const freshExecution = this.executeFreshWithResult(
+        ast,
+        initialPayload,
+        options,
+        cacheSession
+      );
+      this.runtimeCoreCache.registerInflight(
+        cacheSession,
+        freshExecution.then((result) => result.payload)
+      );
+
+      try {
+        const result = await freshExecution;
+        this.runtimeCoreCache.commit(
+          cacheSession,
+          result.payload,
+          result.cacheMetrics
+        );
+        return {
+          logs: result.logs,
+          payload: result.payload,
+          cache: this.buildCacheState('miss', cacheSession),
+        };
+      } catch (error) {
+        this.runtimeCoreCache.fail(cacheSession, error);
+        throw error;
+      } finally {
+        this.runtimeCoreCache.release(cacheSession);
+      }
+    }
+
+    const result = await this.executeFreshWithResult(
+      ast,
+      initialPayload,
+      options,
+      cacheSession
+    );
+    return {
+      logs: result.logs,
+      payload: result.payload,
+      cache: this.buildCacheState('miss', cacheSession),
+    };
+  }
+
+  private async executeFreshWithResult(
+    ast: GraphAST,
+    initialPayload: any = null,
+    options: GnosisEngineExecuteOptions = {},
+    cacheSession: GnosisCoreCacheSession | null = null
+  ): Promise<GnosisFreshExecutionResult> {
     this.initializeExecutionAuthState(
       initialPayload,
       options.executionAuth ?? null
@@ -90,6 +235,7 @@ export class GnosisEngine {
       );
     }
     let currentPayload = initialPayload;
+    const cacheMetrics = createEmptyCacheMetrics();
 
     // ... root finding ...
     const allTargetIds = new Set<string>();
@@ -140,9 +286,12 @@ export class GnosisEngine {
           currentPayload = await handler(currentPayload, node.properties, {
             nodeId: currentNodeId,
             executionAuth: this.executionAuth ?? undefined,
+            coreCache: this.runtimeCoreCache ?? undefined,
+            cacheSession: cacheSession ?? undefined,
           });
           this.syncExecutionAuthFromPayload(currentPayload);
           this.tracker.updateStream(sid, 'completed');
+          cacheMetrics.lastWinnerPath = currentNodeId;
         } else {
           execLogs.push(`  -> Skipping [${currentNodeId}] (No handler)`);
           this.tracker.updateStream(sid, 'vented');
@@ -353,6 +502,8 @@ export class GnosisEngine {
           collapseEdge,
           streamCounter,
           execLogs,
+          cacheMetrics,
+          cacheSession,
         });
         currentPayload = concurrentResult.payload;
         this.syncExecutionAuthFromPayload(currentPayload);
@@ -450,6 +601,7 @@ export class GnosisEngine {
     return {
       logs: execLogs.join('\n'),
       payload: currentPayload,
+      cacheMetrics,
     };
   }
 
@@ -457,6 +609,279 @@ export class GnosisEngine {
     return this.runtimeExecutionAuth
       ? this.cloneExecutionAuth(this.runtimeExecutionAuth)
       : null;
+  }
+
+  public get coreCache(): GnosisCoreCache | null {
+    return this.runtimeCoreCache;
+  }
+
+  private async prepareCacheSession(
+    ast: GraphAST,
+    initialPayload: unknown,
+    options: GnosisEngineExecuteOptions
+  ): Promise<GnosisCoreCacheSession | null> {
+    if (!this.runtimeCoreCache) {
+      return null;
+    }
+
+    return this.runtimeCoreCache.createSession(
+      ast,
+      initialPayload,
+      options.cache ?? {}
+    );
+  }
+
+  private buildCacheState(
+    status: GnosisEngineExecutionCacheState['status'],
+    session: GnosisCoreCacheSession
+  ): GnosisEngineExecutionCacheState {
+    return {
+      status,
+      corridorKey: session.corridorKey,
+      requestKey: session.requestKey,
+      reuseScope: session.reuseScope,
+    };
+  }
+
+  private buildCachedExecutionResult(
+    status: 'hit' | 'tunnel',
+    payload: unknown,
+    session: GnosisCoreCacheSession,
+    winnerPath: string | null = null
+  ): GnosisEngineExecutionResult {
+    return {
+      logs: this.buildCachedLogs(status, payload, session, winnerPath),
+      payload,
+      cache: this.buildCacheState(status, session),
+    };
+  }
+
+  private buildCachedLogs(
+    status: 'hit' | 'tunnel',
+    payload: unknown,
+    session: GnosisCoreCacheSession,
+    winnerPath: string | null
+  ): string {
+    const lines = ['\n[Gnosis Engine Execution]'];
+    const cacheLine = [
+      `[CACHE] ${status.toUpperCase()}`,
+      `scope=${session.reuseScope}`,
+      `corridor=${session.corridorKey}`,
+    ];
+
+    if (winnerPath) {
+      cacheLine.push(`winner=${winnerPath}`);
+    }
+
+    lines.push(`  ${cacheLine.join(' ')}`);
+    lines.push(`Final System Result: ${JSON.stringify(payload)}`);
+    return lines.join('\n');
+  }
+
+  private recordCacheMetrics(
+    metrics: GnosisCoreCacheMetrics,
+    update: Partial<GnosisCoreCacheMetrics>
+  ): void {
+    metrics.collapseCount += update.collapseCount ?? 0;
+    metrics.firstSufficientCount += update.firstSufficientCount ?? 0;
+    metrics.ventCount += update.ventCount ?? 0;
+    metrics.repairDebt += update.repairDebt ?? 0;
+    if (update.lastWinnerPath !== undefined && update.lastWinnerPath !== null) {
+      metrics.lastWinnerPath = update.lastWinnerPath;
+    }
+  }
+
+  private countRepairDebt(
+    outcomes: readonly ConcurrentBranchOutcome[]
+  ): number {
+    return outcomes.filter(
+      (outcome) =>
+        outcome.status === 'error' || outcome.status === 'timeout'
+    ).length;
+  }
+
+  private countDiscardedBranches(
+    outcomes: readonly ConcurrentBranchOutcome[],
+    acceptedPath: string | null = null
+  ): number {
+    if (acceptedPath) {
+      return outcomes.reduce(
+        (count, outcome) => count + (outcome.path === acceptedPath ? 0 : 1),
+        0
+      );
+    }
+
+    return outcomes.filter((outcome) => outcome.status !== 'success').length;
+  }
+
+  private async prepareConcurrentCorridorSession({
+    activeAst,
+    activeTargets,
+    collapseEdge,
+    payloads,
+  }: {
+    activeAst: GraphAST;
+    activeTargets: readonly string[];
+    collapseEdge: ASTEdge;
+    payloads: readonly unknown[];
+  }): Promise<GnosisCoreCacheSession | null> {
+    if (!this.runtimeCoreCache) {
+      return null;
+    }
+
+    const rawMode = (
+      collapseEdge.properties.corridorMode ??
+      collapseEdge.properties.corridor_mode
+    )
+      ?.trim()
+      .toLowerCase();
+    const mode =
+      rawMode === 'readonly' || rawMode === 'bypass'
+        ? rawMode
+        : 'readwrite';
+    const rawReuseScope = (
+      collapseEdge.properties.reuseScope ??
+      collapseEdge.properties.reuse_scope
+    )
+      ?.trim()
+      .toLowerCase();
+    const reuseScope = rawReuseScope === 'corridor' ? 'corridor' : 'exact';
+
+    return this.runtimeCoreCache.createSession(
+      this.buildConcurrentSegmentAst(activeAst, activeTargets, collapseEdge),
+      payloads,
+      {
+        mode,
+        reuseScope,
+        corridorKey: collapseEdge.properties.corridor?.trim(),
+      }
+    );
+  }
+
+  private buildConcurrentSegmentAst(
+    activeAst: GraphAST,
+    activeTargets: readonly string[],
+    collapseEdge: ASTEdge
+  ): GraphAST {
+    const nodes = new Map<string, ASTNode>();
+
+    for (const targetId of activeTargets) {
+      const node = activeAst.nodes.get(targetId);
+      if (node) {
+        nodes.set(targetId, {
+          id: node.id,
+          labels: [...node.labels],
+          properties: { ...node.properties },
+        });
+      }
+    }
+
+    for (const targetId of collapseEdge.targetIds) {
+      const node = activeAst.nodes.get(targetId.trim());
+      if (node) {
+        nodes.set(targetId.trim(), {
+          id: node.id,
+          labels: [...node.labels],
+          properties: { ...node.properties },
+        });
+      }
+    }
+
+    return {
+      nodes,
+      edges: [
+        {
+          sourceIds: [...activeTargets],
+          targetIds: [...collapseEdge.targetIds],
+          type: collapseEdge.type,
+          properties: { ...collapseEdge.properties },
+        },
+      ],
+    };
+  }
+
+  private scheduleTargetsByCorridor(
+    corridorSession: GnosisCoreCacheSession | null,
+    activeTargets: readonly string[],
+    payloads: readonly unknown[],
+    execLogs: string[]
+  ): {
+    targets: string[];
+    payloads: unknown[];
+  } {
+    if (!this.runtimeCoreCache || !corridorSession) {
+      return {
+        targets: [...activeTargets],
+        payloads: [...payloads],
+      };
+    }
+
+    const rankedTargets = this.runtimeCoreCache.rankPaths(
+      corridorSession,
+      activeTargets
+    );
+    const payloadByTarget = new Map(
+      activeTargets.map((target, index) => [target, payloads[index] ?? null])
+    );
+    const rankedPayloads = rankedTargets.map(
+      (target) => payloadByTarget.get(target) ?? null
+    );
+    const strength = this.runtimeCoreCache.corridorStrength(
+      corridorSession.corridorKey
+    );
+
+    execLogs.push(
+      `   [CORRIDOR] Ranked paths: [${rankedTargets.join(
+        ', '
+      )}] strength=${strength.toFixed(2)}`
+    );
+
+    return {
+      targets: rankedTargets,
+      payloads: rankedPayloads,
+    };
+  }
+
+  private buildConcurrentCorridorObservations(
+    collapseEdge: ASTEdge,
+    outcomes: readonly ConcurrentBranchOutcome[]
+  ): GnosisCoreCacheObservation[] {
+    const raceWinnerPath =
+      collapseEdge.type === 'RACE'
+        ? outcomes.find((outcome) => outcome.status === 'success')?.path ?? null
+        : null;
+
+    return outcomes.map((outcome) => {
+      if (
+        outcome.status === 'success' &&
+        (collapseEdge.type !== 'RACE' || outcome.path === raceWinnerPath)
+      ) {
+        return {
+          path: outcome.path,
+          role: 'winner',
+          status: 'success',
+        };
+      }
+
+      if (outcome.status === 'error' || outcome.status === 'timeout') {
+        return {
+          path: outcome.path,
+          role: 'repair',
+          status: outcome.status,
+          detail: outcome.reason,
+        };
+      }
+
+      return {
+        path: outcome.path,
+        role: 'vent',
+        status:
+          outcome.status === 'cancelled' || outcome.status === 'vented'
+            ? outcome.status
+            : 'vented',
+        detail: outcome.reason,
+      };
+    });
   }
 
   private async executeConcurrentBlock({
@@ -467,6 +892,8 @@ export class GnosisEngine {
     collapseEdge,
     streamCounter,
     execLogs,
+    cacheMetrics,
+    cacheSession,
   }: {
     activeAst: GraphAST;
     activeTargets: string[];
@@ -475,67 +902,216 @@ export class GnosisEngine {
     collapseEdge: ASTEdge;
     streamCounter: number;
     execLogs: string[];
+    cacheMetrics: GnosisCoreCacheMetrics;
+    cacheSession: GnosisCoreCacheSession | null;
   }): Promise<{ payload: unknown; streamCounter: number }> {
+    const corridorSession = await this.prepareConcurrentCorridorSession({
+      activeAst,
+      activeTargets,
+      collapseEdge,
+      payloads,
+    });
+    const effectiveCacheSession = corridorSession ?? cacheSession;
     const policy = this.parseStructuredConcurrencyPolicy(collapseEdge);
     this.logStructuredPolicy(collapseEdge, policy, execLogs);
 
-    // ─── Frame-native fast path ───────────────────────────────────────
-    // When there are no timeouts, no deadlines, no shared state, and all
-    // handlers exist, bypass AbortController/ConcurrentBranchHandle overhead
-    // entirely. Direct Promise.race/allSettled on raw handler calls.
-    //
-    // This gives all .gg topology executions the same 4-5x speedup that
-    // frame-native fold/race achieves in aeon-pipelines benchmarks.
-    if (this.canUseFrameNativePath(activeAst, activeTargets, policy, sharedState)) {
-      const frameResult = await this.executeFrameNative({
-        activeAst,
-        activeTargets,
-        payloads,
-        collapseEdge,
-        streamCounter,
-        execLogs,
-      });
-      if (frameResult !== null) return frameResult;
-      // Fall through to standard path if frame-native fails
+    if (corridorSession && this.runtimeCoreCache && corridorSession.mode !== 'bypass') {
+      const lookup = this.runtimeCoreCache.lookup<unknown>(corridorSession);
+      if (lookup.kind === 'hit') {
+        const cached = this.runtimeCoreCache.readPayload(lookup.entry);
+        if (cached.found) {
+          execLogs.push(
+            `   [CORRIDOR] HIT corridor=${corridorSession.corridorKey} winner=${
+              lookup.entry.winnerPath ?? 'cached'
+            }`
+          );
+          this.recordCacheMetrics(cacheMetrics, {
+            collapseCount: 1,
+            firstSufficientCount: 1,
+            lastWinnerPath: lookup.entry.winnerPath ?? null,
+          });
+          return {
+            payload: cached.payload,
+            streamCounter,
+          };
+        }
+      }
+
+      if (lookup.kind === 'tunnel') {
+        execLogs.push(
+          `   [CORRIDOR] TUNNEL corridor=${corridorSession.corridorKey}`
+        );
+        const payload = await lookup.promise;
+        this.recordCacheMetrics(cacheMetrics, {
+          collapseCount: 1,
+          firstSufficientCount: 1,
+        });
+        return {
+          payload,
+          streamCounter,
+        };
+      }
+
+      execLogs.push(
+        `   [CORRIDOR] MISS corridor=${corridorSession.corridorKey}`
+      );
     }
 
-    const blockStartedAt = Date.now();
-    const deadlineAt =
-      policy.deadlineMs === null ? null : blockStartedAt + policy.deadlineMs;
+    const scheduled = this.scheduleTargetsByCorridor(
+      corridorSession,
+      activeTargets,
+      payloads,
+      execLogs
+    );
+    const executeFresh = async (): Promise<{
+      payload: unknown;
+      streamCounter: number;
+      outcomes: ConcurrentBranchOutcome[];
+      blockMetrics: GnosisCoreCacheMetrics;
+    }> => {
+      // ─── Frame-native fast path ───────────────────────────────────────
+      // When there are no timeouts, no deadlines, no shared state, and all
+      // handlers exist, bypass AbortController/ConcurrentBranchHandle overhead
+      // entirely. Direct Promise.race/allSettled on raw handler calls.
+      //
+      // This gives all .gg topology executions the same 4-5x speedup that
+      // frame-native fold/race achieves in aeon-pipelines benchmarks.
+      if (
+        this.canUseFrameNativePath(
+          activeAst,
+          scheduled.targets,
+          policy,
+          sharedState
+        )
+      ) {
+        const frameResult = await this.executeFrameNative({
+          activeAst,
+          activeTargets: scheduled.targets,
+          payloads: scheduled.payloads,
+          collapseEdge,
+          streamCounter,
+          execLogs,
+          cacheMetrics,
+          cacheSession: effectiveCacheSession,
+        });
+        if (frameResult !== null) {
+          if (corridorSession && this.runtimeCoreCache) {
+            this.runtimeCoreCache.recordEvidence(
+              corridorSession,
+              this.buildConcurrentCorridorObservations(
+                collapseEdge,
+                frameResult.outcomes
+              )
+            );
+            execLogs.push(
+              `   [CORRIDOR] Updated strength=${this.runtimeCoreCache
+                .corridorStrength(corridorSession.corridorKey)
+                .toFixed(2)}`
+            );
+          }
+          return {
+            payload: frameResult.payload,
+            streamCounter: frameResult.streamCounter,
+            outcomes: frameResult.outcomes,
+            blockMetrics: this.buildConcurrentBlockMetrics(
+              collapseEdge,
+              frameResult.outcomes
+            ),
+          };
+        }
+        // Fall through to standard path if frame-native fails
+      }
 
-    const branches = activeTargets.map((targetId, index) => {
-      const sid = streamCounter++;
-      this.tracker.updateStream(sid, 'active');
+      const blockStartedAt = Date.now();
+      const deadlineAt =
+        policy.deadlineMs === null ? null : blockStartedAt + policy.deadlineMs;
 
-      return this.startConcurrentBranch({
-        activeAst,
-        targetId,
-        payload: payloads[index] ?? null,
-        sharedState,
-        sid,
-        timeoutMs: this.resolveConcurrentTimeout(policy.timeoutMs, deadlineAt),
+      const branches = scheduled.targets.map((targetId, index) => {
+        const sid = streamCounter++;
+        this.tracker.updateStream(sid, 'active');
+
+        return this.startConcurrentBranch({
+          activeAst,
+          targetId,
+          payload: scheduled.payloads[index] ?? null,
+          sharedState,
+          sid,
+          timeoutMs: this.resolveConcurrentTimeout(policy.timeoutMs, deadlineAt),
+          cacheSession: effectiveCacheSession,
+        });
       });
-    });
 
-    const result =
-      collapseEdge.type === 'RACE'
-        ? await this.resolveRaceCollapse(
-            branches,
-            collapseEdge,
-            policy,
-            execLogs
-          )
-        : await this.resolveFoldCollapse(
-            branches,
-            collapseEdge,
-            policy,
-            execLogs
-          );
+      const result =
+        collapseEdge.type === 'RACE'
+          ? await this.resolveRaceCollapse(
+              branches,
+              collapseEdge,
+              policy,
+              execLogs,
+              cacheMetrics
+            )
+          : await this.resolveFoldCollapse(
+              branches,
+              collapseEdge,
+              policy,
+              execLogs,
+              cacheMetrics
+            );
 
-    this.logBranchOutcomes(result.outcomes, execLogs);
+      this.logBranchOutcomes(result.outcomes, execLogs);
+      if (corridorSession && this.runtimeCoreCache) {
+        this.runtimeCoreCache.recordEvidence(
+          corridorSession,
+          this.buildConcurrentCorridorObservations(collapseEdge, result.outcomes)
+        );
+        execLogs.push(
+          `   [CORRIDOR] Updated strength=${this.runtimeCoreCache
+            .corridorStrength(corridorSession.corridorKey)
+            .toFixed(2)}`
+        );
+      }
+
+      return {
+        payload: result.payload,
+        streamCounter,
+        outcomes: result.outcomes,
+        blockMetrics: this.buildConcurrentBlockMetrics(
+          collapseEdge,
+          result.outcomes
+        ),
+      };
+    };
+
+    if (corridorSession && this.runtimeCoreCache && corridorSession.mode === 'readwrite') {
+      const freshExecution = executeFresh();
+      this.runtimeCoreCache.registerInflight(
+        corridorSession,
+        freshExecution.then((result) => result.payload)
+      );
+
+      try {
+        const result = await freshExecution;
+        this.runtimeCoreCache.commit(
+          corridorSession,
+          result.payload,
+          result.blockMetrics
+        );
+        return {
+          payload: result.payload,
+          streamCounter: result.streamCounter,
+        };
+      } catch (error) {
+        this.runtimeCoreCache.fail(corridorSession, error);
+        throw error;
+      } finally {
+        this.runtimeCoreCache.release(corridorSession);
+      }
+    }
+
+    const result = await executeFresh();
     return {
       payload: result.payload,
-      streamCounter,
+      streamCounter: result.streamCounter,
     };
   }
 
@@ -584,6 +1160,8 @@ export class GnosisEngine {
     collapseEdge,
     streamCounter,
     execLogs,
+    cacheMetrics,
+    cacheSession,
   }: {
     activeAst: GraphAST;
     activeTargets: string[];
@@ -591,7 +1169,13 @@ export class GnosisEngine {
     collapseEdge: ASTEdge;
     streamCounter: number;
     execLogs: string[];
-  }): Promise<{ payload: unknown; streamCounter: number } | null> {
+    cacheMetrics: GnosisCoreCacheMetrics;
+    cacheSession: GnosisCoreCacheSession | null;
+  }): Promise<{
+    payload: unknown;
+    streamCounter: number;
+    outcomes: ConcurrentBranchOutcome[];
+  } | null> {
     try {
       // Build raw work functions from handlers + payloads
       const workFns: (() => Promise<unknown>)[] = activeTargets.map(
@@ -603,6 +1187,8 @@ export class GnosisEngine {
             Promise.resolve(handler(payload, node.properties, {
               nodeId: targetId,
               executionAuth: this.executionAuth ?? undefined,
+              coreCache: this.runtimeCoreCache ?? undefined,
+              cacheSession: cacheSession ?? undefined,
             }));
         }
       );
@@ -613,6 +1199,7 @@ export class GnosisEngine {
       }
 
       let payload: unknown;
+      const outcomes: ConcurrentBranchOutcome[] = [];
 
       if (collapseEdge.type === 'RACE') {
         execLogs.push(
@@ -622,14 +1209,29 @@ export class GnosisEngine {
         payload = raceResult.result;
         const winnerTarget = activeTargets[raceResult.winnerIndex];
         execLogs.push(`   Race concluded! Winner: ${winnerTarget}`);
+        this.recordCacheMetrics(cacheMetrics, {
+          collapseCount: 1,
+          firstSufficientCount: 1,
+          ventCount: Math.max(0, activeTargets.length - 1),
+          lastWinnerPath: winnerTarget,
+        });
 
         // Update tracker
         for (let i = 0; i < activeTargets.length; i++) {
           const sid = streamCounter + i;
+          const status =
+            i === raceResult.winnerIndex ? 'success' : 'vented';
           this.tracker.updateStream(
             sid,
             i === raceResult.winnerIndex ? 'completed' : 'vented'
           );
+          outcomes.push({
+            path: activeTargets[i],
+            sid,
+            status,
+            durationMs: 0,
+            ...(i === raceResult.winnerIndex ? { value: payload } : {}),
+          });
         }
       } else {
         // FOLD / COLLAPSE
@@ -643,13 +1245,30 @@ export class GnosisEngine {
         for (let i = 0; i < results.length; i++) {
           const sid = streamCounter + i;
           if (results[i].status === 'fulfilled') {
+            const value = (results[i] as PromiseFulfilledResult<unknown>).value;
             successValues.push(
-              (results[i] as PromiseFulfilledResult<unknown>).value
+              value
             );
             successTargets.push(activeTargets[i]);
             this.tracker.updateStream(sid, 'completed');
+            outcomes.push({
+              path: activeTargets[i],
+              sid,
+              status: 'success',
+              durationMs: 0,
+              value,
+            });
           } else {
             this.tracker.updateStream(sid, 'vented');
+            outcomes.push({
+              path: activeTargets[i],
+              sid,
+              status: 'error',
+              durationMs: 0,
+              reason: this.errorMessage(
+                (results[i] as PromiseRejectedResult).reason
+              ),
+            });
           }
         }
 
@@ -665,13 +1284,51 @@ export class GnosisEngine {
         execLogs.push(
           `   Folded result: ${JSON.stringify(payload).substring(0, 50)}...`
         );
+        this.recordCacheMetrics(cacheMetrics, {
+          collapseCount: 1,
+          firstSufficientCount: 1,
+          ventCount: results.length - successValues.length,
+          repairDebt: results.length - successValues.length,
+          lastWinnerPath:
+            collapseEdge.targetIds[0]?.trim() ?? successTargets[0] ?? null,
+        });
       }
 
       this.syncExecutionAuthFromPayload(payload);
-      return { payload, streamCounter: streamCounter + activeTargets.length };
+      return {
+        payload,
+        streamCounter: streamCounter + activeTargets.length,
+        outcomes,
+      };
     } catch {
       return null; // Frame-native failed — fall through to standard path
     }
+  }
+
+  private buildConcurrentBlockMetrics(
+    collapseEdge: ASTEdge,
+    outcomes: readonly ConcurrentBranchOutcome[]
+  ): GnosisCoreCacheMetrics {
+    const acceptedPath =
+      collapseEdge.type === 'RACE'
+        ? outcomes.find((outcome) => outcome.status === 'success')?.path ?? null
+        : null;
+
+    return {
+      collapseCount: 1,
+      firstSufficientCount: outcomes.some(
+        (outcome) => outcome.status === 'success'
+      )
+        ? 1
+        : 0,
+      ventCount: this.countDiscardedBranches(outcomes, acceptedPath),
+      repairDebt: this.countRepairDebt(outcomes),
+      lastWinnerPath:
+        acceptedPath ??
+        collapseEdge.targetIds[0]?.trim() ??
+        outcomes.find((outcome) => outcome.status === 'success')?.path ??
+        null,
+    };
   }
 
   /**
@@ -712,6 +1369,7 @@ export class GnosisEngine {
     sharedState,
     sid,
     timeoutMs,
+    cacheSession,
   }: {
     activeAst: GraphAST;
     targetId: string;
@@ -719,6 +1377,7 @@ export class GnosisEngine {
     sharedState: unknown;
     sid: number;
     timeoutMs: number | null;
+    cacheSession: GnosisCoreCacheSession | null;
   }): ConcurrentBranchHandle {
     const controller = new AbortController();
     const branch: ConcurrentBranchHandle = {
@@ -743,6 +1402,7 @@ export class GnosisEngine {
       sid,
       controller,
       timeoutMs,
+      cacheSession,
     }).then((outcome) => {
       branch.settled = true;
       branch.outcome = outcome;
@@ -760,6 +1420,7 @@ export class GnosisEngine {
     sid,
     controller,
     timeoutMs,
+    cacheSession,
   }: {
     activeAst: GraphAST;
     targetId: string;
@@ -768,6 +1429,7 @@ export class GnosisEngine {
     sid: number;
     controller: AbortController;
     timeoutMs: number | null;
+    cacheSession: GnosisCoreCacheSession | null;
   }): Promise<ConcurrentBranchOutcome> {
     const startedAt = Date.now();
     const finish = (
@@ -804,6 +1466,8 @@ export class GnosisEngine {
       sharedState,
       signal: controller.signal,
       executionAuth: this.executionAuth ?? undefined,
+      coreCache: this.runtimeCoreCache ?? undefined,
+      cacheSession: cacheSession ?? undefined,
     };
     const handlerPromise = Promise.resolve(
       handler(payload, node.properties, context)
@@ -857,7 +1521,8 @@ export class GnosisEngine {
     branches: ConcurrentBranchHandle[],
     collapseEdge: ASTEdge,
     policy: StructuredConcurrencyPolicy,
-    execLogs: string[]
+    execLogs: string[],
+    cacheMetrics: GnosisCoreCacheMetrics
   ): Promise<{ payload: unknown; outcomes: ConcurrentBranchOutcome[] }> {
     execLogs.push(`   Racing paths: [${collapseEdge.sourceIds.join(', ')}]`);
     const resolution = await resolveStructuredRace(branches, policy);
@@ -865,6 +1530,12 @@ export class GnosisEngine {
       execLogs.push(
         `   [STRUCTURED] Race cancelled by ${resolution.cancelledByFailure.path} (${resolution.cancelledByFailure.status}).`
       );
+      this.recordCacheMetrics(cacheMetrics, {
+        collapseCount: 1,
+        firstSufficientCount: 0,
+        ventCount: this.countDiscardedBranches(resolution.outcomes),
+        repairDebt: this.countRepairDebt(resolution.outcomes),
+      });
       return {
         payload: this.buildConcurrentFailurePayload(
           collapseEdge.type,
@@ -878,6 +1549,16 @@ export class GnosisEngine {
 
     if (resolution.winner) {
       execLogs.push(`   Race concluded! Winner: ${resolution.winner.path}`);
+      this.recordCacheMetrics(cacheMetrics, {
+        collapseCount: 1,
+        firstSufficientCount: 1,
+        ventCount: this.countDiscardedBranches(
+          resolution.outcomes,
+          resolution.winner.path
+        ),
+        repairDebt: this.countRepairDebt(resolution.outcomes),
+        lastWinnerPath: resolution.winner.path,
+      });
       return {
         payload: resolution.winner.value,
         outcomes: [...resolution.outcomes],
@@ -890,6 +1571,12 @@ export class GnosisEngine {
     const primaryFailure = resolution.outcomes.find(
       (outcome) => outcome.status !== 'success'
     );
+    this.recordCacheMetrics(cacheMetrics, {
+      collapseCount: 1,
+      firstSufficientCount: 0,
+      ventCount: this.countDiscardedBranches(resolution.outcomes),
+      repairDebt: this.countRepairDebt(resolution.outcomes),
+    });
     return {
       payload: this.buildConcurrentFailurePayload(
         collapseEdge.type,
@@ -905,7 +1592,8 @@ export class GnosisEngine {
     branches: ConcurrentBranchHandle[],
     collapseEdge: ASTEdge,
     policy: StructuredConcurrencyPolicy,
-    execLogs: string[]
+    execLogs: string[],
+    cacheMetrics: GnosisCoreCacheMetrics
   ): Promise<{ payload: unknown; outcomes: ConcurrentBranchOutcome[] }> {
     execLogs.push(`   Folding paths: [${collapseEdge.sourceIds.join(', ')}]`);
     const resolution = await resolveStructuredFold(branches, policy);
@@ -913,6 +1601,12 @@ export class GnosisEngine {
       execLogs.push(
         `   [STRUCTURED] Fold cancelled by ${resolution.cancelledByFailure.path} (${resolution.cancelledByFailure.status}).`
       );
+      this.recordCacheMetrics(cacheMetrics, {
+        collapseCount: 1,
+        firstSufficientCount: 0,
+        ventCount: this.countDiscardedBranches(resolution.outcomes),
+        repairDebt: this.countRepairDebt(resolution.outcomes),
+      });
       return {
         payload: this.buildConcurrentFailurePayload(
           collapseEdge.type,
@@ -926,6 +1620,12 @@ export class GnosisEngine {
 
     if (!resolution.outcomes.some((outcome) => outcome.status === 'success')) {
       execLogs.push(`   [STRUCTURED] Fold produced no surviving branches.`);
+      this.recordCacheMetrics(cacheMetrics, {
+        collapseCount: 1,
+        firstSufficientCount: 0,
+        ventCount: this.countDiscardedBranches(resolution.outcomes),
+        repairDebt: this.countRepairDebt(resolution.outcomes),
+      });
       return {
         payload: this.buildConcurrentFailurePayload(
           collapseEdge.type,
@@ -941,6 +1641,17 @@ export class GnosisEngine {
     execLogs.push(
       `   Folded result: ${JSON.stringify(payload).substring(0, 50)}...`
     );
+    this.recordCacheMetrics(cacheMetrics, {
+      collapseCount: 1,
+      firstSufficientCount: 1,
+      ventCount: this.countDiscardedBranches(resolution.outcomes),
+      repairDebt: this.countRepairDebt(resolution.outcomes),
+      lastWinnerPath:
+        collapseEdge.targetIds[0]?.trim() ??
+        resolution.outcomes.find((outcome) => outcome.status === 'success')
+          ?.path ??
+        null,
+    });
     return { payload, outcomes: [...resolution.outcomes] };
   }
 

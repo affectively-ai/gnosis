@@ -200,13 +200,13 @@ export function createVoidAgent(
       }
       return tb;
     });
-    // Default resonance: temperament ↔ mental health, culture ↔ attachment
+    // Default resonance: temperament <-> mental health, culture <-> attachment
     const resonances: Resonance[] = [];
     if (layers.length >= 5) {
-      resonances.push(createResonance(0, 4, 0.05, 'temperament ↔ mental health'));
+      resonances.push(createResonance(0, 4, 0.05, 'temperament <-> mental health'));
     }
     if (layers.length >= 7) {
-      resonances.push(createResonance(6, 1, 0.05, 'culture ↔ attachment'));
+      resonances.push(createResonance(6, 1, 0.05, 'culture <-> attachment'));
     }
     const stack = createBoundaryStack(`${config.name}:personality`, layers, resonances);
     personality = createStackWalker(stack);
@@ -358,8 +358,8 @@ export function observe(
   agent: VoidAgent,
   action: number,
   rejected: boolean,
-  rejectionMagnitude: number = 1,
-  reward: number = 0,
+  rejectionMagnitude = 1,
+  reward = 0,
 ): void {
   // Update perception heads
   if (rejected) {
@@ -467,8 +467,8 @@ export function completeTick(
   action: number,
   perception: number[],
   rejected: boolean,
-  rejectionMagnitude: number = 1,
-  reward: number = 0,
+  rejectionMagnitude = 1,
+  reward = 0,
 ): AgentTick {
   // Observe
   observe(agent, action, rejected, rejectionMagnitude, reward);
@@ -546,7 +546,7 @@ function applyPersonalityConstraint(agent: VoidAgent): void {
       head.walker.boundary.counts[i] += constraint[i];
     }
     head.walker.boundary.totalEntries = head.walker.boundary.counts.reduce(
-      (a, b) => a + b, 0,
+      (a: number, b: number) => a + b, 0,
     );
   }
 }
@@ -643,8 +643,13 @@ export function actionPreferences(agent: VoidAgent): { action: number; weight: n
     agent.perception[0].walker.eta,
   );
   return dist
-    .map((weight, action) => ({ action, weight }))
-    .sort((a, b) => b.weight - a.weight);
+    .map((weight: number, action: number) => ({ action, weight }))
+    .sort(
+      (
+        a: { action: number; weight: number },
+        b: { action: number; weight: number },
+      ) => b.weight - a.weight,
+    );
 }
 
 /**
@@ -654,8 +659,13 @@ export function actionPreferences(agent: VoidAgent): { action: number; weight: n
 export function rejectionProfile(agent: VoidAgent): { action: number; voidCount: number }[] {
   const counts = agent.perception[0].walker.boundary.counts;
   return counts
-    .map((voidCount, action) => ({ action, voidCount }))
-    .sort((a, b) => b.voidCount - a.voidCount);
+    .map((voidCount: number, action: number) => ({ action, voidCount }))
+    .sort(
+      (
+        a: { action: number; voidCount: number },
+        b: { action: number; voidCount: number },
+      ) => b.voidCount - a.voidCount,
+    );
 }
 
 /**
@@ -677,7 +687,7 @@ export function metacogState(agent: VoidAgent): {
   const m = c1Measure(walker);
   return {
     gait: walker.gait,
-    depth: GAIT_DEPTH[walker.gait],
+    depth: GAIT_DEPTH[walker.gait as Gait],
     eta: walker.eta,
     exploration: walker.exploration,
     entropy: m.entropy,

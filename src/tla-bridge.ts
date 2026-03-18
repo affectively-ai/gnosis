@@ -128,6 +128,28 @@ function getFoldTargets(program: GgProgram): readonly string[] {
   ];
 }
 
+function isCollapseEdge(edge: GgEdge): boolean {
+  const type = edge.type.toUpperCase();
+  return type === 'RACE' || type === 'FOLD' || type === 'COLLAPSE';
+}
+
+function getCorridorTargets(program: GgProgram): readonly string[] {
+  return [
+    ...new Set(
+      program.edges
+        .filter((edge) => {
+          if (!isCollapseEdge(edge)) {
+            return false;
+          }
+
+          const corridor = edge.properties.corridor;
+          return typeof corridor === 'string' && corridor.trim().length > 0;
+        })
+        .flatMap((edge) => edge.targetIds)
+    ),
+  ];
+}
+
 function edgeActionName(edge: GgEdge, index: number): string {
   const typeName = edge.type.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
   const ordinal = String(index + 1).padStart(2, '0');
@@ -206,6 +228,7 @@ function renderTla(
   roots: readonly string[],
   terminals: readonly string[],
   foldTargets: readonly string[],
+  corridorTargets: readonly string[],
   effects: CapabilityContractSummary
 ): string {
   const renderedActions = program.edges.map((edge, index) =>
@@ -223,6 +246,7 @@ function renderTla(
   lines.push(`ROOTS == ${toTlaSet(roots)}`);
   lines.push(`TERMINALS == ${toTlaSet(terminals)}`);
   lines.push(`FOLD_TARGETS == ${toTlaSet(foldTargets)}`);
+  lines.push(`CORRIDOR_TARGETS == ${toTlaSet(corridorTargets)}`);
   lines.push(`EFFECTS == ${toTlaSet(effects.required)}`);
   lines.push(`DECLARED_EFFECTS == ${toTlaSet(effects.declared)}`);
   lines.push(`INFERRED_EFFECTS == ${toTlaSet(effects.inferred)}`);
@@ -261,9 +285,16 @@ function renderTla(
   lines.push('');
   lines.push('NoLostPayloadInvariant == payloadPresent = TRUE');
   lines.push('HasFoldTargets == FOLD_TARGETS # {}');
+  lines.push('HasCorridorTargets == CORRIDOR_TARGETS # {}');
   lines.push('EventuallyTerminal == <> (active \\cap TERMINALS # {})');
   lines.push(
     'EventuallyConsensus == IF HasFoldTargets THEN <> consensusReached ELSE TRUE'
+  );
+  lines.push(
+    'EventuallyMiddleOutCompression == IF HasCorridorTargets THEN <> (active \\cap CORRIDOR_TARGETS # {}) ELSE TRUE'
+  );
+  lines.push(
+    'FirstSufficientCompression == IF HasCorridorTargets THEN <> ((active \\cap CORRIDOR_TARGETS # {}) /\\ beta1 <= Cardinality(CORRIDOR_TARGETS)) ELSE TRUE'
   );
   lines.push('DeadlockFree == []<>(ENABLED Next)');
   lines.push('');
@@ -289,6 +320,8 @@ function renderCfg(): string {
     'PROPERTY DeadlockFree',
     'PROPERTY EventuallyTerminal',
     'PROPERTY EventuallyConsensus',
+    'PROPERTY EventuallyMiddleOutCompression',
+    'PROPERTY FirstSufficientCompression',
     '',
   ].join('\n');
 }
@@ -303,6 +336,7 @@ export function generateTlaFromGnosisSource(
   const roots = getResolvedRoots(program);
   const terminals = getGgTerminalNodeIds(program);
   const foldTargets = getFoldTargets(program);
+  const corridorTargets = getCorridorTargets(program);
   const effects = summarizeCapabilityRequirements(
     inferCapabilitiesFromGgSource(normalizedSource)
   );
@@ -316,7 +350,15 @@ export function generateTlaFromGnosisSource(
 
   return {
     moduleName,
-    tla: renderTla(moduleName, program, roots, terminals, foldTargets, effects),
+    tla: renderTla(
+      moduleName,
+      program,
+      roots,
+      terminals,
+      foldTargets,
+      corridorTargets,
+      effects
+    ),
     cfg: renderCfg(),
     stats: {
       nodeCount: program.nodes.length,

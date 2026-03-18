@@ -7,10 +7,10 @@
 (circulation: Physiology { metric: 'blood-flow' })
 (temperature: Physiology { metric: 'muscle-temp' })
 (coordination: Motor { metric: 'recruitment' })
-(heat_loss: WasteHeat)
+(heat_loss: Sink { medium: 'waste-heat', capacity: '1' })
 (readiness: State { phase: 'warmed' })
 
 (body)-[:FORK]->(circulation | temperature | coordination)
 (circulation | temperature | coordination)-[:FOLD { strategy: 'readiness' }]->(readiness)
 (readiness)-[:PROCESS]->(performance: Output)
-(readiness)-[:VENT { on: 'cooldown' }]->(heat_loss)
+(readiness)-[:VENT { condition: 'cooldown', drift_coefficient: '2', repair_debt: '0' }]->(heat_loss)

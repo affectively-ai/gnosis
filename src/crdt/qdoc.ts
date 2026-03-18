@@ -92,6 +92,70 @@ export interface QMapEvent<T = unknown> {
   };
 }
 
+interface SerializedCrdtEnvelope {
+  __qdocType: 'string' | 'json' | 'undefined';
+  value?: unknown;
+}
+
+function isSerializedCrdtEnvelope(
+  value: unknown
+): value is SerializedCrdtEnvelope {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    '__qdocType' in value &&
+    (((value as SerializedCrdtEnvelope).__qdocType === 'string' &&
+      'value' in value) ||
+      ((value as SerializedCrdtEnvelope).__qdocType === 'json' &&
+        'value' in value) ||
+      (value as SerializedCrdtEnvelope).__qdocType === 'undefined')
+  );
+}
+
+function serializeCrdtValue(value: unknown): string {
+  if (typeof value === 'string') {
+    return JSON.stringify({
+      __qdocType: 'string',
+      value,
+    } satisfies SerializedCrdtEnvelope);
+  }
+
+  if (typeof value === 'undefined') {
+    return JSON.stringify({
+      __qdocType: 'undefined',
+    } satisfies SerializedCrdtEnvelope);
+  }
+
+  return JSON.stringify({
+    __qdocType: 'json',
+    value,
+  } satisfies SerializedCrdtEnvelope);
+}
+
+function deserializeCrdtValue(serialized: string | undefined): unknown {
+  if (typeof serialized !== 'string') {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(serialized) as unknown;
+    if (isSerializedCrdtEnvelope(parsed)) {
+      return parsed.__qdocType === 'undefined' ? undefined : parsed.value;
+    }
+    if (
+      parsed === null ||
+      Array.isArray(parsed) ||
+      (typeof parsed === 'object' && parsed !== null)
+    ) {
+      return parsed;
+    }
+  } catch {
+    return serialized;
+  }
+
+  return serialized;
+}
+
 // ── QDoc ────────────────────────────────────────────────────────────────────
 
 export class QDoc {
@@ -147,7 +211,11 @@ export class QDoc {
   getMap<T = unknown>(name: string): QMap<T> {
     let map = this._maps.get(name);
     if (!map) {
-      map = new QMap(this, name, this._mapStrategy);
+      const hasTopology = this._nodes.has(`map_${name}`);
+      map = new QMap(this, name, this._mapStrategy, !hasTopology);
+      if (hasTopology) {
+        this._replayMapState(name, map);
+      }
       this._maps.set(name, map);
     }
     return map as QMap<T>;
@@ -156,7 +224,11 @@ export class QDoc {
   getArray<T = unknown>(name: string): QArray<T> {
     let arr = this._arrays.get(name);
     if (!arr) {
-      arr = new QArray(this, name, this._sequenceStrategy);
+      const hasTopology = this._nodes.has(`arr_${name}`);
+      arr = new QArray(this, name, this._sequenceStrategy, !hasTopology);
+      if (hasTopology) {
+        this._replayArrayState(name, arr);
+      }
       this._arrays.set(name, arr);
     }
     return arr as QArray<T>;
@@ -165,7 +237,11 @@ export class QDoc {
   getText(name: string): QText {
     let text = this._texts.get(name);
     if (!text) {
-      text = new QText(this, name);
+      const hasTopology = this._nodes.has(`text_${name}`);
+      text = new QText(this, name, !hasTopology);
+      if (hasTopology) {
+        this._replayTextState(name, text);
+      }
       this._texts.set(name, text);
     }
     return text;
@@ -183,7 +259,11 @@ export class QDoc {
   getCounter(name: string): QCounter {
     let counter = this._counters.get(name);
     if (!counter) {
-      counter = new QCounter(this, name);
+      const hasTopology = this._nodes.has(`ctr_${name}`);
+      counter = new QCounter(this, name, !hasTopology);
+      if (hasTopology) {
+        this._replayCounterState(name, counter);
+      }
       this._counters.set(name, counter);
     }
     return counter;
@@ -363,18 +443,261 @@ export class QDoc {
       this._clock = delta.clock;
     }
 
-    // Notify typed accessors of remote changes
     for (const edge of delta.edges) {
-      if (edge.properties.path) {
-        this._emitObserve(edge.properties.path, {
-          type: 'set',
-          path: edge.properties.path,
-          key: edge.properties.key,
-          value: edge.properties.value,
-          origin,
-        });
+      const event = this._applyRemoteEdge(edge, origin);
+      if (event) {
+        this._emitObserve(event.path, event);
       }
     }
+  }
+
+  private _applyRemoteEdge(
+    edge: QDocDeltaEdge,
+    origin: string
+  ): QDocEvent | null {
+    const path = edge.properties.path;
+    const sourceId = edge.sourceIds[0] ?? '';
+    if (!path) {
+      return null;
+    }
+
+    if (
+      edge.type === 'OBSERVE' &&
+      typeof edge.properties.key === 'string' &&
+      edge.properties.key.length > 0
+    ) {
+      const key = edge.properties.key;
+      const map = this._maps.get(path);
+      const value = deserializeCrdtValue(this._resolveEdgeProperty(edge, 'value'));
+      const hadPreviousValue = map?.has(key) ?? false;
+      const previousValue = map?.applyRemoteSet(key, value);
+      return hadPreviousValue
+        ? {
+            type: 'set',
+            path,
+            key,
+            value,
+            previousValue,
+            origin,
+          }
+        : {
+            type: 'set',
+            path,
+            key,
+            value,
+            origin,
+          };
+    }
+
+    if (sourceId === `map_${path}` && edge.type === 'FORK') {
+      const key = edge.properties.key;
+      if (!key) {
+        return null;
+      }
+      const map = this._maps.get(path);
+      if (edge.properties.op === 'delete') {
+        const hadPreviousValue = map?.has(key) ?? false;
+        const previousValue = map?.applyRemoteDelete(key);
+        return hadPreviousValue
+          ? {
+              type: 'delete',
+              path,
+              key,
+              previousValue,
+              origin,
+            }
+          : {
+              type: 'delete',
+              path,
+              key,
+              origin,
+            };
+      }
+
+      return null;
+    }
+
+    if (sourceId === `arr_${path}` && edge.type === 'FORK') {
+      const array = this._arrays.get(path);
+      if (edge.properties.op === 'push') {
+        const value = deserializeCrdtValue(this._resolveEdgeProperty(edge, 'value'));
+        array?.applyRemotePush(value);
+        return {
+          type: 'insert',
+          path,
+          value,
+          origin,
+        };
+      }
+
+      if (edge.properties.op === 'delete') {
+        const index = Number(edge.properties.pos);
+        const length = Number(edge.properties.len);
+        if (Number.isFinite(index) && Number.isFinite(length)) {
+          array?.applyRemoteDelete(index, length);
+          return {
+            type: 'delete',
+            path,
+            origin,
+          };
+        }
+      }
+
+      return null;
+    }
+
+    if (sourceId === `text_${path}` && edge.type === 'FORK') {
+      const text = this._texts.get(path);
+      if (edge.properties.op === 'insert') {
+        const index = Number(edge.properties.pos);
+        const insertedText = edge.properties.text ?? '';
+        if (Number.isFinite(index)) {
+          text?.applyRemoteInsert(index, insertedText);
+          return {
+            type: 'insert',
+            path,
+            value: insertedText,
+            origin,
+          };
+        }
+      }
+
+      if (edge.properties.op === 'delete') {
+        const index = Number(edge.properties.pos);
+        const length = Number(edge.properties.len);
+        if (Number.isFinite(index) && Number.isFinite(length)) {
+          text?.applyRemoteDelete(index, length);
+          return {
+            type: 'delete',
+            path,
+            origin,
+          };
+        }
+      }
+
+      return null;
+    }
+
+    if (sourceId === `ctr_${path}` && edge.type === 'FOLD') {
+      const delta = Number(edge.properties.delta);
+      if (!Number.isFinite(delta)) {
+        return null;
+      }
+      this._counters.get(path)?.applyRemoteIncrement(delta);
+      return {
+        type: 'set',
+        path,
+        value: delta,
+        origin,
+      };
+    }
+
+    return null;
+  }
+
+  private _replayMapState(name: string, map: QMap<unknown>): void {
+    for (const edge of this._edges) {
+      if (
+        edge.type === 'OBSERVE' &&
+        edge.properties.path === name &&
+        typeof edge.properties.key === 'string' &&
+        edge.properties.key.length > 0
+      ) {
+        map.applyRemoteSet(
+          edge.properties.key,
+          deserializeCrdtValue(this._resolveEdgeProperty(edge, 'value'))
+        );
+        continue;
+      }
+
+      if (edge.sourceIds[0] !== `map_${name}` || edge.type !== 'FORK') {
+        continue;
+      }
+      const key = edge.properties.key;
+      if (!key) {
+        continue;
+      }
+      if (edge.properties.op === 'delete') {
+        map.applyRemoteDelete(key);
+      }
+    }
+  }
+
+  private _replayArrayState(name: string, array: QArray<unknown>): void {
+    for (const edge of this._edges) {
+      if (edge.sourceIds[0] !== `arr_${name}` || edge.type !== 'FORK') {
+        continue;
+      }
+      if (edge.properties.op === 'push') {
+        array.applyRemotePush(
+          deserializeCrdtValue(this._resolveEdgeProperty(edge, 'value'))
+        );
+        continue;
+      }
+      if (edge.properties.op !== 'delete') {
+        continue;
+      }
+      const index = Number(edge.properties.pos);
+      const length = Number(edge.properties.len);
+      if (Number.isFinite(index) && Number.isFinite(length)) {
+        array.applyRemoteDelete(index, length);
+      }
+    }
+  }
+
+  private _replayTextState(name: string, text: QText): void {
+    for (const edge of this._edges) {
+      if (edge.sourceIds[0] !== `text_${name}` || edge.type !== 'FORK') {
+        continue;
+      }
+      if (edge.properties.op === 'insert') {
+        const index = Number(edge.properties.pos);
+        const insertedText = edge.properties.text ?? '';
+        if (Number.isFinite(index)) {
+          text.applyRemoteInsert(index, insertedText);
+        }
+        continue;
+      }
+      if (edge.properties.op !== 'delete') {
+        continue;
+      }
+      const index = Number(edge.properties.pos);
+      const length = Number(edge.properties.len);
+      if (Number.isFinite(index) && Number.isFinite(length)) {
+        text.applyRemoteDelete(index, length);
+      }
+    }
+  }
+
+  private _replayCounterState(name: string, counter: QCounter): void {
+    for (const edge of this._edges) {
+      if (edge.sourceIds[0] !== `ctr_${name}` || edge.type !== 'FOLD') {
+        continue;
+      }
+      const delta = Number(edge.properties.delta);
+      if (Number.isFinite(delta)) {
+        counter.applyRemoteIncrement(delta);
+      }
+    }
+  }
+
+  private _resolveEdgeProperty(
+    edge: QDocDeltaEdge,
+    propertyName: string
+  ): string | undefined {
+    const directValue = edge.properties[propertyName];
+    if (typeof directValue === 'string') {
+      return directValue;
+    }
+
+    const targetId = edge.targetIds[0];
+    if (!targetId) {
+      return undefined;
+    }
+
+    const targetNode = this._nodes.get(targetId);
+    const nodeValue = targetNode?.properties[propertyName];
+    return typeof nodeValue === 'string' ? nodeValue : undefined;
   }
 
   // ── Observability ──────────────────────────────────────────────────────
@@ -529,29 +852,36 @@ export class QMap<T = unknown> {
   > = new Map();
   private _branchCounter = 0;
 
-  constructor(doc: QDoc, name: string, strategy: GgCollapseStrategy) {
+  constructor(
+    doc: QDoc,
+    name: string,
+    strategy: GgCollapseStrategy,
+    initializeTopology = true
+  ) {
     this._doc = doc;
     this._name = name;
     this._strategy = strategy;
-    // Create the map root node
-    doc._appendNode({
-      id: `map_${name}`,
-      labels: ['QMap'],
-      properties: { name, strategy },
-    });
-    doc._appendEdge({
-      sourceIds: ['root'],
-      targetIds: [`map_${name}`],
-      type: 'PROCESS',
-      properties: { path: name },
-    });
+    if (initializeTopology) {
+      // Create the map root node
+      doc._appendNode({
+        id: `map_${name}`,
+        labels: ['QMap'],
+        properties: { name, strategy },
+      });
+      doc._appendEdge({
+        sourceIds: ['root'],
+        targetIds: [`map_${name}`],
+        type: 'PROCESS',
+        properties: { path: name },
+      });
+    }
   }
 
   set(key: string, value: T): void {
     const hadPreviousValue = this._data.has(key);
     const previousValue = this._data.get(key);
     const branchId = `map_${this._name}_${key}_${this._branchCounter++}`;
-    const valueStr = typeof value === 'string' ? value : JSON.stringify(value);
+    const valueStr = serializeCrdtValue(value);
 
     // FORK a write branch
     this._doc._appendNode({
@@ -616,6 +946,12 @@ export class QMap<T = unknown> {
     return this._data.has(key);
   }
 
+  applyRemoteSet(key: string, value: unknown): T | undefined {
+    const previousValue = this._data.get(key);
+    this._data.set(key, value as T);
+    return previousValue;
+  }
+
   delete(key: string): void {
     const hadPreviousValue = this._data.has(key);
     const previousValue = this._data.get(key);
@@ -652,6 +988,12 @@ export class QMap<T = unknown> {
           }
     );
     this._doc._notifyUpdate('local');
+  }
+
+  applyRemoteDelete(key: string): T | undefined {
+    const previousValue = this._data.get(key);
+    this._data.delete(key);
+    return previousValue;
   }
 
   toJSON(): Record<string, T> {
@@ -792,27 +1134,34 @@ export class QArray<T = unknown> {
   private readonly _data: T[] = [];
   private _branchCounter = 0;
 
-  constructor(doc: QDoc, name: string, strategy: GgCollapseStrategy) {
+  constructor(
+    doc: QDoc,
+    name: string,
+    strategy: GgCollapseStrategy,
+    initializeTopology = true
+  ) {
     this._doc = doc;
     this._name = name;
     this._strategy = strategy;
-    doc._appendNode({
-      id: `arr_${name}`,
-      labels: ['QArray'],
-      properties: { name, strategy },
-    });
-    doc._appendEdge({
-      sourceIds: ['root'],
-      targetIds: [`arr_${name}`],
-      type: 'PROCESS',
-      properties: { path: name },
-    });
+    if (initializeTopology) {
+      doc._appendNode({
+        id: `arr_${name}`,
+        labels: ['QArray'],
+        properties: { name, strategy },
+      });
+      doc._appendEdge({
+        sourceIds: ['root'],
+        targetIds: [`arr_${name}`],
+        type: 'PROCESS',
+        properties: { path: name },
+      });
+    }
   }
 
   push(items: T[]): void {
     for (const item of items) {
       const branchId = `arr_${this._name}_push_${this._branchCounter++}`;
-      const valueStr = typeof item === 'string' ? item : JSON.stringify(item);
+      const valueStr = serializeCrdtValue(item);
 
       this._doc._appendNode({
         id: branchId,
@@ -869,6 +1218,14 @@ export class QArray<T = unknown> {
     return this.toArray();
   }
 
+  applyRemotePush(item: unknown): void {
+    this._data.push(item as T);
+  }
+
+  applyRemoteDelete(index: number, length = 1): void {
+    this._data.splice(index, length);
+  }
+
   forEach(fn: (item: T, index: number) => void): void {
     this._data.forEach(fn);
   }
@@ -900,20 +1257,22 @@ export class QText {
   private _content = '';
   private _branchCounter = 0;
 
-  constructor(doc: QDoc, name: string) {
+  constructor(doc: QDoc, name: string, initializeTopology = true) {
     this._doc = doc;
     this._name = name;
-    doc._appendNode({
-      id: `text_${name}`,
-      labels: ['QText'],
-      properties: { name },
-    });
-    doc._appendEdge({
-      sourceIds: ['root'],
-      targetIds: [`text_${name}`],
-      type: 'PROCESS',
-      properties: { path: name },
-    });
+    if (initializeTopology) {
+      doc._appendNode({
+        id: `text_${name}`,
+        labels: ['QText'],
+        properties: { name },
+      });
+      doc._appendEdge({
+        sourceIds: ['root'],
+        targetIds: [`text_${name}`],
+        type: 'PROCESS',
+        properties: { path: name },
+      });
+    }
   }
 
   insert(index: number, text: string): void {
@@ -968,6 +1327,16 @@ export class QText {
   toJSON(): string {
     return this._content;
   }
+
+  applyRemoteInsert(index: number, text: string): void {
+    this._content =
+      this._content.slice(0, index) + text + this._content.slice(index);
+  }
+
+  applyRemoteDelete(index: number, length: number): void {
+    this._content =
+      this._content.slice(0, index) + this._content.slice(index + length);
+  }
 }
 
 // ── QCounter — Replaces shared counter patterns ────────────────────────
@@ -978,20 +1347,22 @@ export class QCounter {
   private _value = 0;
   private _branchCounter = 0;
 
-  constructor(doc: QDoc, name: string) {
+  constructor(doc: QDoc, name: string, initializeTopology = true) {
     this._doc = doc;
     this._name = name;
-    doc._appendNode({
-      id: `ctr_${name}`,
-      labels: ['QCounter'],
-      properties: { name, initial: '0' },
-    });
-    doc._appendEdge({
-      sourceIds: ['root'],
-      targetIds: [`ctr_${name}`],
-      type: 'PROCESS',
-      properties: { path: name },
-    });
+    if (initializeTopology) {
+      doc._appendNode({
+        id: `ctr_${name}`,
+        labels: ['QCounter'],
+        properties: { name, initial: '0' },
+      });
+      doc._appendEdge({
+        sourceIds: ['root'],
+        targetIds: [`ctr_${name}`],
+        type: 'PROCESS',
+        properties: { path: name },
+      });
+    }
   }
 
   increment(delta = 1): void {
@@ -1026,5 +1397,9 @@ export class QCounter {
 
   toJSON(): number {
     return this._value;
+  }
+
+  applyRemoteIncrement(delta: number): void {
+    this._value += delta;
   }
 }

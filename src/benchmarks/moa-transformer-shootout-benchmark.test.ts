@@ -4,13 +4,43 @@ import { resolve } from 'node:path';
 import { runGGTestFile } from '../gg-test-runner.js';
 import {
   DEFAULT_MOA_TRANSFORMER_TOPOLOGY_FILES,
+  makeDefaultMoaTransformerShootoutConfig,
   renderGnosisMoaTransformerShootoutMarkdown,
+  type GnosisMoaTransformerShootoutReport,
   runGnosisMoaTransformerShootoutBenchmark,
 } from './moa-transformer-shootout-benchmark.js';
 
+function makeTestMoaTransformerShootoutConfig() {
+  const base = makeDefaultMoaTransformerShootoutConfig();
+  return {
+    ...base,
+    seedCount: 3,
+    epochs: 260,
+    trainAxis: [-1.5, -0.75, 0, 0.75, 1.5],
+    evalAxis: [-1.4, -0.7, 0, 0.7, 1.4],
+    samplePoints: [
+      [-1.2, -1.2],
+      [1.2, 1.2],
+      [1.2, 0],
+    ],
+  } as const;
+}
+
+let cachedReportPromise: Promise<GnosisMoaTransformerShootoutReport> | undefined;
+
+function getShootoutReport(): Promise<GnosisMoaTransformerShootoutReport> {
+  cachedReportPromise ??= runGnosisMoaTransformerShootoutBenchmark(
+    makeTestMoaTransformerShootoutConfig()
+  );
+  return cachedReportPromise;
+}
+
 describe('gnosis MoA transformer shootout benchmark', () => {
-  test('keeps the MoA family accuracy-competitive while using less compute', async () => {
-    const report = await runGnosisMoaTransformerShootoutBenchmark();
+  test(
+    'keeps the MoA family accuracy-competitive while using less compute',
+    { timeout: 20_000 },
+    async () => {
+    const report = await getShootoutReport();
 
     expect(report.sharedCapacity.parameterCount).toBe(72);
     expect(report.sharedCapacity.transformerletCount).toBe(4);
@@ -34,7 +64,8 @@ describe('gnosis MoA transformer shootout benchmark', () => {
     expect(report.families.moa.meanCodecRoundTripExactFraction).toBe(1);
     expect(report.families.regular.meanReassemblyExactFraction).toBe(1);
     expect(report.families.moa.meanFoldInvarianceExactFraction).toBe(1);
-  });
+    }
+  );
 
   test('ships a .test.gg suite for the regular and MoA benchmark modules', async () => {
     const result = await runGGTestFile(
@@ -60,14 +91,18 @@ describe('gnosis MoA transformer shootout benchmark', () => {
     ).toBe(true);
   });
 
-  test('renders a markdown report with compute-adjusted metrics', async () => {
+  test(
+    'renders a markdown report with compute-adjusted metrics',
+    { timeout: 20_000 },
+    async () => {
     const markdown = renderGnosisMoaTransformerShootoutMarkdown(
-      await runGnosisMoaTransformerShootoutBenchmark()
+      await getShootoutReport()
     );
 
     expect(markdown).toContain('# Gnosis MoA Transformer Shootout');
     expect(markdown).toContain('Compute-adjusted exact');
     expect(markdown).toContain('regular');
     expect(markdown).toContain('moa');
-  });
+    }
+  );
 });

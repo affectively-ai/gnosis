@@ -217,10 +217,35 @@ describe('QDoc sync protocol', () => {
     // Apply to doc2
     const doc2 = new QDoc({ guid: 'shared' });
     doc2.applyUpdate(update);
+    const map2 = doc2.getMap('data');
 
-    // Topology was transferred
+    // Topology and accessor state were transferred.
     expect(doc2.nodeCount).toBeGreaterThan(1);
     expect(doc2.edgeCount).toBeGreaterThan(0);
+    expect(map2.get('name')).toBe('Alice');
+  });
+
+  test('roundtrips map, array, text, and counter state through applyUpdate', () => {
+    const source = new QDoc({ guid: 'shared-state' });
+    source.getMap('config').set('theme', 'dark');
+    source.getMap('config').set('layout', { columns: 3 });
+    source.getArray('items').push(['alpha', { beta: true }]);
+    source.getText('notes').insert(0, 'hello');
+    source.getCounter('visits').increment(4);
+
+    const restored = new QDoc({ guid: 'shared-state' });
+    restored.applyUpdate(source.encodeStateAsUpdate());
+
+    expect(restored.getMap('config').toJSON()).toEqual({
+      theme: 'dark',
+      layout: { columns: 3 },
+    });
+    expect(restored.getArray('items').toJSON()).toEqual([
+      'alpha',
+      { beta: true },
+    ]);
+    expect(restored.getText('notes').toString()).toBe('hello');
+    expect(restored.getCounter('visits').value).toBe(4);
   });
 
   test('update handler fires on local changes', () => {

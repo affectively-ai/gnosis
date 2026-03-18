@@ -17,11 +17,13 @@ The honest boundary is the same as the compiler boundary: runtime metadata can s
 ## Files
 
 - [registry.ts](./registry.ts): Label-to-handler registration map.
-- [engine.ts](./engine.ts): Topology execution engine for `FORK/RACE/FOLD/VENT` graphs with persistent execution-auth context, fail-closed UCAN edge authorization, case-aware routing from native `.gg` payloads, structured cancellation/timeout semantics for concurrent collapse edges, and programmatic `executeWithResult()` access to final payloads for internal GG-native subsystems.
+- [engine.ts](./engine.ts): Topology execution engine for `FORK/RACE/FOLD/VENT` graphs with persistent execution-auth context, fail-closed UCAN edge authorization, case-aware routing from native `.gg` payloads, structured cancellation/timeout semantics for concurrent collapse edges, programmatic `executeWithResult()` access to final payloads for internal GG-native subsystems, and opt-in Quantum-CRDT-backed MiddleOut request compression with exact hits, in-flight tunneling, and explicit corridor reuse.
+- [core-cache.ts](./core-cache.ts): Runtime adapter over the CRDT-level `QCorridor` primitive, turning AST identity into corridor/request sessions while preserving hit/tunnel events and append-only collapse metrics (`collapseCount`, `firstSufficientCount`, `ventCount`, `repairDebt`) for the engine.
 - [structured-concurrency.ts](./structured-concurrency.ts): Internal branch-pool core for the Gnosis multiprocessing analogue, owning cancellation, race/fold resolution, and vent/shield outcome normalization for `FORK/RACE/FOLD` execution.
 - [core-handlers.ts](./core-handlers.ts): Built-in `Result`, `Option`, `Variant`, `Destructure`, `Delay`, quantum, and differentiable handlers for native `.gg` data-shaping and execution, including path-aware record destructuring and explicit tuple unpacking.
 - [native-runtime.ts](./native-runtime.ts): Native `.gg` frame runtime adapter over `gnosis_runtime` WASM, with deterministic fallback metrics when WASM is unavailable and compiler-supplied stability metadata attached to emitted frame payloads/snapshots, including the countable queue certificate, the emitted laminar-geometric theorem name, the emitted measurable-Harris theorem name, the emitted measurable-laminar endpoint theorem name, the emitted measurable-quantitative laminar theorem name, the emitted measurable-quantitative Harris theorem name, the emitted measurable witness quantitative Harris theorem name, the emitted measurable abstract Harris-recurrent theorem name, the emitted measurable finite-time geometric-ergodic theorem name, the emitted measurable Lévy-Prokhorov exact-geometric theorem name, the emitted measurable Lévy-Prokhorov geometric-decay theorem name, the emitted measurable abstract Lévy-Prokhorov geometric-ergodic theorem name, the emitted measurable finite-time Harris theorem name, and the derived `continuousHarris` observable/Lyapunov witness package when Betti proves the bounded affine queue-family proof surface.
 - [renderer-compat.ts](./renderer-compat.ts): 3D renderer compatibility layer targeting `@a0n/aeon-3d` with local fallback.
+- [core-cache.test.ts](./core-cache.test.ts): Runtime cache tests covering `QDoc` corridor materialization and event emission.
 - [engine.test.ts](./engine.test.ts): Runtime engine behavior tests.
 - [structured-concurrency.test.ts](./structured-concurrency.test.ts): Core branch-pool tests for race winners, fold venting, and direct cancellation semantics.
 - [native-runtime.test.ts](./native-runtime.test.ts): Native runtime edge-processing and metrics tests.
@@ -69,6 +71,18 @@ Structured concurrency also has a native runtime surface:
 - `RACE` losers are cancelled automatically
 - `RACE` / `FOLD` / `COLLAPSE` edges can declare `failure: "cancel" | "vent" | "shield"`
 - `timeoutMs` and `deadlineMs` become part of branch lifetime semantics instead of ambient runtime behavior
+
+The runtime also exposes an opt-in Quantum CRDT core cache:
+
+- `GnosisCoreCache` stores shared corridor state inside a `QDoc`, not an ad hoc mutable map
+- exact reuse keys combine topology identity with the payload suffix fingerprint
+- `reuseScope: "corridor"` plus `corridorKey` lets callers deliberately share a cached middle across divergent suffix payloads
+- collapse edges also accept GG-native snake_case authoring, so `reuse_scope` and `corridor_mode` mean the same thing as `reuseScope` and `corridorMode`
+- late identical arrivals tunnel into the in-flight promise instead of replaying the graph
+- branch collapse metrics are recorded into the corridor so the cache retains vent/correction evidence instead of only the winner
+- collapse edges now open their own subgraph-level corridor sessions, so a repeated `RACE`/`FOLD` middle can hit or tunnel even when whole-request caching is bypassed
+- `corridor: "name"` on a collapse edge pins that shared middle to a stable corridor identity and turns prior branch outcomes into future branch ordering
+- lowered `StructuredMoA` primitives now emit explicit corridor, trace, and vent sidechannels at both `head-whip` and `outer-whip` boundaries, so MiddleOut request compression is authored in GG instead of inferred only at runtime
 
 ```gg
 (source:Source)-[:PROCESS]->(decision:Result { kind: 'ok' })

@@ -21,7 +21,7 @@
  *   bun run src/benchmarks/concurrency-benchmark.ts --verbose
  */
 
-import { mean, stdev, bootstrapMeanConfidenceInterval, createDeterministicRandom } from './statistics';
+import { mean, stdev, bootstrapMeanConfidenceInterval, createDeterministicRandom } from './statistics.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Types

@@ -30,7 +30,43 @@ import {
   c0Update,
   c1Measure,
   c2c3Adapt,
-} from './void';
+} from './void.js';
+
+export interface VoidAttentionConfig {
+  dimensions: number;
+  eta?: number;
+  neighborhoodRadius?: number;
+  decayRate?: number;
+}
+
+export interface AttentionOutput {
+  weights: number[];
+  selected: number;
+  measurement: Measurement;
+}
+
+export interface CrossAttentionConfig {
+  dimA: number;
+  dimB: number;
+  eta?: number;
+  neighborhoodRadius?: number;
+  decayRate?: number;
+}
+
+export interface CrossAttentionOutput {
+  weights: number[];
+  selected: [number, number];
+  measurement: Measurement;
+}
+
+export interface VoidTransformerConfig {
+  dimA: number;
+  dimB: number;
+  numHeads?: number;
+  eta?: number;
+  neighborhoodRadius?: number;
+  decayRate?: number;
+}
 
 // ============================================================================
 // Void Attention Head = Walker + boundary
@@ -50,9 +86,9 @@ export interface VoidAttentionHead {
 
 export function createAttentionHead(
   dimensions: number,
-  eta: number = 2.0,
-  neighborhoodRadius: number = 1,
-  decayRate: number = 0,
+  eta = 2.0,
+  neighborhoodRadius = 1,
+  decayRate = 0,
 ): VoidAttentionHead {
   return {
     walker: createWalker(createVoidBoundary(dimensions), eta),
@@ -65,7 +101,7 @@ export function createAttentionHead(
 export function attend(
   head: VoidAttentionHead,
   rng?: () => number,
-): { weights: number[]; selected: number; measurement: Measurement } {
+): AttentionOutput {
   const weights = complementDistribution(head.walker.boundary, head.walker.eta);
   const measurement = c1Measure(head.walker);
   const selected = rng
@@ -78,7 +114,7 @@ export function attend(
 export function reject(
   head: VoidAttentionHead,
   choiceIdx: number,
-  magnitude: number = 1,
+  magnitude = 1,
 ): void {
   c0Update(head.walker, choiceIdx, magnitude);
   const r = head.neighborhoodRadius;
@@ -117,9 +153,9 @@ export interface VoidCrossAttentionHead {
 export function createCrossAttentionHead(
   dimA: number,
   dimB: number,
-  eta: number = 2.0,
-  neighborhoodRadius: number = 1,
-  decayRate: number = 0,
+  eta = 2.0,
+  neighborhoodRadius = 1,
+  decayRate = 0,
 ): VoidCrossAttentionHead {
   return {
     walker: createWalker(createVoidBoundary(dimA * dimB), eta),
@@ -145,7 +181,7 @@ export function crossAttend(
   etaA: number,
   etaB: number,
   rng?: () => number,
-): { weights: number[]; selected: [number, number]; measurement: Measurement } {
+): CrossAttentionOutput {
   const distA = complementDistribution(boundaryA, etaA);
   const distB = complementDistribution(boundaryB, etaB);
   const distS = complementDistribution(cross.walker.boundary, cross.walker.eta);
@@ -185,7 +221,7 @@ export function crossReject(
   cross: VoidCrossAttentionHead,
   offerA: number,
   offerB: number,
-  magnitude: number = 1,
+  magnitude = 1,
 ): void {
   const flat = offerA * cross.dimB + offerB;
   c0Update(cross.walker, flat, magnitude);
@@ -229,10 +265,10 @@ export interface VoidTransformerBlock {
 export function createTransformerBlock(
   dimA: number,
   dimB: number,
-  numHeads: number = 1,
-  eta: number = 2.0,
-  neighborhoodRadius: number = 1,
-  decayRate: number = 0,
+  numHeads = 1,
+  eta = 2.0,
+  neighborhoodRadius = 1,
+  decayRate = 0,
 ): VoidTransformerBlock {
   return {
     headsA: Array.from({ length: numHeads }, () =>
@@ -253,6 +289,8 @@ export interface TransformerOutput {
   proposalAccepted: boolean;
   gaits: { a: Gait; b: Gait; s: Gait };
 }
+
+export type TransformerRoundOutput = TransformerOutput;
 
 /**
  * Forward pass: one round of the void walking transformer.

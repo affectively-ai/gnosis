@@ -4,6 +4,8 @@ import { GnosisEngine } from './engine.js';
 import { GnosisRegistry } from './registry.js';
 import { BettyCompiler } from '../betty/compiler.js';
 import { registerCoreAuthHandlers } from '../auth/handlers.js';
+import { QDoc } from '../crdt/index.js';
+import { GnosisCoreCache } from './core-cache.js';
 
 describe('GnosisEngine', () => {
   const compiler = new BettyCompiler();
@@ -32,6 +34,339 @@ describe('GnosisEngine', () => {
 
     expect(result.logs).toContain('start -> next -> next');
     expect(result.payload).toBe('start -> next -> next');
+  });
+
+  it('reuses exact executions from the Quantum core cache', async () => {
+    const registry = new GnosisRegistry();
+    const handler = mock(async (payload) => `${String(payload)} -> next`);
+    registry.register('Step', handler);
+
+    const cache = new GnosisCoreCache(new QDoc({ guid: 'engine-cache-exact' }));
+    const engine = new GnosisEngine(registry, { coreCache: cache });
+    const { ast } = compiler.parse('(a:Step)-[:PROCESS]->(b:Step)');
+
+    const first = await engine.executeWithResult(ast!, 'seed');
+    const second = await engine.executeWithResult(ast!, 'seed');
+
+    expect(first.cache?.status).toBe('miss');
+    expect(second.cache?.status).toBe('hit');
+    expect(second.payload).toBe(first.payload);
+    expect(handler).toHaveBeenCalledTimes(2);
+    expect(cache.getEvents().map((event) => event.type)).toEqual([
+      'submit',
+      'settle',
+      'hit',
+    ]);
+  });
+
+  it('tunnels late arrivals into an in-flight execution', async () => {
+    const registry = new GnosisRegistry();
+    let releaseGate = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      releaseGate = resolve;
+    });
+    let firstBranchStarted = false;
+    let markStarted = () => undefined;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+
+    const handler = mock(async (payload) => {
+      if (!firstBranchStarted) {
+        firstBranchStarted = true;
+        markStarted();
+        await gate;
+      }
+
+      return `${String(payload)} -> slow`;
+    });
+    registry.register('Step', handler);
+
+    const cache = new GnosisCoreCache(new QDoc({ guid: 'engine-cache-tunnel' }));
+    const engine = new GnosisEngine(registry, { coreCache: cache });
+    const { ast } = compiler.parse('(a:Step)-[:PROCESS]->(b:Step)');
+
+    const firstRun = engine.executeWithResult(ast!, 'seed');
+    await started;
+    const secondRun = engine.executeWithResult(ast!, 'seed');
+
+    for (let attempt = 0; attempt < 20; attempt++) {
+      if (cache.getEvents().some((event) => event.type === 'tunnel')) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1));
+    }
+
+    releaseGate();
+
+    const [first, second] = await Promise.all([firstRun, secondRun]);
+
+    expect(first.cache?.status).toBe('miss');
+    expect(second.cache?.status).toBe('tunnel');
+    expect(second.payload).toBe(first.payload);
+    expect(handler).toHaveBeenCalledTimes(2);
+    expect(cache.getEvents().some((event) => event.type === 'tunnel')).toBe(
+      true
+    );
+  });
+
+  it('reuses explicit corridor cache state across different payload suffixes', async () => {
+    const registry = new GnosisRegistry();
+    const handler = mock(async (payload) => `${String(payload)} -> shared`);
+    registry.register('Step', handler);
+
+    const cache = new GnosisCoreCache(
+      new QDoc({ guid: 'engine-cache-corridor' })
+    );
+    const engine = new GnosisEngine(registry, { coreCache: cache });
+    const { ast } = compiler.parse('(a:Step)-[:PROCESS]->(b:Step)');
+    const cacheOptions = {
+      corridorKey: 'shared-middle',
+      reuseScope: 'corridor' as const,
+    };
+
+    const first = await engine.executeWithResult(ast!, 'alpha', {
+      cache: cacheOptions,
+    });
+    const second = await engine.executeWithResult(ast!, 'beta', {
+      cache: cacheOptions,
+    });
+
+    expect(first.cache?.status).toBe('miss');
+    expect(second.cache?.status).toBe('hit');
+    expect(second.payload).toBe(first.payload);
+    expect(handler).toHaveBeenCalledTimes(2);
+    expect(cache.getCorridor('shared-middle')?.cacheHits).toBe(1);
+  });
+
+  it('reuses a shared-middle race block through a subgraph corridor session', async () => {
+    const registry = new GnosisRegistry();
+    registry.register('Forker', async (payload) => [payload, payload]);
+    const slow = mock(async (payload) => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      return `${String(payload)} -> slow`;
+    });
+    const fast = mock(async (payload) => {
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      return `${String(payload)} -> fast`;
+    });
+    registry.register('Slow', slow);
+    registry.register('Fast', fast);
+    registry.register('Sink', async (payload) => payload);
+
+    const cache = new GnosisCoreCache(
+      new QDoc({ guid: 'engine-cache-shared-middle-hit' })
+    );
+    const engine = new GnosisEngine(registry, { coreCache: cache });
+    const { ast } = compiler.parse(`
+            (seed:Forker)-[:FORK]->(slow:Slow|fast:Fast)
+            (slow|fast)-[:RACE { corridor: "branch-middle" }]->(sink:Sink)
+        `);
+
+    const first = await engine.executeWithResult(ast!, 'seed', {
+      cache: { mode: 'bypass' },
+    });
+    const second = await engine.executeWithResult(ast!, 'seed', {
+      cache: { mode: 'bypass' },
+    });
+
+    expect(first.payload).toBe('seed -> fast');
+    expect(second.payload).toBe('seed -> fast');
+    expect(second.logs).toContain('[CORRIDOR] HIT corridor=branch-middle');
+    expect(slow).toHaveBeenCalledTimes(1);
+    expect(fast).toHaveBeenCalledTimes(1);
+    expect(
+      cache
+        .getEvents()
+        .some(
+          (event) =>
+            event.type === 'hit' && event.corridorKey === 'branch-middle'
+        )
+    ).toBe(true);
+  });
+
+  it('tunnels into an in-flight shared-middle corridor session', async () => {
+    const registry = new GnosisRegistry();
+    registry.register('Forker', async (payload) => [payload, payload]);
+    let releaseGate = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      releaseGate = resolve;
+    });
+    let markStarted = () => undefined;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    let startedOnce = false;
+
+    const slow = mock(async (payload) => {
+      if (!startedOnce) {
+        startedOnce = true;
+        markStarted();
+      }
+      await gate;
+      return `${String(payload)} -> slow`;
+    });
+    const fast = mock(async (payload) => {
+      await gate;
+      return `${String(payload)} -> fast`;
+    });
+    registry.register('Slow', slow);
+    registry.register('Fast', fast);
+    registry.register('Sink', async (payload) => payload);
+
+    const cache = new GnosisCoreCache(
+      new QDoc({ guid: 'engine-cache-shared-middle-tunnel' })
+    );
+    const engine = new GnosisEngine(registry, { coreCache: cache });
+    const { ast } = compiler.parse(`
+            (seed:Forker)-[:FORK]->(slow:Slow|fast:Fast)
+            (slow|fast)-[:RACE { corridor: "branch-middle-tunnel" }]->(sink:Sink)
+        `);
+
+    const firstRun = engine.executeWithResult(ast!, 'seed', {
+      cache: { mode: 'bypass' },
+    });
+    await started;
+    const secondRun = engine.executeWithResult(ast!, 'seed', {
+      cache: { mode: 'bypass' },
+    });
+
+    for (let attempt = 0; attempt < 20; attempt++) {
+      if (
+        cache.getEvents().some(
+          (event) =>
+            event.type === 'tunnel' &&
+            event.corridorKey === 'branch-middle-tunnel'
+        )
+      ) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1));
+    }
+
+    releaseGate();
+
+    const [first, second] = await Promise.all([firstRun, secondRun]);
+
+    expect(first.payload).toBe('seed -> slow');
+    expect(second.payload).toBe('seed -> slow');
+    expect(second.logs).toContain(
+      '[CORRIDOR] TUNNEL corridor=branch-middle-tunnel'
+    );
+    expect(slow).toHaveBeenCalledTimes(1);
+    expect(fast).toHaveBeenCalledTimes(1);
+  });
+
+  it('applies snake_case reuse_scope to middle-out request compression corridors', async () => {
+    const registry = new GnosisRegistry();
+    registry.register('Forker', async (payload) => [payload, payload]);
+    const slow = mock(async (payload) => `${String(payload)} -> slow`);
+    const fast = mock(async (payload) => `${String(payload)} -> fast`);
+    registry.register('Slow', slow);
+    registry.register('Fast', fast);
+    registry.register('Sink', async (payload) => payload);
+
+    const cache = new GnosisCoreCache(
+      new QDoc({ guid: 'engine-cache-shared-middle-snake-reuse-scope' })
+    );
+    const engine = new GnosisEngine(registry, { coreCache: cache });
+    const { ast } = compiler.parse(`
+            (seed:Forker)-[:FORK]->(slow:Slow|fast:Fast)
+            (slow|fast)-[:RACE { corridor: "middle-out/request-compression", reuse_scope: "corridor" }]->(sink:Sink)
+        `);
+
+    const first = await engine.executeWithResult(ast!, 'alpha', {
+      cache: { mode: 'bypass' },
+    });
+    const second = await engine.executeWithResult(ast!, 'beta', {
+      cache: { mode: 'bypass' },
+    });
+
+    expect(first.payload).toBe('alpha -> slow');
+    expect(second.payload).toBe(first.payload);
+    expect(second.logs).toContain(
+      '[CORRIDOR] HIT corridor=middle-out/request-compression'
+    );
+    expect(slow).toHaveBeenCalledTimes(1);
+    expect(fast).toHaveBeenCalledTimes(1);
+  });
+
+  it('applies snake_case corridor_mode for shared-middle corridor sessions', async () => {
+    const registry = new GnosisRegistry();
+    registry.register('Forker', async (payload) => [payload, payload]);
+    const slow = mock(async (payload) => `${String(payload)} -> slow`);
+    const fast = mock(async (payload) => `${String(payload)} -> fast`);
+    registry.register('Slow', slow);
+    registry.register('Fast', fast);
+    registry.register('Sink', async (payload) => payload);
+
+    const cache = new GnosisCoreCache(
+      new QDoc({ guid: 'engine-cache-shared-middle-snake-corridor-mode' })
+    );
+    const engine = new GnosisEngine(registry, { coreCache: cache });
+    const { ast } = compiler.parse(`
+            (seed:Forker)-[:FORK]->(slow:Slow|fast:Fast)
+            (slow|fast)-[:RACE { corridor: "middle-out/bypass", corridor_mode: "bypass", reuse_scope: "corridor" }]->(sink:Sink)
+        `);
+
+    const first = await engine.executeWithResult(ast!, 'alpha', {
+      cache: { mode: 'bypass' },
+    });
+    const second = await engine.executeWithResult(ast!, 'alpha', {
+      cache: { mode: 'bypass' },
+    });
+
+    expect(first.logs).toContain('[CORRIDOR] Ranked paths:');
+    expect(second.logs).toContain('[CORRIDOR] Ranked paths:');
+    expect(second.logs).not.toContain('[CORRIDOR] HIT corridor=middle-out/bypass');
+    expect(
+      cache
+        .getEvents()
+        .some(
+          (event) =>
+            event.corridorKey === 'middle-out/bypass' &&
+            (event.type === 'hit' || event.type === 'tunnel')
+        )
+    ).toBe(false);
+    expect(slow).toHaveBeenCalledTimes(2);
+    expect(fast).toHaveBeenCalledTimes(2);
+  });
+
+  it('executes raw request-compression authoring as first-class middle-out reuse', async () => {
+    const compiler = new BettyCompiler();
+    const registry = new GnosisRegistry();
+    registry.register('Forker', async (payload) => [payload, payload]);
+    const slow = mock(async (payload) => `${String(payload)} -> slow`);
+    const fast = mock(async (payload) => `${String(payload)} -> fast`);
+    registry.register('Slow', slow);
+    registry.register('Fast', fast);
+    registry.register('Sink', async (payload) => payload);
+    registry.register('Done', async (payload) => payload);
+
+    const cache = new GnosisCoreCache(
+      new QDoc({ guid: 'engine-cache-raw-request-compression' })
+    );
+    const engine = new GnosisEngine(registry, { coreCache: cache });
+    const { ast } = compiler.parse(`
+            (seed:Forker)-[:FORK]->(slow:Slow|fast:Fast)
+            (slow|fast)-[:RACE { request_compression: "middle-out/raw-request-compression", reuse_scope: "corridor" }]->(sink:Sink)
+            (sink)-[:PROCESS]->(done:Done)
+        `);
+
+    const first = await engine.executeWithResult(ast!, 'alpha', {
+      cache: { mode: 'bypass' },
+    });
+    const second = await engine.executeWithResult(ast!, 'beta', {
+      cache: { mode: 'bypass' },
+    });
+
+    expect(first.payload).toBe('alpha -> slow');
+    expect(second.payload).toBe(first.payload);
+    expect(second.logs).toContain(
+      '[CORRIDOR] HIT corridor=middle-out/raw-request-compression'
+    );
+    expect(slow).toHaveBeenCalledTimes(1);
+    expect(fast).toHaveBeenCalledTimes(1);
   });
 
   it('should execute parallel topologies with FORK/FOLD', async () => {

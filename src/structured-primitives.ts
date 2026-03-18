@@ -16,6 +16,20 @@ const EDGE_PATTERN =
 const ARRAY_LITERAL_PATTERN = /^\[(.*)\]$/;
 const MAX_STRUCTURED_PRIMITIVE_PASSES = 8;
 
+function readAliasedProperty(
+  properties: Readonly<Record<string, string>>,
+  ...keys: readonly string[]
+): string | undefined {
+  for (const key of keys) {
+    const value = properties[key];
+    if (typeof value === 'string' && value.length > 0) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
 function parseProperties(propertiesRaw?: string): Record<string, string> {
   if (!propertiesRaw) {
     return {};
@@ -161,6 +175,12 @@ function renderPrimitiveProperties(
     .join(', ')} }`;
 }
 
+function renderEdgeProperties(
+  properties: Readonly<Record<string, string>>
+): string {
+  return renderPrimitiveProperties(properties);
+}
+
 function renderNode(
   id: string,
   label: string,
@@ -208,6 +228,31 @@ function expandStructuredMoaPrimitive(
     primitive.properties.outerFoldStrategy ??
     primitive.properties.strategy ??
     'linear';
+  const corridorBase =
+    readAliasedProperty(primitive.properties, 'corridor', 'corridor_base') ??
+    primitive.id;
+  const corridorMode =
+    readAliasedProperty(
+      primitive.properties,
+      'corridorMode',
+      'corridor_mode'
+    ) ?? 'readwrite';
+  const reuseScope =
+    readAliasedProperty(primitive.properties, 'reuseScope', 'reuse_scope') ??
+    'corridor';
+  const failureMode = primitive.properties.failure ?? 'vent';
+  const traceLabel =
+    readAliasedProperty(primitive.properties, 'traceLabel', 'trace_label') ??
+    'CorridorTrace';
+  const ventLabel =
+    readAliasedProperty(primitive.properties, 'ventLabel', 'vent_label') ??
+    'VoidBoundary';
+  const ventCondition =
+    readAliasedProperty(
+      primitive.properties,
+      'ventCondition',
+      'vent_condition'
+    ) ?? 'corridor-reject';
   const blockNames = resolveNameList(
     primitive.properties.blockNames,
     blocks,
@@ -224,8 +269,12 @@ function expandStructuredMoaPrimitive(
 
   const lines: string[] = [];
   lines.push(
-    `// StructuredMoA '${primitive.id}' expanded into rotated concurrent MoA topology.`
+    `// StructuredMoA '${primitive.id}' expanded into rotated concurrent MoA topology with MiddleOut request compression corridors.`
   );
+  const outerWhip = `${primitive.id}__outer_whip`;
+  const outerTrace = `${primitive.id}__outer_trace`;
+  const outerVoid = `${primitive.id}__outer_void`;
+  const outerCorridor = `${corridorBase}/outer-whip`;
   lines.push(
     `(${primitive.id}__ingress: FlowFrame { role: 'structured-moa-ingress', primitive: 'StructuredMoA' })`
   );
@@ -234,6 +283,29 @@ function expandStructuredMoaPrimitive(
   );
   lines.push(
     `(${primitive.id}__router: RoutingGate { transformerlets: '${blocks}', active_paths: '${activeBlocks}', role: 'outer-moa-router' })`
+  );
+  lines.push(
+    renderNode(outerWhip, 'FoldOperator', {
+      role: 'worthington-whip',
+      boundary: 'outer-whip',
+      strategy: outerFoldStrategy,
+    })
+  );
+  lines.push(
+    renderNode(outerTrace, traceLabel, {
+      role: 'middle-out-request-compression-trace',
+      corridor: outerCorridor,
+      boundary: 'outer-whip',
+      primitive: 'StructuredMoA',
+    })
+  );
+  lines.push(
+    renderNode(outerVoid, ventLabel, {
+      role: 'middle-out-request-compression-void',
+      corridor: outerCorridor,
+      boundary: 'outer-whip',
+      primitive: 'StructuredMoA',
+    })
   );
   lines.push(`(${primitive.id}: ${outputLabel}${outputProperties})`);
   lines.push(
@@ -249,7 +321,10 @@ function expandStructuredMoaPrimitive(
     const headRotation = `${blockName}__head_rotation`;
     const headRouter = `${blockName}__head_router`;
     const headWhip = `${blockName}__head_whip`;
+    const headTrace = `${blockName}__head_trace`;
+    const headVoid = `${blockName}__head_void`;
     const blockOut = `${blockName}__out`;
+    const innerCorridor = `${corridorBase}/${blockName}/head-whip`;
     const headNames = Array.from(
       { length: heads },
       (_, headIndex) => `${blockName}__h${headIndex}`
@@ -273,6 +348,24 @@ function expandStructuredMoaPrimitive(
     lines.push(
       `(${headWhip}: FoldOperator { role: 'worthington-whip', boundary: 'head-whip', strategy: '${innerFoldStrategy}' })`
     );
+    lines.push(
+      renderNode(headTrace, traceLabel, {
+        role: 'middle-out-request-compression-trace',
+        corridor: innerCorridor,
+        boundary: 'head-whip',
+        block: blockName,
+        primitive: 'StructuredMoA',
+      })
+    );
+    lines.push(
+      renderNode(headVoid, ventLabel, {
+        role: 'middle-out-request-compression-void',
+        corridor: innerCorridor,
+        boundary: 'head-whip',
+        block: blockName,
+        primitive: 'StructuredMoA',
+      })
+    );
     lines.push(`(${blockOut}: FlowFrame { role: 'transformerlet-out' })`);
     lines.push(`(${blockName})-[:PROCESS]->(${headRotation})`);
     lines.push(
@@ -282,18 +375,49 @@ function expandStructuredMoaPrimitive(
     lines.push(
       `(${headNames.join(
         ' | '
-      )})-[:FOLD { strategy: '${innerFoldStrategy}', boundary: 'head-whip' }]->(${headWhip})`
+      )})-[:FOLD${renderEdgeProperties({
+        strategy: innerFoldStrategy,
+        boundary: 'head-whip',
+        corridor: innerCorridor,
+        corridor_mode: corridorMode,
+        reuse_scope: reuseScope,
+        failure: failureMode,
+      })}]->(${headWhip})`
     );
-    lines.push(`(${headWhip})-[:PROCESS]->(${blockOut})`);
+    lines.push(`(${headWhip})-[:PROCESS]->(${headTrace})`);
+    lines.push(
+      `(${headWhip})-[:VENT${renderEdgeProperties({
+        condition: ventCondition,
+        corridor: innerCorridor,
+        repair_debt: '0',
+        drift_coefficient: '0',
+      })}]->(${headVoid})`
+    );
+    lines.push(`(${headTrace})-[:PROCESS]->(${blockOut})`);
   }
 
   lines.push(
     `(${blockOutputs.join(
       ' | '
-    )})-[:FOLD { strategy: '${outerFoldStrategy}', boundary: 'outer-whip' }]->(${
-      primitive.id
-    })`
+    )})-[:FOLD${renderEdgeProperties({
+      strategy: outerFoldStrategy,
+      boundary: 'outer-whip',
+      corridor: outerCorridor,
+      corridor_mode: corridorMode,
+      reuse_scope: reuseScope,
+      failure: failureMode,
+    })}]->(${outerWhip})`
   );
+  lines.push(`(${outerWhip})-[:PROCESS]->(${outerTrace})`);
+  lines.push(
+    `(${outerWhip})-[:VENT${renderEdgeProperties({
+      condition: ventCondition,
+      corridor: outerCorridor,
+      repair_debt: '0',
+      drift_coefficient: '0',
+    })}]->(${outerVoid})`
+  );
+  lines.push(`(${outerTrace})-[:PROCESS]->(${primitive.id})`);
   return lines;
 }
 

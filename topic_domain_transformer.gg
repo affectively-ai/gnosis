@@ -4,10 +4,7 @@
 
 (topic_tokens: Tensor { role: 'input', activation: 'identity', bias: '0.0' })
 (topic_embedding: Projection { role: 'embedding', activation: 'identity', bias: '0.0' })
-
-(query: Projection { role: 'query', activation: 'identity', bias: '0.0' })
-(key: Projection { role: 'key', activation: 'identity', bias: '0.0' })
-(value: Projection { role: 'value', activation: 'identity', bias: '0.0' })
+(qkv_projection: Projection { role: 'qkv_projection', activation: 'identity', bias: '0.0' })
 
 (head_a: AttentionHead { bias: '0.02' })
 (head_b: AttentionHead { bias: '0.02' })
@@ -20,18 +17,8 @@
 (topic_distribution: Tensor { role: 'distribution', activation: 'tanh', bias: '0.0' })
 
 (topic_tokens)-[:PROCESS]->(topic_embedding)
-(topic_embedding)-[:FORK]->(query | key | value)
-(query)-[:FORK]->(head_a | head_b | head_c | head_d)
-
-(key)-[:PROCESS]->(head_a)
-(key)-[:PROCESS]->(head_b)
-(key)-[:PROCESS]->(head_c)
-(key)-[:PROCESS]->(head_d)
-
-(value)-[:PROCESS]->(head_a)
-(value)-[:PROCESS]->(head_b)
-(value)-[:PROCESS]->(head_c)
-(value)-[:PROCESS]->(head_d)
+(topic_embedding)-[:PROCESS]->(qkv_projection)
+(qkv_projection)-[:FORK]->(head_a | head_b | head_c | head_d)
 
 (head_a | head_b | head_c | head_d)-[:FOLD { strategy: 'concat', weight: '0.25' }]->(attention_mix)
 (attention_mix | topic_embedding)-[:INTERFERE { mode: 'constructive', weight: '0.5' }]->(topic_state)

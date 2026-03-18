@@ -242,6 +242,33 @@ describe('BettyCompiler', () => {
     ).toBe(true);
   });
 
+  it('treats StructuredMoA as trace-honest after lowering its middle-out request compression spine', () => {
+    const compiler = new BettyCompiler();
+    const { diagnostics } = compiler.parse(`
+            (moa_out: StructuredMoA {
+              blocks: "2",
+              activeBlocks: "2",
+              heads: "2",
+              activeHeads: "1"
+            })
+        `);
+
+    expect(diagnostics.some((d) => d.code === 'ETHICS_NO_TRACE')).toBe(false);
+  });
+
+  it('treats raw request-compression collapse edges as trace- and vent-honest after lowering', () => {
+    const compiler = new BettyCompiler();
+    const { diagnostics } = compiler.parse(`
+            (seed)-[:FORK]->(left|right)
+            (left|right)-[:RACE { request_compression: "middle-out/raw-request", reuse_scope: "corridor" }]->(sink)
+        `);
+
+    expect(diagnostics.some((d) => d.code === 'ETHICS_NO_TRACE')).toBe(false);
+    expect(
+      diagnostics.some((d) => d.code === 'ETHICS_MISSING_VENT_PATH')
+    ).toBe(false);
+  });
+
   it('rejects unstable thermodynamic cycles with spectral explosion', () => {
     const { diagnostics, stability } = compiler.parse(`
             (inbound:Source { pressure: "5" })

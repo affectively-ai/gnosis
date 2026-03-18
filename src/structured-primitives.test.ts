@@ -16,11 +16,13 @@ describe('structured GG primitives', () => {
     expect(expanded).toContain('(x_pos: MoATransformerlet');
     expect(expanded).toContain('(x_pos__h0: AttentionHeadChain');
     expect(expanded).toContain(
-      "(x_pos__h0 | x_pos__h1 | x_pos__h2 | x_pos__h3)-[:FOLD { strategy: 'linear', boundary: 'head-whip' }]->(x_pos__head_whip)"
+      "(x_pos__h0 | x_pos__h1 | x_pos__h2 | x_pos__h3)-[:FOLD { strategy: 'linear', boundary: 'head-whip', corridor: 'moa_out/x_pos/head-whip', corridor_mode: 'readwrite', reuse_scope: 'corridor', failure: 'vent' }]->(x_pos__head_whip)"
     );
     expect(expanded).toContain(
-      "(x_pos__out | x_neg__out | y_pos__out | y_neg__out)-[:FOLD { strategy: 'linear', boundary: 'outer-whip' }]->(moa_out)"
+      "(x_pos__out | x_neg__out | y_pos__out | y_neg__out)-[:FOLD { strategy: 'linear', boundary: 'outer-whip', corridor: 'moa_out/outer-whip', corridor_mode: 'readwrite', reuse_scope: 'corridor', failure: 'vent' }]->(moa_out__outer_whip)"
     );
+    expect(expanded).toContain('(x_pos__head_trace: CorridorTrace');
+    expect(expanded).toContain('(moa_out__outer_trace: CorridorTrace');
   });
 
   test('expands WallingtonRotation into chunk scheduler, stage chain, and named output', () => {
@@ -133,5 +135,114 @@ describe('structured GG primitives', () => {
     expect(egressEdge).toBeDefined();
     expect(transformerlets).toHaveLength(4);
     expect(headChains).toHaveLength(16);
+  });
+
+  test('emits explicit corridor metadata plus trace and vent spines for StructuredMoA collapse boundaries', () => {
+    const normalized = lowerUfcsSource(`
+(moa_out: StructuredMoA { blocks: '2', activeBlocks: '2', heads: '2', activeHeads: '1', blockNames: '[left,right]', corridor: 'void-walker', failure: 'shield', corridor_mode: 'readonly', reuse_scope: 'corridor' })
+`);
+    const program = parseGgProgram(normalized);
+
+    const innerFold = program.edges.find(
+      (edge) =>
+        edge.type === 'FOLD' &&
+        edge.targetIds[0] === 'left__head_whip' &&
+        edge.properties.boundary === 'head-whip'
+    );
+    const outerFold = program.edges.find(
+      (edge) =>
+        edge.type === 'FOLD' &&
+        edge.targetIds[0] === 'moa_out__outer_whip' &&
+        edge.properties.boundary === 'outer-whip'
+    );
+    const headTraceNode = program.nodes.find(
+      (node) => node.id === 'left__head_trace'
+    );
+    const outerTraceNode = program.nodes.find(
+      (node) => node.id === 'moa_out__outer_trace'
+    );
+    const headTraceEdge = program.edges.find(
+      (edge) =>
+        edge.type === 'PROCESS' &&
+        edge.sourceIds[0] === 'left__head_whip' &&
+        edge.targetIds[0] === 'left__head_trace'
+    );
+    const headVentEdge = program.edges.find(
+      (edge) =>
+        edge.type === 'VENT' &&
+        edge.sourceIds[0] === 'left__head_whip' &&
+        edge.targetIds[0] === 'left__head_void'
+    );
+
+    expect(innerFold?.properties.corridor).toBe('void-walker/left/head-whip');
+    expect(innerFold?.properties.corridor_mode).toBe('readonly');
+    expect(innerFold?.properties.reuse_scope).toBe('corridor');
+    expect(innerFold?.properties.failure).toBe('shield');
+    expect(outerFold?.properties.corridor).toBe('void-walker/outer-whip');
+    expect(outerFold?.properties.corridor_mode).toBe('readonly');
+    expect(outerFold?.properties.reuse_scope).toBe('corridor');
+    expect(headTraceNode?.labels).toContain('CorridorTrace');
+    expect(outerTraceNode?.labels).toContain('CorridorTrace');
+    expect(headTraceEdge).toBeDefined();
+    expect(headVentEdge?.properties.condition).toBe('corridor-reject');
+  });
+
+  test('lowers raw request-compression edges into explicit corridor boundary, trace, and vent nodes', () => {
+    const normalized = lowerUfcsSource(`
+(seed)-[:FORK]->(left|right)
+(left|right)-[:RACE { request_compression: 'middle-out/request-compression', reuse_scope: 'corridor', corridor_mode: 'readonly', failure: 'shield' }]->(sink:Sink)
+(sink)-[:PROCESS]->(done)
+`);
+    const program = parseGgProgram(normalized);
+
+    const corridorBoundaryNode = program.nodes.find((node) =>
+      node.labels.includes('CorridorBoundary')
+    );
+    const corridorTraceNode = program.nodes.find((node) =>
+      node.labels.includes('CorridorTrace')
+    );
+    const corridorVoidNode = program.nodes.find((node) =>
+      node.labels.includes('VoidBoundary')
+    );
+    const compressedRace = program.edges.find(
+      (edge) =>
+        edge.type === 'RACE' &&
+        edge.properties.corridor === 'middle-out/request-compression'
+    );
+    const traceProcess = program.edges.find(
+      (edge) =>
+        edge.type === 'PROCESS' &&
+        edge.sourceIds[0] === corridorBoundaryNode?.id &&
+        edge.targetIds[0] === corridorTraceNode?.id
+    );
+    const traceToSink = program.edges.find(
+      (edge) =>
+        edge.type === 'PROCESS' &&
+        edge.sourceIds[0] === corridorTraceNode?.id &&
+        edge.targetIds[0] === 'sink:Sink'
+    );
+    const ventEdge = program.edges.find(
+      (edge) =>
+        edge.type === 'VENT' &&
+        edge.sourceIds[0] === corridorBoundaryNode?.id &&
+        edge.targetIds[0] === corridorVoidNode?.id
+    );
+
+    expect(corridorBoundaryNode?.properties.corridor).toBe(
+      'middle-out/request-compression'
+    );
+    expect(corridorTraceNode?.properties.corridor).toBe(
+      'middle-out/request-compression'
+    );
+    expect(corridorVoidNode?.properties.corridor).toBe(
+      'middle-out/request-compression'
+    );
+    expect(compressedRace?.targetIds[0]).toBe(corridorBoundaryNode?.id);
+    expect(compressedRace?.properties.reuse_scope).toBe('corridor');
+    expect(compressedRace?.properties.corridor_mode).toBe('readonly');
+    expect(compressedRace?.properties.failure).toBe('shield');
+    expect(traceProcess).toBeDefined();
+    expect(traceToSink).toBeDefined();
+    expect(ventEdge?.properties.condition).toBe('corridor-reject');
   });
 });

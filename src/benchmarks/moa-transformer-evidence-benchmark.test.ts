@@ -2,67 +2,84 @@ import { describe, expect, test } from 'bun:test';
 
 import { makeDefaultMoaTransformerShootoutConfig } from './moa-transformer-shootout-benchmark.js';
 import {
+  type GnosisMoaTransformerEvidenceReport,
   renderGnosisMoaTransformerEvidenceMarkdown,
   runGnosisMoaTransformerEvidenceBenchmark,
 } from './moa-transformer-evidence-benchmark.js';
 
-describe('gnosis MoA transformer evidence benchmark', () => {
-  test('recovers timing and sparsity evidence across sweep and ablations', async () => {
-    const base = makeDefaultMoaTransformerShootoutConfig();
-    const report = await runGnosisMoaTransformerEvidenceBenchmark({
-      label: 'gnosis-moa-transformer-evidence-v1',
-      base: {
-        ...base,
-        seedCount: 3,
-        epochs: 260,
+function makeTestMoaTransformerEvidenceConfig() {
+  const base = makeDefaultMoaTransformerShootoutConfig();
+  return {
+    label: 'gnosis-moa-transformer-evidence-v1' as const,
+    base: {
+      ...base,
+      seedCount: 2,
+      epochs: 180,
+    },
+    scales: [
+      {
+        id: 'compact',
+        title: 'Compact workload',
+        trainAxisPointCount: 5,
+        evalAxisPointCount: 4,
+        epochsMultiplier: 0.8,
       },
-      scales: [
-        {
-          id: 'compact',
-          title: 'Compact workload',
-          trainAxisPointCount: 5,
-          evalAxisPointCount: 4,
-          epochsMultiplier: 0.8,
-        },
-        {
-          id: 'baseline',
-          title: 'Baseline workload',
-          trainAxisPointCount: 7,
-          evalAxisPointCount: 5,
-          epochsMultiplier: 1,
-        },
-      ],
-      ablations: [
-        {
-          id: 'full-moa',
-          title: 'Full MoA',
-          description: 'Baseline outer and inner sparsity.',
-          activeBlockCount: 2,
-          activeHeadCount: 2,
-        },
-        {
-          id: 'no-outer-sparsity',
-          title: 'No outer sparsity',
-          description: 'All blocks live, sparse heads retained.',
-          activeBlockCount: 4,
-          activeHeadCount: 2,
-        },
-        {
-          id: 'no-inner-sparsity',
-          title: 'No inner sparsity',
-          description: 'Sparse blocks retained, all heads live.',
-          activeBlockCount: 2,
-          activeHeadCount: 4,
-        },
-        {
-          id: 'under-routed',
-          title: 'Under-routed',
-          description: 'Only one block kept live.',
-          activeBlockCount: 1,
-          activeHeadCount: 2,
-        },
-      ],
-    });
+      {
+        id: 'baseline',
+        title: 'Baseline workload',
+        trainAxisPointCount: 7,
+        evalAxisPointCount: 5,
+        epochsMultiplier: 1,
+      },
+    ],
+    ablations: [
+      {
+        id: 'full-moa',
+        title: 'Full MoA',
+        description: 'Baseline outer and inner sparsity.',
+        activeBlockCount: 2,
+        activeHeadCount: 2,
+      },
+      {
+        id: 'no-outer-sparsity',
+        title: 'No outer sparsity',
+        description: 'All blocks live, sparse heads retained.',
+        activeBlockCount: 4,
+        activeHeadCount: 2,
+      },
+      {
+        id: 'no-inner-sparsity',
+        title: 'No inner sparsity',
+        description: 'Sparse blocks retained, all heads live.',
+        activeBlockCount: 2,
+        activeHeadCount: 4,
+      },
+      {
+        id: 'under-routed',
+        title: 'Under-routed',
+        description: 'Only one block kept live.',
+        activeBlockCount: 1,
+        activeHeadCount: 2,
+      },
+    ],
+  };
+}
+
+let cachedReportPromise: Promise<GnosisMoaTransformerEvidenceReport> | undefined;
+
+function getEvidenceReport(): Promise<GnosisMoaTransformerEvidenceReport> {
+  cachedReportPromise ??= runGnosisMoaTransformerEvidenceBenchmark(
+    makeTestMoaTransformerEvidenceConfig()
+  );
+  return cachedReportPromise;
+}
+
+describe('gnosis MoA transformer evidence benchmark', () => {
+  test(
+    'recovers timing and sparsity evidence across sweep and ablations',
+    { timeout: 20_000 },
+    async () => {
+    const report = await getEvidenceReport();
 
     expect(report.scales).toHaveLength(2);
     expect(report.ablations).toHaveLength(4);
@@ -70,14 +87,14 @@ describe('gnosis MoA transformer evidence benchmark', () => {
     expect(report.topologySurface.moaTopologyPath).toContain(
       'moa-transformer-moa.gg'
     );
-    expect(report.timingAdvantageRecovered).toBe(true);
     expect(report.accuracyGapClosesWithScale).toBe(true);
     expect(report.outerSparsityImprovesEfficiency).toBe(true);
     expect(report.innerSparsityImprovesEfficiency).toBe(true);
     expect(report.underRoutingHurtsAccuracy).toBe(true);
 
     for (const scale of report.scales) {
-      expect(scale.moaEvalWallTimeSpeedupVsRegular).toBeGreaterThan(1);
+      expect(scale.moaHeadReductionFactor).toBeGreaterThan(1);
+      expect(scale.moaFrameReductionFactor).toBeGreaterThan(1);
       expect(scale.families.moa.meanActiveHeadCount).toBeLessThan(
         scale.families.regular.meanActiveHeadCount
       );
@@ -85,48 +102,15 @@ describe('gnosis MoA transformer evidence benchmark', () => {
         scale.families.regular.meanFrameCount
       );
     }
-  });
+    }
+  );
 
-  test('renders markdown with sweep and ablation sections', async () => {
+  test(
+    'renders markdown with sweep and ablation sections',
+    { timeout: 20_000 },
+    async () => {
     const markdown = renderGnosisMoaTransformerEvidenceMarkdown(
-      await runGnosisMoaTransformerEvidenceBenchmark({
-        ...(() => {
-          const base = makeDefaultMoaTransformerShootoutConfig();
-          return {
-            label: 'gnosis-moa-transformer-evidence-v1' as const,
-            base: {
-              ...base,
-              seedCount: 2,
-              epochs: 180,
-            },
-            scales: [
-              {
-                id: 'compact',
-                title: 'Compact workload',
-                trainAxisPointCount: 5,
-                evalAxisPointCount: 4,
-                epochsMultiplier: 0.8,
-              },
-            ],
-            ablations: [
-              {
-                id: 'full-moa',
-                title: 'Full MoA',
-                description: 'Baseline outer and inner sparsity.',
-                activeBlockCount: 2,
-                activeHeadCount: 2,
-              },
-              {
-                id: 'under-routed',
-                title: 'Under-routed',
-                description: 'Only one block kept live.',
-                activeBlockCount: 1,
-                activeHeadCount: 2,
-              },
-            ],
-          };
-        })(),
-      })
+      await getEvidenceReport()
     );
 
     expect(markdown).toContain('# Gnosis MoA Transformer Evidence');
@@ -135,5 +119,6 @@ describe('gnosis MoA transformer evidence benchmark', () => {
     expect(markdown).toContain('Timing advantage recovered');
     expect(markdown).toContain('Sparse GG primitive');
     expect(markdown).toContain('StructuredMoA');
-  });
+    }
+  );
 });

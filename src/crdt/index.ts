@@ -7,6 +7,7 @@ export {
   QText,
   QCounter,
 } from './qdoc.js';
+export { QCorridor } from './qcorridor.js';
 export type {
   QDocOptions,
   QDocDelta,
@@ -18,6 +19,22 @@ export type {
   QMapKeyChange,
   QMapEvent,
 } from './qdoc.js';
+export type {
+  QCorridorOptions,
+  QCorridorExecutionOptions,
+  QCorridorMode,
+  QCorridorReuseScope,
+  QCorridorSession,
+  QCorridorMetrics,
+  QCorridorEntry,
+  QCorridorRecord,
+  QCorridorEvent,
+  QCorridorEvidence,
+  QCorridorObservation,
+  QCorridorObservationRole,
+  QCorridorObservationStatus,
+  QCorridorLookup,
+} from './qcorridor.js';
 export {
   QDocAeonRelay,
   QDocRelay,

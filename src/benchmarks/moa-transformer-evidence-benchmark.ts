@@ -1,7 +1,9 @@
 import {
   DEFAULT_MOA_TRANSFORMER_TOPOLOGY_FILES,
   makeDefaultMoaTransformerShootoutConfig,
+  runGnosisMoaTransformerFamilyBenchmark,
   runGnosisMoaTransformerShootoutBenchmark,
+  type MoaTransformerFamilyReport,
   type GnosisMoaTransformerShootoutReport,
   type MoaTransformerFamily,
   type MoaTransformerShootoutConfig,
@@ -158,10 +160,9 @@ function summarizeScale(
 
 function summarizeAblation(
   ablation: MoaTransformerEvidenceAblationConfig,
-  report: GnosisMoaTransformerShootoutReport
+  regular: MoaTransformerFamilyReport,
+  moa: MoaTransformerFamilyReport
 ): MoaTransformerEvidenceAblationReport {
-  const regular = summarizeFamily(report, 'regular');
-  const moa = summarizeFamily(report, 'moa');
   return {
     id: ablation.id,
     title: ablation.title,
@@ -173,9 +174,24 @@ function summarizeAblation(
       moa.meanEvalWallTimeMs <= 0
         ? 0
         : regular.meanEvalWallTimeMs / moa.meanEvalWallTimeMs,
-    rawAccuracyCompetitive: report.rawAccuracyCompetitive,
-    moaUsesLessCompute: report.moaUsesLessCompute,
+    rawAccuracyCompetitive:
+      moa.meanEvalMeanSquaredError <= regular.meanEvalMeanSquaredError + 0.03 &&
+      moa.meanExactWithinToleranceFraction >=
+        regular.meanExactWithinToleranceFraction - 0.05,
+    moaUsesLessCompute:
+      moa.meanActiveHeadCount < regular.meanActiveHeadCount &&
+      moa.meanFrameCount < regular.meanFrameCount,
   };
+}
+
+function usesBaseMoaRouting(
+  ablation: MoaTransformerEvidenceAblationConfig,
+  base: MoaTransformerShootoutConfig
+): boolean {
+  return (
+    ablation.activeBlockCount === base.activeBlockCount &&
+    ablation.activeHeadCount === base.activeHeadCount
+  );
 }
 
 export function makeDefaultMoaTransformerEvidenceConfig(): MoaTransformerEvidenceConfig {
@@ -260,18 +276,30 @@ export async function runGnosisMoaTransformerEvidenceBenchmark(
       epochs,
       trainAxis: makeAxis(scale.trainAxisPointCount, 1.5),
       evalAxis: makeAxis(scale.evalAxisPointCount, 1.4),
+      samplePoints: [],
     });
     scales.push(summarizeScale(scale, report));
   }
 
+  const baselineAblationReport = await runGnosisMoaTransformerShootoutBenchmark({
+    ...config.base,
+    samplePoints: [],
+  });
+  const baselineRegular = baselineAblationReport.families.regular;
+
   const ablations: MoaTransformerEvidenceAblationReport[] = [];
   for (const ablation of config.ablations) {
-    const report = await runGnosisMoaTransformerShootoutBenchmark({
-      ...config.base,
-      activeBlockCount: ablation.activeBlockCount,
-      activeHeadCount: ablation.activeHeadCount,
-    });
-    ablations.push(summarizeAblation(ablation, report));
+    const moaFamily = usesBaseMoaRouting(ablation, config.base)
+      ? baselineAblationReport.families.moa
+      : await runGnosisMoaTransformerFamilyBenchmark('moa', {
+          ...config.base,
+          activeBlockCount: ablation.activeBlockCount,
+          activeHeadCount: ablation.activeHeadCount,
+          samplePoints: [],
+        });
+    ablations.push(
+      summarizeAblation(ablation, baselineRegular, moaFamily)
+    );
   }
 
   const fullMoa = ablations.find((entry) => entry.id === 'full-moa');
