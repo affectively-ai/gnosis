@@ -18,7 +18,7 @@ steps:
         apt-get install -y -qq curl ca-certificates > /dev/null 2>&1
         curl -fsSL https://bun.sh/install | bash
         export BUN_INSTALL=/root/.bun
-        export PATH="$BUN_INSTALL/bin:$PATH"
+        export PATH="$$BUN_INSTALL/bin:$$PATH"
         cd /workspace
         bun install --frozen-lockfile
         export GNODE_RUNTIME_SHOOTOUT_ITERATIONS=8
