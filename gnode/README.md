@@ -24,6 +24,7 @@ Broader TypeScript control flow still fails closed with a compile error instead 
 gnode run ./app.ts
 gnode compile ./app.ts
 gnode schedule ./app.ts --lanes 4 --strategy cannon
+pnpm --dir open-source/gnosis run gnode:prewarm -- --json
 ```
 
 ## Scheduler Shape
@@ -37,12 +38,22 @@ The scheduler surface follows the same ideas used in [`@a0n/a0`](../../a0/README
 
 The default `gnode` bin now runs the bridge driver through Node's native TypeScript transform path instead of Bun. The Rust crate remains available as an alternate front-end, but the shared developer-facing command is `gnode`.
 
-The hot path now has two precomputed layers:
+The hot path now has three precomputed layers:
 
 - a bundled CommonJS bridge driver under [`dist/`](../dist/), with freshness tracked from the exact esbuild dependency manifest instead of recursively walking source trees on every invocation
-- a daily daisy-chain artifact cache keyed by the source file plus bridge/compiler signature, storing the compiled GG topology and a stable runtime bindings module so repeat `gnode` runs do not keep recompiling the same helix
+- a daily daisy-chain artifact cache keyed by the source file plus bridge/compiler signature, storing the compiled GG topology, `.qdoc` head/artifact records, and a stable runtime bindings module so repeat `gnode` runs do not keep recompiling the same helix
+- a Node compile-cache layer that can be primed ahead of time so `typescript`, `esbuild`, and the bundled driver do not pay the full parser/bootstrap tax on the first real request
 
-Set `GNODE_FORCE_TSX=1` to bypass the bundled driver when debugging the raw TypeScript bridge itself, and pass `--trace-timings` to print the artifact-load versus execute-time breakdown for a single request.
+`pnpm --dir open-source/gnosis run build` now ends by running `gnode:prewarm`, and you can call that script directly after installs or cache clears when you want the first user-facing request to land on the fast path immediately.
+
+Set `GNODE_FORCE_TSX=1` to bypass the bundled driver when debugging the raw TypeScript bridge itself, and pass `--trace-timings` to print the wrapper, artifact-load, compile-cache, and execute-time breakdown for a single request.
+
+The cache can also federate over the built-in relay surface when the env is present:
+
+- `GNODE_CACHE_AEON_RELAY_URL` or `GNODE_CACHE_RELAY_URL` enables `QDoc`/DashRelay sync for cache records, with `DASH_RELAY_WS_URL` accepted as the shared repo fallback
+- `GNODE_CACHE_AEON_RELAY_ROOM_PREFIX` or `GNODE_CACHE_RELAY_ROOM_PREFIX` controls the room namespace; the default is `gnode-cache`
+- API key, client id, protocol, mode, product, and timeout follow the same `GNODE_CACHE_AEON_RELAY_*` / `GNODE_CACHE_RELAY_*` naming pattern
+- `GNODE_COMPILE_CACHE_DIR` overrides where the Node compile cache is stored, and `GNODE_DISABLE_COMPILE_CACHE=1` disables the priming layer when you need to debug the true uncached path
 
 The intended next host is [`x-gnosis`](../../x-gnosis/README.md): `gnode` remains the developer-facing binary, while `x-gnosis` and [`gnosis-uring`](../../x-gnosis/gnosis-uring/README.md) become the native place to run the compiled GG process graph with the same telemetry and scheduler semantics.
 
@@ -62,13 +73,15 @@ That shootout measures the same checked-in toy TypeScript entrypoints across `gn
 
 On March 18, 2026, a one-request local smoke with the same toy `app.ts` (`internalStep(input) => input + 2`) produced this shape on this machine:
 
-- `gnode` cold miss via `node open-source/gnosis/bin/gnode.js ... --trace-timings`: `294.37ms` inside the runtime (`284.62ms` artifact build/load, `9.11ms` execute)
-- `gnode` warm hit on the same file: `25.01ms` inside the runtime (`5.33ms` artifact lookup, `19.11ms` execute)
-- Bun direct via `bun run.ts`: `82.05ms` cold, `57.96ms` warm
-- Deno in this environment was only available via `pnpm dlx deno run`, which measured `5681.05ms` cold and `2225.87ms` warm; that path includes `pnpm dlx` wrapper overhead and should not be treated as a clean direct-Deno baseline
+- `gnode` with an empty compile cache: `1251.69ms` inside the runtime (`959.43ms` compile, `226.42ms` runtime-module emit, `4.36ms` execute), `1420.15ms` wrapper total
+- `gnode` on the next fresh-process miss with the Node compile cache already primed: `414.47ms` inside the runtime, `458.24ms` wrapper total
+- `gnode` after `pnpm --dir open-source/gnosis run gnode:prewarm -- --json`: `286.07ms` inside the runtime on the first real request, `303.01ms` wrapper total
+- `gnode` warm hit on the same file: `9.96ms` inside the runtime, `45.56ms` wrapper total
+- Bun direct on the same toy app via `bun -e "const mod = await import(...)"`: `490ms` cold, `120ms` warm
+- Deno was not installed on this machine for the latest local smoke; the Cloud Build/runtime shootout still reports it when available
 
 So the current state is:
 
-- Bun is still faster than `gnode` on the cold path
-- `gnode` warm-hit execution is now materially faster than the direct Bun smoke on the same toy app because the GG artifact and runtime binding module are precomputed
-- the remaining cold-path tax is in artifact synthesis, not the graph executor
+- the true first-ever uncached process is still dominated by compiler bootstrap, which is why the shipped `gnode:prewarm` path exists
+- once the compile cache is primed, `gnode` now beats the direct Bun smoke on both the first real request and the warm-hit path for this toy app
+- the remaining cold-path tax is mostly in artifact synthesis, not the graph executor

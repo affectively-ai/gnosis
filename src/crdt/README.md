@@ -6,10 +6,10 @@ This directory contains Gnosis's native CRDT and relay primitives.
 
 ## Files
 
-- `qdoc.ts`: topology-native CRDT document model, delta encoding, presence, GG export, and typed observation/change event contracts such as `QDocEvent`, `QMapKeyChange`, and `QMapEvent`.
+- `qdoc.ts`: topology-native CRDT document model, delta encoding, presence, GG export, typed observation/change event contracts such as `QDocEvent`, `QMapKeyChange`, and `QMapEvent`, plus the record format now reused by `gnode` for `.qdoc` cache persistence.
 - `qcorridor.ts`: corridor/superposition primitive built on `QDoc`, covering request identity, in-flight tunneling, cached collapse state, path evidence, corridor strength scoring, optional relay wiring, and the CRDT substrate for MiddleOut request compression.
-- `aeon-relay.ts`: generic Aeon-compatible relay adapter for `QDoc`, including configurable join envelopes and telemetry hooks for OTEL bridges.
-- `dashrelay-adapter.ts`: compatibility shim that re-exports the generic Aeon relay surface for DashRelay-era imports.
+- `aeon-relay.ts`: generic Aeon-compatible relay adapter for `QDoc`, including configurable join envelopes, telemetry hooks for OTEL bridges, and the relay surface `gnode` can now use to federate cache records when the cache relay env is present.
+- `dashrelay-adapter.ts`: compatibility shim that re-exports the generic Aeon relay surface for DashRelay-era imports, including `gnode`'s optional cache-sync path.
 - `yjs-compat.ts`: compatibility exports for Yjs-shaped APIs used by downstream consumers.
 - `index.ts`: public barrel for `QDoc`, relay adapters, Yjs compatibility helpers, and exported CRDT event types.
 - `qdoc.test.ts`: focused CRDT behavior and sync protocol tests.

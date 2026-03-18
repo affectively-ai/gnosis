@@ -48,7 +48,7 @@
     "gnode": "./bin/gnode.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node ./gnode/prewarm-self.mjs",
     "build:toy-tla": "bun ./build-toy-tla.ts",
     "dev": "tsc -w",
     "start": "node ./bin/gnosis.js",
@@ -69,6 +69,7 @@
     "bench:expressiveness": "bun run src/benchmarks/expressiveness-benchmark.ts",
     "bench:formal": "bun run src/benchmarks/formal-verification-benchmark.ts",
     "bench:gnode-runtimes": "node ./gnode/benchmarks/runtime-shootout.mjs",
+    "gnode:prewarm": "node ./gnode/prewarm-self.mjs",
     "warmup:diff": "bun ./warmup_differential.ts",
     "failure:frontier": "bun ./failure_frontier_search.ts"
   },

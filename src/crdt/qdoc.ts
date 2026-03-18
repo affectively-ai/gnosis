@@ -19,19 +19,6 @@
  * The topology is append-only — no tombstones, no GC.
  */
 
-import {
-  parseGgProgram,
-  buildGgTemporalModel,
-  getGgRootNodeIds,
-  getGgTerminalNodeIds,
-} from '@a0n/aeon-logic/browser';
-import type {
-  GgProgram,
-  GgNode,
-  GgEdge,
-  GgTopologyState,
-} from '@a0n/aeon-logic/browser';
-
 type GgCollapseStrategy = string;
 
 // ── Types ───────────────────────────────────────────────────────────────────

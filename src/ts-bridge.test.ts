@@ -199,6 +199,7 @@ describe('TypeScript to Gnosis bridge', () => {
     );
 
     expect(hydrated.runtimeBindingNames).toEqual(compiled.runtimeBindingNames);
+    expect(hydrated.runtimeModuleSource).toBe(compiled.runtimeModuleSource);
 
     const result = await executeTypeScriptWithGnosis({
       compiled: hydrated,

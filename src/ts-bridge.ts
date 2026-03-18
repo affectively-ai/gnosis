@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
-import ts from 'typescript';
+import type * as TsTypes from 'typescript';
 import {
-  BettyCompiler,
   type ASTEdge,
   type ASTNode,
   type GraphAST,
@@ -15,6 +15,53 @@ import {
   type GnosisEngineOptions,
 } from './runtime/engine.js';
 import { GnosisRegistry, type GnosisHandlerContext } from './runtime/registry.js';
+
+type TypeScriptModule = typeof import('typescript');
+
+const runtimeRequire =
+  typeof __filename === 'string'
+    ? createRequire(__filename)
+    : createRequire(import.meta.url);
+let cachedTypeScriptModule: TypeScriptModule | undefined;
+
+function loadTypeScriptModule(): TypeScriptModule {
+  if (cachedTypeScriptModule === undefined) {
+    cachedTypeScriptModule = runtimeRequire('typescript') as TypeScriptModule;
+  }
+
+  return cachedTypeScriptModule;
+}
+
+const ts = new Proxy({} as TypeScriptModule, {
+  get(_target, property, receiver) {
+    return Reflect.get(loadTypeScriptModule(), property, receiver);
+  },
+}) as TypeScriptModule;
+
+declare namespace ts {
+  type ArrayBindingPattern = TsTypes.ArrayBindingPattern;
+  type ArrowFunction = TsTypes.ArrowFunction;
+  type BindingName = TsTypes.BindingName;
+  type CallExpression = TsTypes.CallExpression;
+  type Expression = TsTypes.Expression;
+  type FunctionBody = TsTypes.FunctionBody;
+  type FunctionDeclaration = TsTypes.FunctionDeclaration;
+  type FunctionExpression = TsTypes.FunctionExpression;
+  type Identifier = TsTypes.Identifier;
+  type ImportDeclaration = TsTypes.ImportDeclaration;
+  type JsxEmit = TsTypes.JsxEmit;
+  type ModuleKind = TsTypes.ModuleKind;
+  type ModuleResolutionKind = TsTypes.ModuleResolutionKind;
+  type Node = TsTypes.Node;
+  type ReturnStatement = TsTypes.ReturnStatement;
+  type ScriptKind = TsTypes.ScriptKind;
+  type ScriptTarget = TsTypes.ScriptTarget;
+  type SourceFile = TsTypes.SourceFile;
+  type Statement = TsTypes.Statement;
+  type StringLiteralLike = TsTypes.StringLiteralLike;
+  type SyntaxKind = TsTypes.SyntaxKind;
+  type VariableDeclaration = TsTypes.VariableDeclaration;
+}
 
 type SupportedFunctionNode =
   | (ts.FunctionDeclaration & { body: ts.FunctionBody })
@@ -149,6 +196,7 @@ export interface GnosisTypeScriptBridgeResult {
   readonly nodePlans: readonly GnosisTypeScriptBridgeNodePlan[];
   readonly schedule: readonly GnosisTypeScriptBridgeWave[];
   readonly runtimeBindingNames: readonly string[];
+  readonly runtimeModuleSource: string | null;
 }
 
 export interface SerializedGraphAST {
@@ -665,27 +713,57 @@ function collectFunctions(
   };
 }
 
-function collectRuntimeBindingNames(sourceFile: ts.SourceFile): readonly string[] {
-  const names = new Set<string>();
+function collectImportBindingNames(
+  statement: ts.ImportDeclaration
+): readonly string[] {
+  if (!statement.importClause) {
+    return [];
+  }
+
+  const names: string[] = [];
+  if (statement.importClause.name) {
+    names.push(statement.importClause.name.text);
+  }
+
+  const namedBindings = statement.importClause.namedBindings;
+  if (!namedBindings) {
+    return names;
+  }
+
+  if (ts.isNamedImports(namedBindings)) {
+    for (const element of namedBindings.elements) {
+      names.push(element.name.text);
+    }
+    return names;
+  }
+
+  names.push(namedBindings.name.text);
+  return names;
+}
+
+function collectTopLevelRuntimeStatements(
+  sourceFile: ts.SourceFile
+): {
+  readonly functionStatementsByName: ReadonlyMap<string, ts.Statement>;
+  readonly importStatementsByName: ReadonlyMap<string, ts.ImportDeclaration>;
+  readonly topLevelBindingNames: ReadonlySet<string>;
+} {
+  const functionStatementsByName = new Map<string, ts.Statement>();
+  const importStatementsByName = new Map<string, ts.ImportDeclaration>();
+  const topLevelBindingNames = new Set<string>();
 
   for (const statement of sourceFile.statements) {
-    if (ts.isImportDeclaration(statement) && statement.importClause) {
-      if (statement.importClause.name) {
-        names.add(statement.importClause.name.text);
+    if (ts.isImportDeclaration(statement)) {
+      for (const bindingName of collectImportBindingNames(statement)) {
+        topLevelBindingNames.add(bindingName);
+        importStatementsByName.set(bindingName, statement);
       }
-
-      const namedBindings = statement.importClause.namedBindings;
-      if (namedBindings && ts.isNamedImports(namedBindings)) {
-        for (const element of namedBindings.elements) {
-          names.add(element.name.text);
-        }
-      }
-
       continue;
     }
 
     if (ts.isFunctionDeclaration(statement) && statement.name) {
-      names.add(statement.name.text);
+      topLevelBindingNames.add(statement.name.text);
+      functionStatementsByName.set(statement.name.text, statement);
       continue;
     }
 
@@ -700,12 +778,171 @@ function collectRuntimeBindingNames(sourceFile: ts.SourceFile): readonly string[
         (ts.isArrowFunction(declaration.initializer) ||
           ts.isFunctionExpression(declaration.initializer))
       ) {
-        names.add(declaration.name.text);
+        topLevelBindingNames.add(declaration.name.text);
+        functionStatementsByName.set(declaration.name.text, statement);
       }
     }
   }
 
-  return [...names].sort((left, right) => left.localeCompare(right));
+  return {
+    functionStatementsByName,
+    importStatementsByName,
+    topLevelBindingNames,
+  };
+}
+
+function collectDirectTopLevelReferences(
+  statement: ts.Statement,
+  topLevelBindingNames: ReadonlySet<string>
+): readonly string[] {
+  const references = new Set<string>();
+  const scopeStack: Set<string>[] = [new Set<string>()];
+
+  const declareBindingName = (name: ts.BindingName): void => {
+    if (ts.isIdentifier(name)) {
+      scopeStack[scopeStack.length - 1]?.add(name.text);
+      return;
+    }
+
+    for (const element of name.elements) {
+      if (!ts.isBindingElement(element)) {
+        continue;
+      }
+      declareBindingName(element.name);
+    }
+  };
+
+  const isScoped = (name: string): boolean =>
+    scopeStack.some((scope) => scope.has(name));
+
+  const visit = (node: ts.Node): void => {
+    if (ts.isImportDeclaration(node)) {
+      return;
+    }
+
+    if (ts.isFunctionDeclaration(node)) {
+      if (node.name) {
+        scopeStack[scopeStack.length - 1]?.add(node.name.text);
+      }
+
+      if (node !== statement) {
+        const scope = new Set<string>();
+        if (node.name) {
+          scope.add(node.name.text);
+        }
+        for (const parameter of node.parameters) {
+          declareBindingName(parameter.name);
+          if (ts.isIdentifier(parameter.name)) {
+            scope.add(parameter.name.text);
+          }
+        }
+        scopeStack.push(scope);
+        if (node.body) {
+          ts.forEachChild(node.body, visit);
+        }
+        scopeStack.pop();
+        return;
+      }
+    }
+
+    if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
+      const scope = new Set<string>();
+      if (ts.isFunctionExpression(node) && node.name) {
+        scope.add(node.name.text);
+      }
+      scopeStack.push(scope);
+      for (const parameter of node.parameters) {
+        declareBindingName(parameter.name);
+        if (ts.isIdentifier(parameter.name)) {
+          scope.add(parameter.name.text);
+        }
+      }
+      ts.forEachChild(node.body, visit);
+      scopeStack.pop();
+      return;
+    }
+
+    if (ts.isVariableDeclaration(node)) {
+      declareBindingName(node.name);
+      if (node.initializer) {
+        visit(node.initializer);
+      }
+      return;
+    }
+
+    if (ts.isParameter(node)) {
+      declareBindingName(node.name);
+      if (node.initializer) {
+        visit(node.initializer);
+      }
+      return;
+    }
+
+    if (ts.isIdentifier(node)) {
+      if (topLevelBindingNames.has(node.text) && !isScoped(node.text)) {
+        references.add(node.text);
+      }
+      return;
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(statement);
+  return [...references].sort((left, right) => left.localeCompare(right));
+}
+
+function collectRuntimeBindingNames(
+  sourceFile: ts.SourceFile,
+  operations?: readonly GnosisTypeScriptBridgeOperation[]
+): readonly string[] {
+  if (!operations) {
+    return normalizeRuntimeBindingNames(
+      [...collectTopLevelRuntimeStatements(sourceFile).topLevelBindingNames]
+    );
+  }
+
+  const runtimeStatements = collectTopLevelRuntimeStatements(sourceFile);
+  const resolved = new Set<string>();
+  const queue: string[] = [];
+
+  for (const operation of operations) {
+    if (operation.kind === 'parallel') {
+      for (const branch of operation.branches) {
+        queue.push(branch.calleeName);
+      }
+      continue;
+    }
+
+    if (operation.kind === 'call') {
+      queue.push(operation.plan.calleeName);
+    }
+  }
+
+  while (queue.length > 0) {
+    const bindingName = queue.shift();
+    if (!bindingName || resolved.has(bindingName)) {
+      continue;
+    }
+
+    resolved.add(bindingName);
+
+    const statement = runtimeStatements.functionStatementsByName.get(bindingName);
+    if (!statement) {
+      continue;
+    }
+
+    for (const dependencyName of collectDirectTopLevelReferences(
+      statement,
+      runtimeStatements.topLevelBindingNames
+    )) {
+      if (!resolved.has(dependencyName)) {
+        queue.push(dependencyName);
+      }
+    }
+  }
+
+  return normalizeRuntimeBindingNames([...resolved]);
 }
 
 function normalizeRuntimeBindingNames(
@@ -759,6 +996,79 @@ function jsxEmitForPath(sourceFilePath: string): ts.JsxEmit {
   return ts.JsxEmit.Preserve;
 }
 
+function renderTypeScriptBridgeRuntimeModuleFromSourceFile(
+  sourceText: string,
+  sourceFilePath: string,
+  sourceFile: ts.SourceFile,
+  runtimeBindingNames?: readonly string[],
+  options: GnosisTypeScriptBridgeRuntimeModuleOptions = {}
+): GnosisTypeScriptBridgeRuntimeModule {
+  const absoluteSourcePath = path.resolve(sourceFilePath);
+  const bindingNames = normalizeRuntimeBindingNames(
+    runtimeBindingNames ?? collectRuntimeBindingNames(sourceFile)
+  );
+
+  if (bindingNames.length === 0) {
+    return {
+      bindingNames,
+      moduleSource: rewriteRelativeImportSpecifiers(
+        sourceText,
+        absoluteSourcePath,
+        options.specifierStyle ?? 'relative'
+      ),
+    };
+  }
+
+  const runtimeStatements = collectTopLevelRuntimeStatements(sourceFile);
+  const selectedStatements = sourceFile.statements
+    .filter((statement) => {
+      if (ts.isImportDeclaration(statement)) {
+        return collectImportBindingNames(statement).some((bindingName) =>
+          bindingNames.includes(bindingName)
+        );
+      }
+
+      if (ts.isFunctionDeclaration(statement) && statement.name) {
+        return bindingNames.includes(statement.name.text);
+      }
+
+      if (ts.isVariableStatement(statement)) {
+        return statement.declarationList.declarations.some(
+          (declaration) =>
+            ts.isIdentifier(declaration.name) &&
+            bindingNames.includes(declaration.name.text)
+        );
+      }
+
+      return false;
+    })
+    .map((statement) =>
+      sourceText.slice(statement.getFullStart(), statement.end)
+    )
+    .join('\n');
+  const rewrittenSelectedStatements =
+    selectedStatements.trim().length === 0
+      ? ''
+      : rewriteRelativeImportSpecifiers(
+          selectedStatements,
+          absoluteSourcePath,
+          options.specifierStyle ?? 'relative'
+        );
+
+  const moduleBody =
+    rewrittenSelectedStatements.trim().length > 0
+      ? `${rewrittenSelectedStatements}\n\n`
+      : '';
+  const bindingLiteral = bindingNames
+    .map((bindingName) => `  ${JSON.stringify(bindingName)}: ${bindingName},`)
+    .join('\n');
+
+  return {
+    bindingNames,
+    moduleSource: `${moduleBody}export const __gnode_bridge_runtime_bindings = {\n${bindingLiteral}\n};\n`,
+  };
+}
+
 export function renderTypeScriptBridgeRuntimeModule(
   sourceText: string,
   sourceFilePath: string,
@@ -766,33 +1076,13 @@ export function renderTypeScriptBridgeRuntimeModule(
   options: GnosisTypeScriptBridgeRuntimeModuleOptions = {}
 ): GnosisTypeScriptBridgeRuntimeModule {
   const absoluteSourcePath = path.resolve(sourceFilePath);
-  const rewrittenSourceText = rewriteRelativeImportSpecifiers(
+  return renderTypeScriptBridgeRuntimeModuleFromSourceFile(
     sourceText,
     absoluteSourcePath,
-    options.specifierStyle ?? 'relative'
+    createSourceFile(sourceText, absoluteSourcePath),
+    runtimeBindingNames,
+    options
   );
-  const bindingNames = normalizeRuntimeBindingNames(
-    runtimeBindingNames ??
-      collectRuntimeBindingNames(
-        createSourceFile(rewrittenSourceText, absoluteSourcePath)
-      )
-  );
-
-  if (bindingNames.length === 0) {
-    return {
-      bindingNames,
-      moduleSource: rewrittenSourceText,
-    };
-  }
-
-  const bindingLiteral = bindingNames
-    .map((bindingName) => `  ${JSON.stringify(bindingName)}: ${bindingName},`)
-    .join('\n');
-
-  return {
-    bindingNames,
-    moduleSource: `${rewrittenSourceText}\n\nexport const __gnode_bridge_runtime_bindings = {\n${bindingLiteral}\n};\n`,
-  };
 }
 
 export function transpileTypeScriptBridgeRuntimeModule(
@@ -849,6 +1139,7 @@ export function deserializeTypeScriptBridgeResult(
   return {
     ...serialized,
     runtimeBindingNames: [...serialized.runtimeBindingNames],
+    runtimeModuleSource: serialized.runtimeModuleSource ?? null,
     ast: deserializeGraphAst(serialized.ast),
   };
 }
@@ -1668,6 +1959,10 @@ export function compileTypeScriptToGnosis(
     entryPlan,
     state.operations
   );
+  const runtimeBindingNames = collectRuntimeBindingNames(
+    sourceFile,
+    state.operations
+  );
 
   return {
     exportName: entrypoint.exportName,
@@ -1678,7 +1973,17 @@ export function compileTypeScriptToGnosis(
     ast: buildBridgeAst(entryPlan, state.operations),
     nodePlans: state.nodePlans,
     schedule: buildSchedule(state.operations),
-    runtimeBindingNames: collectRuntimeBindingNames(sourceFile),
+    runtimeBindingNames,
+    runtimeModuleSource:
+      runtimeBindingNames.length === 0
+        ? null
+        : renderTypeScriptBridgeRuntimeModuleFromSourceFile(
+            sourceText,
+            sourceFilePath,
+            sourceFile,
+            runtimeBindingNames,
+            { specifierStyle: 'absolute-url' }
+          ).moduleSource,
   };
 }
 
