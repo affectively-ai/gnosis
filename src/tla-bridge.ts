@@ -4,7 +4,7 @@ import {
   parseGgProgram,
   type GgEdge,
   type GgProgram,
-} from '@affectively/aeon-logic';
+} from '@a0n/aeon-logic';
 import {
   inferCapabilitiesFromGgSource,
   summarizeCapabilityRequirements,

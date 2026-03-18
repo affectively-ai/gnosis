@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 
-import { parseGgProgram } from '@affectively/aeon-logic';
+import { parseGgProgram } from '@a0n/aeon-logic';
 
 import {
   DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES,

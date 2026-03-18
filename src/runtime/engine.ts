@@ -1,4 +1,4 @@
-import { ReynoldsTracker, frameRace, frameFold, type FrameRaceResult } from '@affectively/aeon-pipelines';
+import { ReynoldsTracker, frameRace, frameFold, type FrameRaceResult } from '@a0n/aeon-pipelines';
 import { GraphAST, ASTEdge, ASTNode } from '../betty/compiler.js';
 import { GnosisRegistry } from './registry.js';
 import { QuantumWasmBridge } from '../betty/quantum/bridge.js';

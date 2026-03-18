@@ -1,4 +1,4 @@
-import { Buffer } from 'node:buffer';
+import { decodeBase64Url, encodeBase64Url } from './encoding.js';
 
 const HALT_ATTESTATION_ALGORITHM = 'ES256' as const;
 const ECDSA_SIGNING_ALGORITHM: EcKeyImportParams = {
@@ -222,12 +222,11 @@ function stableStringify(value: unknown): string {
 }
 
 function toBase64Url(bytes: Uint8Array | ArrayBuffer): string {
-  const source = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  return Buffer.from(source).toString('base64url');
+  return encodeBase64Url(bytes);
 }
 
 function fromBase64Url(value: string): Uint8Array {
-  return new Uint8Array(Buffer.from(value, 'base64url'));
+  return decodeBase64Url(value);
 }
 
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {

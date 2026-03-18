@@ -6,9 +6,9 @@
  */
 
 import { useRef, useState, useEffect, useCallback } from 'react';
-import { Canvas, useFrame, useThree } from '@affectively/aeon-3d/fiber';
-import { Float, Edges } from '@affectively/aeon-3d/drei';
-import * as THREE from '@affectively/aeon-3d/three';
+import { Canvas, useFrame, useThree } from '@a0n/aeon-3d/fiber';
+import { Float, Edges } from '@a0n/aeon-3d/drei';
+import * as THREE from '@a0n/aeon-3d/three';
 import {
   STACK_LAYERS_TOP_DOWN,
   type StackLayerDefinition,

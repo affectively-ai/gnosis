@@ -27,7 +27,7 @@ import {
   Lock,
   Layers,
   Gauge,
-} from '@affectively/aeon-icons';
+} from '@a0n/aeon-icons';
 
 const features = [
   // Row 1: Core Sync

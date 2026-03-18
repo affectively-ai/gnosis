@@ -15,6 +15,8 @@ export type {
   QDocUpdateHandler,
   QDocObserveHandler,
   QDocEvent,
+  QMapKeyChange,
+  QMapEvent,
 } from './qdoc.js';
 export {
   QDocAeonRelay,

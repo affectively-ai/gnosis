@@ -8,6 +8,7 @@ Unified Cloudflare Worker + Vite app for `forkjoin.ai`, now shaped as the canoni
 
 - Public programming UI routes: `/`, `/ide`, `/repl`, `/playground`, `/docs`, and legal/cookie pages.
 - Homepage procession: language orientation, anti-pitch, real code sample, 5-minute quickstart, sandbox taste, featured Gnosis book rail, and machine/developer discovery rail.
+- Shared terminology and product copy lives in [`src/terminology.ts`](./src/README.md) so route copy stays consistent across the worker and client surfaces.
 - Skeptical-evaluator support: side-by-side Gnosis vs TypeScript/Rust comparisons, clearer “what this is / is not” fit signals, and expected-result guidance for the quick sandbox.
 - `/ide` is a canonical IDE handoff page that preserves the current ForkJoin snippet in the launch URL instead of embedding the full IDE locally.
 - Quick sandbox execution model: browser QuickJS for JavaScript/TypeScript, browser `aeon-logic` for TLA, edge API runtime for Gnosis (`VITE_EDGE_AEON_CONTAINER_API` override).

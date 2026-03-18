@@ -7,7 +7,7 @@ import {
   MessageCircle,
   FlaskConical,
   Brain,
-} from '@affectively/aeon-icons';
+} from '@a0n/aeon-icons';
 import { FOUNDATION_DOCS_QUICKSTART_URL } from '../../docsLinks';
 
 export const GetStartedSection = memo(function GetStartedSection() {
@@ -86,11 +86,11 @@ export const GetStartedSection = memo(function GetStartedSection() {
             <h3>Just the Sync</h3>
             <p>Add Aeon to any project for distributed state.</p>
             <div className="command-block">
-              <code>npm install @affectively/aeon</code>
+              <code>npm install @a0n/aeon</code>
               <button
                 className="copy-btn"
                 onClick={() =>
-                  copyToClipboard('npm install @affectively/aeon', 'aeon')
+                  copyToClipboard('npm install @a0n/aeon', 'aeon')
                 }
                 aria-label="Copy command"
               >

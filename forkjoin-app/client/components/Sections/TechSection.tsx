@@ -15,7 +15,7 @@ import {
   Database,
   Hexagon,
   Sparkles,
-} from '@affectively/aeon-icons';
+} from '@a0n/aeon-icons';
 
 export function TechSection() {
   return (

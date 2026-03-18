@@ -1,1 +1,1 @@
-export { autoInitSpeculation } from '../../../../open-source/aeon-flux/packages/runtime/src/router/speculation';
+export { autoInitSpeculation } from '../../../../aeon-flux/packages/runtime/src/router/speculation';

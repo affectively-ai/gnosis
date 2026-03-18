@@ -2,7 +2,7 @@
  * Cookie Policy Page
  */
 
-import { ArrowLeft, Cookie, X, Check } from '@affectively/aeon-icons';
+import { ArrowLeft, Cookie, X, Check } from '@a0n/aeon-icons';
 
 export function Cookies() {
   return (

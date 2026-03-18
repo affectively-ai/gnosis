@@ -8,7 +8,7 @@ This directory contains the Gnosis compiler, runtime, and execution tooling.
 
 - `index.ts`: CLI/runtime orchestration entrypoint (kept for CLI workflows), including `build`/`verify`, `--verbose` REPL banner mode, `--steering-mode <off|report|suggest|apply>`, and optional `--execution-auth-json` / `--execution-auth-file` boundary-walk UCAN envelopes.
 - CLI easter eggs: `crank` = Wallace check, `stank` = Buley check.
-- `lib.ts`: Package main entry used by `@affectively/gnosis` imports.
+- `lib.ts`: Package main entry used by `@a0n/gnosis` imports.
 - `cli.ts`: CLI entrypoint used by `bin/gnosis.js`.
 - `analysis.ts`: Formal complexity/steering analysis for `.gg` topologies, including canonical `wallaceNumber` frontier diagnostics with `wally`/`frontierDeficit` aliases, the FailureTrilemma/Composition/Universality collapse-cost surface (`totalVentCost`, `totalRepairDebt`, `paidStageCount`, `collapseCostFloor`, `freeCollapsePrefixRisk`), boundary-walk bias / lean-in classification, `twokeys` EDA summaries, and separate microCharley wall/CPU time telemetry. The old `charleyNumber` steering name is removed.
 - `behavioral-taxonomy.ts`: builds a Gnosis topology from the open-source behavioral-loop corpus, infers prerequisite and same-origin couplings, measures the resulting buley number for the full dataset or filtered subsets, emits per-loop executable `.gg` topologies plus `.tla`/`.cfg` artifacts, and can execute single-loop behavior topologies through the runtime.

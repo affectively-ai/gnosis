@@ -3,12 +3,12 @@
 /**
  * GG Test Harness — Formal verification for .gg/.mgg topologies
  *
- * Wraps `checkGgProgram()` from `@affectively/aeon-logic` with
+ * Wraps `checkGgProgram()` from `@a0n/aeon-logic` with
  * ergonomic assertion helpers. The topology IS its own specification.
  * The model checker IS the linter.
  *
  * Usage:
- *   import { ggTest } from '@affectively/gnosis';
+ *   import { ggTest } from '@a0n/gnosis';
  *
  *   test('oscillator has bounded superposition', async () => {
  *     const result = await ggTest(oscillatorSource)
@@ -27,7 +27,7 @@ import {
   getGgRootNodeIds,
   getGgTerminalNodeIds,
   buildGgTemporalModel,
-} from '@affectively/aeon-logic';
+} from '@a0n/aeon-logic';
 import type {
   GgCheckerDefaults,
   GgTemporalModelOptions,
@@ -35,7 +35,7 @@ import type {
   CheckerOptions,
   CheckerResult,
   NamedPredicate,
-} from '@affectively/aeon-logic';
+} from '@a0n/aeon-logic';
 import { lowerUfcsSource } from './ufcs.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════

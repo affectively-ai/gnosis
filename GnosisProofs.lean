@@ -3137,6 +3137,7 @@ theorem realMeasurableLyapunovDriftWitness_of_continuousAffineStep
     show realContinuousAffineExpectedV boundary scale offset gap current ≤
         realContinuousAffineV scale offset current - gap
     simp only [realContinuousAffineExpectedV, realContinuousAffineV, h_not_le, ite_false]
+    exact le_rfl
 
 open Lean Elab Tactic in
 elab "derive_gnosis_drift" : tactic => do
@@ -3446,8 +3447,9 @@ structure CoarseDriftCertificate (fineCount coarseCount : Nat) where
 
 inductive SynthesisResult (fineCount coarseCount : Nat)
   | success (certificate : CoarseDriftCertificate fineCount coarseCount)
-  | unstable (witness : Fin coarseCount)
-      (hPositive : 0 <= coarseDrift (certificate : RawGraphData fineCount coarseCount).1 witness)
+  | unstable (data : RawGraphData fineCount coarseCount)
+      (witness : Fin coarseCount)
+      (hPositive : 0 <= coarseDrift data witness)
   | invalid
 
 theorem synthesis_sound {fineCount coarseCount : Nat}

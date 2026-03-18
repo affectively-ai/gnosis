@@ -17,7 +17,7 @@ import {
   Users,
   Circle,
   Unlock,
-} from '@affectively/aeon-icons';
+} from '@a0n/aeon-icons';
 
 interface VoiceParticipant {
   id: string;

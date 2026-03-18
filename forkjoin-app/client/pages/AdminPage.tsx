@@ -1,5 +1,5 @@
 import React from 'react';
-import { Guard } from '@affectively/aeon-flags/react';
+import { Guard } from '@a0n/aeon-flags/react';
 
 export function AdminPage() {
   const AccessDenied = (

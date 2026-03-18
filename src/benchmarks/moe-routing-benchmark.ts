@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
-import { parseGgProgram } from '@affectively/aeon-logic';
+import { parseGgProgram } from '@a0n/aeon-logic';
 import { lowerUfcsSource } from '../ufcs.js';
 
 import {

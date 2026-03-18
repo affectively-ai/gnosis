@@ -24,13 +24,13 @@ import {
   buildGgTemporalModel,
   getGgRootNodeIds,
   getGgTerminalNodeIds,
-} from '@affectively/aeon-logic';
+} from '@a0n/aeon-logic/browser';
 import type {
   GgProgram,
   GgNode,
   GgEdge,
   GgTopologyState,
-} from '@affectively/aeon-logic';
+} from '@a0n/aeon-logic/browser';
 
 type GgCollapseStrategy = string;
 
@@ -78,6 +78,18 @@ export interface QDocEvent {
   value?: unknown;
   previousValue?: unknown;
   origin: string;
+}
+
+export interface QMapKeyChange<T = unknown> {
+  action: 'add' | 'update' | 'delete';
+  oldValue?: T;
+}
+
+export interface QMapEvent<T = unknown> {
+  keysChanged: Set<string>;
+  changes: {
+    keys: Map<string, QMapKeyChange<T>>;
+  };
 }
 
 // ── QDoc ────────────────────────────────────────────────────────────────────
@@ -676,15 +688,7 @@ export class QMap<T = unknown> {
   }
 
   observe(
-    handler: (event: {
-      keysChanged: Set<string>;
-      changes: {
-        keys: Map<
-          string,
-          { action: 'add' | 'update' | 'delete'; oldValue?: T }
-        >;
-      };
-    }) => void
+    handler: (event: QMapEvent<T>) => void
   ): void {
     if (this._observeHandlers.has(handler)) {
       return;
@@ -703,9 +707,7 @@ export class QMap<T = unknown> {
           : hasPreviousValue
           ? 'update'
           : 'add';
-      const change:
-        | { action: 'add' }
-        | { action: 'update' | 'delete'; oldValue?: T } =
+      const change: QMapKeyChange<T> =
         action === 'add'
           ? { action }
           : { action, oldValue: event.previousValue as T | undefined };
@@ -721,15 +723,7 @@ export class QMap<T = unknown> {
   }
 
   unobserve(
-    handler: (event: {
-      keysChanged: Set<string>;
-      changes: {
-        keys: Map<
-          string,
-          { action: 'add' | 'update' | 'delete'; oldValue?: T }
-        >;
-      };
-    }) => void
+    handler: (event: QMapEvent<T>) => void
   ): void {
     const wrapped = this._observeHandlers.get(handler);
     if (!wrapped) {

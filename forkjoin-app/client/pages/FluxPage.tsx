@@ -16,7 +16,7 @@ import {
   Github,
   BookOpen,
   Code,
-} from '@affectively/aeon-icons';
+} from '@a0n/aeon-icons';
 import { ArchitectureVisualization } from '../components/Flux3D/ArchitectureVisualization';
 import { getFoundationDocsTrackUrl } from '../docsLinks';
 
@@ -146,7 +146,7 @@ export function FluxPage() {
             </div>
             <pre className="code-block">{`'use aeon';
 
-import { useAeonPage, ESI } from '@affectively/aeon-flux';
+import { useAeonPage, ESI } from '@a0n/aeon-flux';
 
 export default function Dashboard() {
   const { presence, data, setData } = useAeonPage();
@@ -179,7 +179,7 @@ export default function Dashboard() {
               <Code size={18} />
               <span>Edge Side Inference (ESI)</span>
             </div>
-            <pre className="code-block">{`import { ESI } from '@affectively/aeon-flux';
+            <pre className="code-block">{`import { ESI } from '@a0n/aeon-flux';
 
 export default function ProductPage({ product }) {
   return (
@@ -223,7 +223,7 @@ export default function ProductPage({ product }) {
               <Code size={18} />
               <span>Visual Editing</span>
             </div>
-            <pre className="code-block">{`import { Editable, EditableText, EditableImage } from '@affectively/aeon-flux/edit';
+            <pre className="code-block">{`import { Editable, EditableText, EditableImage } from '@a0n/aeon-flux/edit';
 
 export default function LandingPage() {
   return (
@@ -262,7 +262,7 @@ export default function LandingPage() {
               <span>Hyperpersonalized Routing</span>
             </div>
             <pre className="code-block">{`// aeon.config.ts
-import { defineConfig } from '@affectively/aeon-flux';
+import { defineConfig } from '@a0n/aeon-flux';
 
 export default defineConfig({
   routing: {

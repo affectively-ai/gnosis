@@ -5,7 +5,7 @@ import {
   type CheckerResult,
   type CheckerTopologyStats,
   type GgTopologyState,
-} from '@affectively/aeon-logic';
+} from '@a0n/aeon-logic';
 import {
   inferCapabilitiesFromGgSource,
   validateCapabilitiesForTarget,

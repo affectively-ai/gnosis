@@ -32,7 +32,7 @@ import {
   Wallet,
   Workflow,
   type LucideIcon,
-} from '@affectively/aeon-icons';
+} from '@a0n/aeon-icons';
 import {
   STACK_LAYERS_TOP_DOWN,
   type StackIconKey,

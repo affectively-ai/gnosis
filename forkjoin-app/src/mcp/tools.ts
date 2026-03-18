@@ -1,17 +1,17 @@
-import { BettyCompiler, type GraphAST } from '@affectively/gnosis/betty/compiler';
+import { BettyCompiler, type GraphAST } from '@a0n/gnosis/betty/compiler';
 import {
   analyzeGnosisSource,
   formatGnosisViolations,
   type GnosisComplexityReport,
-} from '@affectively/gnosis/analysis';
-import { generateTlaFromGnosisSource } from '@affectively/gnosis/tla-bridge';
-import { ggReportToSarif } from '@affectively/gnosis/sarif';
-import { GnosisFormatter } from '@affectively/gnosis/formatter';
-import { GnosisNeo4jBridge } from '@affectively/gnosis/neo4j-bridge';
-import { GnosisEngine } from '@affectively/gnosis/runtime/engine';
-import { GnosisRegistry } from '@affectively/gnosis/runtime/registry';
-import { GnosisNativeRuntime } from '@affectively/gnosis/runtime/native-runtime';
-import type { RuntimeTarget } from '@affectively/gnosis/capabilities';
+} from '@a0n/gnosis/analysis';
+import { generateTlaFromGnosisSource } from '@a0n/gnosis/tla-bridge';
+import { ggReportToSarif } from '@a0n/gnosis/sarif';
+import { GnosisFormatter } from '@a0n/gnosis/formatter';
+import { GnosisNeo4jBridge } from '@a0n/gnosis/neo4j-bridge';
+import { GnosisEngine } from '@a0n/gnosis/runtime/engine';
+import { GnosisRegistry } from '@a0n/gnosis/runtime/registry';
+import { GnosisNativeRuntime } from '@a0n/gnosis/runtime/native-runtime';
+import type { RuntimeTarget } from '@a0n/gnosis/capabilities';
 import { lintDocumentCore } from '@affectively/shared-ui/services/aeon-container/streamed-lint-core';
 import type { StreamedLintLanguage } from '@affectively/shared-ui/services/aeon-container/streamed-lint-types';
 import type {

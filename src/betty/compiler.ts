@@ -1,4 +1,4 @@
-import { Pipeline } from '@affectively/aeon-pipelines';
+import { Pipeline } from '@a0n/aeon-pipelines';
 import { QuantumWasmBridge } from './quantum/bridge.js';
 import { injectSensitiveZkEnvelopes } from '../auth/auto-zk.js';
 import { lowerUfcsSource } from '../ufcs.js';

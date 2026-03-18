@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test';
-import { parseGgProgram } from '@affectively/aeon-logic';
+import { parseGgProgram } from '@a0n/aeon-logic';
 import { ggTest, ggQuickCheck, ggAssert } from './gg-test-harness.js';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';

@@ -4,8 +4,8 @@ import {
   getGgTerminalNodeIds,
   parseGgProgram,
   type GgProgram,
-} from '@affectively/aeon-logic';
-import { Pipeline } from '@affectively/aeon-pipelines';
+} from '@a0n/aeon-logic/browser';
+import { Pipeline } from '@a0n/aeon-pipelines/pipeline';
 import { lowerUfcsSource } from './ufcs.js';
 
 export interface Neuron {
@@ -136,11 +136,7 @@ function formatUnknownError(error: unknown): string {
 }
 
 function dynamicImport<ModuleShape>(specifier: string): Promise<ModuleShape> {
-  const importer = Function(
-    'moduleSpecifier',
-    'return import(moduleSpecifier);'
-  ) as (moduleSpecifier: string) => Promise<ModuleShape>;
-  return importer(specifier);
+  return import(/* @vite-ignore */ specifier) as Promise<ModuleShape>;
 }
 
 async function readTopologyFromPath(topologyFilePath: string): Promise<string> {
@@ -151,14 +147,9 @@ async function readTopologyFromPath(topologyFilePath: string): Promise<string> {
   }
 
   if (topologyFilePath.toLowerCase().endsWith('.mgg')) {
-    const { loadGnosisModuleFromFile } = await dynamicImport<{
-      loadGnosisModuleFromFile(
-        modulePath: string,
-        rootDir?: string
-      ): Promise<{ mergedSource: string }>;
-    }>('./mod/loader.js');
-    const loadedModule = await loadGnosisModuleFromFile(topologyFilePath);
-    return loadedModule.mergedSource;
+    throw new Error(
+      'Loading .mgg topology modules is not supported in the browser neural runtime. Use merged .gg source instead.'
+    );
   }
 
   const bunRuntime = getBunRuntime();

@@ -8,7 +8,7 @@ import {
   Eye,
   Lock,
   Database,
-} from '@affectively/aeon-icons';
+} from '@a0n/aeon-icons';
 
 export function Privacy() {
   return (

@@ -8,7 +8,7 @@ import {
   Scale,
   AlertTriangle,
   Check,
-} from '@affectively/aeon-icons';
+} from '@a0n/aeon-icons';
 
 export function Terms() {
   return (

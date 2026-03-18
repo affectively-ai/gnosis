@@ -6,7 +6,7 @@
  */
 
 import { Component, ReactNode, useState, useEffect } from 'react';
-import { useThree } from '@affectively/aeon-3d/fiber';
+import { useThree } from '@a0n/aeon-3d/fiber';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 
 interface ErrorBoundaryProps {

@@ -26,7 +26,7 @@ import {
   MapPin,
   Wifi,
   Lock,
-} from '@affectively/aeon-icons';
+} from '@a0n/aeon-icons';
 
 const features = [
   // Row 1: Core Storage

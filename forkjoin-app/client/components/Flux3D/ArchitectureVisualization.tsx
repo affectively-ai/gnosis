@@ -5,9 +5,9 @@
  */
 
 import { useRef, useMemo } from 'react';
-import { Canvas, useFrame } from '@affectively/aeon-3d/fiber';
-import { Text, RoundedBox, Float } from '@affectively/aeon-3d/drei';
-import * as THREE from '@affectively/aeon-3d/three';
+import { Canvas, useFrame } from '@a0n/aeon-3d/fiber';
+import { Text, RoundedBox, Float } from '@a0n/aeon-3d/drei';
+import * as THREE from '@a0n/aeon-3d/three';
 import { SafeBloom } from '../3D/SafeEffects';
 
 const EMERALD = '#10b981';

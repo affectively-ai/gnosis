@@ -2,6 +2,8 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
 
+const appNodeModules = resolve(__dirname, '../../../node_modules');
+
 export default defineConfig({
   plugins: [react()],
   root: 'client',
@@ -64,7 +66,7 @@ export default defineConfig({
         ),
       },
       {
-        find: '@affectively/aeon-preferences',
+        find: '@a0n/aeon-preferences',
         replacement: resolve(
           __dirname,
           '../../../open-source/aeon-preferences/src/index.ts'
@@ -81,6 +83,30 @@ export default defineConfig({
       {
         find: '@affectively/shared-utils',
         replacement: resolve(__dirname, '../../../shared-utils/src'),
+      },
+      {
+        find: '@a0n/gnosis/crdt',
+        replacement: resolve(__dirname, '../src/crdt/index.ts'),
+      },
+      {
+        find: '@a0n/aeon-logic/browser',
+        replacement: resolve(__dirname, '../../../open-source/aeon-logic/src/browser.ts'),
+      },
+      {
+        find: '@a0n/aeon-3d/fiber',
+        replacement: resolve(appNodeModules, '@react-three/fiber'),
+      },
+      {
+        find: '@a0n/aeon-3d/drei',
+        replacement: resolve(appNodeModules, '@react-three/drei'),
+      },
+      {
+        find: '@a0n/aeon-3d/three',
+        replacement: resolve(appNodeModules, 'three'),
+      },
+      {
+        find: 'three',
+        replacement: resolve(appNodeModules, 'three'),
       },
     ],
   },

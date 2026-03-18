@@ -1,4 +1,4 @@
-import { parseGgProgram } from '@affectively/aeon-logic';
+import { parseGgProgram } from '@a0n/aeon-logic/browser';
 import { BettyCompiler } from '../betty/compiler.js';
 import type { CapabilityRequirement, HostCapability } from './types.js';
 import { lowerUfcsSource } from '../ufcs.js';

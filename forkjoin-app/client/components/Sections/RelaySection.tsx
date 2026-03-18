@@ -25,7 +25,7 @@ import {
   Cpu,
   Moon,
   MapPin,
-} from '@affectively/aeon-icons';
+} from '@a0n/aeon-icons';
 
 const features = [
   // Row 1: Transport

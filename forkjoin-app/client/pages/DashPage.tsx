@@ -13,7 +13,7 @@ import {
   Github,
   BookOpen,
   Code,
-} from '@affectively/aeon-icons';
+} from '@a0n/aeon-icons';
 import { getFoundationDocsTrackUrl } from '../docsLinks';
 
 export function DashPage() {

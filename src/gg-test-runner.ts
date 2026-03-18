@@ -20,8 +20,8 @@ import {
   parseGgProgram,
   getGgRootNodeIds,
   getGgTerminalNodeIds,
-} from '@affectively/aeon-logic';
-import type { CheckerResult, GgTopologyState } from '@affectively/aeon-logic';
+} from '@a0n/aeon-logic';
+import type { CheckerResult, GgTopologyState } from '@a0n/aeon-logic';
 import { detectModuleFormat, loadGnosisModuleFromFile } from './mod/loader.js';
 import { lowerUfcsSource } from './ufcs.js';
 

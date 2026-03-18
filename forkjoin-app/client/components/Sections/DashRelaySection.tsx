@@ -28,7 +28,7 @@ import {
   CloudOff,
   Server,
   Cpu,
-} from '@affectively/aeon-icons';
+} from '@a0n/aeon-icons';
 import {
   DASHRELAY_TRUST_LOG_DESCRIPTION,
   TERM_CRYPTO_RELAY,

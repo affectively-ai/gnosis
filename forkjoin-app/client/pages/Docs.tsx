@@ -14,7 +14,7 @@ import {
   Waves,
   Globe,
   Brain,
-} from '@affectively/aeon-icons';
+} from '@a0n/aeon-icons';
 import {
   FOUNDATION_DOCS_HOME_URL,
   FOUNDATION_DOCS_LIBRARY_URL,

@@ -1,4 +1,4 @@
-import { QDoc } from '@affectively/gnosis/crdt';
+import { QDoc } from '@a0n/gnosis/crdt';
 
 const DEBUG_STORAGE_KEY = 'gnosis-debug-session';
 const DEBUG_TTL_MS = 3 * 24 * 60 * 60 * 1000;

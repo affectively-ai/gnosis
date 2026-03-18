@@ -1,12 +1,12 @@
 import { StrictMode, useState, useEffect, Suspense, lazy } from 'react';
 import { createRoot } from 'react-dom/client';
 import { autoInitSpeculation } from './shims/aeon-flux-speculation';
-import { FlagManager } from '@affectively/aeon-flags';
-import { GoodchildProvider } from '@affectively/aeon-flags/react';
+import { FlagManager } from '@a0n/aeon-flags';
+import { GoodchildProvider } from '@a0n/aeon-flags/react';
 import {
   PreferencesProvider,
   useAeonPreferences,
-} from '@affectively/aeon-preferences';
+} from '@a0n/aeon-preferences';
 import {
   findFoundationProductByHash,
   type FoundationProductId,

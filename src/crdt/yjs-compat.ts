@@ -4,7 +4,7 @@
  * Yjs compatibility surface backed by gnosis-owned code.
  *
  * This module exists for broad migration: existing Yjs call sites can
- * switch imports from `yjs` to `@affectively/gnosis` without pulling
+ * switch imports from `yjs` to `@a0n/gnosis` without pulling
  * external Yjs at runtime.
  */
 

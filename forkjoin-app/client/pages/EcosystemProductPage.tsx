@@ -28,7 +28,7 @@ import {
   Workflow,
   Zap,
   type LucideIcon,
-} from '@affectively/aeon-icons';
+} from '@a0n/aeon-icons';
 import {
   getFoundationProduct,
   getFoundationStackNeighbors,

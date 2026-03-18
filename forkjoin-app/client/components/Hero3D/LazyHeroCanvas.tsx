@@ -1,9 +1,9 @@
 /**
  * LazyHeroCanvas - Dynamically imported wrapper for the Three.js hero scene.
- * Keeps @affectively/aeon-3d/fiber and three out of the initial bundle.
+ * Keeps @a0n/aeon-3d/fiber and three out of the initial bundle.
  */
 import { Suspense } from 'react';
-import { Canvas } from '@affectively/aeon-3d/fiber';
+import { Canvas } from '@a0n/aeon-3d/fiber';
 import { HeroScene } from './HeroScene';
 import type { Visitor, CollectiveState } from '../../hooks/usePresence';
 

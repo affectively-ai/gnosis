@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { parseGgProgram } from '@affectively/aeon-logic';
+import { parseGgProgram } from '@a0n/aeon-logic';
 
 import { expandStructuredPrimitivesSource } from './structured-primitives.js';
 import { lowerUfcsSource } from './ufcs.js';

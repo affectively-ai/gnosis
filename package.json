@@ -1,11 +1,48 @@
 {
-  "name": "@affectively/gnosis",
+  "name": "@a0n/gnosis",
   "version": "1.0.0",
   "license": "MPL-2.0",
   "description": "Ink-based TUI REPL for the gnosis functional logic-based programming language",
   "type": "module",
   "main": "./src/lib.ts",
   "types": "./src/lib.ts",
+  "exports": {
+    ".": {
+      "import": "./src/lib.ts",
+      "types": "./src/lib.ts",
+      "default": "./src/lib.ts"
+    },
+    "./crdt": {
+      "import": "./src/crdt/index.ts",
+      "types": "./src/crdt/index.ts",
+      "default": "./src/crdt/index.ts"
+    },
+    "./gpu": {
+      "import": "./src/neural-compat.ts",
+      "types": "./src/neural-compat.ts",
+      "default": "./src/neural-compat.ts"
+    },
+    "./auth": {
+      "import": "./src/auth/index.ts",
+      "types": "./src/auth/index.ts",
+      "default": "./src/auth/index.ts"
+    },
+    "./capabilities": {
+      "import": "./src/capabilities/index.ts",
+      "types": "./src/capabilities/index.ts",
+      "default": "./src/capabilities/index.ts"
+    },
+    "./src/*": {
+      "import": "./src/*.ts",
+      "types": "./src/*.ts",
+      "default": "./src/*.ts"
+    },
+    "./*": {
+      "import": "./src/*.ts",
+      "types": "./src/*.ts",
+      "default": "./src/*.ts"
+    }
+  },
   "bin": {
     "gnosis": "./bin/gnosis.js"
   },
@@ -35,8 +72,8 @@
   },
   "dependencies": {
     "@affectively/auth": "workspace:*",
-    "@affectively/aeon-logic": "workspace:*",
-    "@affectively/aeon-pipelines": "workspace:*",
+    "@a0n/aeon-logic": "workspace:*",
+    "@a0n/aeon-pipelines": "workspace:*",
     "chalk": "^5.3.0",
     "twokeys": "^3.0.1",
     "gnosis_runtime": "./runtime/pkg",

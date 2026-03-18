@@ -27,7 +27,7 @@ import {
   Workflow,
   Zap,
   type LucideIcon,
-} from '@affectively/aeon-icons';
+} from '@a0n/aeon-icons';
 import { getFoundationProduct, type FoundationProductId } from '../stack-model';
 
 const productIconMap: Record<string, LucideIcon> = {

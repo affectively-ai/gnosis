@@ -1,5 +1,5 @@
-import { Buffer } from 'node:buffer';
 import type { ZkProofVerifier, ZkProofVerifierInput } from './tee-attestation.js';
+import { decodeBase64, decodeHex, encodeHex } from './encoding.js';
 
 export type ZkProofEncoding = 'auto' | 'hex' | 'base64' | 'utf8';
 
@@ -78,18 +78,12 @@ function toBytes(data: string, encoding: ZkProofEncoding): Uint8Array {
   }
 
   if (encoding === 'base64') {
-    return new Uint8Array(Buffer.from(data, 'base64'));
+    return decodeBase64(data);
   }
 
   if (encoding === 'hex') {
     const normalized = normalizeHex(data);
-    if (normalized.length === 0 || normalized.length % 2 !== 0) {
-      throw new Error('Hex proof payload must have an even number of characters.');
-    }
-    if (!isHexString(normalized)) {
-      throw new Error('Hex proof payload contains non-hex characters.');
-    }
-    return new Uint8Array(Buffer.from(normalized, 'hex'));
+    return decodeHex(normalized);
   }
 
   const maybeHex = normalizeHex(data);
@@ -99,14 +93,14 @@ function toBytes(data: string, encoding: ZkProofEncoding): Uint8Array {
     isHexString(maybeHex) &&
     data.trim().startsWith('0x')
   ) {
-    return new Uint8Array(Buffer.from(maybeHex, 'hex'));
+    return decodeHex(maybeHex);
   }
 
   return new TextEncoder().encode(data);
 }
 
 function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return encodeHex(bytes);
 }
 
 async function toBytes32Word(value: string): Promise<string> {

@@ -5,9 +5,9 @@
  */
 
 import { useRef, useMemo, useState } from 'react';
-import { Canvas, useFrame } from '@affectively/aeon-3d/fiber';
-import { Sphere, Float, Html, Line } from '@affectively/aeon-3d/drei';
-import * as THREE from '@affectively/aeon-3d/three';
+import { Canvas, useFrame } from '@a0n/aeon-3d/fiber';
+import { Sphere, Float, Html, Line } from '@a0n/aeon-3d/drei';
+import * as THREE from '@a0n/aeon-3d/three';
 import { SafeBloom } from '../3D/SafeEffects';
 
 const CYAN = '#06b6d4';

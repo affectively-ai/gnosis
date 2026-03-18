@@ -334,7 +334,7 @@ export const FOUNDATION_PRODUCTS_TOP_DOWN = [
     href: page('goodchild'),
     docsUrl: docs('ebooks/79-aeon-flags-feature-management/README'),
     sourceUrl: repo('aeon-flags'),
-    install: 'bun add @affectively/aeon-flags',
+    install: 'bun add @a0n/aeon-flags',
     highlights: [
       'UCAN-backed feature checks',
       'no polling SaaS control plane',
@@ -354,7 +354,7 @@ export const FOUNDATION_PRODUCTS_TOP_DOWN = [
     href: page('preferences'),
     docsUrl: docs('packages/aeon-preferences/index'),
     sourceUrl: repo('aeon-preferences'),
-    install: 'bun add @affectively/aeon-preferences',
+    install: 'bun add @a0n/aeon-preferences',
     highlights: [
       'local-first personal settings',
       'protected vault space for sensitive material',

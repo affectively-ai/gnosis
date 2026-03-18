@@ -14,7 +14,7 @@ import {
   Github,
   BookOpen,
   Code,
-} from '@affectively/aeon-icons';
+} from '@a0n/aeon-icons';
 import { MeshVisualization } from '../components/Relay3D/MeshVisualization';
 import { TopologyShowcase } from '../components/Relay3D/TopologyVisualization';
 import { getFoundationDocsTrackUrl } from '../docsLinks';

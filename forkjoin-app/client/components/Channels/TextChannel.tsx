@@ -33,7 +33,7 @@ import {
   Mic,
   MicOff,
   Circle,
-} from '@affectively/aeon-icons';
+} from '@a0n/aeon-icons';
 
 interface ChatMessage {
   id: string;

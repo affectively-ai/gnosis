@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'url';
-import { Pipeline } from '@affectively/aeon-pipelines';
+import { Pipeline } from '@a0n/aeon-pipelines';
 import * as twokeys from 'twokeys';
 import {
   BettyCompiler,

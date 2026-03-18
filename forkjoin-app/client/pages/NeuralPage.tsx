@@ -13,7 +13,7 @@ import {
   Github,
   BookOpen,
   Code,
-} from '@affectively/aeon-icons';
+} from '@a0n/aeon-icons';
 import { getFoundationDocsTrackUrl } from '../docsLinks';
 
 export function NeuralPage() {
@@ -59,7 +59,7 @@ export function NeuralPage() {
 
         <section className="product-section">
           <h2>Installation</h2>
-          <pre className="install-code">npm install @affectively/gnosis</pre>
+          <pre className="install-code">npm install @a0n/gnosis</pre>
         </section>
 
         <section className="product-section">
@@ -158,7 +158,7 @@ export function NeuralPage() {
               <Code size={18} />
               <span>WebNN Inference</span>
             </div>
-            <pre className="code-block">{`import { Neural, WebNN } from '@affectively/gnosis';
+            <pre className="code-block">{`import { Neural, WebNN } from '@a0n/gnosis';
 
 // Initialize with WebNN (falls back to WebGPU)
 const neural = new Neural({
@@ -186,7 +186,7 @@ console.log(result);
               <Code size={18} />
               <span>Federated Learning</span>
             </div>
-            <pre className="code-block">{`import { Neural, FederatedClient } from '@affectively/gnosis';
+            <pre className="code-block">{`import { Neural, FederatedClient } from '@a0n/gnosis';
 
 const neural = new Neural({ backend: 'webnn' });
 
@@ -222,7 +222,7 @@ const improvedModel = await client.receiveModel();`}</pre>
               <Code size={18} />
               <span>Differential Privacy</span>
             </div>
-            <pre className="code-block">{`import { Neural, PrivacyMechanism } from '@affectively/gnosis';
+            <pre className="code-block">{`import { Neural, PrivacyMechanism } from '@a0n/gnosis';
 
 const neural = new Neural({ backend: 'webnn' });
 
@@ -251,7 +251,7 @@ console.log(aggregate);
               <Code size={18} />
               <span>On-Device Model Fine-tuning</span>
             </div>
-            <pre className="code-block">{`import { Neural, PersonalModel } from '@affectively/gnosis';
+            <pre className="code-block">{`import { Neural, PersonalModel } from '@a0n/gnosis';
 
 const neural = new Neural({ backend: 'webnn' });
 

@@ -1,5 +1,5 @@
 import { memo, useState } from 'react';
-import { Globe } from '@affectively/aeon-icons';
+import { Globe } from '@a0n/aeon-icons';
 
 export const DemoSection = memo(function DemoSection() {
   return (

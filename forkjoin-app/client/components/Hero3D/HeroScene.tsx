@@ -1,7 +1,7 @@
 import { useRef, useMemo, useState, useEffect } from 'react';
-import { useFrame } from '@affectively/aeon-3d/fiber';
-import { Float, MeshDistortMaterial, Stars, Trail } from '@affectively/aeon-3d/drei';
-import * as THREE from '@affectively/aeon-3d/three';
+import { useFrame } from '@a0n/aeon-3d/fiber';
+import { Float, MeshDistortMaterial, Stars, Trail } from '@a0n/aeon-3d/drei';
+import * as THREE from '@a0n/aeon-3d/three';
 import type { Visitor, CollectiveState } from '../../hooks/usePresence';
 
 interface HeroSceneProps {

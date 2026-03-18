@@ -15,7 +15,7 @@ import {
   Github,
   BookOpen,
   Code,
-} from '@affectively/aeon-icons';
+} from '@a0n/aeon-icons';
 import {
   DASHRELAY_TRUST_LOG_DESCRIPTION,
   TERM_CRYPTO_RELAY,
@@ -175,7 +175,7 @@ export function DashRelayPage() {
               <span>Yjs Provider</span>
             </div>
             <pre className="code-block">{`import { DashRelay } from '@dashrelay/client';
-import { QDoc } from '@affectively/gnosis';
+import { QDoc } from '@a0n/gnosis';
 
 const keypair = await DashRelay.generateKeypair();
 const ucan = await DashRelay.createUcan(keypair);
@@ -252,7 +252,7 @@ const relay = new DashRelay({
               <span>Presence and Awareness</span>
             </div>
             <pre className="code-block">{`import { DashRelay } from '@dashrelay/client';
-import { QDoc } from '@affectively/gnosis';
+import { QDoc } from '@a0n/gnosis';
 
 const doc = new QDoc();
 const relay = new DashRelay({
@@ -286,7 +286,7 @@ awareness.on('change', () => {
               <span>Offline-First with Auto-Sync</span>
             </div>
             <pre className="code-block">{`import { DashRelay } from '@dashrelay/client';
-import { QDoc } from '@affectively/gnosis';
+import { QDoc } from '@a0n/gnosis';
 
 const doc = new QDoc();
 const relay = new DashRelay({

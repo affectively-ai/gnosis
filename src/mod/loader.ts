@@ -1,4 +1,4 @@
-import { parseGgProgram } from '@affectively/aeon-logic';
+import { parseGgProgram } from '@a0n/aeon-logic';
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';

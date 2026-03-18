@@ -62,7 +62,7 @@ type ResolvedRendererEngine = {
     executeTopologyFrame: ExecuteTopologyFrame;
 };
 
-const AEON_3D_MODULE_NAME = '@affectively/aeon-3d';
+const AEON_3D_MODULE_NAME = '@a0n/aeon-3d';
 
 let cachedRendererEngine: ResolvedRendererEngine | null = null;
 

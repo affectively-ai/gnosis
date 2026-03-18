@@ -10,7 +10,7 @@ import {
   RACE,
   type FlowFrame,
 } from '../../../aeon/dist/index.js';
-import { parseGgProgram } from '@affectively/aeon-logic';
+import { parseGgProgram } from '@a0n/aeon-logic';
 import { lowerUfcsSource } from '../ufcs.js';
 import {
   bootstrapMeanConfidenceInterval,

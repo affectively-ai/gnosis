@@ -285,6 +285,8 @@ export type {
   QDocUpdateHandler,
   QDocObserveHandler,
   QDocEvent,
+  QMapKeyChange,
+  QMapEvent,
   QDocAeonRelayAttributes,
   QDocAeonRelayAttributeValue,
   QDocAeonRelayConfig,

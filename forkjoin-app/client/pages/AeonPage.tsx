@@ -20,7 +20,7 @@ import {
   Globe,
   Zap,
   Shield,
-} from '@affectively/aeon-icons';
+} from '@a0n/aeon-icons';
 import { getFoundationDocsTrackUrl } from '../docsLinks';
 
 export function AeonPage() {
@@ -66,7 +66,7 @@ export function AeonPage() {
 
         <section className="product-section">
           <h2>Installation</h2>
-          <pre className="install-code">npm install @affectively/aeon</pre>
+          <pre className="install-code">npm install @a0n/aeon</pre>
         </section>
 
         <section className="product-section">
@@ -120,7 +120,7 @@ export function AeonPage() {
               <Code size={18} />
               <span>Basic Setup</span>
             </div>
-            <pre className="code-block">{`import { SyncCoordinator, StateReconciler } from '@affectively/aeon';
+            <pre className="code-block">{`import { SyncCoordinator, StateReconciler } from '@a0n/aeon';
 
 // Create a sync coordinator
 const coordinator = new SyncCoordinator();
@@ -148,7 +148,7 @@ if (reconciler.detectConflicts('user:123')) {
               <Code size={18} />
               <span>Schema Versioning</span>
             </div>
-            <pre className="code-block">{`import { SchemaRegistry, MigrationRunner } from '@affectively/aeon';
+            <pre className="code-block">{`import { SchemaRegistry, MigrationRunner } from '@a0n/aeon';
 
 // Define your schema with version
 const registry = new SchemaRegistry();
@@ -176,7 +176,7 @@ await runner.migrate('user', 1, 2, (doc) => ({
               <Code size={18} />
               <span>Real-time Presence</span>
             </div>
-            <pre className="code-block">{`import { PresenceManager } from '@affectively/aeon';
+            <pre className="code-block">{`import { PresenceManager } from '@a0n/aeon';
 
 const presence = new PresenceManager({
   roomId: 'document:123',
@@ -208,7 +208,7 @@ presence.on('change', (users) => {
               <Code size={18} />
               <span>Conflict Resolution Strategies</span>
             </div>
-            <pre className="code-block">{`import { StateReconciler, ConflictStrategy } from '@affectively/aeon';
+            <pre className="code-block">{`import { StateReconciler, ConflictStrategy } from '@a0n/aeon';
 
 const reconciler = new StateReconciler();
 
