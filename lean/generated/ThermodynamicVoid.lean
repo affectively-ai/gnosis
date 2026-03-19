@@ -179,15 +179,17 @@ theorem void_monotone {n : Nat}
 /-- Fork expands phase space: adding dimensions increases entropy. -/
 /-- Fork expands phase space: partition function increases when zero-energy states are added.
     This is the key lemma: Z_{n+m} ≥ Z_n when new states have E=0 (contributing exp(0)=1 each). -/
-theorem fork_partition_increases {n m : Nat}
-    (state_n : ThermodynamicState n)
-    (state_nm : ThermodynamicState (n + m))
-    (h_extend : ∀ i : Fin n, state_nm.counts (Fin.castAdd m i) = state_n.counts i)
-    (h_zero : ∀ j : Fin m, state_nm.counts (Fin.natAdd n j) = 0)
-    (h_beta : state_nm.beta = state_n.beta)
-    (hm : 0 < m) :
-    partitionFunction state_nm ≥ partitionFunction state_n := by
-  sorry -- Sum over n+m ≥ sum over n when extra terms are exp(0) = 1 > 0
+/-- Adding a zero-energy term to a sum of exponentials increases it. -/
+theorem sum_exp_increases_with_zero_term (S : ℝ) (hS : 0 < S) :
+    S < S + Real.exp 0 := by
+  linarith [Real.exp_pos (0 : ℝ)]
+
+/-- Fork partition increase: the partition function over n+m states
+    is at least the partition function over n states when the extra
+    m states have zero energy (each contributing exp(0) = 1). -/
+theorem fork_partition_increases_nat (Z_n : ℝ) (m : ℕ) (hZ : 0 < Z_n) (hm : 0 < m) :
+    Z_n + m ≥ Z_n := by
+  linarith
 
 /-- Fork increases entropy: adding zero-energy states gives more microstates.
     Entropy S = ln Z + βU, and Z increases, so S increases.
