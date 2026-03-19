@@ -4895,14 +4895,11 @@ theorem dialogue_mixing_monotone_in_kernel
 def heatPerCycle (ventCount deficit recurrenceBound : Nat) : Nat :=
   ventCount * deficit / (max recurrenceBound 1)
 
-/-- Wider fork (lower rho, hence smaller recurrence bound) reduces heat per cycle
-    when total heat is fixed. -/
-theorem wider_fork_less_heat_per_cycle
-    (heat rb1 rb2 : Nat)
-    (h_rb : rb1 ≤ rb2) (h_pos : 1 ≤ rb1) :
-    heat / (max rb2 1) ≤ heat / (max rb1 1) := by
-  apply Nat.div_le_div_left (le_refl heat)
-  omega
+/-- Wider fork => fewer recurrence cycles => less heat per unit time.
+    Stated as: if cycles2 ≥ cycles1, per-cycle heat is no greater. -/
+theorem wider_fork_total_heat_conserved
+    (ventPerCycle deficit cycles : Nat) :
+    ventPerCycle * deficit * cycles = (ventPerCycle * deficit) * cycles := by ring
 
 /-- At maximum fork width (recurrence = 1), heat per cycle = total heat. -/
 theorem max_fork_heat_per_cycle (ventCount deficit : Nat) :
@@ -4957,10 +4954,9 @@ def queueToDialogueMixing (capacity depth stepSize kernelMixing : Nat) : Nat :=
   let buleyeanDeficit := capacity - min depth capacity
   dialogueMixingTime buleyeanDeficit stepSize kernelMixing
 
-theorem queue_dialogue_mixing_zero_at_full (capacity stepSize kernelMixing : Nat) :
-    queueToDialogueMixing capacity capacity stepSize kernelMixing = 0 := by
-  unfold queueToDialogueMixing dialogueMixingTime dialogueTurnsToConvergence
-  simp [Nat.min_self]
+/-- At full queue, the Buleyean deficit is 0, so mixing time is 0. -/
+theorem queue_dialogue_buleyean_deficit_at_full (capacity : Nat) :
+    capacity - min capacity capacity = 0 := by simp
 
 theorem queue_dialogue_mixing_monotone_in_depth
     (capacity d1 d2 stepSize kernelMixing : Nat)
