@@ -54,6 +54,7 @@ export interface HeteroMoAFabricBackendDescriptor {
   readonly label: string;
   readonly kind: HeteroMoAFabricBackendKind;
   readonly layer: HeteroMoAFabricLayerKind;
+  readonly predictedLatencyMs?: number;
   readonly priority?: number;
   readonly available?: boolean;
   readonly detail?: string;
@@ -163,6 +164,9 @@ export interface HeteroMoAFabricBackendScore {
   failures: number;
   disagreements: number;
   skippedHedges: number;
+  latencyMeanMs: number;
+  latencyJitterMs: number;
+  latencySamples: number;
   lastUpdatedAt: number;
 }
 
@@ -190,6 +194,24 @@ export interface HeteroMoAFabricCommunityMemoryOptions {
   readonly decayHalfLifeMs?: number;
 }
 
+export interface HeteroMoAFabricPredictedTiming {
+  readonly predictedWallTimeMs: number;
+  readonly latencyJitterMs: number;
+  readonly sampleCount: number;
+  readonly arrivalHorizonMs: number;
+}
+
+export interface HeteroMoAFabricLaunchScheduleEntry {
+  readonly selectionIndex: number;
+  readonly backendId: string;
+  readonly layer: HeteroMoAFabricLayerKind;
+  readonly predictedWallTimeMs: number;
+  readonly latencyJitterMs: number;
+  readonly sampleCount: number;
+  readonly arrivalHorizonMs: number;
+  readonly launchOffsetMs: number;
+}
+
 type MutableOccupancyCounter = {
   inflight: number;
   peak: number;
@@ -200,12 +222,52 @@ type RunningAttempt = {
   promise: Promise<HeteroMoAFabricAttempt>;
 };
 
+type HeteroMoAFabricSelection = {
+  layer: HeteroMoAFabricLayerKind;
+  cursorStart: number;
+  cursorEnd: number;
+  selected: readonly HeteroMoAFabricBackendDescriptor[];
+};
+
+type HeteroMoAFabricLaunchTask = {
+  selectionIndex: number;
+  selection: HeteroMoAFabricSelection;
+  backend: HeteroMoAFabricBackendDescriptor;
+  layer: HeteroMoAFabricLayerKind;
+  lane: number;
+  cursorPosition: number;
+};
+
 function nowMs(): number {
   return globalThis.performance?.now?.() ?? Date.now();
 }
 
 function wallClockMs(): number {
   return Date.now();
+}
+
+function bootstrapPredictedLatencyMs(
+  descriptor: Pick<
+    HeteroMoAFabricBackendDescriptor,
+    'kind' | 'layer' | 'predictedLatencyMs'
+  >
+): number {
+  if (descriptor.predictedLatencyMs !== undefined) {
+    return Math.max(0, descriptor.predictedLatencyMs);
+  }
+
+  switch (descriptor.kind) {
+    case 'cuda':
+    case 'webgpu':
+      return 2;
+    case 'webnn':
+    case 'vendor-npu':
+      return 3;
+    case 'cpu':
+      return 4;
+    case 'wasm':
+      return 5;
+  }
 }
 
 function defaultProcessEnv(): Record<string, string | undefined> {
@@ -342,8 +404,69 @@ function applyDecay(
     failures: record.failures * factor,
     disagreements: record.disagreements * factor,
     skippedHedges: record.skippedHedges * factor,
+    latencySamples: record.latencySamples * factor,
     lastUpdatedAt: atMs,
   };
+}
+
+function updateLatencyEstimate(
+  record: HeteroMoAFabricBackendScore,
+  observedWallTimeMs: number
+): Pick<
+  HeteroMoAFabricBackendScore,
+  'latencyMeanMs' | 'latencyJitterMs' | 'latencySamples'
+> {
+  const sample = Math.max(0, observedWallTimeMs);
+  const previousSamples = Math.max(0, record.latencySamples);
+  const nextSamples = previousSamples + 1;
+  const nextMean =
+    previousSamples <= 0
+      ? sample
+      : (record.latencyMeanMs * previousSamples + sample) / nextSamples;
+  const deviation = Math.abs(sample - nextMean);
+  const nextJitter =
+    previousSamples <= 0
+      ? 0
+      : (record.latencyJitterMs * previousSamples + deviation) / nextSamples;
+  return {
+    latencyMeanMs: nextMean,
+    latencyJitterMs: nextJitter,
+    latencySamples: nextSamples,
+  };
+}
+
+function attemptSignalStrength(attempt: HeteroMoAFabricAttempt): number {
+  switch (attempt.status) {
+    case 'success':
+      return 5;
+    case 'vented':
+      return 4;
+    case 'error':
+      return 3;
+    case 'aborted':
+      return 2;
+    case 'skipped':
+      return 1;
+  }
+}
+
+function chooseRecordedAttempt(
+  existing: HeteroMoAFabricAttempt | undefined,
+  candidate: HeteroMoAFabricAttempt
+): HeteroMoAFabricAttempt {
+  if (!existing) {
+    return candidate;
+  }
+
+  const existingStrength = attemptSignalStrength(existing);
+  const candidateStrength = attemptSignalStrength(candidate);
+  if (candidateStrength !== existingStrength) {
+    return candidateStrength > existingStrength ? candidate : existing;
+  }
+  if (existing.role !== candidate.role) {
+    return candidate.role === 'primary' ? candidate : existing;
+  }
+  return candidate.finishedAtMs >= existing.finishedAtMs ? candidate : existing;
 }
 
 function defaultCompareOutputs(left: unknown, right: unknown): boolean {
@@ -423,12 +546,24 @@ function startBackendAttempt(
   input: unknown,
   context: Omit<HeteroMoAFabricExecutionContext, 'signal'>,
   occupancy: MutableOccupancyCounter,
-  clock: () => number
+  clock: () => number,
+  externalSignal?: AbortSignal
 ): RunningAttempt {
   const controller = new AbortController();
   const startedAtMs = clock();
   occupancy.inflight += 1;
   occupancy.peak = Math.max(occupancy.peak, occupancy.inflight);
+  const abortFromExternal = () => {
+    controller.abort();
+  };
+
+  if (externalSignal?.aborted) {
+    controller.abort();
+  } else {
+    externalSignal?.addEventListener('abort', abortFromExternal, {
+      once: true,
+    });
+  }
 
   return {
     controller,
@@ -479,6 +614,7 @@ function startBackendAttempt(
         };
       } finally {
         occupancy.inflight = Math.max(0, occupancy.inflight - 1);
+        externalSignal?.removeEventListener('abort', abortFromExternal);
       }
     })(),
   };
@@ -512,14 +648,30 @@ function sortBackends(
   });
 }
 
-async function maybeWaitForShadow(
-  delayMs: number
-): Promise<void> {
+async function waitForAbortableDelay(
+  delayMs: number,
+  signal?: AbortSignal
+): Promise<boolean> {
   if (delayMs <= 0) {
-    return;
+    return !signal?.aborted;
   }
-  await new Promise<void>((resolve) => {
-    setTimeout(resolve, delayMs);
+
+  if (signal?.aborted) {
+    return false;
+  }
+
+  return await new Promise<boolean>((resolve) => {
+    const onAbort = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+      resolve(false);
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve(true);
+    }, delayMs);
+
+    signal?.addEventListener('abort', onAbort, { once: true });
   });
 }
 
@@ -537,7 +689,9 @@ async function runMirroredPair(
       'compareOutputs' | 'isSufficient' | 'nowMs'
     >
   > &
-    Pick<HeteroMoAFabricRunOptions, 'communityMemory' | 'inputDocument'>,
+    Pick<HeteroMoAFabricRunOptions, 'communityMemory' | 'inputDocument'> & {
+      abortSignal?: AbortSignal;
+    },
   occupancy: MutableOccupancyCounter
 ): Promise<HeteroMoAFabricPairResult> {
   const baseContext = {
@@ -568,7 +722,8 @@ async function runMirroredPair(
         role: 'shadow',
       },
       occupancy,
-      options.nowMs
+      options.nowMs,
+      options.abortSignal
     );
     const [primary, shadow] = await Promise.all([
       primaryAttempt.promise,
@@ -645,16 +800,43 @@ async function runMirroredPair(
     };
   }
 
-  await maybeWaitForShadow(plan.hedgeDelayMs);
+  const shadowWindowOpened = await waitForAbortableDelay(
+    plan.hedgeDelayMs,
+    options.abortSignal
+  );
+  if (!shadowWindowOpened) {
+    const shadow = emptyAttempt(
+      shadowBackend,
+      'shadow',
+      lane,
+      cursorPosition,
+      primary.finishedAtMs,
+      options.nowMs(),
+      'shadow aborted before launch after external winner',
+      'aborted'
+    );
+    return {
+      layer,
+      lane,
+      cursorPosition,
+      primary,
+      shadow,
+      accepted: null,
+      escalated: false,
+      agreed: false,
+      shadowSkipped: false,
+    };
+  }
   const shadowAttempt = startBackendAttempt(
     shadowBackend,
     input,
     {
-      ...baseContext,
-      role: 'shadow',
-    },
-    occupancy,
-    options.nowMs
+        ...baseContext,
+        role: 'shadow',
+      },
+      occupancy,
+    options.nowMs,
+    options.abortSignal
   );
   const shadow = await shadowAttempt.promise;
   const agreed =
@@ -835,6 +1017,11 @@ export class HeteroMoAFabricCommunityMemory {
       if (leftScore.score !== rightScore.score) {
         return rightScore.score - leftScore.score;
       }
+      const leftTiming = this.predictBackendTiming(fabricKey, left, atMs);
+      const rightTiming = this.predictBackendTiming(fabricKey, right, atMs);
+      if (leftTiming.arrivalHorizonMs !== rightTiming.arrivalHorizonMs) {
+        return leftTiming.arrivalHorizonMs - rightTiming.arrivalHorizonMs;
+      }
       const leftPriority = left.priority ?? 0;
       const rightPriority = right.priority ?? 0;
       if (leftPriority !== rightPriority) {
@@ -858,12 +1045,67 @@ export class HeteroMoAFabricCommunityMemory {
         failures: 0,
         disagreements: 0,
         skippedHedges: 0,
+        latencyMeanMs: 0,
+        latencyJitterMs: 0,
+        latencySamples: 0,
         lastUpdatedAt: atMs,
       };
     }
     const decayed = applyDecay(raw, atMs, this.halfLifeMs);
     this.backendScores.set(`${fabricKey}:${backendId}`, decayed);
     return decayed;
+  }
+
+  predictBackendTiming(
+    fabricKey: string,
+    descriptor: Pick<
+      HeteroMoAFabricBackendDescriptor,
+      'id' | 'kind' | 'layer' | 'predictedLatencyMs'
+    >,
+    atMs = wallClockMs()
+  ): HeteroMoAFabricPredictedTiming {
+    const score = this.readBackendScore(fabricKey, descriptor.id, atMs);
+    const predictedWallTimeMs =
+      score.latencySamples > 0
+        ? Math.max(0, score.latencyMeanMs)
+        : bootstrapPredictedLatencyMs(descriptor);
+    const latencyJitterMs =
+      score.latencySamples > 0 ? Math.max(0, score.latencyJitterMs) : 0;
+
+    return {
+      predictedWallTimeMs,
+      latencyJitterMs,
+      sampleCount: score.latencySamples,
+      arrivalHorizonMs: predictedWallTimeMs + latencyJitterMs,
+    };
+  }
+
+  createLaunchSchedule(
+    fabricKey: string,
+    descriptors: readonly Pick<
+      HeteroMoAFabricBackendDescriptor,
+      'id' | 'kind' | 'layer' | 'predictedLatencyMs'
+    >[],
+    atMs = wallClockMs()
+  ): HeteroMoAFabricLaunchScheduleEntry[] {
+    const timings = descriptors.map((descriptor, selectionIndex) => {
+      const timing = this.predictBackendTiming(fabricKey, descriptor, atMs);
+      return {
+        selectionIndex,
+        backendId: descriptor.id,
+        layer: descriptor.layer,
+        ...timing,
+      };
+    });
+    const targetArrivalMs = timings.reduce(
+      (max, timing) => Math.max(max, timing.arrivalHorizonMs),
+      0
+    );
+
+    return timings.map((timing) => ({
+      ...timing,
+      launchOffsetMs: Math.max(0, targetArrivalMs - timing.arrivalHorizonMs),
+    }));
   }
 
   recordRun(
@@ -874,8 +1116,20 @@ export class HeteroMoAFabricCommunityMemory {
     const attempted = new Map<string, HeteroMoAFabricAttempt>();
     for (const layerResult of result.layerResults) {
       for (const pair of layerResult.pairs) {
-        attempted.set(pair.primary.backendId, pair.primary);
-        attempted.set(pair.shadow.backendId, pair.shadow);
+        attempted.set(
+          pair.primary.backendId,
+          chooseRecordedAttempt(
+            attempted.get(pair.primary.backendId),
+            pair.primary
+          )
+        );
+        attempted.set(
+          pair.shadow.backendId,
+          chooseRecordedAttempt(
+            attempted.get(pair.shadow.backendId),
+            pair.shadow
+          )
+        );
       }
     }
 
@@ -910,6 +1164,14 @@ export class HeteroMoAFabricCommunityMemory {
         failed * 2 -
         disagreement * 2 +
         skipped * 0.5;
+      const latency =
+        attempt.status !== 'aborted' && attempt.status !== 'skipped'
+          ? updateLatencyEstimate(next, attempt.wallTimeMs)
+          : {
+              latencyMeanMs: next.latencyMeanMs,
+              latencyJitterMs: next.latencyJitterMs,
+              latencySamples: next.latencySamples,
+            };
       this.backendScores.set(`${fabricKey}:${backendId}`, {
         score: next.score + scoreDelta,
         wins: next.wins + won,
@@ -917,6 +1179,9 @@ export class HeteroMoAFabricCommunityMemory {
         failures: next.failures + failed,
         disagreements: next.disagreements + disagreement,
         skippedHedges: next.skippedHedges + skipped,
+        latencyMeanMs: latency.latencyMeanMs,
+        latencyJitterMs: latency.latencyJitterMs,
+        latencySamples: latency.latencySamples,
         lastUpdatedAt: atMs,
       });
     }
@@ -1208,6 +1473,93 @@ export function createCommandFabricBackendsFromEnv(
   return backends;
 }
 
+function createLaunchScheduleEntries(
+  fabricKey: string,
+  tasks: readonly HeteroMoAFabricLaunchTask[],
+  communityMemory: HeteroMoAFabricCommunityMemory | null | undefined,
+  atMs: number
+): HeteroMoAFabricLaunchScheduleEntry[] {
+  if (communityMemory) {
+    return communityMemory.createLaunchSchedule(
+      fabricKey,
+      tasks.map((task) => task.backend),
+      atMs
+    );
+  }
+
+  const predictions = tasks.map((task) => ({
+    selectionIndex: task.selectionIndex,
+    backendId: task.backend.id,
+    layer: task.layer,
+    predictedWallTimeMs: bootstrapPredictedLatencyMs(task.backend),
+    latencyJitterMs: 0,
+    sampleCount: 0,
+  }));
+  const targetArrivalMs = predictions.reduce(
+    (max, prediction) => Math.max(max, prediction.predictedWallTimeMs),
+    0
+  );
+
+  return predictions.map((prediction) => ({
+    ...prediction,
+    arrivalHorizonMs:
+      prediction.predictedWallTimeMs + prediction.latencyJitterMs,
+    launchOffsetMs: Math.max(
+      0,
+      targetArrivalMs -
+        (prediction.predictedWallTimeMs + prediction.latencyJitterMs)
+    ),
+  }));
+}
+
+async function launchMetaLayerTask(
+  task: HeteroMoAFabricLaunchTask,
+  launchOffsetMs: number,
+  input: unknown,
+  plan: HeteroMoAFabricPlan,
+  options: Required<
+    Pick<HeteroMoAFabricRunOptions, 'compareOutputs' | 'isSufficient' | 'nowMs'>
+  > &
+    Pick<HeteroMoAFabricRunOptions, 'communityMemory' | 'inputDocument'>,
+  occupancy: MutableOccupancyCounter,
+  abortSignal: AbortSignal
+): Promise<{ layer: HeteroMoAFabricLayerKind; pair: HeteroMoAFabricPairResult | null }> {
+  const launchReady = await waitForAbortableDelay(launchOffsetMs, abortSignal);
+  if (!launchReady) {
+    return {
+      layer: task.layer,
+      pair: null,
+    };
+  }
+
+  const shadowBackend =
+    task.selection.selected.length > 1
+      ? task.selection.selected[
+          (task.lane + 1) % task.selection.selected.length
+        ] ??
+        task.selection.selected[0] ??
+        task.backend
+      : task.backend;
+
+  return {
+    layer: task.layer,
+    pair: await runMirroredPair(
+      task.backend,
+      shadowBackend,
+      input,
+      task.layer,
+      task.lane,
+      task.cursorPosition,
+      plan,
+      {
+        ...options,
+        abortSignal,
+      },
+      occupancy
+    ),
+  };
+}
+
 export async function runHeteroMoAFabric(
   descriptors: readonly HeteroMoAFabricBackendDescriptor[],
   input: unknown,
@@ -1230,6 +1582,7 @@ export async function runHeteroMoAFabric(
   const runStartedAt = clock();
   const layerResults: HeteroMoAFabricLayerResult[] = [];
   let gateOpened = plan.launchGate !== 'closed';
+  const selections: HeteroMoAFabricSelection[] = [];
 
   for (const layer of layers) {
     const width = laneCountForLayer(plan, layer);
@@ -1244,23 +1597,99 @@ export async function runHeteroMoAFabric(
       options.communityMemory,
       wallClock()
     );
-    const pairs: HeteroMoAFabricPairResult[] = [];
+    selections.push({
+      layer,
+      ...selection,
+    });
+  }
 
-    const runLane = async (
-      backend: HeteroMoAFabricBackendDescriptor,
-      lane: number
-    ): Promise<HeteroMoAFabricPairResult> => {
-      const shadowBackend =
-        selection.selected.length > 1
-          ? selection.selected[(lane + 1) % selection.selected.length] ?? backend
-          : backend;
-      return runMirroredPair(
-        backend,
-        shadowBackend,
+  if (plan.scheduleStrategy === 'linear') {
+    for (const selection of selections) {
+      const pairs: HeteroMoAFabricPairResult[] = [];
+
+      for (let lane = 0; lane < selection.selected.length; lane++) {
+        const backend = selection.selected[lane];
+        if (!backend) {
+          continue;
+        }
+        const shadowBackend =
+          selection.selected.length > 1
+            ? selection.selected[(lane + 1) % selection.selected.length] ?? backend
+            : backend;
+        const pair = await runMirroredPair(
+          backend,
+          shadowBackend,
+          input,
+          selection.layer,
+          lane,
+          selection.cursorStart + lane,
+          plan,
+          {
+            compareOutputs,
+            isSufficient: sufficient,
+            nowMs: clock,
+            communityMemory: options.communityMemory,
+            inputDocument: options.inputDocument,
+          },
+          occupancy
+        );
+        pairs.push(pair);
+        if (pair.accepted) {
+          break;
+        }
+      }
+
+      const winner = [...pairs]
+        .filter((pair) => pair.accepted !== null)
+        .map((pair) => pair.accepted as HeteroMoAFabricAttempt)
+        .sort((left, right) => left.finishedAtMs - right.finishedAtMs)[0] ?? null;
+
+      layerResults.push({
+        layer: selection.layer,
+        cursorStart: selection.cursorStart,
+        cursorEnd: selection.cursorEnd,
+        selectedBackends: selection.selected.map((descriptor) => descriptor.id),
+        pairs,
+        winner,
+      });
+    }
+  } else {
+    const launchTasks: HeteroMoAFabricLaunchTask[] = [];
+    let selectionIndex = 0;
+    for (const selection of selections) {
+      for (let lane = 0; lane < selection.selected.length; lane++) {
+        const backend = selection.selected[lane];
+        if (!backend) {
+          continue;
+        }
+        launchTasks.push({
+          selectionIndex,
+          selection,
+          backend,
+          layer: selection.layer,
+          lane,
+          cursorPosition: selection.cursorStart + lane,
+        });
+        selectionIndex += 1;
+      }
+    }
+
+    gateOpened = gateOpened && launchTasks.length > 0;
+    const schedule = createLaunchScheduleEntries(
+      fabricKey,
+      launchTasks,
+      options.communityMemory,
+      wallClock()
+    );
+    const launchOffsetsBySelectionIndex = new Map(
+      schedule.map((entry) => [entry.selectionIndex, entry.launchOffsetMs])
+    );
+    const metaRaceController = new AbortController();
+    const taskPromises = launchTasks.map((task) =>
+      launchMetaLayerTask(
+        task,
+        launchOffsetsBySelectionIndex.get(task.selectionIndex) ?? 0,
         input,
-        layer,
-        lane,
-        selection.cursorStart + lane,
         plan,
         {
           compareOutputs,
@@ -1269,40 +1698,57 @@ export async function runHeteroMoAFabric(
           communityMemory: options.communityMemory,
           inputDocument: options.inputDocument,
         },
-        occupancy
-      );
-    };
+        occupancy,
+        metaRaceController.signal
+      )
+    );
 
-    const selected = selection.selected;
-    if (plan.scheduleStrategy === 'linear') {
-      for (let lane = 0; lane < selected.length; lane++) {
-        const backend = selected[lane];
-        const pair = await runLane(backend, lane);
-        pairs.push(pair);
-        if (pair.accepted) {
-          break;
-        }
-      }
-    } else {
-      const pairResults = await Promise.all(
-        selected.map((backend, lane) => runLane(backend, lane))
+    try {
+      await Promise.any(
+        taskPromises.map((promise) =>
+          promise.then((result) => {
+            if (result.pair?.accepted) {
+              return result.pair.accepted;
+            }
+            return Promise.reject(new Error('pair did not accept'));
+          })
+        )
       );
-      pairs.push(...pairResults);
+      metaRaceController.abort();
+    } catch {
+      // No accepting pair completed; allow all tasks to settle normally.
     }
 
-    const winner = [...pairs]
-      .filter((pair) => pair.accepted !== null)
-      .map((pair) => pair.accepted as HeteroMoAFabricAttempt)
-      .sort((left, right) => left.finishedAtMs - right.finishedAtMs)[0] ?? null;
+    const settledPairs = await Promise.all(taskPromises);
+    const pairsByLayer = new Map<HeteroMoAFabricLayerKind, HeteroMoAFabricPairResult[]>();
+    for (const settled of settledPairs) {
+      if (!settled.pair) {
+        continue;
+      }
+      const bucket = pairsByLayer.get(settled.layer) ?? [];
+      bucket.push(settled.pair);
+      pairsByLayer.set(settled.layer, bucket);
+    }
 
-    layerResults.push({
-      layer,
-      cursorStart: selection.cursorStart,
-      cursorEnd: selection.cursorEnd,
-      selectedBackends: selection.selected.map((descriptor) => descriptor.id),
-      pairs,
-      winner,
-    });
+    for (const selection of selections) {
+      const pairs =
+        (pairsByLayer.get(selection.layer) ?? []).sort(
+          (left, right) => left.lane - right.lane
+        );
+      const winner = [...pairs]
+        .filter((pair) => pair.accepted !== null)
+        .map((pair) => pair.accepted as HeteroMoAFabricAttempt)
+        .sort((left, right) => left.finishedAtMs - right.finishedAtMs)[0] ?? null;
+
+      layerResults.push({
+        layer: selection.layer,
+        cursorStart: selection.cursorStart,
+        cursorEnd: selection.cursorEnd,
+        selectedBackends: selection.selected.map((descriptor) => descriptor.id),
+        pairs,
+        winner,
+      });
+    }
   }
 
   const winners = layerResults

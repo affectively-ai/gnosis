@@ -114,6 +114,131 @@ describe('HeteroMoAFabric runtime', () => {
     expect(communityMemory.runs()).toHaveLength(1);
   });
 
+  test('runs a true cross-layer meta race instead of walking layers sequentially', async () => {
+    const backends: HeteroMoAFabricBackendDescriptor[] = [
+      {
+        id: 'cpu-slow',
+        label: 'CPU slow lane',
+        kind: 'cpu',
+        layer: 'cpu',
+        predictedLatencyMs: 0,
+        async execute() {
+          await sleep(18);
+          return {
+            value: new Float32Array([1, 2, 3]),
+          };
+        },
+      },
+      {
+        id: 'gpu-fast',
+        label: 'GPU fast lane',
+        kind: 'webgpu',
+        layer: 'gpu',
+        predictedLatencyMs: 0,
+        async execute() {
+          await sleep(4);
+          return {
+            value: new Float32Array([1, 2, 3]),
+          };
+        },
+      },
+      {
+        id: 'npu-mid',
+        label: 'NPU mid lane',
+        kind: 'webnn',
+        layer: 'npu',
+        predictedLatencyMs: 0,
+        async execute() {
+          await sleep(10);
+          return {
+            value: new Float32Array([1, 2, 3]),
+          };
+        },
+      },
+    ];
+
+    const result = await runHeteroMoAFabric(backends, new Float32Array([1, 2]), {
+      plan: {
+        scheduleStrategy: 'cannon',
+        hedgeDelayMs: 1,
+        laneCounts: {
+          cpu: 1,
+          gpu: 1,
+          npu: 1,
+          wasm: 0,
+        },
+      },
+    });
+
+    expect(result.winner?.backendId).toBe('gpu-fast');
+    expect(result.layerResults).toHaveLength(3);
+  });
+
+  test('community memory learns latency and staggers launches slowest to fastest', async () => {
+    const communityMemory = new HeteroMoAFabricCommunityMemory({
+      decayHalfLifeMs: 60_000,
+    });
+    const backends: HeteroMoAFabricBackendDescriptor[] = [
+      {
+        id: 'cpu-latency',
+        label: 'CPU latency lane',
+        kind: 'cpu',
+        layer: 'cpu',
+        predictedLatencyMs: 0,
+        async execute() {
+          await sleep(14);
+          return {
+            value: new Float32Array([1]),
+          };
+        },
+      },
+      {
+        id: 'gpu-latency',
+        label: 'GPU latency lane',
+        kind: 'webgpu',
+        layer: 'gpu',
+        predictedLatencyMs: 0,
+        async execute() {
+          await sleep(3);
+          return {
+            value: new Float32Array([1]),
+          };
+        },
+      },
+    ];
+
+    for (let iteration = 0; iteration < 4; iteration++) {
+      await runHeteroMoAFabric(backends, new Float32Array([1]), {
+        fabricKey: 'launch-learning',
+        communityMemory,
+        plan: {
+          scheduleStrategy: 'cannon',
+          hedgeDelayMs: 1,
+          laneCounts: {
+            cpu: 1,
+            gpu: 1,
+            npu: 0,
+            wasm: 0,
+          },
+        },
+      });
+    }
+
+    const scores = communityMemory.snapshotScores('launch-learning');
+    const schedule = communityMemory.createLaunchSchedule(
+      'launch-learning',
+      backends
+    );
+    const cpuLaunch = schedule.find((entry) => entry.backendId === 'cpu-latency');
+    const gpuLaunch = schedule.find((entry) => entry.backendId === 'gpu-latency');
+
+    expect(scores['cpu-latency']?.latencyMeanMs).toBeGreaterThan(
+      scores['gpu-latency']?.latencyMeanMs ?? 0
+    );
+    expect(cpuLaunch?.launchOffsetMs).toBe(0);
+    expect((gpuLaunch?.launchOffsetMs ?? 0) > 0).toBe(true);
+  });
+
   test('parses DashRelay and Aeon relay environment variables', () => {
     const config = createDashRelayConfigFromEnv({
       GNOSIS_DASHRELAY_URL: 'wss://relay.example.test',

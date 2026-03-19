@@ -402,5 +402,109 @@ export type {
   GnosisTypeScriptBridgeNodePlan,
   GnosisTypeScriptBridgeOptions,
   GnosisTypeScriptBridgeResult,
+  GnosisTypeScriptBridgeSourceLocation,
   GnosisTypeScriptBridgeWave,
 } from './ts-bridge.js';
+
+export { checkTypeScriptWithGnosis } from './ts-check.js';
+
+export type {
+  GnosisTypeScriptCheckDiagnostic,
+  GnosisTypeScriptCheckDiagnosticLevel,
+  GnosisTypeScriptCheckMetrics,
+  GnosisTypeScriptCheckOptions,
+  GnosisTypeScriptCheckResult,
+  GnosisTypeScriptCheckTopologyEdge,
+  GnosisTypeScriptCheckTopologyGraph,
+  GnosisTypeScriptCheckTopologyNode,
+} from './ts-check.js';
+
+// Incremental check with caching
+export { GnosisIncrementalChecker } from './ts-check-incremental.js';
+export type {
+  IncrementalCacheEntry,
+  IncrementalCheckStats,
+} from './ts-check-incremental.js';
+
+// Autofix engine
+export {
+  detectDeadBranches,
+  generateAutofixSuggestions,
+} from './ts-check-autofix.js';
+export type {
+  AutofixKind,
+  AutofixReplacement,
+  AutofixSuggestion,
+  DeadBranchInfo,
+} from './ts-check-autofix.js';
+
+// Cross-function call graph
+export { buildCallGraph } from './ts-call-graph.js';
+export type {
+  CallGraph,
+  CallGraphEdge,
+  CallGraphExternalImport,
+  CallGraphModule,
+  CallGraphNode,
+  CallGraphOptions,
+} from './ts-call-graph.js';
+
+// Topology diff for PR reviews
+export {
+  computeTopologyDiff,
+  formatPrComment,
+} from './ts-check-diff.js';
+export type {
+  FunctionDiff,
+  TopologyDiffOptions,
+  TopologyDiffResult,
+  TopologyMetricsDelta,
+  TopologyRegimeTransition,
+} from './ts-check-diff.js';
+
+// File watcher for live feedback
+export { GnosisFileWatcher } from './ts-check-watcher.js';
+export type {
+  WatcherEvent,
+  WatcherListener,
+  WatcherOptions,
+} from './ts-check-watcher.js';
+
+// Lean certificate generation
+export {
+  generateLeanCertificate,
+  generateCertificatesForDirectory,
+  verifyCertificate,
+} from './ts-lean-certificate.js';
+export type {
+  LeanCertificate,
+  LeanCertificateOptions,
+} from './ts-lean-certificate.js';
+
+// Topology SLOs
+export {
+  checkDirectorySlo,
+  checkTopologySlo,
+  loadSloConfig,
+} from './ts-topology-slo.js';
+export type {
+  SloCheckResult,
+  SloViolation,
+  TopologySloConfig,
+} from './ts-topology-slo.js';
+
+// Runtime topology probes
+export {
+  GnosisProbeCollector,
+  createProbeWrapper,
+  buildOtelAttributes,
+} from './ts-runtime-probe.js';
+export type {
+  BranchFrequency,
+  NodeHotspot,
+  OtelSpanAttributes,
+  ProbeEvent,
+  ProbeSession,
+  RuntimeTopologyMetrics,
+  WallaceDivergence,
+} from './ts-runtime-probe.js';

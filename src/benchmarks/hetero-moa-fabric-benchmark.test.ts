@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   detectCloudRunStamp,
   runHeteroMoAFabricBenchmark,
+  runLiveHeteroMoAFabricBenchmark,
 } from './hetero-moa-fabric-benchmark.js';
 
 describe('gnosis hetero MoA fabric benchmark', () => {
@@ -18,10 +19,66 @@ describe('gnosis hetero MoA fabric benchmark', () => {
     });
 
     expect(report.label).toBe('gnosis-hetero-moa-fabric-benchmark-v1');
+    expect(report.mode).toBe('synthetic');
     expect(report.iterations).toBe(3);
     expect(report.fabric.meanWallTimeMs).toBeGreaterThan(0);
     expect(report.fabric.meanCpuTimeMs).toBeGreaterThan(0);
     expect(report.fabric.meanQueueOccupancy).toBeGreaterThan(0);
+    expect(report.discovery.backendCount).toBeGreaterThan(0);
+    expect(report.community.finalLaunchSchedule.length).toBeGreaterThan(0);
+    expect(report.relativeSpeedup).toBeGreaterThan(0);
+  });
+
+  test('runs the live benchmark path against discovered backends', async () => {
+    const report = await runLiveHeteroMoAFabricBenchmark({
+      iterations: 2,
+      inputLength: 16,
+      engineFactory: async () => ({
+        async getHeteroFabricBackends() {
+          return [
+            {
+              id: 'cpu-live',
+              label: 'CPU live lane',
+              kind: 'cpu',
+              layer: 'cpu',
+              predictedLatencyMs: 0,
+              async execute(input) {
+                await Bun.sleep(10);
+                return {
+                  value: input,
+                  cpuTimeMs: 10,
+                };
+              },
+            },
+            {
+              id: 'gpu-live',
+              label: 'GPU live lane',
+              kind: 'webgpu',
+              layer: 'gpu',
+              predictedLatencyMs: 0,
+              async execute(input) {
+                await Bun.sleep(3);
+                return {
+                  value: input,
+                  cpuTimeMs: 3,
+                };
+              },
+            },
+          ];
+        },
+      }),
+    });
+
+    expect(report.mode).toBe('live');
+    expect(report.discovery.backendCount).toBe(2);
+    expect(report.discovery.availableLaneCounts.cpu).toBe(1);
+    expect(report.discovery.availableLaneCounts.gpu).toBe(1);
+    expect(report.discovery.activeLaneCounts.npu).toBe(0);
+    expect(report.discovery.backends.map((backend) => backend.id)).toEqual([
+      'cpu-live',
+      'gpu-live',
+    ]);
+    expect(report.community.finalLaunchSchedule.length).toBe(2);
     expect(report.relativeSpeedup).toBeGreaterThan(0);
   });
 

@@ -94,7 +94,7 @@ Higher-order graph shapes for recurring patterns:
 - `WallingtonRotation` -- chunk-level pipelined processing
 - `WorthingtonWhip` -- shard-level fork/rotate/fold
 - `StructuredMoA` -- sparse expert routing across attention blocks, now lowered with explicit corridor/trace/vent request-compression boundaries
-- `HeteroMoAFabric` -- backend-diverse mirrored `StructuredMoA` lanes with per-layer cannon/helix rotation, paired-kernel race/adjudication, one laminar global collapse, and a runtime plan that can bind to CPU, WebGPU, WebNN, WASM/browser, and env-driven CUDA or vendor-NPU runners
+- `HeteroMoAFabric` -- backend-diverse mirrored `StructuredMoA` lanes with per-layer cannon/helix rotation, paired-kernel race/adjudication, one laminar global collapse, and a runtime plan that can bind to CPU, WebGPU, WebNN, WASM/browser, and env-driven CUDA or vendor-NPU runners while learning slowest-to-fastest cross-layer launch staggering from community memory
 
 ### UFCS Sugar
 

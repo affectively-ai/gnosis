@@ -1,9 +1,14 @@
 import {
   HeteroMoAFabricCommunityMemory,
   runHeteroMoAFabric,
+  type HeteroMoAFabricBackendKind,
+  type HeteroMoAFabricBackendScore,
   type HeteroMoAFabricBackendDescriptor,
+  type HeteroMoAFabricLaneCounts,
+  type HeteroMoAFabricLaunchScheduleEntry,
   type HeteroMoAFabricLayerKind,
 } from '../runtime/hetero-fabric.js';
+import { init } from '../neural-compat.js';
 
 export interface HeteroMoAFabricBenchmarkConfig {
   readonly iterations: number;
@@ -17,6 +22,15 @@ export interface HeteroMoAFabricBenchmarkConfig {
   readonly layerLatencyMs: Record<HeteroMoAFabricLayerKind, number>;
 }
 
+export interface HeteroMoAFabricLiveBenchmarkConfig
+  extends Partial<HeteroMoAFabricBenchmarkConfig> {
+  readonly inputLength?: number;
+  readonly includeEnvCommandBackends?: boolean;
+  readonly backends?: HeteroMoAFabricBackendDescriptor[];
+  readonly fabricKey?: string;
+  readonly engineFactory?: () => Promise<HeteroMoAFabricLiveBenchmarkEngine>;
+}
+
 export interface HeteroMoAFabricCloudRunStamp {
   readonly detected: boolean;
   readonly service?: string;
@@ -27,10 +41,30 @@ export interface HeteroMoAFabricCloudRunStamp {
   readonly project?: string;
 }
 
+export interface HeteroMoAFabricBenchmarkBackendSummary {
+  readonly id: string;
+  readonly label: string;
+  readonly kind: HeteroMoAFabricBackendKind;
+  readonly layer: HeteroMoAFabricLayerKind;
+  readonly priority?: number;
+  readonly detail?: string;
+  readonly predictedLatencyMs?: number;
+}
+
+export interface HeteroMoAFabricBenchmarkDiscovery {
+  readonly backendCount: number;
+  readonly availableLaneCounts: HeteroMoAFabricLaneCounts;
+  readonly activeLaneCounts: HeteroMoAFabricLaneCounts;
+  readonly backends: readonly HeteroMoAFabricBenchmarkBackendSummary[];
+}
+
 export interface HeteroMoAFabricBenchmarkReport {
   readonly label: 'gnosis-hetero-moa-fabric-benchmark-v1';
+  readonly mode: 'synthetic' | 'live';
   readonly iterations: number;
+  readonly inputLength: number;
   readonly cloudRun: HeteroMoAFabricCloudRunStamp;
+  readonly discovery: HeteroMoAFabricBenchmarkDiscovery;
   readonly baseline: {
     readonly meanWallTimeMs: number;
   };
@@ -42,7 +76,30 @@ export interface HeteroMoAFabricBenchmarkReport {
     readonly meanQueueOccupancy: number;
     readonly winnerCounts: Record<string, number>;
   };
+  readonly community: {
+    readonly finalScores: Record<string, HeteroMoAFabricBackendScore>;
+    readonly finalLaunchSchedule: readonly HeteroMoAFabricLaunchScheduleEntry[];
+  };
   readonly relativeSpeedup: number;
+}
+
+interface HeteroMoAFabricLiveBenchmarkEngine {
+  getHeteroFabricBackends(options?: {
+    includeEnvCommandBackends?: boolean;
+    backends?: HeteroMoAFabricBackendDescriptor[];
+  }): Promise<HeteroMoAFabricBackendDescriptor[]>;
+}
+
+interface HeteroMoAFabricBenchmarkRunRequest {
+  readonly mode: 'synthetic' | 'live';
+  readonly iterations: number;
+  readonly inputLength: number;
+  readonly hedgeDelayMs: number;
+  readonly fabricKey: string;
+  readonly backends: readonly HeteroMoAFabricBackendDescriptor[];
+  readonly availableLaneCounts: HeteroMoAFabricLaneCounts;
+  readonly activeLaneCounts: HeteroMoAFabricLaneCounts;
+  readonly env: Record<string, string | undefined>;
 }
 
 const DEFAULT_CONFIG: HeteroMoAFabricBenchmarkConfig = {
@@ -61,6 +118,7 @@ const DEFAULT_CONFIG: HeteroMoAFabricBenchmarkConfig = {
     wasm: 5,
   },
 };
+const DEFAULT_LIVE_INPUT_LENGTH = 224;
 
 function nowMs(): number {
   return globalThis.performance?.now?.() ?? Date.now();
@@ -77,6 +135,55 @@ function mean(values: readonly number[]): number {
     return 0;
   }
   return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function createBenchmarkInput(
+  iteration: number,
+  inputLength: number
+): Float32Array {
+  const input = new Float32Array(inputLength);
+  for (let index = 0; index < inputLength; index++) {
+    const phase = ((iteration + 1) * (index + 3)) % 17;
+    input[index] = (phase - 8) / 8;
+  }
+  return input;
+}
+
+function summarizeBackends(
+  backends: readonly HeteroMoAFabricBackendDescriptor[]
+): readonly HeteroMoAFabricBenchmarkBackendSummary[] {
+  return backends.map((backend) => ({
+    id: backend.id,
+    label: backend.label,
+    kind: backend.kind,
+    layer: backend.layer,
+    priority: backend.priority,
+    detail: backend.detail,
+    predictedLatencyMs: backend.predictedLatencyMs,
+  }));
+}
+
+function countLaneBackends(
+  backends: readonly Pick<HeteroMoAFabricBackendDescriptor, 'layer'>[]
+): HeteroMoAFabricLaneCounts {
+  return {
+    cpu: backends.filter((backend) => backend.layer === 'cpu').length,
+    gpu: backends.filter((backend) => backend.layer === 'gpu').length,
+    npu: backends.filter((backend) => backend.layer === 'npu').length,
+    wasm: backends.filter((backend) => backend.layer === 'wasm').length,
+  };
+}
+
+function clampLaneCounts(
+  requested: Partial<HeteroMoAFabricLaneCounts> | undefined,
+  available: HeteroMoAFabricLaneCounts
+): HeteroMoAFabricLaneCounts {
+  return {
+    cpu: Math.max(0, Math.min(requested?.cpu ?? available.cpu, available.cpu)),
+    gpu: Math.max(0, Math.min(requested?.gpu ?? available.gpu, available.gpu)),
+    npu: Math.max(0, Math.min(requested?.npu ?? available.npu, available.npu)),
+    wasm: Math.max(0, Math.min(requested?.wasm ?? available.wasm, available.wasm)),
+  };
 }
 
 export function detectCloudRunStamp(
@@ -119,6 +226,7 @@ function createSyntheticBackends(
       label: `${layer.toUpperCase()} synthetic lane`,
       kind,
       layer,
+      predictedLatencyMs: config.layerLatencyMs[layer],
       priority: layer === 'gpu' ? 3 : layer === 'npu' ? 2 : 1,
       async execute(input) {
         await sleep(config.layerLatencyMs[layer]);
@@ -154,23 +262,20 @@ async function runBaselineSequential(
   return Math.max(0, nowMs() - startedAt);
 }
 
-export async function runHeteroMoAFabricBenchmark(
-  overrides: Partial<HeteroMoAFabricBenchmarkConfig> = {},
-  env: Record<string, string | undefined> = process.env
+async function runBenchmarkReport(
+  request: HeteroMoAFabricBenchmarkRunRequest
 ): Promise<HeteroMoAFabricBenchmarkReport> {
-  const config: HeteroMoAFabricBenchmarkConfig = {
-    ...DEFAULT_CONFIG,
-    ...overrides,
-    laneCounts: {
-      ...DEFAULT_CONFIG.laneCounts,
-      ...overrides.laneCounts,
-    },
-    layerLatencyMs: {
-      ...DEFAULT_CONFIG.layerLatencyMs,
-      ...overrides.layerLatencyMs,
-    },
-  };
-  const backends = createSyntheticBackends(config);
+  const {
+    mode,
+    iterations,
+    inputLength,
+    hedgeDelayMs,
+    fabricKey,
+    backends,
+    availableLaneCounts,
+    activeLaneCounts,
+    env,
+  } = request;
   const communityMemory = new HeteroMoAFabricCommunityMemory({
     decayHalfLifeMs: 60_000,
   });
@@ -182,15 +287,15 @@ export async function runHeteroMoAFabricBenchmark(
   const queueOccupancies: number[] = [];
   const winnerCounts = new Map<string, number>();
 
-  for (let iteration = 0; iteration < config.iterations; iteration++) {
-    const input = new Float32Array([iteration + 1, iteration % 2, 1]);
+  for (let iteration = 0; iteration < iterations; iteration++) {
+    const input = createBenchmarkInput(iteration, inputLength);
     baselineWallTimes.push(await runBaselineSequential(backends, input));
     const result = await runHeteroMoAFabric(backends, input, {
-      fabricKey: 'benchmark-fabric',
+      fabricKey,
       communityMemory,
       plan: {
-        hedgeDelayMs: config.hedgeDelayMs,
-        laneCounts: config.laneCounts,
+        hedgeDelayMs,
+        laneCounts: activeLaneCounts,
       },
     });
     fabricWallTimes.push(result.telemetry.wallTimeMs);
@@ -208,10 +313,23 @@ export async function runHeteroMoAFabricBenchmark(
 
   const baselineMean = mean(baselineWallTimes);
   const fabricMean = mean(fabricWallTimes);
+  const finalScores = communityMemory.snapshotScores(fabricKey);
+  const finalLaunchSchedule = communityMemory.createLaunchSchedule(
+    fabricKey,
+    backends
+  );
   return {
     label: 'gnosis-hetero-moa-fabric-benchmark-v1',
-    iterations: config.iterations,
+    mode,
+    iterations,
+    inputLength,
     cloudRun: detectCloudRunStamp(env),
+    discovery: {
+      backendCount: backends.length,
+      availableLaneCounts,
+      activeLaneCounts,
+      backends: summarizeBackends(backends),
+    },
     baseline: {
       meanWallTimeMs: baselineMean,
     },
@@ -223,11 +341,87 @@ export async function runHeteroMoAFabricBenchmark(
       meanQueueOccupancy: mean(queueOccupancies),
       winnerCounts: Object.fromEntries(winnerCounts),
     },
+    community: {
+      finalScores,
+      finalLaunchSchedule,
+    },
     relativeSpeedup: fabricMean > 0 ? baselineMean / fabricMean : 0,
   };
 }
 
+export async function runHeteroMoAFabricBenchmark(
+  overrides: Partial<HeteroMoAFabricBenchmarkConfig> = {},
+  env: Record<string, string | undefined> = process.env
+): Promise<HeteroMoAFabricBenchmarkReport> {
+  const config: HeteroMoAFabricBenchmarkConfig = {
+    ...DEFAULT_CONFIG,
+    ...overrides,
+    laneCounts: {
+      ...DEFAULT_CONFIG.laneCounts,
+      ...overrides.laneCounts,
+    },
+    layerLatencyMs: {
+      ...DEFAULT_CONFIG.layerLatencyMs,
+      ...overrides.layerLatencyMs,
+    },
+  };
+  const backends = createSyntheticBackends(config);
+  const availableLaneCounts = countLaneBackends(backends);
+  const activeLaneCounts = clampLaneCounts(
+    config.laneCounts,
+    availableLaneCounts
+  );
+  return runBenchmarkReport({
+    mode: 'synthetic',
+    iterations: config.iterations,
+    inputLength: 3,
+    hedgeDelayMs: config.hedgeDelayMs,
+    fabricKey: 'benchmark-fabric',
+    backends,
+    availableLaneCounts,
+    activeLaneCounts,
+    env,
+  });
+}
+
+export async function runLiveHeteroMoAFabricBenchmark(
+  overrides: HeteroMoAFabricLiveBenchmarkConfig = {},
+  env: Record<string, string | undefined> = process.env
+): Promise<HeteroMoAFabricBenchmarkReport> {
+  const engine = await (overrides.engineFactory ?? init)();
+  const backends = (await engine.getHeteroFabricBackends({
+    includeEnvCommandBackends: overrides.includeEnvCommandBackends,
+    backends: overrides.backends,
+  })).filter((backend) => backend.available !== false);
+  const availableLaneCounts = countLaneBackends(backends);
+  const activeLaneCounts = clampLaneCounts(
+    overrides.laneCounts,
+    availableLaneCounts
+  );
+
+  return runBenchmarkReport({
+    mode: 'live',
+    iterations: Math.max(1, Math.floor(overrides.iterations ?? DEFAULT_CONFIG.iterations)),
+    inputLength: Math.max(
+      1,
+      Math.floor(overrides.inputLength ?? DEFAULT_LIVE_INPUT_LENGTH)
+    ),
+    hedgeDelayMs: Math.max(0, overrides.hedgeDelayMs ?? DEFAULT_CONFIG.hedgeDelayMs),
+    fabricKey: overrides.fabricKey?.trim() || 'live-benchmark-fabric',
+    backends,
+    availableLaneCounts,
+    activeLaneCounts,
+    env,
+  });
+}
+
 if (import.meta.main) {
-  const report = await runHeteroMoAFabricBenchmark();
+  const argv =
+    typeof Bun !== 'undefined' && Array.isArray(Bun.argv)
+      ? Bun.argv.slice(2)
+      : [];
+  const report = argv.includes('--live')
+    ? await runLiveHeteroMoAFabricBenchmark()
+    : await runHeteroMoAFabricBenchmark();
   console.log(JSON.stringify(report, null, 2));
 }

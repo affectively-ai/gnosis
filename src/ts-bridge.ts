@@ -80,6 +80,13 @@ export interface GnosisTypeScriptBridgeErrorLocation {
   readonly column: number;
 }
 
+export interface GnosisTypeScriptBridgeSourceLocation {
+  readonly line: number;
+  readonly column: number;
+  readonly endLine?: number;
+  readonly endColumn?: number;
+}
+
 export class GnosisTypeScriptBridgeError extends Error {
   public readonly location: GnosisTypeScriptBridgeErrorLocation;
   public readonly sourceFilePath: string;
@@ -126,6 +133,7 @@ interface GnosisTypeScriptBridgeEntryPlan {
   readonly kind: 'entry';
   readonly nodeId: string;
   readonly handlerLabel: 'TsBridgeEntry';
+  readonly sourceLocation?: GnosisTypeScriptBridgeSourceLocation;
 }
 
 interface GnosisTypeScriptBridgeAssignPlan {
@@ -134,6 +142,7 @@ interface GnosisTypeScriptBridgeAssignPlan {
   readonly handlerLabel: 'TsBridgeAssign';
   readonly bindingName: string;
   readonly expression: GnosisTypeScriptBridgeExpression;
+  readonly sourceLocation?: GnosisTypeScriptBridgeSourceLocation;
 }
 
 interface GnosisTypeScriptBridgeCallPlan {
@@ -143,12 +152,14 @@ interface GnosisTypeScriptBridgeCallPlan {
   readonly calleeName: string;
   readonly args: readonly GnosisTypeScriptBridgeExpression[];
   readonly assignTo: string | null;
+  readonly sourceLocation?: GnosisTypeScriptBridgeSourceLocation;
 }
 
 interface GnosisTypeScriptBridgeJoinPlan {
   readonly kind: 'join';
   readonly nodeId: string;
   readonly handlerLabel: 'TsBridgeJoin';
+  readonly sourceLocation?: GnosisTypeScriptBridgeSourceLocation;
 }
 
 interface GnosisTypeScriptBridgeReturnPlan {
@@ -156,6 +167,7 @@ interface GnosisTypeScriptBridgeReturnPlan {
   readonly nodeId: string;
   readonly handlerLabel: 'TsBridgeReturn';
   readonly expression: GnosisTypeScriptBridgeExpression;
+  readonly sourceLocation?: GnosisTypeScriptBridgeSourceLocation;
 }
 
 export type GnosisTypeScriptBridgeNodePlan =
@@ -537,6 +549,22 @@ function getNodeLocation(
   return {
     line: position.line + 1,
     column: position.character + 1,
+  };
+}
+
+function getNodeSourceLocation(
+  sourceFile: ts.SourceFile,
+  node: ts.Node
+): GnosisTypeScriptBridgeSourceLocation {
+  const start = sourceFile.getLineAndCharacterOfPosition(
+    node.getStart(sourceFile)
+  );
+  const end = sourceFile.getLineAndCharacterOfPosition(node.getEnd());
+  return {
+    line: start.line + 1,
+    column: start.character + 1,
+    endLine: end.line + 1,
+    endColumn: end.character + 1,
   };
 }
 
@@ -1410,6 +1438,7 @@ function resolveCallPlan(
     calleeName: callExpression.expression.text,
     args,
     assignTo,
+    sourceLocation: getNodeSourceLocation(state.sourceFile, callExpression),
   };
   state.nodePlans.push(plan);
   return plan;
@@ -1486,6 +1515,7 @@ function compilePromiseAllOperation(
     kind: 'join',
     nodeId: createNodeId(state, 'join', 'promise_all'),
     handlerLabel: 'TsBridgeJoin',
+    sourceLocation: getNodeSourceLocation(state.sourceFile, promiseAllCall),
   };
   state.nodePlans.push(joinPlan);
   state.operations.push({
@@ -1507,6 +1537,7 @@ function compilePromiseAllOperation(
           name,
         })),
       },
+      sourceLocation: getNodeSourceLocation(state.sourceFile, bindingName),
     };
     state.knownBindings.add(bindingName.text);
     state.nodePlans.push(assignPlan);
@@ -1570,6 +1601,7 @@ function compileVariableDeclaration(
     handlerLabel: 'TsBridgeAssign',
     bindingName: declaration.name.text,
     expression: resolveExpression(initializer, state),
+    sourceLocation: getNodeSourceLocation(state.sourceFile, declaration),
   };
   state.knownBindings.add(declaration.name.text);
   state.nodePlans.push(assignPlan);
@@ -1590,6 +1622,7 @@ function compileReturnStatement(
       nodeId: createNodeId(state, 'return', 'void'),
       handlerLabel: 'TsBridgeReturn',
       expression: { kind: 'literal', value: undefined },
+      sourceLocation: getNodeSourceLocation(state.sourceFile, statement),
     };
     state.nodePlans.push(returnPlan);
     state.operations.push({
@@ -1621,6 +1654,7 @@ function compileReturnStatement(
         kind: 'binding',
         name: returnBinding,
       },
+      sourceLocation: getNodeSourceLocation(state.sourceFile, statement),
     };
     state.nodePlans.push(returnPlan);
     state.operations.push({
@@ -1635,6 +1669,7 @@ function compileReturnStatement(
     nodeId: createNodeId(state, 'return', 'result'),
     handlerLabel: 'TsBridgeReturn',
     expression: resolveExpression(unwrapped, state),
+    sourceLocation: getNodeSourceLocation(state.sourceFile, statement),
   };
   state.nodePlans.push(returnPlan);
   state.operations.push({
@@ -1923,6 +1958,7 @@ export function compileTypeScriptToGnosis(
     kind: 'entry',
     nodeId: createNodeId(state, 'entry', entrypoint.exportName),
     handlerLabel: 'TsBridgeEntry',
+    sourceLocation: getNodeSourceLocation(sourceFile, entrypoint.record.node),
   };
   state.nodePlans.push(entryPlan);
 
