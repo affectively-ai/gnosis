@@ -5,3 +5,5 @@ runtime/pkg/
 runtime/target/
 .lake/
 .DS_Store
+states/
+*.bin
