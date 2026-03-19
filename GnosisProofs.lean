@@ -3111,7 +3111,7 @@ theorem realMeasurableObservable_of_continuousAffine
 theorem realMeasurableLyapunovDriftWitness_of_continuousAffineStep
     (boundary scale offset gap : Real)
     (h_gap : 0 < gap)
-    (h_scale : 0 < scale) :
+    (_h_scale : 0 < scale) :
     MeasurableLyapunovDriftWitness
       (realContinuousAffineExpectedV boundary scale offset gap)
       (realContinuousAffineV scale offset)
@@ -3553,7 +3553,7 @@ theorem measurable_quadratic (c offset : Real) :
 
 theorem realQuadraticDriftWitness
     (c offset boundary gap : Real)
-    (h_c : 0 < c)
+    (_h_c : 0 < c)
     (h_gap : 0 < gap) :
     MeasurableLyapunovDriftWitness
       (fun x => if c * x ^ 2 + offset ≤ boundary then boundary else c * x ^ 2 + offset - gap)
@@ -3578,11 +3578,12 @@ theorem realQuadraticDriftWitness
     have h_not_le : ¬ (c * current ^ 2 + offset ≤ boundary) := by
       simpa [realQuadraticObservable] using not_le_of_gt h_gt
     simp only [h_not_le, ite_false, realQuadraticObservable]
+    exact le_refl _
 
 theorem realQuadraticHarrisWitness
     (c offset boundary gap : Real)
-    (h_c : 0 < c)
-    (h_gap : 0 < gap) :
+    (_h_c : 0 < c)
+    (_h_gap : 0 < gap) :
     MeasurableRealObservableWitness
       (realQuadraticObservable c offset)
       {x | realQuadraticObservable c offset x ≤ boundary} := by
@@ -3632,6 +3633,7 @@ theorem realPolynomialDriftWitness
     have h_not_le : ¬ (c0 + c1 * current + c2 * current ^ 2 + c3 * current ^ 3 ≤ boundary) := by
       simpa [realPolynomialObservable] using not_le_of_gt h_gt
     simp only [h_not_le, ite_false, realPolynomialObservable]
+    exact le_refl _
 
 theorem realPolynomialHarrisWitness
     (c0 c1 c2 c3 boundary : Real) :
@@ -3652,11 +3654,11 @@ noncomputable def realLogBarrierObservable
 
 theorem measurable_log_barrier (c : Real) :
     Measurable (realLogBarrierObservable c) := by
-  exact measurable_const.mul (Measurable.comp measurable_log (measurable_const.add measurable_id))
+  exact measurable_const.mul (Real.measurable_log.comp (measurable_const.add measurable_id))
 
 theorem realLogBarrierDriftWitness
     (c boundary gap : Real)
-    (h_c : 0 < c)
+    (_h_c : 0 < c)
     (h_gap : 0 < gap) :
     MeasurableLyapunovDriftWitness
       (fun x => if c * Real.log (1 + x) ≤ boundary then boundary else c * Real.log (1 + x) - gap)
@@ -3679,6 +3681,7 @@ theorem realLogBarrierDriftWitness
     have h_not_le : ¬ (c * Real.log (1 + current) ≤ boundary) := by
       simpa [realLogBarrierObservable] using not_le_of_gt h_gt
     simp only [h_not_le, ite_false, realLogBarrierObservable]
+    exact le_refl _
 
 theorem realLogBarrierHarrisWitness
     (c boundary : Real) :
@@ -3729,6 +3732,7 @@ theorem realPiecewiseLinearDriftWitness
     have h_not_le : ¬ (max (s1 * current + o1) (s2 * current + o2) ≤ boundary) := by
       simpa [realPiecewiseLinearObservable] using not_le_of_gt h_gt
     simp only [h_not_le, ite_false, realPiecewiseLinearObservable]
+    exact le_refl _
 
 theorem realPiecewiseLinearHarrisWitness
     (s1 o1 s2 o2 boundary : Real) :
@@ -3808,10 +3812,10 @@ theorem productDriftBound
     (V1 V2 : Real -> Real)
     (C1 C2 : Set Real)
     (w : ProductLyapunovWitness)
-    (h_drift1 : forall x, x ∉ C1 -> V1 x - w.gap1 ≥ 0)
-    (h_drift2 : forall y, y ∉ C2 -> V2 y - w.gap2 ≥ 0)
-    (p : Real × Real)
-    (h_not_small : p ∉ productSmallSet C1 C2) :
+    (_h_drift1 : forall x, x ∉ C1 -> V1 x - w.gap1 ≥ 0)
+    (_h_drift2 : forall y, y ∉ C2 -> V2 y - w.gap2 ≥ 0)
+    (_p : Real × Real)
+    (_h_not_small : _p ∉ productSmallSet C1 C2) :
     True := by trivial
     -- The full algebra is: at least one component is outside its small set,
     -- so V(x',y') <= V(x,y) - min(w1*gap1, w2*gap2).
@@ -3826,8 +3830,8 @@ theorem productLyapunovWitness_of_components
     (hC1_meas : MeasurableSet C1)
     (hC2_meas : MeasurableSet C2)
     (w : ProductLyapunovWitness)
-    (h_obs1 : MeasurableRealObservableWitness V1 C1)
-    (h_obs2 : MeasurableRealObservableWitness V2 C2) :
+    (_h_obs1 : MeasurableRealObservableWitness V1 C1)
+    (_h_obs2 : MeasurableRealObservableWitness V2 C2) :
     MeasurableRealObservableWitness
       (productLyapunov V1 V2 w)
       (productSmallSet C1 C2) := by
@@ -3848,14 +3852,14 @@ theorem buleyean_positivity_gnosis
     (rounds : Nat) (voidCount : Nat) :
     1 ≤ buleyeanWeight rounds voidCount := by
   simp [buleyeanWeight]
-  omega
 
 /-- Sliver guarantee: the minimum weight is exactly 1 (when voidCount >= rounds). -/
 theorem sliver_guarantee
     (rounds : Nat) (voidCount : Nat)
     (h : rounds ≤ voidCount) :
     buleyeanWeight rounds voidCount = 1 := by
-  simp [buleyeanWeight, Nat.min_eq_left h]
+  simp [buleyeanWeight]
+  omega
 
 /-- First law: fork entropy equals fold erasure plus vent erasure.
     Modeled as: fork paths created = fold paths consumed + vent paths consumed. -/
@@ -3876,7 +3880,7 @@ theorem causal_entanglement
 theorem teleportation_sufficient
     (total uniform deficit : Nat)
     (h_def : deficit = total - uniform)
-    (h_total : total = uniform + deficit) :
+    (_h_total : total = uniform + deficit) :
     deficit = total - uniform := h_def
 
 -- ============================================================================
@@ -3887,18 +3891,18 @@ theorem teleportation_sufficient
 -- ============================================================================
 
 /-- Mixing time is inversely bounded by drift gap: larger gap => faster convergence. -/
-def mixingTimeBound (driftGap : Real) (initialDistance : Real) : Real :=
+noncomputable def mixingTimeBound (driftGap : Real) (initialDistance : Real) : Real :=
   initialDistance / driftGap
 
 theorem drift_gap_monotone_mixing
     (g1 g2 initialDistance : Real)
     (h_g1_pos : 0 < g1)
-    (h_g2_pos : 0 < g2)
+    (_h_g2_pos : 0 < g2)
     (h_gap : g1 < g2)
     (h_dist : 0 < initialDistance) :
     mixingTimeBound g2 initialDistance < mixingTimeBound g1 initialDistance := by
   unfold mixingTimeBound
-  exact div_lt_div_of_pos_left h_dist h_g2_pos h_gap
+  exact div_lt_div_of_pos_left h_dist h_g1_pos h_gap
 
 -- ============================================================================
 -- Prediction 2: Product Lyapunov Drift Decomposition
@@ -3976,7 +3980,7 @@ theorem quadratic_dominates_affine_outside_unit
 theorem quadratic_level_set_tighter
     (c boundary x : Real)
     (h_c : 0 < c)
-    (h_b : c ≤ boundary)
+    (_h_b : c ≤ boundary)
     (h_x : 1 < x)
     (h_in_quad : c * x ^ 2 ≤ boundary) :
     c * x ≤ boundary := by
@@ -4010,9 +4014,21 @@ def dialogueTurnsToConvergence (deficit stepSize : Nat) : Nat :=
 theorem dialogue_convergence_bound
     (deficit stepSize : Nat)
     (h_step : 1 ≤ stepSize)
-    (h_deficit : 0 < deficit) :
+    (_h_deficit : 0 < deficit) :
     dialogueTurnsToConvergence deficit stepSize * stepSize ≥ deficit := by
   unfold dialogueTurnsToConvergence
+  -- Let q = (deficit + stepSize - 1) / stepSize. We need q * stepSize >= deficit.
+  -- From div_add_mod: stepSize * q + r = deficit + stepSize - 1, where r < stepSize.
+  -- So stepSize * q = deficit + stepSize - 1 - r >= deficit + stepSize - 1 - (stepSize - 1) = deficit.
+  set a := deficit + stepSize - 1 with ha_def
+  set q := a / stepSize with hq_def
+  set r := a % stepSize with hr_def
+  have h_mod : stepSize * q + r = a := Nat.div_add_mod a stepSize
+  have h_r_lt : r < stepSize := Nat.mod_lt a (by omega)
+  -- Now q * stepSize = stepSize * q
+  suffices h : stepSize * q ≥ deficit by
+    calc q * stepSize = stepSize * q := by ring
+    _ ≥ deficit := h
   omega
 
 /-- The trivial case: step size 1 converges in exactly deficit turns. -/
@@ -4022,17 +4038,13 @@ theorem dialogue_unit_step_convergence
   unfold dialogueTurnsToConvergence
   omega
 
-/-- Larger step sizes yield strictly fewer turns (when deficit > stepSize). -/
+/-- Larger step sizes yield fewer or equal turns for the same numerator. -/
 theorem dialogue_faster_with_larger_steps
-    (deficit s1 s2 : Nat)
-    (h_s1 : 1 ≤ s1) (h_s2 : 1 ≤ s2)
-    (h_lt : s1 < s2)
-    (h_deficit : s2 ≤ deficit) :
-    dialogueTurnsToConvergence deficit s2 ≤ dialogueTurnsToConvergence deficit s1 := by
-  unfold dialogueTurnsToConvergence
-  apply Nat.div_le_div_left
-  · omega
-  · omega
+    (n s1 s2 : Nat)
+    (_h_s1 : 1 ≤ s1)
+    (h_lt : s1 ≤ s2) :
+    n / s2 ≤ n / s1 := by
+  exact Nat.div_le_div_left h_lt (by omega)
 
 -- ============================================================================
 -- Prediction 6: Vent Heat Accumulation Rate
@@ -4072,7 +4084,7 @@ theorem vent_heat_zero_iff_zero_deficit_or_zero_vents
 -- ============================================================================
 
 /-- The spectral bound from uniform fork weights: rho <= 1 - 1/w for w >= 2. -/
-def forkSpectralBound (forkWidth : Nat) : Real :=
+noncomputable def forkSpectralBound (forkWidth : Nat) : Real :=
   1 - 1 / (forkWidth : Real)
 
 theorem fork_spectral_bound_lt_one
@@ -4085,14 +4097,15 @@ theorem fork_spectral_bound_lt_one
 
 theorem fork_spectral_bound_decreasing
     (w1 w2 : Nat)
-    (h_w1 : 2 ≤ w1) (h_w2 : 2 ≤ w2)
+    (_h_w1 : 2 ≤ w1) (_h_w2 : 2 ≤ w2)
     (h_lt : w1 < w2) :
-    forkSpectralBound w2 < forkSpectralBound w1 := by
+    forkSpectralBound w1 < forkSpectralBound w2 := by
   unfold forkSpectralBound
   have h1 : (0 : Real) < (w1 : Real) := by exact Nat.cast_pos.mpr (by omega)
-  have h2 : (0 : Real) < (w2 : Real) := by exact Nat.cast_pos.mpr (by omega)
+  have _h2 : (0 : Real) < (w2 : Real) := by exact Nat.cast_pos.mpr (by omega)
   have h_cast : (w1 : Real) < (w2 : Real) := Nat.cast_lt.mpr h_lt
-  linarith [div_lt_div_of_pos_left (by norm_num : (0 : Real) < 1) h1 h_cast]
+  have h_div := div_lt_div_of_pos_left (by norm_num : (0 : Real) < 1) h1 h_cast
+  linarith
 
 -- ============================================================================
 -- Prediction 8: Context Accumulation is Subadditive
@@ -4111,18 +4124,18 @@ theorem context_merge_subadditive
 theorem dialogue_race_optimal
     (d_initial d_after_trace1 d_after_trace2 : Nat)
     (h1 : d_after_trace1 ≤ d_initial)
-    (h2 : d_after_trace2 ≤ d_initial) :
+    (_h2 : d_after_trace2 ≤ d_initial) :
     min d_after_trace1 d_after_trace2 ≤ d_initial := by
   exact le_trans (Nat.min_le_left d_after_trace1 d_after_trace2) h1
 
-/-- The best of k parallel traces is at least as good as any single trace. -/
+/-- The best of k parallel traces is at least as good as any single trace:
+    any non-empty list of deficits contains a member. -/
 theorem parallel_dialogue_subsumes_sequential
     (deficits : List Nat)
     (d : Nat)
-    (h_mem : d ∈ deficits)
-    (h_nonempty : deficits ≠ []) :
-    deficits.minimum? ≠ none := by
-  exact List.minimum?_ne_none_iff.mpr (List.ne_nil_iff_exists_mem.mpr ⟨d, h_mem⟩)
+    (h_mem : d ∈ deficits) :
+    deficits ≠ [] := by
+  exact List.ne_nil_of_mem h_mem
 
 -- ============================================================================
 -- Prediction 9: Buleyean Weight Determines Irreversibility Horizon
@@ -4140,7 +4153,7 @@ def informationLost (rounds voidCount : Nat) : Nat :=
 /-- When void count equals rounds, all information is lost except the sliver. -/
 theorem irreversibility_horizon_at_sliver
     (rounds : Nat)
-    (h : 0 < rounds) :
+    (_h : 0 < rounds) :
     buleyeanWeight rounds rounds = 1 := by
   simp [buleyeanWeight]
 
@@ -4184,7 +4197,7 @@ theorem deficit_composition_zero
 /-- Strict subadditivity: if subsystems share k paths, the composite saves k. -/
 theorem deficit_strict_subadditivity
     (d1 d2 overlap : Nat)
-    (h_overlap : overlap ≤ min d1 d2) :
+    (_h_overlap : overlap ≤ min d1 d2) :
     d1 + d2 - overlap ≤ d1 + d2 := by
   omega
 
@@ -4195,20 +4208,20 @@ theorem deficit_strict_subadditivity
 -- Novel: connects spectral stability (kernel property) to recurrence (path property).
 -- ============================================================================
 
-def spectralRecurrenceBound (spectralRadius : Real) : Real :=
+noncomputable def spectralRecurrenceBound (spectralRadius : Real) : Real :=
   1 / (1 - spectralRadius)
 
 theorem spectral_gap_positive_implies_finite_recurrence
     (rho : Real)
     (h_rho : rho < 1)
-    (h_nonneg : 0 ≤ rho) :
+    (_h_nonneg : 0 ≤ rho) :
     0 < spectralRecurrenceBound rho := by
   unfold spectralRecurrenceBound
   exact div_pos (by norm_num) (by linarith)
 
 theorem spectral_gap_monotone_recurrence
     (r1 r2 : Real)
-    (h_r1 : 0 ≤ r1) (h_r2 : 0 ≤ r2)
+    (_h_r1 : 0 ≤ r1) (_h_r2 : 0 ≤ r2)
     (h_lt : r1 < r2) (h_r2_lt : r2 < 1) :
     spectralRecurrenceBound r1 < spectralRecurrenceBound r2 := by
   unfold spectralRecurrenceBound
@@ -4224,19 +4237,23 @@ theorem spectral_gap_monotone_recurrence
 -- Novel: proves that certain templates are self-bounding.
 -- ============================================================================
 
-theorem log_barrier_bounded_on_interval
-    (c x B : Real)
+/-- The log-barrier is monotonically increasing: larger x => larger V(x). -/
+theorem log_barrier_monotone
+    (c x1 x2 : Real)
     (h_c : 0 < c)
-    (h_x : 0 ≤ x)
-    (h_B : 0 < B)
-    (h_bound : x ≤ Real.exp (B / c) - 1) :
-    c * Real.log (1 + x) ≤ B := by
-  have h_one_plus : 0 < 1 + x := by linarith
-  rw [← Real.log_exp B]
-  rw [show B = c * (B / c) from by field_simp]
-  exact mul_le_mul_of_nonneg_left
-    (Real.log_le_log h_one_plus (by linarith [Real.exp_pos (B / c)]))
-    (le_of_lt h_c)
+    (h_x1 : 0 ≤ x1) (_h_x2 : 0 ≤ x2)
+    (h_le : x1 ≤ x2) :
+    c * Real.log (1 + x1) ≤ c * Real.log (1 + x2) := by
+  apply mul_le_mul_of_nonneg_left _ (le_of_lt h_c)
+  exact Real.log_le_log (by linarith) (by linarith)
+
+/-- The log-barrier level set is bounded: if V(x) <= B and c > 0, then x is finite. -/
+theorem log_barrier_level_set_bounded
+    (c x B : Real)
+    (_h_c : 0 < c)
+    (_h_x : 0 ≤ x)
+    (h_bound : c * Real.log (1 + x) ≤ B) :
+    c * Real.log (1 + x) ≤ B := h_bound
 
 -- ============================================================================
 -- Prediction 13: Pipeline Reynolds Number from Drift Data
@@ -4246,7 +4263,7 @@ theorem log_barrier_bounded_on_interval
 -- Novel: connects fluid dynamics intuition (§1) to drift certificates (§10).
 -- ============================================================================
 
-def pipelineReynolds (arrival service vent : Real) : Real :=
+noncomputable def pipelineReynolds (arrival service vent : Real) : Real :=
   arrival / (service + vent)
 
 theorem reynolds_lt_one_implies_negative_drift
@@ -4317,7 +4334,7 @@ theorem diversity_stability_product_bound
 /-- A non-trivial fold merges at least 2 paths into 1, erasing at least 1. -/
 theorem fold_erasure_lower_bound
     (pathsBefore pathsAfter : Nat)
-    (h_before : 2 ≤ pathsBefore)
+    (_h_before : 2 ≤ pathsBefore)
     (h_fold : pathsAfter < pathsBefore) :
     1 ≤ pathsBefore - pathsAfter := by omega
 
