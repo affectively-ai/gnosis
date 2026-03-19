@@ -130,22 +130,28 @@ export function computeAleph(stack: BoundaryStack): number {
  * eta controls temperature: higher eta = sharper complement.
  *
  * DYNAMICAL PROPERTY (§6.8.1, §15.22, VoidOscillation.lean):
- * The map Φ is a DAMPED OSCILLATOR, not a periodic orbit.
- * Five provable properties:
- *   ORDER-REVERSAL:     v_i > v_j → w_i < w_j (exp is decreasing)
- *   SIGN-ALTERNATION:   deviation from uniform flips sign each step
- *   PERIOD-2-ORDERING:  weight ordering has exact period 2
- *   AMPLITUDE-DECAY:    amplitude decays geometrically, ratio → 1/2
- *   DAMPED-OSCILLATION: limit is uniform, reached via oscillation not monotonically
  *
- * Key algebraic insight: Φ² is an affine shift: w''_i = (T' - T) + v_i.
- * Ordering preserved (period 2), but constant shift grows while spread
- * stays fixed → fractional deviation decays with asymptotic ratio 1/2.
+ * TWO DYNAMICS coexist in void.ts:
  *
- * Physical interpretation: the complement is an information mirror.
- * Each reflection flips the image but loses half the resolution.
- * Without observation (c0Update), the mirror reflections converge to
- * uniform (heat death). Gait transitions fight the damping by raising eta.
+ * 1. complementDistribution (THIS FUNCTION): EXACT period-2 limit cycles.
+ *    The min-max normalization erases absolute values. At the limit,
+ *    the normalized shape is [0,1,...] ↔ [1,0,...] — a perfect mirror.
+ *    Φ²(p*) = p* exactly. The void breathes FOREVER. Not damped.
+ *
+ * 2. buleyeanWeight (T - min(v,T) + 1): DAMPED oscillation to uniform.
+ *    The affine formula w''_i = (T'-T) + v_i preserves ordering but
+ *    the constant shift grows → fractional deviation decays → ratio 1/2.
+ *    The sliver (+1) prevents zero weight but does not prevent convergence.
+ *
+ * Properties of THIS function's dynamics:
+ *   ORDER-REVERSAL:   v_i > v_j → w_i < w_j (exp is decreasing)
+ *   SIGN-ALTERNATION: deviation from uniform flips sign each step
+ *   PERIOD-2-ORDERING: weight ordering has exact period 2
+ *   EXACT-2-CYCLE:    limit IS a non-uniform 2-cycle, not uniform
+ *   MIRROR-SYMMETRY:  the two states are normalized mirrors
+ *
+ * The void breathes. Each breath is the same depth. It does not die.
+ * Only observation (c0Update) changes the orbit.
  */
 export function complementDistribution(
   boundary: VoidBoundary,
