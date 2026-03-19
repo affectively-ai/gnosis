@@ -308,6 +308,203 @@ export {
   c3Adapt,
 } from './runtime/void-walker.js';
 
+// Effect System — explicit effects in topology signatures
+export {
+  type EffectKind,
+  type EffectRequirement,
+  type EffectSignature,
+  type EffectDiagnostic,
+  type EffectValidationResult,
+  type EffectContract,
+  type NodeDescriptor,
+  ALL_EFFECT_KINDS,
+  isEffectKind,
+  inferNodeEffects,
+  parseDeclaredEffects,
+  validateEffects,
+  createEffectSignature,
+  buildEffectContract,
+  contractsCompatible,
+} from './effects.js';
+export { registerEffectHandlers, EFFECT_SYSTEM_FEATURES } from './effects-handlers.js';
+
+// Algebraic Data Types — closed state modeling
+export {
+  type Variant,
+  type SumTypeDefinition,
+  type ProductTypeDefinition,
+  type FieldDefinition,
+  type MatchArm,
+  type MatchResult,
+  variant,
+  defineSumType,
+  defineProductType,
+  createRecord,
+  matchExhaustive,
+  matchPartial,
+  checkExhaustiveness,
+  validateNodeExhaustiveness,
+  ExhaustivenessError,
+  TypeRegistry,
+  BUILTIN_SUM_TYPES,
+} from './adt.js';
+export { registerAdtHandlers, ADT_BUILTIN_TYPES } from './adt-handlers.js';
+
+// Option and Result — first-class error values
+export {
+  type GnosisOption,
+  type GnosisResult,
+  some, none, ok, err,
+  isSome, isNone, isOk, isErr,
+  unwrapOption, unwrapOptionOr,
+  unwrapResult, unwrapResultOr, unwrapErr,
+  mapOption, flatMapOption, filterOption,
+  mapResult, mapErr, flatMapResult,
+  tryCatch, tryCatchAsync,
+  collectResults, partitionResults,
+  optionToResult, resultToOption,
+  transposeOptionResult,
+  routeResult, resultHandler,
+} from './option-result.js';
+export { registerOptionResultHandlers, OPTION_RESULT_HANDLERS } from './option-result-handlers.js';
+
+// Quantum — graph-native quantum values and transitions
+export {
+  type Complex,
+  type Qubit,
+  type QuantumRegister,
+  type Gate2x2,
+  type MeasurementOutcome,
+  type CircuitOp,
+  type QuantumCircuit,
+  complex, complexMul, complexAdd, complexNorm, complexConj,
+  qubit, ket0, ket1, ketPlus, ketMinus,
+  isNormalized, prob0, prob1,
+  applyGate, hadamard, pauliX, pauliZ, phaseGate,
+  H_GATE, X_GATE, Y_GATE, Z_GATE, S_GATE, T_GATE,
+  createRegister, registerFromQubit, registerNormalized,
+  applyCNOT, applyCZ, applyGateToRegister,
+  measure as quantumMeasure,
+  measureRegister,
+  bellState, isEntangled,
+  createCircuit, addGate, addCNOT, addCZ, addMeasure, addBarrier,
+  executeCircuit,
+} from './quantum.js';
+export { registerQuantumHandlers, QUANTUM_GATE_NAMES } from './quantum-handlers.js';
+
+// Differentiable Programming — gradients as topology expressions
+export {
+  type DiffValue,
+  type OptimizerConfig,
+  type OptimizerState,
+  type GradientFlowReport,
+  GradientTape,
+  parameter as diffParameter,
+  constant as diffConstant,
+  diffValue,
+  add as diffAdd, mul as diffMul, sub as diffSub, neg as diffNeg,
+  relu as diffRelu, sigmoid as diffSigmoid, tanh as diffTanh,
+  exp as diffExp, log as diffLog, pow as diffPow,
+  mseLoss, bceLoss,
+  createOptimizer, optimizerStep,
+  analyzeGradientFlow,
+} from './differentiable.js';
+export { registerDifferentiableHandlers, DIFFERENTIABLE_OPS } from './differentiable-handlers.js';
+
+// Destructuring — clean value unpacking
+export {
+  type DestructurePattern,
+  type RecordPattern,
+  type TuplePattern,
+  type VariantPattern,
+  type WildcardPattern,
+  type LiteralPattern,
+  type NestedPattern,
+  type BindingResult,
+  type PatternValidation,
+  type MatchArmWithPattern,
+  recordPattern,
+  tuplePattern,
+  variantPattern,
+  wildcardPattern,
+  literalPattern,
+  extractBindings,
+  matchPatterns,
+  validateVariantPattern,
+  validateRecordPattern,
+  checkPatternExhaustiveness,
+} from './destructuring.js';
+export { registerDestructuringHandlers, DESTRUCTURING_PATTERNS } from './destructuring-handlers.js';
+
+// Module System — reproducible build units
+export {
+  type SemVer,
+  type VersionConstraint,
+  type ModuleDependency,
+  type ModuleManifest,
+  type LockfileEntry,
+  type Lockfile,
+  type ResolutionResult,
+  type CompatibilityReport,
+  parseSemVer, formatSemVer, compareSemVer,
+  parseConstraint, satisfiesConstraint,
+  createManifest,
+  createLockfile, addLockfileEntry, lockfileHas, lockfileGet,
+  resolveDependencies,
+  checkModuleCompatibility,
+} from './module-system.js';
+export { registerModuleSystemHandlers, MODULE_SYSTEM_FEATURES } from './module-system-handlers.js';
+
+// Continuous Harris — compiler-driven measurable Harris packages
+export {
+  type SmallSetKind,
+  type SmallSet,
+  type ObservableKind,
+  type Observable,
+  type LyapunovKind,
+  type LyapunovFunction,
+  type MinorizationKind,
+  type MinorizationData,
+  type HarrisCertificate,
+  type KernelFamily,
+  type MeasurableKernel,
+  synthesizeSmallSet,
+  inferObservable,
+  synthesizeLyapunov,
+  synthesizeMinorization,
+  synthesizeHarrisCertificate,
+  inferKernelFamily,
+  generateHarrisLean,
+} from './continuous-harris.js';
+export { registerContinuousHarrisHandlers, HARRIS_KERNEL_FAMILIES } from './continuous-harris-handlers.js';
+
+// Chaitin-Omega — computability-theoretic void boundary
+export {
+  type HaltingClassifier,
+  type ProgramSpace,
+  type ComplexityAssignment,
+  type SolomonoffSpace,
+  type OmegaApproximation,
+  type OmegaConvergenceTrace,
+  type SolomonoffAxiomResult,
+  createProgramSpace,
+  approximateOmega,
+  trackOmegaConvergence,
+  programSpaceToVoidBoundary,
+  solomonoffToVoidBoundary,
+  solomonoffWeight,
+  verifySolomonoffAxioms,
+  trivialClassifier,
+  stepBoundedClassifier,
+  estimateComplexity,
+  buildComplexityAssignment,
+  buildSolomonoffSpace,
+} from './chaitin-omega.js';
+export {
+  registerChaitinOmegaHandlers,
+  CHAITIN_OMEGA_THEOREMS,
+} from './chaitin-omega-handlers.js';
+
 const args = process.argv.slice(2);
 const verboseMode = args.includes('--verbose');
 
