@@ -1,0 +1,15 @@
+// nei_dominates_uninformed.gg — THM-NON-EMPIRICAL-PREDICTION witness (structure beats guessing)
+//
+// An informed predictor using void boundary structure assigns concentrated
+// weight to likely holes. A uniform guesser spreads mass equally.
+// KL divergence from informed to uniform is strictly positive.
+
+(space: PredictionSpace { theorem: 'THM-NON-EMPIRICAL-PREDICTION', positions: '4', rounds: '12' })
+(informed: Predictor { type: 'structural', weights: '[10, 8, 3, 1]', entropy: '1.63' })
+(uniform: Predictor { type: 'uninformed', weights: '[3, 3, 3, 3]', entropy: '2.00' })
+(gap: Invariant { claim: 'entropy_informed < entropy_uniform', kl_divergence: '0.37' })
+(result: Result { theorem: 'structure-beats-guessing' })
+
+(space)-[:FORK]->(informed | uniform)
+(informed | uniform)-[:RACE { expect: 'informed-lower-entropy' }]->(gap)
+(gap)-[:FOLD { strategy: 'verify-inequality' }]->(result)

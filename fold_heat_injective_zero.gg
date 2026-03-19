@@ -1,0 +1,25 @@
+// fold_heat_injective_zero.gg — THM-FOLD-HEAT-HIERARCHY witness (injective = 0 heat)
+//
+// An injective fold maps each input to a distinct output. No information
+// is lost, no branches merge. The fold heat is exactly 0.
+// Example: identity fold, permutation fold.
+
+(fold_op: FoldOperator { theorem: 'THM-FOLD-HEAT-HIERARCHY', type: 'injective', inputs: '4', outputs: '4' })
+(input_a: FoldInput { id: 'A', value: '10', maps_to: '1' })
+(input_b: FoldInput { id: 'B', value: '20', maps_to: '2' })
+(input_c: FoldInput { id: 'C', value: '30', maps_to: '3' })
+(input_d: FoldInput { id: 'D', value: '40', maps_to: '4' })
+(output_1: FoldOutput { id: '1', sources: '[A]', count: '1' })
+(output_2: FoldOutput { id: '2', sources: '[B]', count: '1' })
+(output_3: FoldOutput { id: '3', sources: '[C]', count: '1' })
+(output_4: FoldOutput { id: '4', sources: '[D]', count: '1' })
+(heat: Invariant { claim: 'injective fold has zero heat', heat: '0', collisions: '0' })
+(result: Result { theorem: 'injective-zero-heat' })
+
+(fold_op)-[:FORK]->(input_a | input_b | input_c | input_d)
+(input_a)-[:FOLD { strategy: 'injective' }]->(output_1)
+(input_b)-[:FOLD { strategy: 'injective' }]->(output_2)
+(input_c)-[:FOLD { strategy: 'injective' }]->(output_3)
+(input_d)-[:FOLD { strategy: 'injective' }]->(output_4)
+(output_1 | output_2 | output_3 | output_4)-[:RACE { expect: 'no-collisions' }]->(heat)
+(heat)-[:FOLD { strategy: 'verify-zero-heat' }]->(result)

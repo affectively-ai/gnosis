@@ -1,0 +1,18 @@
+// chaitin_approximation_monotone.gg — THM-CHAITIN-OMEGA witness (finite prefix tightens bound)
+//
+// Omega_T (run all programs for T steps) is monotonically non-decreasing in T.
+// Each additional step may discover new halters but never loses old ones.
+// The void set only shrinks; the complement (halted) only grows.
+
+(approximation: OmegaApproximation { theorem: 'THM-CHAITIN-OMEGA', programs: '8' })
+(step_1: ApproxStep { timeout: '1', halted: '1', omega_approx: '0.125' })
+(step_3: ApproxStep { timeout: '3', halted: '2', omega_approx: '0.250' })
+(step_5: ApproxStep { timeout: '5', halted: '3', omega_approx: '0.375' })
+(step_8: ApproxStep { timeout: '8', halted: '4', omega_approx: '0.500' })
+(step_12: ApproxStep { timeout: '12', halted: '5', omega_approx: '0.625' })
+(monotone: Invariant { claim: 'Omega_T1 <= Omega_T2 for T1 < T2', sequence: '[0.125, 0.250, 0.375, 0.500, 0.625]' })
+(result: Result { theorem: 'approximation-monotone' })
+
+(approximation)-[:FORK]->(step_1 | step_3 | step_5 | step_8 | step_12)
+(step_1 | step_3 | step_5 | step_8 | step_12)-[:RACE { expect: 'non-decreasing' }]->(monotone)
+(monotone)-[:FOLD { strategy: 'verify-ordering' }]->(result)

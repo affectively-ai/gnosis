@@ -1,0 +1,19 @@
+// nei_hole_positive.gg — THM-NON-EMPIRICAL-PREDICTION witness (holes have positive weight)
+//
+// A hole in the lattice is a position with zero observations but nonzero
+// structural weight. The complement of observed positions assigns positive
+// mass to every gap. weight = rounds - void_count + 1 >= 1 even at a hole.
+
+(lattice: PredictionLattice { theorem: 'THM-NON-EMPIRICAL-PREDICTION', positions: '6', observed: '4', rounds: '8' })
+(pos_observed_1: Position { id: '1', observed: 'true', void_count: '2', weight: '7' })
+(pos_observed_2: Position { id: '2', observed: 'true', void_count: '0', weight: '9' })
+(pos_observed_3: Position { id: '3', observed: 'true', void_count: '5', weight: '4' })
+(pos_observed_4: Position { id: '4', observed: 'true', void_count: '3', weight: '6' })
+(hole_1: Position { id: '5', observed: 'false', void_count: '7', weight: '2' })
+(hole_2: Position { id: '6', observed: 'false', void_count: '8', weight: '1' })
+(sliver: Invariant { claim: 'all holes have weight >= 1', min_hole_weight: '1' })
+(result: Result { theorem: 'absence-is-evidence' })
+
+(lattice)-[:FORK]->(pos_observed_1 | pos_observed_2 | pos_observed_3 | pos_observed_4 | hole_1 | hole_2)
+(hole_1 | hole_2)-[:RACE { expect: 'all-positive' }]->(sliver)
+(sliver)-[:FOLD { strategy: 'verify-minimum' }]->(result)

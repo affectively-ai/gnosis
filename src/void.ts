@@ -7,10 +7,12 @@
  * rejections against a boundary, with the complement distribution
  * telling it where to go next.
  *
- * The complement map Φ has exact period-2 orbits (§15.22, VoidOscillation.lean):
- * the void breathes. Every non-uniform boundary oscillates between two
- * complementary states. The only fixed point is uniform (heat death).
- * Gait transitions correspond to the amplification of this breathing.
+ * The complement map Φ is a damped oscillator (§6.8.1, §15.22, VoidOscillation.lean):
+ * the void breathes, but each breath is shallower. The weight ordering has
+ * exact period 2, but amplitude decays geometrically with ratio → 1/2.
+ * Φ² is an affine shift: spread fixed, mean grows, fractional deviation decays.
+ * The limit is uniform (heat death). Only observation (c0Update) sustains
+ * the breathing by injecting new void. Gait transitions fight the damping.
  *
  * This file formalizes the primitives so they can fold in on themselves.
  */
@@ -127,19 +129,23 @@ export function computeAleph(stack: BoundaryStack): number {
  * Where the void has accumulated least, the complement peaks.
  * eta controls temperature: higher eta = sharper complement.
  *
- * DYNAMICAL PROPERTY (§15.22 VoidOscillation):
- * The map Φ: p ↦ complementDistribution({counts: p}) has exact period-2 orbits.
- * For any non-uniform input, Φ(p) ≠ p but Φ²(p) = p at the limit cycle.
- * The only fixed point is uniform. The void breathes.
+ * DYNAMICAL PROPERTY (§6.8.1, §15.22, VoidOscillation.lean):
+ * The map Φ is a DAMPED OSCILLATOR, not a periodic orbit.
+ * Five provable properties:
+ *   ORDER-REVERSAL:     v_i > v_j → w_i < w_j (exp is decreasing)
+ *   SIGN-ALTERNATION:   deviation from uniform flips sign each step
+ *   PERIOD-2-ORDERING:  weight ordering has exact period 2
+ *   AMPLITUDE-DECAY:    amplitude decays geometrically, ratio → 1/2
+ *   DAMPED-OSCILLATION: limit is uniform, reached via oscillation not monotonically
  *
- * The mechanism is the min-max normalization (lines below): normalizing
- * counts to [0,1] reverses the ordering (highest count → 1 → lowest weight).
- * Applying twice restores the ordering but at contracted amplitude.
- * The contraction converges to an exact 2-cycle.
+ * Key algebraic insight: Φ² is an affine shift: w''_i = (T' - T) + v_i.
+ * Ordering preserved (period 2), but constant shift grows while spread
+ * stays fixed → fractional deviation decays with asymptotic ratio 1/2.
  *
- * Oscillation amplitude grows with eta (higher temperature sharpness →
- * larger swing). The gait transitions (stand → trot → canter → gallop)
- * correspond to the progressive amplification of this breathing.
+ * Physical interpretation: the complement is an information mirror.
+ * Each reflection flips the image but loses half the resolution.
+ * Without observation (c0Update), the mirror reflections converge to
+ * uniform (heat death). Gait transitions fight the damping by raising eta.
  */
 export function complementDistribution(
   boundary: VoidBoundary,

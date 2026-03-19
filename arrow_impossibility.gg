@@ -1,0 +1,22 @@
+// arrow_impossibility.gg — THM-ARROW-GODEL-CONSCIOUSNESS witness (voting = fold, Arrow from trilemma)
+//
+// A social welfare function is a FOLD over voter preferences.
+// Arrow's impossibility: no fold satisfying unanimity, independence, and
+// non-dictatorship exists for >= 3 alternatives. The trilemma forces
+// at least one axiom to be vented.
+
+(election: SocialChoice { theorem: 'THM-ARROW-GODEL-CONSCIOUSNESS', voters: '3', alternatives: '3' })
+(voter_1: Voter { id: '1', ranking: '[A, B, C]' })
+(voter_2: Voter { id: '2', ranking: '[B, C, A]' })
+(voter_3: Voter { id: '3', ranking: '[C, A, B]' })
+(unanimity: Axiom { name: 'unanimity', status: 'required' })
+(independence: Axiom { name: 'independence-of-irrelevant-alternatives', status: 'required' })
+(non_dictatorship: Axiom { name: 'non-dictatorship', status: 'required' })
+(trilemma: Invariant { claim: 'at least one axiom must be vented', max_satisfiable: '2' })
+(result: Result { theorem: 'arrow-impossibility-from-fold' })
+
+(election)-[:FORK]->(voter_1 | voter_2 | voter_3)
+(voter_1 | voter_2 | voter_3)-[:FOLD { strategy: 'social-welfare' }]->(attempt: AggregateRanking)
+(unanimity | independence | non_dictatorship)-[:RACE { expect: 'at-least-one-fails' }]->(trilemma)
+(non_dictatorship)-[:VENT { condition: 'condorcet-cycle-detected' }]->(vented_axiom: VentedAxiom)
+(trilemma)-[:FOLD { strategy: 'verify-trilemma' }]->(result)

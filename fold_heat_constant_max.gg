@@ -1,0 +1,22 @@
+// fold_heat_constant_max.gg — THM-FOLD-HEAT-HIERARCHY witness (everything-to-one = max heat)
+//
+// A constant fold maps all N inputs to a single output. Maximum information
+// is lost. heat = log2(N). For N=8, heat = 3 bits. This is the upper bound.
+
+(fold_op: FoldOperator { theorem: 'THM-FOLD-HEAT-HIERARCHY', type: 'constant', inputs: '8', outputs: '1' })
+(input_1: FoldInput { id: '1', value: '5', maps_to: '1' })
+(input_2: FoldInput { id: '2', value: '12', maps_to: '1' })
+(input_3: FoldInput { id: '3', value: '8', maps_to: '1' })
+(input_4: FoldInput { id: '4', value: '3', maps_to: '1' })
+(input_5: FoldInput { id: '5', value: '19', maps_to: '1' })
+(input_6: FoldInput { id: '6', value: '7', maps_to: '1' })
+(input_7: FoldInput { id: '7', value: '14', maps_to: '1' })
+(input_8: FoldInput { id: '8', value: '1', maps_to: '1' })
+(single_output: FoldOutput { id: '1', sources: '[1,2,3,4,5,6,7,8]', count: '8' })
+(heat: Invariant { claim: 'constant fold = log2(N) = 3 bits (maximum)', heat: '3', collisions: '7' })
+(result: Result { theorem: 'constant-fold-max-heat' })
+
+(fold_op)-[:FORK]->(input_1 | input_2 | input_3 | input_4 | input_5 | input_6 | input_7 | input_8)
+(input_1 | input_2 | input_3 | input_4 | input_5 | input_6 | input_7 | input_8)-[:FOLD { strategy: 'constant' }]->(single_output)
+(single_output)-[:RACE { expect: 'all-collided' }]->(heat)
+(heat)-[:FOLD { strategy: 'verify-max-heat' }]->(result)

@@ -1,0 +1,16 @@
+// chaitin_halting_fold.gg — THM-CHAITIN-OMEGA witness (execution partitions halting/non-halting)
+//
+// Running all programs for T steps partitions them into halted (observed)
+// and still-running (void). The fold operator collapses the fork into
+// two sets. The void set shrinks monotonically as T increases.
+
+(execution: Execution { theorem: 'THM-CHAITIN-OMEGA', programs: '8', timeout: '10' })
+(halted_set: HaltedSet { members: '[000, 010, 011, 101, 111]', count: '5' })
+(running_set: RunningSet { members: '[001, 100, 110]', count: '3' })
+(partition: Invariant { claim: 'halted + running = total', halted: '5', running: '3', total: '8' })
+(result: Result { theorem: 'execution-partitions-programs' })
+
+(execution)-[:FORK]->(halted_set | running_set)
+(halted_set | running_set)-[:RACE { expect: 'partition-complete' }]->(partition)
+(running_set)-[:VENT { condition: 'timeout-exceeded' }]->(void_computation: VentedComputation)
+(partition)-[:FOLD { strategy: 'verify-partition' }]->(result)

@@ -1,0 +1,19 @@
+// nei_coherent.gg — THM-NON-EMPIRICAL-PREDICTION witness (same lattice = same prediction)
+//
+// Two observers with the same lattice structure and the same observation
+// pattern produce identical predictions for missing positions.
+// Prediction is objective given shared structure.
+
+(observer_a: Observer { theorem: 'THM-NON-EMPIRICAL-PREDICTION', id: 'Alice' })
+(observer_b: Observer { theorem: 'THM-NON-EMPIRICAL-PREDICTION', id: 'Bob' })
+(shared_lattice: Lattice { positions: '5', observed: '[1,2,4]', gaps: '[3,5]', rounds: '7' })
+(prediction_a: PredictionVector { source: 'Alice', gap_weights: '[4, 2]' })
+(prediction_b: PredictionVector { source: 'Bob', gap_weights: '[4, 2]' })
+(agreement: Invariant { claim: 'prediction_alice == prediction_bob' })
+(result: Result { theorem: 'same-lattice-same-prediction' })
+
+(shared_lattice)-[:FORK]->(observer_a | observer_b)
+(observer_a)-[:RACE { expect: 'prediction-computed' }]->(prediction_a)
+(observer_b)-[:RACE { expect: 'prediction-computed' }]->(prediction_b)
+(prediction_a | prediction_b)-[:FOLD { strategy: 'verify-equality' }]->(agreement)
+(agreement)-[:PROCESS]->(result)

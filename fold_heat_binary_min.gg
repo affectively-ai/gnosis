@@ -1,0 +1,23 @@
+// fold_heat_binary_min.gg — THM-FOLD-HEAT-HIERARCHY witness (binary merge = min nonzero heat)
+//
+// A binary merge fold maps two inputs to one output. Exactly one bit
+// of information is lost. This is the minimal nonzero fold heat.
+// heat = log2(2) = 1 bit.
+
+(fold_op: FoldOperator { theorem: 'THM-FOLD-HEAT-HIERARCHY', type: 'binary-merge', inputs: '4', outputs: '3' })
+(input_a: FoldInput { id: 'A', value: '10', maps_to: '1' })
+(input_b: FoldInput { id: 'B', value: '20', maps_to: '1' })
+(input_c: FoldInput { id: 'C', value: '30', maps_to: '2' })
+(input_d: FoldInput { id: 'D', value: '40', maps_to: '3' })
+(merged_output: FoldOutput { id: '1', sources: '[A, B]', count: '2' })
+(solo_output_2: FoldOutput { id: '2', sources: '[C]', count: '1' })
+(solo_output_3: FoldOutput { id: '3', sources: '[D]', count: '1' })
+(heat: Invariant { claim: 'binary merge = 1 bit heat (minimum nonzero)', heat: '1', collisions: '1' })
+(result: Result { theorem: 'binary-merge-min-heat' })
+
+(fold_op)-[:FORK]->(input_a | input_b | input_c | input_d)
+(input_a | input_b)-[:FOLD { strategy: 'merge' }]->(merged_output)
+(input_c)-[:FOLD { strategy: 'pass-through' }]->(solo_output_2)
+(input_d)-[:FOLD { strategy: 'pass-through' }]->(solo_output_3)
+(merged_output | solo_output_2 | solo_output_3)-[:RACE { expect: 'one-collision' }]->(heat)
+(heat)-[:FOLD { strategy: 'verify-min-heat' }]->(result)

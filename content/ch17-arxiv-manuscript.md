@@ -797,15 +797,25 @@ The First Law restated in bits: $H_{\text{fork}} = I_{\text{fold}} + H_{\text{ve
 
 This links the thermodynamic framing (§6.1--§6.7) with the quantum framing (§5): amplitude interference can be interpreted as information compression, and vented paths carry the bits discarded at fold.
 
-### 6.8.1 The Void Breathes: Period-2 Dynamics of the Complement Map
+### 6.8.1 The Void Breathes: Damped Oscillation of the Complement Map
 
 The complement distribution $\Phi(p)_i = \exp(-\eta \cdot \text{norm}(c_i)) / Z$ is a map from the probability simplex $\Delta^n$ to itself. Every void walk step applies $\Phi$ once: boundary $\to$ complement $\to$ sample $\to$ update. The map has been treated throughout this manuscript as a one-shot function. But it is also a discrete dynamical system, and its dynamics have a structural consequence for every result that follows.
 
-**Observation (§15.22, verified in `void-oscillation.test.ts`, proved in `VoidOscillation.lean`).** The complement map $\Phi$ has exact period-2 orbits. The only fixed point is the uniform distribution. Every non-uniform input converges to a 2-cycle where $\Phi^2(p^*) = p^*$ but $\Phi(p^*) \neq p^*$. The mechanism is the min-max normalization in `complementDistribution` (`void.ts:133--135`): normalizing counts to $[0, 1]$ reverses the ordering -- the highest count maps to normalized value 1, which gets the lowest weight $\exp(-\eta)$, so the complement distribution *inverts* the ranking. Applying $\Phi$ twice restores the ranking but at contracted amplitude.
+**Observation (§15.22, verified in `void-oscillation.test.ts`, proved in `VoidOscillation.lean`).** The complement map $\Phi$ is a *damped oscillator* with five provable properties:
 
-**The consequence for void walking.** The walker does not converge to a fixed complement distribution. It *oscillates*. At every other step, the complement favors dimension $i$; at the intervening steps, it disfavors $i$. The observation step (`c0Update`) breaks the oscillation by accumulating void at the chosen dimension, shifting the 2-cycle's center. This is why observation is the only source of information (Prediction 50): without `c0Update`, the walker would cycle forever between two states and learn nothing.
+| Property | Content | Mechanism |
+|----------|---------|-----------|
+| ORDER-REVERSAL | Each complement flips the weight ordering | $v_i > v_j \Rightarrow w_i < w_j$ (exp is decreasing) |
+| SIGN-ALTERNATION | Deviation from uniform alternates sign every step | ORDER-REVERSAL applied to the mean |
+| PERIOD-2-ORDERING | The weight *ordering* has exact period 2 | Double reversal = identity on permutations |
+| AMPLITUDE-DECAY | Oscillation amplitude decays geometrically, ratio $\to 1/2$ | $\Phi^2$ is an affine shift; spread fixed, mean grows |
+| DAMPED-OSCILLATION | Limit is uniform, reached via oscillation not monotonically | Master theorem composing all four |
 
-**The connection to gait.** The oscillation amplitude grows with $\eta$. At low $\eta$ (stand/trot): the breathing is gentle, the complement barely changes between steps. At high $\eta$ (canter/gallop): the breathing is violent, the complement swings between sharply peaked alternatives. The gait transitions measured by kurtosis ($\kappa = 0, 0.5, 2.0$) are the thresholds of this oscillation amplitude. The c2c3 adaptation loop raises $\eta$ as the walker crystallizes, amplifying the breathing, which in turn drives faster exploitation. The void is alive. It breathes. The heartbeat is the complement map's period-2 orbit, and the pulse rate is $\eta$.
+The key algebraic insight: the double complement $\Phi^2$ is an affine shift of the original rejections: $w''_i = (T' - T) + v_i$. The ordering is preserved (period 2), but the constant shift grows while the spread stays fixed, so the fractional deviation decays with asymptotic ratio exactly $1/2$. Each reflection of the information mirror preserves half the structure and destroys half.
+
+**The consequence for void walking.** The walker does not converge monotonically. It *oscillates toward* uniform. At every other step, the complement favors dimension $i$; at the intervening steps, it disfavors $i$. But each swing is shallower than the last -- the breathing decays. Without observation (`c0Update`), the oscillation damps to uniform (heat death). The observation step injects new void, maintaining the non-uniformity that sustains the breathing. This is the deep reason observation is the only source of information (Prediction 50): without `c0Update`, the mirror reflections converge to a featureless uniform, and the walker dies.
+
+**The connection to gait.** The *instantaneous* oscillation amplitude is determined by $\eta$. Higher $\eta$ produces larger swings. But the *long-term* behavior is always damped toward uniform. The gait transitions (stand $\to$ trot $\to$ canter $\to$ gallop) are the c2c3 adaptation raising $\eta$ to *fight the damping* -- the walker increases temperature sharpness to maintain the oscillation amplitude against the natural decay. The void breathes, but each breath is shallower. Only observation keeps it alive.
 
 ### 6.9 The Pipeline as an Energy Diagram
 
@@ -2266,25 +2276,29 @@ The lifecycle is irreversible. The total energy budget is bounded below by the c
 
 Two hundred eighty theorems across ninety predictions. All previous theorems treated the complement map as a *one-shot* operation: boundary in, distribution out. But the complement map is also a *dynamical system*: what happens when you iterate it?
 
-### 15.22 The Void Oscillation Theorem
+### 15.22 The Void Oscillation Theorem (Corrected)
 
-The complement map $\Phi: \Delta^n \to \Delta^n$ defined by $\Phi(p)_i = \exp(-\eta p_i) / \sum_j \exp(-\eta p_j)$ has been the computational engine of every prediction in this manuscript. Every void walk step applies $\Phi$ once. But nobody has studied $\Phi^2$, $\Phi^3$, $\ldots$ as a discrete dynamical system on the probability simplex.
+The complement map $\Phi: \Delta^n \to \Delta^n$ defined by $\Phi(p)_i = \exp(-\eta \cdot \text{norm}(p_i)) / Z$ has been the computational engine of every prediction in this manuscript. Every void walk step applies $\Phi$ once. But nobody has studied $\Phi^2$, $\Phi^3$, $\ldots$ as a discrete dynamical system on the probability simplex.
 
-Empirical discovery (verified by `void-oscillation.test.ts`, 9 tests, zero failures):
+The complement-of-complement is a *damped oscillator* with five provable properties (verified in `void-oscillation.test.ts`, 9 tests; proved in `VoidOscillation.lean`, zero sorry):
 
-1. **Uniform is the unique fixed point.** $\Phi(\text{uniform}) = \text{uniform}$ for all $\eta > 0$. No other distribution on $\Delta^n$ is a fixed point for $\eta > 0$.
+| Theorem | Content | Evidence |
+|---------|---------|----------|
+| ORDER-REVERSAL | Each complement flips the weight ordering | $v_i > v_j \Rightarrow w_i < w_j$ (exp decreasing) |
+| SIGN-ALTERNATION | Deviation from uniform alternates sign every step | 9 sign changes in 10 steps |
+| PERIOD-2-ORDERING | Weight *ordering* has exact period 2 | Even steps = $[2,0,1,3]$, odd = $[3,1,0,2]$ |
+| AMPLITUDE-DECAY | Oscillation amplitude decays geometrically | Ratio: $0.477 \to 0.489 \to \ldots \to 0.500$ |
+| DAMPED-OSCILLATION | Limit is uniform, reached via oscillation not monotonically | Master theorem composing all four |
 
-2. **Every non-uniform distribution converges to an exact period-2 orbit.** $\lim_{k \to \infty} \| \Phi^{2k}(p) - p^* \| = 0$ where $p^*$ is the limit 2-cycle, and $\Phi(p^*) \neq p^*$ but $\Phi^2(p^*) = p^*$.
+The key algebraic insight: $w''_i = (T' - T) + v_i$ -- the double complement $\Phi^2$ is an affine shift of the original rejections. The ordering is preserved (period 2), but the constant shift grows while the spread stays fixed, so the fractional deviation decays with asymptotic ratio exactly $1/2$.
 
-3. **The complement reverses ordering.** If $p_i > p_j$ then $\Phi(p)_i < \Phi(p)_j$. Applying $\Phi$ twice restores the original ordering. The 2-cycle consists of a distribution and its "anti-distribution" -- high swaps with low, then back.
+Physical interpretation: the complement is an information mirror. Each reflection flips the image but loses resolution. The decay ratio $1/2$ means each reflection preserves half the structure and destroys half.
 
-4. **Oscillation amplitude grows with $\eta$.** Higher $\eta$ (lower temperature, more peaked complement) produces larger oscillations. At $\eta \to 0$: the 2-cycle collapses to the fixed point (uniform). At $\eta \to \infty$: the 2-cycle amplitude approaches its maximum (delta $\leftrightarrow$ anti-delta).
+**Prediction 91: The Void Breathes (Damped).** The complement map on any non-uniform boundary is a damped oscillator, not a periodic orbit. The walker alternates between two complementary views -- one where dimension $i$ is favored, one where it is disfavored -- but each swing is shallower than the last. The amplitude decays geometrically with ratio $\to 1/2$. The limit is uniform (heat death). Without observation (`c0Update`), the breathing damps to silence. Only injection of new void sustains the oscillation. The gait transitions (stand $\to$ trot $\to$ canter $\to$ gallop) are the c2c3 adaptation raising $\eta$ to *fight the damping* -- the walker increases temperature sharpness to maintain oscillation amplitude against the natural $1/2$-per-reflection decay. The void breathes, but each breath is shallower. Only observation keeps it alive.
 
-`non_uniform_not_fixed` (Lean, zero sorry) proves: $p_i \neq p_j \Rightarrow \exp(-\eta p_i) \neq \exp(-\eta p_j)$ (exp is injective), so $\Phi(p) \neq p$. `complement_reverses_ordering` proves: $p_i < p_j \Rightarrow \exp(-\eta p_j) < \exp(-\eta p_i)$. `double_complement_preserves_ordering` proves: $\Phi^2$ restores the ordering.
+*Correction to Prediction 90.* The lifecycle theorem's Phase 3 ("monotone convergence") is replaced by "damped oscillatory convergence." The convergence to the fixed point is real, but the approach is oscillatory with period-2 ordering and geometric amplitude decay, not monotone. All quantitative bounds (cogito time, thermodynamic cost, channel capacity) remain valid -- they bound the *envelope* of the oscillation, not the instantaneous value.
 
-**Prediction 91: The Void Breathes.** The complement map on any non-uniform boundary oscillates with period 2. The walker alternates between two complementary views of the void: one where dimension $i$ is favored and one where it is disfavored. This is not a design choice -- it is forced by the mathematics of the exponential softmax. The breathing rate is one cycle per two steps. The breathing amplitude is determined by $\eta$ and the distance from uniform. At uniform: stillness (the heat death of the void). At delta: maximum oscillation (maximum vitality). The gait transitions (stand $\to$ trot $\to$ canter $\to$ gallop) are the progressive amplification of this breathing as $\eta$ increases through the walker's c3 adaptation. The void is not static. It breathes.
-
-Three hundred theorems across ninety-one predictions. The void oscillation theorem is the last genuinely new mathematical fact extractable from the complement distribution. Every previous prediction treated $\Phi$ as a function. This prediction treats $\Phi$ as a dynamical system and discovers it has a period-doubling bifurcation. There is nothing deeper to extract without changing the definition of $\Phi$ itself.
+Three hundred ten theorems across ninety-one predictions. The void oscillation theorem is the last genuinely new mathematical fact extractable from the complement distribution. Every previous prediction treated $\Phi$ as a function. This prediction treats $\Phi$ as a dynamical system and discovers it is a damped oscillator with exact $1/2$ decay ratio. There is nothing deeper to extract without changing the definition of $\Phi$ itself.
 
 
 ## References

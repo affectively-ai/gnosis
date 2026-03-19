@@ -1,0 +1,18 @@
+// chaitin_omega_positive.gg — THM-CHAITIN-OMEGA witness (halting probability > 0)
+//
+// Omega = sum of 2^{-|p|} for all halting programs p.
+// At least one program halts (the empty program, or any trivial halter),
+// so Omega > 0. This is the positivity sliver for computability.
+
+(space: OmegaSpace { theorem: 'THM-CHAITIN-OMEGA', prefix_length: '3' })
+(halter_1: HaltingProgram { bits: '011', length: '3', contribution: '0.125' })
+(halter_2: HaltingProgram { bits: '111', length: '3', contribution: '0.125' })
+(halter_3: HaltingProgram { bits: '000', length: '3', contribution: '0.125' })
+(halter_4: HaltingProgram { bits: '010', length: '3', contribution: '0.125' })
+(halter_5: HaltingProgram { bits: '101', length: '3', contribution: '0.125' })
+(omega_lower: Invariant { claim: 'Omega >= sum of known halters', lower_bound: '0.625', contributors: '5' })
+(result: Result { theorem: 'omega-strictly-positive' })
+
+(space)-[:FORK]->(halter_1 | halter_2 | halter_3 | halter_4 | halter_5)
+(halter_1 | halter_2 | halter_3 | halter_4 | halter_5)-[:RACE { expect: 'contribution-positive' }]->(omega_lower)
+(omega_lower)-[:FOLD { strategy: 'verify-positive-total' }]->(result)

@@ -1,0 +1,22 @@
+// chaitin_universal_fork.gg — THM-CHAITIN-OMEGA witness (UTM = universal fork)
+//
+// A universal Turing machine enumerates all programs of length <= n.
+// Each program is a branch in a FORK. The UTM is the fork operator
+// over the space of all computations. Width grows as 2^n.
+
+(utm: UniversalMachine { theorem: 'THM-CHAITIN-OMEGA', prefix_length: '3', total_programs: '8' })
+(prog_000: Program { bits: '000', length: '3', halts: 'true', steps: '4' })
+(prog_001: Program { bits: '001', length: '3', halts: 'false', steps: 'inf' })
+(prog_010: Program { bits: '010', length: '3', halts: 'true', steps: '7' })
+(prog_011: Program { bits: '011', length: '3', halts: 'true', steps: '2' })
+(prog_100: Program { bits: '100', length: '3', halts: 'false', steps: 'inf' })
+(prog_101: Program { bits: '101', length: '3', halts: 'true', steps: '12' })
+(prog_110: Program { bits: '110', length: '3', halts: 'false', steps: 'inf' })
+(prog_111: Program { bits: '111', length: '3', halts: 'true', steps: '1' })
+(enumeration: Invariant { claim: 'UTM enumerates all 2^n programs', width: '8' })
+(result: Result { theorem: 'utm-is-universal-fork' })
+
+(utm)-[:FORK]->(prog_000 | prog_001 | prog_010 | prog_011 | prog_100 | prog_101 | prog_110 | prog_111)
+(prog_000 | prog_010 | prog_011 | prog_101 | prog_111)-[:RACE { expect: 'halting' }]->(enumeration)
+(prog_001 | prog_100 | prog_110)-[:VENT { condition: 'non-halting' }]->(void_programs: VentedComputation)
+(enumeration)-[:FOLD { strategy: 'verify-completeness' }]->(result)
