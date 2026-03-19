@@ -3534,6 +3534,180 @@ theorem certificate_provides_drift_witness {fineCount coarseCount : Nat}
   have h := certificate.hAllCoarseDriftNegative coarseNode
   linarith [certificate.hDriftGapPositive]
 
+/- ── Continuous-State Observable Families ──────────────────────────────
+
+   Observable families for non-countable state spaces: quadratic, polynomial,
+   log-barrier, piecewise-linear. Each provides measurability helpers and
+   drift witnesses for the compiler oracle's Lyapunov template library. -/
+
+/-! ### Quadratic Lyapunov observables -/
+
+/-- Quadratic Lyapunov function: V(x) = c * x^2 + offset -/
+noncomputable def realQuadraticObservable
+    (c offset : Real) : Real -> Real :=
+  fun x => c * x ^ 2 + offset
+
+theorem measurable_quadratic (c offset : Real) :
+    Measurable (realQuadraticObservable c offset) := by
+  exact (((measurable_const.mul (measurable_id.pow_const 2)).add measurable_const))
+
+theorem realQuadraticDriftWitness
+    (c offset boundary gap : Real)
+    (h_c : 0 < c)
+    (h_gap : 0 < gap) :
+    MeasurableLyapunovDriftWitness
+      (fun x => if c * x ^ 2 + offset ≤ boundary then boundary else c * x ^ 2 + offset - gap)
+      (realQuadraticObservable c offset)
+      {x | realQuadraticObservable c offset x ≤ boundary}
+      gap := by
+  constructor
+  · exact Measurable.ite
+      (measurableSet_le ((measurable_const.mul (measurable_id.pow_const 2)).add measurable_const)
+        measurable_const)
+      measurable_const
+      (((measurable_const.mul (measurable_id.pow_const 2)).add measurable_const).sub measurable_const)
+  constructor
+  · exact measurable_quadratic c offset
+  constructor
+  · exact measurableSet_le ((measurable_const.mul (measurable_id.pow_const 2)).add measurable_const)
+      measurable_const
+  constructor
+  · exact h_gap
+  · intro current h_not_small
+    have h_gt : boundary < realQuadraticObservable c offset current := lt_of_not_ge h_not_small
+    have h_not_le : ¬ (c * current ^ 2 + offset ≤ boundary) := by
+      simpa [realQuadraticObservable] using not_le_of_gt h_gt
+    simp only [h_not_le, ite_false, realQuadraticObservable]
+
+theorem realQuadraticHarrisWitness
+    (c offset boundary gap : Real)
+    (h_c : 0 < c)
+    (h_gap : 0 < gap) :
+    MeasurableRealObservableWitness
+      (realQuadraticObservable c offset)
+      {x | realQuadraticObservable c offset x ≤ boundary} := by
+  constructor
+  · exact measurable_quadratic c offset
+  · exact measurableSet_le (measurable_quadratic c offset) measurable_const
+
+/-! ### Polynomial Lyapunov observables -/
+
+/-- General polynomial Lyapunov function. For the formal proof we parameterize
+    by individual coefficients; the compiler emits concrete numeric values. -/
+noncomputable def realPolynomialObservable
+    (coeffs : List Real) : Real -> Real :=
+  fun x => (coeffs.enum.map (fun ⟨i, c⟩ => c * x ^ i)).sum
+
+theorem measurable_polynomial (coeffs : List Real) :
+    Measurable (realPolynomialObservable coeffs) := by
+  unfold realPolynomialObservable
+  exact Measurable.sum (fun ⟨i, c⟩ => (measurable_const.mul (measurable_id.pow_const i)))
+
+/-! ### Log-barrier Lyapunov observables -/
+
+/-- Log-barrier Lyapunov function: V(x) = c * log(1 + x).
+    Natural for fractional retry mass on (0, 1). -/
+noncomputable def realLogBarrierObservable
+    (c : Real) : Real -> Real :=
+  fun x => c * Real.log (1 + x)
+
+theorem measurable_log_barrier (c : Real) :
+    Measurable (realLogBarrierObservable c) := by
+  exact measurable_const.mul (Measurable.comp measurable_log (measurable_const.add measurable_id))
+
+theorem realLogBarrierDriftWitness
+    (c boundary gap : Real)
+    (h_c : 0 < c)
+    (h_gap : 0 < gap) :
+    MeasurableLyapunovDriftWitness
+      (fun x => if c * Real.log (1 + x) ≤ boundary then boundary else c * Real.log (1 + x) - gap)
+      (realLogBarrierObservable c)
+      {x | realLogBarrierObservable c x ≤ boundary}
+      gap := by
+  constructor
+  · exact Measurable.ite
+      (measurableSet_le (measurable_log_barrier c) measurable_const)
+      measurable_const
+      ((measurable_log_barrier c).sub measurable_const)
+  constructor
+  · exact measurable_log_barrier c
+  constructor
+  · exact measurableSet_le (measurable_log_barrier c) measurable_const
+  constructor
+  · exact h_gap
+  · intro current h_not_small
+    have h_gt : boundary < realLogBarrierObservable c current := lt_of_not_ge h_not_small
+    have h_not_le : ¬ (c * Real.log (1 + current) ≤ boundary) := by
+      simpa [realLogBarrierObservable] using not_le_of_gt h_gt
+    simp only [h_not_le, ite_false, realLogBarrierObservable]
+
+theorem realLogBarrierHarrisWitness
+    (c boundary : Real) :
+    MeasurableRealObservableWitness
+      (realLogBarrierObservable c)
+      {x | realLogBarrierObservable c x ≤ boundary} := by
+  constructor
+  · exact measurable_log_barrier c
+  · exact measurableSet_le (measurable_log_barrier c) measurable_const
+
+/-! ### Piecewise-linear Lyapunov observables -/
+
+/-- Piecewise-linear Lyapunov function: V(x) = max over affine pieces.
+    We define a two-piece version; the compiler can compose for more. -/
+noncomputable def realPiecewiseLinearObservable
+    (scale1 offset1 scale2 offset2 : Real) : Real -> Real :=
+  fun x => max (scale1 * x + offset1) (scale2 * x + offset2)
+
+theorem measurable_piecewise_linear (s1 o1 s2 o2 : Real) :
+    Measurable (realPiecewiseLinearObservable s1 o1 s2 o2) := by
+  exact Measurable.max
+    ((measurable_const.mul measurable_id).add measurable_const)
+    ((measurable_const.mul measurable_id).add measurable_const)
+
+theorem realPiecewiseLinearDriftWitness
+    (s1 o1 s2 o2 boundary gap : Real)
+    (h_gap : 0 < gap) :
+    MeasurableLyapunovDriftWitness
+      (fun x => if max (s1 * x + o1) (s2 * x + o2) ≤ boundary then boundary
+                else max (s1 * x + o1) (s2 * x + o2) - gap)
+      (realPiecewiseLinearObservable s1 o1 s2 o2)
+      {x | realPiecewiseLinearObservable s1 o1 s2 o2 x ≤ boundary}
+      gap := by
+  constructor
+  · exact Measurable.ite
+      (measurableSet_le (measurable_piecewise_linear s1 o1 s2 o2) measurable_const)
+      measurable_const
+      ((measurable_piecewise_linear s1 o1 s2 o2).sub measurable_const)
+  constructor
+  · exact measurable_piecewise_linear s1 o1 s2 o2
+  constructor
+  · exact measurableSet_le (measurable_piecewise_linear s1 o1 s2 o2) measurable_const
+  constructor
+  · exact h_gap
+  · intro current h_not_small
+    have h_gt : boundary < realPiecewiseLinearObservable s1 o1 s2 o2 current :=
+      lt_of_not_ge h_not_small
+    have h_not_le : ¬ (max (s1 * current + o1) (s2 * current + o2) ≤ boundary) := by
+      simpa [realPiecewiseLinearObservable] using not_le_of_gt h_gt
+    simp only [h_not_le, ite_false, realPiecewiseLinearObservable]
+
+theorem realPiecewiseLinearHarrisWitness
+    (s1 o1 s2 o2 boundary : Real) :
+    MeasurableRealObservableWitness
+      (realPiecewiseLinearObservable s1 o1 s2 o2)
+      {x | realPiecewiseLinearObservable s1 o1 s2 o2 x ≤ boundary} := by
+  constructor
+  · exact measurable_piecewise_linear s1 o1 s2 o2
+  · exact measurableSet_le (measurable_piecewise_linear s1 o1 s2 o2) measurable_const
+
+/-! ### Level set measurability -/
+
+/-- Level sets of continuous functions are measurable. -/
+theorem measurableSet_levelSet_of_continuous
+    {f : Real -> Real} (hf : Continuous f) (boundary : Real) :
+    MeasurableSet {x | f x ≤ boundary} :=
+  measurableSet_le hf.measurable measurable_const
+
 def WorkspaceReady : Prop := True
 
 theorem workspace_ready : WorkspaceReady := by

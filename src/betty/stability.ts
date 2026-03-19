@@ -23,6 +23,12 @@ const THERMODYNAMIC_PROPERTIES = new Set([
   'observable_scale',
   'observable_offset',
   'drift_gap',
+  'lyapunov_template',
+  'lyapunov_degree',
+  'lyapunov_coefficients',
+  'state_space',
+  'small_set_boundary',
+  'minorization_epsilon',
 ]);
 const FORK_EDGE_TYPES = new Set(['FORK', 'EVOLVE', 'SUPERPOSE', 'ENTANGLE']);
 const COLLAPSE_EDGE_TYPES = new Set(['FOLD', 'COLLAPSE', 'OBSERVE']);
@@ -38,6 +44,33 @@ export type StabilityProofKind =
   | 'symbolic-reneging'
   | 'bounded-supremum'
   | 'unsupported';
+
+export type LyapunovTemplate = 'affine' | 'quadratic' | 'polynomial' | 'log-barrier' | 'piecewise-linear';
+export type StateSpaceKind = 'countable' | 'continuous-positive' | 'continuous-bounded' | 'continuous-unbounded';
+
+export interface LyapunovSynthesis {
+  template: LyapunovTemplate;
+  degree: number;
+  coefficients: number[];
+  expression: string;
+  leanExpression: string;
+  driftBound: string;
+}
+
+export interface SmallSetDiscovery {
+  kind: 'queue-boundary' | 'level-set' | 'vent-boundary' | 'capacity-sublevel' | 'compact-sublevel';
+  boundary: number;
+  expression: string;
+  leanSetExpression: string;
+  derivedFrom: string;
+}
+
+export interface MinorizationSynthesis {
+  epsilon: number;
+  measureKind: 'dirac' | 'uniform-on-small-set' | 'lebesgue-restricted';
+  leanMeasureExpression: string;
+  derivedFrom: string;
+}
 
 export interface StabilityKernelEdge {
   sourceId: string;
@@ -117,6 +150,10 @@ export interface StabilityContinuousHarrisWitness {
   smallSetBoundary: number;
   observableDriftTheoremName: string;
   continuousHarrisTheoremName: string;
+  stateSpaceKind?: StateSpaceKind;
+  lyapunovSynthesis?: LyapunovSynthesis;
+  smallSetDiscovery?: SmallSetDiscovery;
+  minorizationSynthesis?: MinorizationSynthesis;
 }
 
 export type StabilityHeteroMoAFabricLayerKind = 'cpu' | 'gpu' | 'npu' | 'wasm';
@@ -1487,6 +1524,263 @@ function inferContinuousObservableKind(
   return 'custom-potential';
 }
 
+function normalizeStateSpaceKind(raw: string | undefined): StateSpaceKind {
+  switch (raw?.trim().toLowerCase()) {
+    case 'continuous-positive':
+      return 'continuous-positive';
+    case 'continuous-bounded':
+      return 'continuous-bounded';
+    case 'continuous-unbounded':
+      return 'continuous-unbounded';
+    case 'countable':
+    default:
+      return 'countable';
+  }
+}
+
+function normalizeLyapunovTemplate(raw: string | undefined): LyapunovTemplate {
+  switch (raw?.trim().toLowerCase()) {
+    case 'quadratic':
+      return 'quadratic';
+    case 'polynomial':
+      return 'polynomial';
+    case 'log-barrier':
+      return 'log-barrier';
+    case 'piecewise-linear':
+      return 'piecewise-linear';
+    case 'affine':
+    default:
+      return 'affine';
+  }
+}
+
+function parseCoefficients(raw: string | undefined): number[] {
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isFinite(n));
+}
+
+export function synthesizeLyapunov(
+  stateNode: ASTNode | undefined,
+  observableKind: StabilityContinuousObservableKind,
+  template: LyapunovTemplate,
+  driftData: { scale: number; offset: number; driftGap: number }
+): LyapunovSynthesis {
+  const degree = parseFinite(stateNode?.properties.lyapunov_degree) ?? (
+    template === 'quadratic' ? 2 :
+    template === 'polynomial' ? 3 :
+    1
+  );
+  const explicitCoeffs = parseCoefficients(stateNode?.properties.lyapunov_coefficients);
+  const scale = driftData.scale;
+  const offset = driftData.offset;
+
+  switch (template) {
+    case 'affine': {
+      const coefficients = explicitCoeffs.length >= 2 ? explicitCoeffs : [scale, offset];
+      return {
+        template: 'affine',
+        degree: 1,
+        coefficients,
+        expression: `${formatObservableNumber(coefficients[0])} * x + ${formatObservableNumber(coefficients[1])}`,
+        leanExpression: `fun x => ${formatObservableNumber(coefficients[0])} * x + ${formatObservableNumber(coefficients[1])}`,
+        driftBound: `-(${formatObservableNumber(driftData.driftGap)})`,
+      };
+    }
+    case 'quadratic': {
+      const c = explicitCoeffs.length >= 1 ? explicitCoeffs[0] : scale;
+      const o = explicitCoeffs.length >= 2 ? explicitCoeffs[1] : offset;
+      return {
+        template: 'quadratic',
+        degree: 2,
+        coefficients: [c, o],
+        expression: `${formatObservableNumber(c)} * x^2 + ${formatObservableNumber(o)}`,
+        leanExpression: `fun x => ${formatObservableNumber(c)} * x ^ 2 + ${formatObservableNumber(o)}`,
+        driftBound: `-(${formatObservableNumber(driftData.driftGap)})`,
+      };
+    }
+    case 'polynomial': {
+      const coeffs = explicitCoeffs.length >= 2 ? explicitCoeffs : [scale, 0, offset];
+      const terms = coeffs.map((c, i) =>
+        i === 0 ? formatObservableNumber(c)
+          : `${formatObservableNumber(c)} * x^${i}`
+      );
+      const leanTerms = coeffs.map((c, i) =>
+        i === 0 ? formatObservableNumber(c)
+          : `${formatObservableNumber(c)} * x ^ ${i}`
+      );
+      return {
+        template: 'polynomial',
+        degree: Math.max(1, coeffs.length - 1),
+        coefficients: coeffs,
+        expression: terms.join(' + '),
+        leanExpression: `fun x => ${leanTerms.join(' + ')}`,
+        driftBound: `-(${formatObservableNumber(driftData.driftGap)})`,
+      };
+    }
+    case 'log-barrier': {
+      const c = explicitCoeffs.length >= 1 ? explicitCoeffs[0] : scale;
+      return {
+        template: 'log-barrier',
+        degree: 1,
+        coefficients: [c],
+        expression: `${formatObservableNumber(c)} * log(1 + x)`,
+        leanExpression: `fun x => ${formatObservableNumber(c)} * Real.log (1 + x)`,
+        driftBound: `-(${formatObservableNumber(driftData.driftGap)})`,
+      };
+    }
+    case 'piecewise-linear': {
+      const pieces = explicitCoeffs.length >= 2 ? explicitCoeffs : [scale, offset];
+      const maxTerms = [];
+      for (let i = 0; i < pieces.length; i += 2) {
+        const s = pieces[i] ?? 1;
+        const o = pieces[i + 1] ?? 0;
+        maxTerms.push(`${formatObservableNumber(s)} * x + ${formatObservableNumber(o)}`);
+      }
+      return {
+        template: 'piecewise-linear',
+        degree: 1,
+        coefficients: pieces,
+        expression: `max(${maxTerms.join(', ')})`,
+        leanExpression: `fun x => ${maxTerms.length === 1
+          ? `${formatObservableNumber(pieces[0] ?? 1)} * x + ${formatObservableNumber(pieces[1] ?? 0)}`
+          : maxTerms.reduce((acc, term) => `max (${acc}) (${term})`)}`,
+        driftBound: `-(${formatObservableNumber(driftData.driftGap)})`,
+      };
+    }
+  }
+}
+
+export function discoverSmallSet(
+  ast: GraphAST,
+  lyapunovSynthesis: LyapunovSynthesis,
+  stateNode: ASTNode | undefined,
+  edges: readonly ASTEdge[]
+): SmallSetDiscovery {
+  // Priority 1: explicit small_set_boundary
+  const explicitBoundary = parseFinite(stateNode?.properties.small_set_boundary);
+  if (explicitBoundary !== null && explicitBoundary > 0) {
+    return {
+      kind: 'level-set',
+      boundary: explicitBoundary,
+      expression: `{x | V(x) <= ${formatObservableNumber(explicitBoundary)}}`,
+      leanSetExpression: `{x | ${lyapunovSynthesis.leanExpression.replace('fun x => ', '')} ≤ ${formatObservableNumber(explicitBoundary)}}`,
+      derivedFrom: 'explicit small_set_boundary property',
+    };
+  }
+
+  // Priority 2: VENT boundary inference
+  for (const edge of edges) {
+    if (!VENT_EDGE_TYPES.has(edge.type.toUpperCase())) continue;
+    const condition = edge.properties.condition?.trim();
+    if (!condition) continue;
+    const match = condition.match(/^\s*\w+\s*>\s*([\d.]+)\s*$/);
+    if (match) {
+      const ventBoundary = Number(match[1]);
+      if (Number.isFinite(ventBoundary) && ventBoundary > 0) {
+        return {
+          kind: 'vent-boundary',
+          boundary: ventBoundary,
+          expression: `{x | x <= ${formatObservableNumber(ventBoundary)}}`,
+          leanSetExpression: `Set.Iic ${formatObservableNumber(ventBoundary)}`,
+          derivedFrom: `VENT condition: ${condition}`,
+        };
+      }
+    }
+  }
+
+  // Priority 3: capacity sublevel from downstream SINK
+  const sinkNodes = [...ast.nodes.values()].filter((node) =>
+    node.labels.some((label) => label.toUpperCase() === 'SINK')
+  );
+  for (const sink of sinkNodes) {
+    const capacity = parseFinite(sink.properties.capacity);
+    if (capacity !== null && capacity > 0) {
+      return {
+        kind: 'capacity-sublevel',
+        boundary: capacity,
+        expression: `{x | x <= ${formatObservableNumber(capacity)}}`,
+        leanSetExpression: `Set.Iic ${formatObservableNumber(capacity)}`,
+        derivedFrom: `SINK capacity: ${capacity}`,
+      };
+    }
+  }
+
+  // Priority 4: Lyapunov level set
+  const driftGap = parseFinite(stateNode?.properties.drift_gap) ?? 1;
+  const levelSetBoundary = Math.max(1, Math.ceil(driftGap * 2));
+  return {
+    kind: 'compact-sublevel',
+    boundary: levelSetBoundary,
+    expression: `{x | V(x) <= ${formatObservableNumber(levelSetBoundary)}}`,
+    leanSetExpression: `{x | ${lyapunovSynthesis.leanExpression.replace('fun x => ', '')} ≤ ${formatObservableNumber(levelSetBoundary)}}`,
+    derivedFrom: 'Lyapunov level-set fallback',
+  };
+}
+
+export function synthesizeMinorization(
+  stateSpaceKind: StateSpaceKind,
+  smallSet: SmallSetDiscovery,
+  lyapunovSynthesis: LyapunovSynthesis,
+  driftData: { driftGap: number; explicitEpsilon: number | null }
+): MinorizationSynthesis {
+  // Explicit override
+  if (driftData.explicitEpsilon !== null && driftData.explicitEpsilon > 0) {
+    return {
+      epsilon: driftData.explicitEpsilon,
+      measureKind: stateSpaceKind === 'countable' ? 'dirac' : 'uniform-on-small-set',
+      leanMeasureExpression: stateSpaceKind === 'countable'
+        ? 'MeasureTheory.Measure.dirac 0'
+        : `(1 / ${formatObservableNumber(smallSet.boundary)}) • MeasureTheory.Measure.restrict MeasureTheory.volume (${smallSet.leanSetExpression})`,
+      derivedFrom: 'explicit minorization_epsilon property',
+    };
+  }
+
+  switch (stateSpaceKind) {
+    case 'countable':
+      return {
+        epsilon: 1,
+        measureKind: 'dirac',
+        leanMeasureExpression: 'MeasureTheory.Measure.dirac 0',
+        derivedFrom: 'countable queue: dirac at atom',
+      };
+    case 'continuous-positive': {
+      const lyapMaxOnC = lyapunovSynthesis.coefficients[0] * smallSet.boundary +
+        (lyapunovSynthesis.coefficients[1] ?? 0);
+      const epsilon = lyapMaxOnC > 0 ? round3(driftData.driftGap / (2 * lyapMaxOnC)) : 0.5;
+      return {
+        epsilon: Math.max(EPSILON, epsilon),
+        measureKind: 'uniform-on-small-set',
+        leanMeasureExpression: `(1 / ${formatObservableNumber(smallSet.boundary)}) • MeasureTheory.Measure.restrict MeasureTheory.volume (${smallSet.leanSetExpression})`,
+        derivedFrom: 'continuous-positive: uniform on small set',
+      };
+    }
+    case 'continuous-bounded': {
+      const invCapacity = smallSet.boundary > 0 ? 1 / smallSet.boundary : 0.5;
+      const epsilon = round3(Math.min(driftData.driftGap, invCapacity));
+      return {
+        epsilon: Math.max(EPSILON, epsilon),
+        measureKind: 'lebesgue-restricted',
+        leanMeasureExpression: `(1 / ${formatObservableNumber(smallSet.boundary)}) • MeasureTheory.Measure.restrict MeasureTheory.volume (${smallSet.leanSetExpression})`,
+        derivedFrom: 'continuous-bounded: Lebesgue restricted to small set',
+      };
+    }
+    case 'continuous-unbounded': {
+      const lyapMaxOnC = lyapunovSynthesis.coefficients[0] * smallSet.boundary +
+        (lyapunovSynthesis.coefficients[1] ?? 0);
+      const epsilon = lyapMaxOnC > 0 ? round3(driftData.driftGap / (2 * lyapMaxOnC)) : 0.5;
+      return {
+        epsilon: Math.max(EPSILON, epsilon),
+        measureKind: 'uniform-on-small-set',
+        leanMeasureExpression: `(1 / ${formatObservableNumber(smallSet.boundary)}) • MeasureTheory.Measure.restrict MeasureTheory.volume (${smallSet.leanSetExpression})`,
+        derivedFrom: 'continuous-unbounded: uniform on small set',
+      };
+    }
+  }
+}
+
 function buildContinuousHarrisWitness(
   ast: GraphAST,
   countableQueue: StabilityCountableQueueWitness | null,
@@ -1518,6 +1812,54 @@ function buildContinuousHarrisWitness(
     if (!driftGap || driftGap <= 0 || scale <= 0) {
       return { witness: null, diagnostics };
     }
+
+    const stateSpaceKind = normalizeStateSpaceKind(continuousStateNode.properties.state_space);
+    const template = normalizeLyapunovTemplate(continuousStateNode.properties.lyapunov_template);
+
+    // Use new synthesis pipeline for non-countable state spaces
+    if (stateSpaceKind !== 'countable') {
+      const lyapSynthesis = synthesizeLyapunov(
+        continuousStateNode, obsKind, template,
+        { scale, offset, driftGap }
+      );
+      const smallSetDisc = discoverSmallSet(
+        ast, lyapSynthesis, continuousStateNode, ast.edges
+      );
+      const minSynthesis = synthesizeMinorization(
+        stateSpaceKind, smallSetDisc, lyapSynthesis,
+        { driftGap, explicitEpsilon: parseFinite(continuousStateNode.properties.minorization_epsilon) }
+      );
+      const baseLabel = buildObservableBaseLabel(
+        continuousStateNode,
+        continuousStateNode.properties.potential ?? 'x',
+        obsKind
+      );
+      const obsExpr = formatAffineObservableExpression(baseLabel, scale, offset);
+      const expectedObsExpr = formatAffineObservableExpression(baseLabel, scale, offset - scale);
+      return {
+        witness: {
+          stateNodeId: continuousStateNode.id,
+          observableKind: obsKind,
+          observableExpression: obsExpr,
+          lyapunovExpression: lyapSynthesis.expression,
+          expectedObservableExpression: expectedObsExpr,
+          driftGapExpression: formatObservableNumber(driftGap),
+          observableScale: round3(scale),
+          observableOffset: round3(offset),
+          driftGap: round3(driftGap),
+          smallSetKind: 'level-set',
+          smallSetBoundary: smallSetDisc.boundary,
+          observableDriftTheoremName: `${theoremName}_measurable_observable_drift`,
+          continuousHarrisTheoremName: `${theoremName}_measurable_continuous_harris_certified`,
+          stateSpaceKind,
+          lyapunovSynthesis: lyapSynthesis,
+          smallSetDiscovery: smallSetDisc,
+          minorizationSynthesis: minSynthesis,
+        },
+        diagnostics,
+      };
+    }
+
     const baseLabel = buildObservableBaseLabel(
       continuousStateNode,
       continuousStateNode.properties.potential ?? 'x',
@@ -1547,6 +1889,59 @@ function buildContinuousHarrisWitness(
   }
 
   const stateNode = ast.nodes.get(countableQueue.stateNodeId);
+
+  // Non-countable state space declared on a node with a countable queue witness:
+  // use the continuous synthesis pipeline instead of the affine queue path.
+  const queueStateSpaceKind = normalizeStateSpaceKind(stateNode?.properties.state_space);
+  if (queueStateSpaceKind !== 'countable' && stateNode) {
+    const obsKind = normalizeObservableKind(stateNode.properties.observable_kind)
+      ?? inferContinuousObservableKind(stateNode, countableQueue.potential);
+    if (obsKind) {
+      const scale = parseFinite(stateNode.properties.observable_scale) ?? 1;
+      const offset = parseFinite(stateNode.properties.observable_offset) ?? 0;
+      const dg = parseFinite(stateNode.properties.drift_gap) ?? scale;
+      if (dg > 0 && scale > 0) {
+        const template = normalizeLyapunovTemplate(stateNode.properties.lyapunov_template);
+        const lyapSynthesis = synthesizeLyapunov(
+          stateNode, obsKind, template,
+          { scale, offset, driftGap: dg }
+        );
+        const smallSetDisc = discoverSmallSet(
+          ast, lyapSynthesis, stateNode, ast.edges
+        );
+        const minSynthesis = synthesizeMinorization(
+          queueStateSpaceKind, smallSetDisc, lyapSynthesis,
+          { driftGap: dg, explicitEpsilon: parseFinite(stateNode.properties.minorization_epsilon) }
+        );
+        const baseLabel = buildObservableBaseLabel(stateNode, countableQueue.potential, obsKind);
+        const obsExpr = formatAffineObservableExpression(baseLabel, scale, offset);
+        const expectedObsExpr = formatAffineObservableExpression(baseLabel, scale, offset - scale);
+        return {
+          witness: {
+            stateNodeId: countableQueue.stateNodeId,
+            observableKind: obsKind,
+            observableExpression: obsExpr,
+            lyapunovExpression: lyapSynthesis.expression,
+            expectedObservableExpression: expectedObsExpr,
+            driftGapExpression: formatObservableNumber(dg),
+            observableScale: round3(scale),
+            observableOffset: round3(offset),
+            driftGap: round3(dg),
+            smallSetKind: 'level-set',
+            smallSetBoundary: smallSetDisc.boundary,
+            observableDriftTheoremName: `${theoremName}_measurable_observable_drift`,
+            continuousHarrisTheoremName: `${theoremName}_measurable_continuous_harris_certified`,
+            stateSpaceKind: queueStateSpaceKind,
+            lyapunovSynthesis: lyapSynthesis,
+            smallSetDiscovery: smallSetDisc,
+            minorizationSynthesis: minSynthesis,
+          },
+          diagnostics,
+        };
+      }
+    }
+  }
+
   const rawObservableKind = stateNode?.properties.observable_kind;
   const observableKind = rawObservableKind
     ? normalizeObservableKind(rawObservableKind)

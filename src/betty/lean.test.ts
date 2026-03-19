@@ -637,4 +637,187 @@ describe('generateLeanFromGnosisAst', () => {
       'natMeasurableContinuousHarrisWitness_of_queueStep_with_gap'
     );
   });
+
+  it('emits quadratic Lyapunov for continuous-positive fluid backlog', () => {
+    const compiler = new BettyCompiler();
+    const { ast, stability } = compiler.parse(`
+      (ingress:Source { pressure: "10" })
+      (backlog:State { potential: "fluid_backlog", observable_kind: "fluid-backlog", observable: "backlog_bytes", observable_scale: "2", observable_offset: "0.5", drift_gap: "1.5", state_space: "continuous-positive", lyapunov_template: "quadratic", lyapunov_coefficients: "0.5,0.1" })
+      (drain:Sink { beta1_target: "0", capacity: "100" })
+      (ingress)-[:FORK { weight: "1.0" }]->(backlog)
+      (backlog)-[:FOLD { service_rate: "12", drift_gamma: "1.5" }]->(drain)
+      (backlog)-[:VENT { drift_coefficient: "alpha(n)", repair_debt: "0", condition: "x > 80" }]->(drain)
+    `);
+
+    expect(stability).not.toBeNull();
+    expect(stability?.continuousHarris).not.toBeNull();
+    expect(stability?.continuousHarris?.stateSpaceKind).toBe('continuous-positive');
+    expect(stability?.continuousHarris?.lyapunovSynthesis?.template).toBe('quadratic');
+    expect(stability?.continuousHarris?.lyapunovSynthesis?.degree).toBe(2);
+    expect(stability?.continuousHarris?.lyapunovSynthesis?.coefficients).toEqual([0.5, 0.1]);
+    expect(stability?.continuousHarris?.smallSetDiscovery).not.toBeNull();
+    expect(stability?.continuousHarris?.smallSetDiscovery?.kind).toBe('vent-boundary');
+    expect(stability?.continuousHarris?.smallSetDiscovery?.boundary).toBe(80);
+    expect(stability?.continuousHarris?.minorizationSynthesis).not.toBeNull();
+    expect(stability?.continuousHarris?.minorizationSynthesis?.measureKind).toBe('uniform-on-small-set');
+
+    const artifact = generateLeanFromGnosisAst(ast, stability, {
+      sourceFilePath: '/tmp/fluid_backlog.gg',
+    });
+
+    expect(artifact).not.toBeNull();
+    expect(artifact?.lean).toContain('state-space-kind: continuous-positive');
+    expect(artifact?.lean).toContain('lyapunov-template: quadratic');
+    expect(artifact?.lean).toContain('continuous_quadratic');
+    expect(artifact?.lean).toContain('Lyapunov');
+    expect(artifact?.lean).toContain('SmallSet');
+    expect(artifact?.lean).toContain('MinorizationEpsilon');
+    expect(artifact?.lean).toContain('DriftGap');
+    expect(artifact?.lean).toContain('MeasurableRealObservableWitness');
+    expect(artifact?.lean).toContain('MeasurableLyapunovDriftWitness');
+    expect(artifact?.lean).toContain('_lyapunov_measurable');
+    expect(artifact?.lean).toContain('_observable_measurable');
+    expect(artifact?.lean).toContain('_small_set_measurable');
+    expect(artifact?.lean).toContain('_drift_bound');
+    expect(artifact?.lean).toContain('_minorization_bound');
+    expect(artifact?.lean).toContain('_harris_recurrence');
+    expect(artifact?.lean).toContain('_geometric_ergodicity');
+  });
+
+  it('emits log-barrier Lyapunov for continuous-bounded fractional retry', () => {
+    const compiler = new BettyCompiler();
+    const { ast, stability } = compiler.parse(`
+      (requests:Source { pressure: "5" })
+      (retry_pool:State { potential: "fractional_retry", observable_kind: "fractional-retry", observable: "retry_mass", observable_scale: "1", observable_offset: "0", drift_gap: "0.5", state_space: "continuous-bounded", lyapunov_template: "log-barrier", lyapunov_coefficients: "2" })
+      (resolved:Sink { beta1_target: "0", capacity: "1" })
+      (requests)-[:FORK { weight: "1.0" }]->(retry_pool)
+      (retry_pool)-[:FOLD { service_rate: "6", drift_gamma: "1.0" }]->(resolved)
+      (retry_pool)-[:VENT { drift_coefficient: "alpha(n)", repair_debt: "0" }]->(resolved)
+    `);
+
+    expect(stability).not.toBeNull();
+    expect(stability?.continuousHarris).not.toBeNull();
+    expect(stability?.continuousHarris?.stateSpaceKind).toBe('continuous-bounded');
+    expect(stability?.continuousHarris?.lyapunovSynthesis?.template).toBe('log-barrier');
+    expect(stability?.continuousHarris?.lyapunovSynthesis?.coefficients).toEqual([2]);
+    expect(stability?.continuousHarris?.lyapunovSynthesis?.expression).toContain('log(1 + x)');
+    expect(stability?.continuousHarris?.minorizationSynthesis?.measureKind).toBe('lebesgue-restricted');
+
+    const artifact = generateLeanFromGnosisAst(ast, stability, {
+      sourceFilePath: '/tmp/retry_mass.gg',
+    });
+
+    expect(artifact).not.toBeNull();
+    expect(artifact?.lean).toContain('state-space-kind: continuous-bounded');
+    expect(artifact?.lean).toContain('lyapunov-template: log-barrier');
+    expect(artifact?.lean).toContain('continuous_log_barrier');
+    expect(artifact?.lean).toContain('Real.log');
+  });
+
+  it('emits piecewise-linear Lyapunov for continuous-unbounded thermal load', () => {
+    const compiler = new BettyCompiler();
+    const { ast, stability } = compiler.parse(`
+      (heat_source:Source { pressure: "8" })
+      (thermal:State { potential: "thermal_load", observable_kind: "thermal-load", observable: "temperature", observable_scale: "3", observable_offset: "1", drift_gap: "2", state_space: "continuous-unbounded", lyapunov_template: "piecewise-linear", lyapunov_coefficients: "1,0,2,1" })
+      (cooled:Sink { beta1_target: "0", capacity: "50" })
+      (heat_source)-[:FORK { weight: "1.0" }]->(thermal)
+      (thermal)-[:FOLD { service_rate: "10", drift_gamma: "2.0" }]->(cooled)
+      (thermal)-[:VENT { drift_coefficient: "alpha(n)", repair_debt: "0", condition: "x > 40" }]->(cooled)
+    `);
+
+    expect(stability).not.toBeNull();
+    expect(stability?.continuousHarris).not.toBeNull();
+    expect(stability?.continuousHarris?.stateSpaceKind).toBe('continuous-unbounded');
+    expect(stability?.continuousHarris?.lyapunovSynthesis?.template).toBe('piecewise-linear');
+    expect(stability?.continuousHarris?.smallSetDiscovery?.kind).toBe('vent-boundary');
+    expect(stability?.continuousHarris?.smallSetDiscovery?.boundary).toBe(40);
+
+    const artifact = generateLeanFromGnosisAst(ast, stability, {
+      sourceFilePath: '/tmp/thermal_load.gg',
+    });
+
+    expect(artifact).not.toBeNull();
+    expect(artifact?.lean).toContain('state-space-kind: continuous-unbounded');
+    expect(artifact?.lean).toContain('lyapunov-template: piecewise-linear');
+    expect(artifact?.lean).toContain('continuous_piecewise_linear');
+  });
+
+  it('emits polynomial Lyapunov with explicit small_set_boundary', () => {
+    const compiler = new BettyCompiler();
+    const { ast, stability } = compiler.parse(`
+      (source:Source { pressure: "3" })
+      (state:State { potential: "custom_x", observable_kind: "custom-potential", observable: "custom_observable", observable_scale: "1", observable_offset: "0", drift_gap: "1", state_space: "continuous-positive", lyapunov_template: "polynomial", lyapunov_coefficients: "0.1,0.5,0.2,0.01", small_set_boundary: "5" })
+      (sink:Sink { beta1_target: "0", capacity: "20" })
+      (source)-[:FORK { weight: "1.0" }]->(state)
+      (state)-[:FOLD { service_rate: "4", drift_gamma: "1.0" }]->(sink)
+      (state)-[:VENT { drift_coefficient: "alpha(n)", repair_debt: "0" }]->(sink)
+    `);
+
+    expect(stability).not.toBeNull();
+    expect(stability?.continuousHarris).not.toBeNull();
+    expect(stability?.continuousHarris?.stateSpaceKind).toBe('continuous-positive');
+    expect(stability?.continuousHarris?.lyapunovSynthesis?.template).toBe('polynomial');
+    expect(stability?.continuousHarris?.lyapunovSynthesis?.degree).toBe(3);
+    expect(stability?.continuousHarris?.lyapunovSynthesis?.coefficients).toEqual([0.1, 0.5, 0.2, 0.01]);
+    expect(stability?.continuousHarris?.smallSetDiscovery?.kind).toBe('level-set');
+    expect(stability?.continuousHarris?.smallSetDiscovery?.boundary).toBe(5);
+
+    const artifact = generateLeanFromGnosisAst(ast, stability, {
+      sourceFilePath: '/tmp/custom_polynomial.gg',
+    });
+
+    expect(artifact).not.toBeNull();
+    expect(artifact?.lean).toContain('state-space-kind: continuous-positive');
+    expect(artifact?.lean).toContain('lyapunov-template: polynomial');
+    expect(artifact?.lean).toContain('continuous_polynomial');
+  });
+
+  it('preserves countable queue path for mixed discrete/continuous topologies', () => {
+    const compiler = new BettyCompiler();
+    const { ast, stability } = compiler.parse(`
+      (traffic:Source { pressure: "lambda" })
+      (queue:State { potential: "beta1" })
+      (complete:Sink { beta1_target: "0", capacity: "64" })
+      (traffic)-[:FORK { weight: "1.0" }]->(queue)
+      (queue)-[:FOLD { service_rate: "mu", drift_gamma: "1.0" }]->(complete)
+      (queue)-[:VENT { drift_coefficient: "alpha(n)", repair_debt: "0" }]->(complete)
+    `);
+
+    expect(stability).not.toBeNull();
+    expect(stability?.countableQueue).not.toBeNull();
+    // Default state_space is countable, so continuous synthesis fields should be absent
+    expect(stability?.continuousHarris?.stateSpaceKind).toBeUndefined();
+
+    const artifact = generateLeanFromGnosisAst(ast, stability, {
+      sourceFilePath: '/tmp/mixed.gg',
+    });
+
+    expect(artifact).not.toBeNull();
+    expect(artifact?.lean).toContain('state-space-kind: countable');
+    expect(artifact?.lean).toContain('lyapunov-template: affine');
+    // Should still have countable queue definitions
+    expect(artifact?.lean).toContain('def queueBoundary : Nat := 64');
+    expect(artifact?.lean).toContain('natQueueAffineObservable');
+    // Should NOT have continuous kernel definitions
+    expect(artifact?.lean).not.toContain('continuous_quadratic');
+    expect(artifact?.lean).not.toContain('continuous_log_barrier');
+  });
+
+  it('emits explicit minorization_epsilon override', () => {
+    const compiler = new BettyCompiler();
+    const { ast, stability } = compiler.parse(`
+      (source:Source { pressure: "5" })
+      (state:State { potential: "x", observable_kind: "fluid-backlog", observable_scale: "1", observable_offset: "0", drift_gap: "1", state_space: "continuous-positive", lyapunov_template: "affine", minorization_epsilon: "0.25" })
+      (sink:Sink { beta1_target: "0", capacity: "10" })
+      (source)-[:FORK { weight: "1.0" }]->(state)
+      (state)-[:FOLD { service_rate: "6", drift_gamma: "1.0" }]->(sink)
+      (state)-[:VENT { drift_coefficient: "alpha(n)", repair_debt: "0" }]->(sink)
+    `);
+
+    expect(stability).not.toBeNull();
+    expect(stability?.continuousHarris?.minorizationSynthesis?.epsilon).toBe(0.25);
+    expect(stability?.continuousHarris?.minorizationSynthesis?.derivedFrom).toBe(
+      'explicit minorization_epsilon property'
+    );
+  });
 });

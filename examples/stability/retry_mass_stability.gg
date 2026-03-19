@@ -1,0 +1,16 @@
+(requests:Source { pressure: "5" })
+(retry_pool:State {
+  potential: "fractional_retry",
+  observable_kind: "fractional-retry",
+  observable: "retry_mass",
+  observable_scale: "1",
+  observable_offset: "0",
+  drift_gap: "0.5",
+  state_space: "continuous-bounded",
+  lyapunov_template: "log-barrier",
+  lyapunov_coefficients: "2"
+})
+(resolved:Sink { beta1_target: "0", capacity: "1" })
+(requests)-[:FORK { weight: "1.0" }]->(retry_pool)
+(retry_pool)-[:FOLD { service_rate: "6", drift_gamma: "1.0" }]->(resolved)
+(retry_pool)-[:VENT { drift_coefficient: "alpha(n)", repair_debt: "0" }]->(resolved)

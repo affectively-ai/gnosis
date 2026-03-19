@@ -1,0 +1,6 @@
+(traffic:Source { pressure: "lambda" })
+(queue:State { potential: "beta1" })
+(complete:Sink { beta1_target: "0", capacity: "64" })
+(traffic)-[:FORK { weight: "1.0" }]->(queue)
+(queue)-[:FOLD { service_rate: "mu", drift_gamma: "1.0" }]->(complete)
+(queue)-[:VENT { drift_coefficient: "alpha(n)", repair_debt: "0" }]->(complete)
