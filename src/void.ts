@@ -46,6 +46,73 @@ export function boundaryDimensions(boundary: VoidBoundary): number {
   return boundary.counts.length;
 }
 
+/**
+ * Merge two VoidBoundaries by summing their rejection counts.
+ * Used by FOLD to merge boundaries from all inputs.
+ */
+export function mergeVoidBoundaries(a: VoidBoundary, b: VoidBoundary): VoidBoundary {
+  const maxDims = Math.max(a.counts.length, b.counts.length);
+  const counts = new Array(maxDims).fill(0);
+  for (let i = 0; i < a.counts.length; i++) counts[i] += a.counts[i];
+  for (let i = 0; i < b.counts.length; i++) counts[i] += b.counts[i];
+  return {
+    counts,
+    totalEntries: a.totalEntries + b.totalEntries,
+  };
+}
+
+/**
+ * Buleyean weight for a dimension: T - min(v_i, T) + 1
+ * Matches the Lean formula. Every dimension gets at least weight 1 (the sliver).
+ */
+export function buleyeanWeight(rounds: number, voidCount: number): number {
+  return rounds - Math.min(voidCount, rounds) + 1;
+}
+
+/**
+ * Check Buleyean positivity: all weights >= 1.
+ * This is guaranteed by construction (the +1 sliver) but verifiable.
+ */
+export function buleyeanPositivity(boundary: VoidBoundary, rounds: number = 0): boolean {
+  const T = rounds > 0 ? rounds : boundary.totalEntries;
+  return boundary.counts.every((v) => buleyeanWeight(T, v) >= 1);
+}
+
+/**
+ * Entangle two VoidBoundaries via a Resonance link.
+ * Returns a Resonance that couples the two boundaries bidirectionally.
+ */
+export function entangleBoundaries(
+  sourceIdx: number,
+  targetIdx: number,
+  strength: number = 0.1,
+): Resonance {
+  return createResonance(sourceIdx, targetIdx, strength, 'entangled void boundaries');
+}
+
+/**
+ * Teleport deficit: returns just the deficit integer from a boundary.
+ * The deficit is totalEntries - sum of minimum weights, capturing
+ * the net irreversibility accumulated.
+ */
+export function teleportDeficit(boundary: VoidBoundary): number {
+  if (boundary.counts.length === 0) return 0;
+  const minCount = Math.min(...boundary.counts);
+  return boundary.totalEntries - minCount * boundary.counts.length;
+}
+
+/**
+ * Compute the Aleph: sufficient statistic scalar capturing full void state.
+ * Combines total entries, entropy of complement distribution, and deficit.
+ */
+export function computeAleph(stack: BoundaryStack): number {
+  const flat = flattenStack(stack);
+  const dist = complementDistribution(flat);
+  const entropy = shannonEntropy(dist);
+  const deficit = teleportDeficit(flat);
+  return flat.totalEntries + entropy + deficit;
+}
+
 // ============================================================================
 // Complement Distribution -- what the void is not
 // ============================================================================

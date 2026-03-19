@@ -1,0 +1,90 @@
+/**
+ * Deficit analysis pass.
+ *
+ * Walks the DAG computing per-node beta1. Identifies subgraphs where
+ * deficit > 0 (wasted parallelism). Emits INFO_DEFICIT_SUBGRAPH diagnostics
+ * with specific fix suggestions.
+ *
+ * The deficit at a node is the local beta1 -- the number of unclosed fork paths
+ * at that point in the topology. THM-ZERO-DEFICIT-PRESERVES-INFORMATION proves
+ * that zero deficit at every layer boundary enables lossless information transport.
+ */
+
+import type { GraphAST, Diagnostic, DiagnosticCode } from './compiler.js';
+
+export interface DeficitNode {
+  nodeId: string;
+  localB1: number;
+  isLeaf: boolean;
+}
+
+export interface DeficitReport {
+  nodes: DeficitNode[];
+  totalDeficit: number;
+  maxDeficit: number;
+  diagnostics: Diagnostic[];
+}
+
+/**
+ * Analyze per-node deficit across the topology DAG.
+ */
+export function analyzeDeficit(ast: GraphAST): DeficitReport {
+  const nodeB1 = new Map<string, number>();
+  const diagnostics: Diagnostic[] = [];
+
+  // Initialize all nodes at 0
+  for (const nodeId of ast.nodes.keys()) {
+    nodeB1.set(nodeId, 0);
+  }
+
+  // Process edges to propagate beta1
+  for (const edge of ast.edges) {
+    const sourceB1 = Math.max(
+      ...edge.sourceIds.map((s) => nodeB1.get(s.trim()) ?? 0)
+    );
+
+    let newB1 = sourceB1;
+    if (edge.type === 'FORK' || edge.type === 'EVOLVE' || edge.type === 'SUPERPOSE') {
+      newB1 = sourceB1 + edge.targetIds.length - 1;
+    } else if (edge.type === 'FOLD' || edge.type === 'COLLAPSE' || edge.type === 'OBSERVE') {
+      newB1 = Math.max(0, sourceB1 - (edge.sourceIds.length - 1));
+    } else if (edge.type === 'RACE' || edge.type === 'INTERFERE') {
+      newB1 = Math.max(0, sourceB1 - Math.max(0, edge.sourceIds.length - edge.targetIds.length));
+    } else if (edge.type === 'VENT') {
+      newB1 = Math.max(0, sourceB1 - 1);
+    }
+
+    for (const t of edge.targetIds) {
+      const existing = nodeB1.get(t.trim()) ?? 0;
+      nodeB1.set(t.trim(), Math.max(existing, newB1));
+    }
+  }
+
+  // Find leaf nodes and compute deficit
+  const nodes: DeficitNode[] = [];
+  let totalDeficit = 0;
+  let maxDeficit = 0;
+
+  for (const [nodeId, b1] of nodeB1) {
+    const hasOutgoing = ast.edges.some((e) =>
+      e.sourceIds.some((s) => s.trim() === nodeId)
+    );
+    const isLeaf = !hasOutgoing;
+
+    nodes.push({ nodeId, localB1: b1, isLeaf });
+
+    if (b1 > 0 && isLeaf) {
+      totalDeficit += b1;
+      if (b1 > maxDeficit) maxDeficit = b1;
+      diagnostics.push({
+        line: 1,
+        column: 1,
+        code: 'INFO_DEFICIT_SUBGRAPH' as DiagnosticCode,
+        message: `Leaf node '${nodeId}' has deficit beta1=${b1}. ${b1} unclosed fork path(s) represent wasted parallelism. Add FOLD or VENT to close paths.`,
+        severity: 'info',
+      });
+    }
+  }
+
+  return { nodes, totalDeficit, maxDeficit, diagnostics };
+}

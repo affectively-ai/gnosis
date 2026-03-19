@@ -19,6 +19,7 @@ import {
 } from './core-cache.js';
 import { injectSensitiveZkEnvelopes } from '../auth/auto-zk.js';
 import type { GnosisHandler, GnosisHandlerContext } from './registry.js';
+import { ExecutionBoundary, type ExecutionBoundarySnapshot } from './execution-boundary.js';
 import {
   cancelConcurrentBranches,
   collectConcurrentOutcomes,
@@ -53,12 +54,14 @@ export interface GnosisEngineExecutionResult {
   logs: string;
   payload: unknown;
   cache?: GnosisEngineExecutionCacheState;
+  void?: ExecutionBoundarySnapshot;
 }
 
 interface GnosisFreshExecutionResult {
   logs: string;
   payload: unknown;
   cacheMetrics: GnosisCoreCacheMetrics;
+  voidSnapshot: ExecutionBoundarySnapshot;
 }
 
 function createEmptyCacheMetrics(): GnosisCoreCacheMetrics {
@@ -78,6 +81,7 @@ export class GnosisEngine {
   private onEdgeEvaluated: ((edge: ASTEdge) => Promise<void> | void) | null;
   private runtimeExecutionAuth: GnosisExecutionAuthContext | null = null;
   private readonly runtimeCoreCache: GnosisCoreCache | null;
+  private executionBoundary: ExecutionBoundary = new ExecutionBoundary();
 
   constructor(registry?: GnosisRegistry, options: GnosisEngineOptions = {}) {
     this.registry = registry || new GnosisRegistry();
@@ -134,6 +138,7 @@ export class GnosisEngine {
       return {
         logs: result.logs,
         payload: result.payload,
+        void: result.voidSnapshot,
       };
     }
 
@@ -148,6 +153,7 @@ export class GnosisEngine {
         logs: result.logs,
         payload: result.payload,
         cache: this.buildCacheState('bypass', cacheSession),
+        void: result.voidSnapshot,
       };
     }
 
@@ -192,6 +198,7 @@ export class GnosisEngine {
           logs: result.logs,
           payload: result.payload,
           cache: this.buildCacheState('miss', cacheSession),
+          void: result.voidSnapshot,
         };
       } catch (error) {
         this.runtimeCoreCache.fail(cacheSession, error);
@@ -211,6 +218,7 @@ export class GnosisEngine {
       logs: result.logs,
       payload: result.payload,
       cache: this.buildCacheState('miss', cacheSession),
+      void: result.voidSnapshot,
     };
   }
 
@@ -228,6 +236,7 @@ export class GnosisEngine {
     const autoInjected = injectSensitiveZkEnvelopes(ast);
     const activeAst = autoInjected.ast;
     this.tracker = new ReynoldsTracker(activeAst.nodes.size || 128);
+    this.executionBoundary = new ExecutionBoundary();
     const execLogs: string[] = ['\n[Gnosis Engine Execution]'];
     if (autoInjected.injected.length > 0) {
       execLogs.push(
@@ -389,6 +398,11 @@ export class GnosisEngine {
           )}] -> [${edge.targetIds.join(',')}]`
         );
 
+        // FORK: initialize void boundary dimensions
+        if (edge.type === 'FORK' || edge.type === 'EVOLVE' || edge.type === 'SUPERPOSE') {
+          this.executionBoundary.fork(edge.targetIds.length);
+        }
+
         let activeTargets = [...edge.targetIds];
 
         // 1. EVOLVE corollary: Dynamic Scaling based on Reynolds Number
@@ -514,6 +528,7 @@ export class GnosisEngine {
 
       if (edge.type === 'VENT') {
         execLogs.push(`  -> VENTING path: ${edge.sourceIds[0]}`);
+        this.executionBoundary.vent();
       }
 
       // LAMINAR: hella-whipped pipeline — self-contained fork/race/fold
@@ -602,6 +617,7 @@ export class GnosisEngine {
       logs: execLogs.join('\n'),
       payload: currentPayload,
       cacheMetrics,
+      voidSnapshot: this.executionBoundary.snapshot(),
     };
   }
 
@@ -1216,7 +1232,7 @@ export class GnosisEngine {
           lastWinnerPath: winnerTarget,
         });
 
-        // Update tracker
+        // Update tracker and void boundary
         for (let i = 0; i < activeTargets.length; i++) {
           const sid = streamCounter + i;
           const status =
@@ -1225,6 +1241,9 @@ export class GnosisEngine {
             sid,
             i === raceResult.winnerIndex ? 'completed' : 'vented'
           );
+          if (i !== raceResult.winnerIndex) {
+            this.executionBoundary.raceLoser(i);
+          }
           outcomes.push({
             path: activeTargets[i],
             sid,
@@ -1549,6 +1568,12 @@ export class GnosisEngine {
 
     if (resolution.winner) {
       execLogs.push(`   Race concluded! Winner: ${resolution.winner.path}`);
+      // Record losers in void boundary
+      for (let i = 0; i < resolution.outcomes.length; i++) {
+        if (resolution.outcomes[i].path !== resolution.winner.path) {
+          this.executionBoundary.raceLoser(i);
+        }
+      }
       this.recordCacheMetrics(cacheMetrics, {
         collapseCount: 1,
         firstSufficientCount: 1,
@@ -1638,6 +1663,12 @@ export class GnosisEngine {
     }
 
     const payload = this.mergeFoldOutcomes([...resolution.outcomes], policy);
+    // FOLD: merge all successful branch boundaries (each contributes a vent for failed branches)
+    for (const outcome of resolution.outcomes) {
+      if (outcome.status !== 'success') {
+        this.executionBoundary.vent();
+      }
+    }
     execLogs.push(
       `   Folded result: ${JSON.stringify(payload).substring(0, 50)}...`
     );

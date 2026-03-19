@@ -65,7 +65,14 @@ export type DiagnosticCode =
   | 'ERR_COARSENING_SERVICE_NOT_POSITIVE'
   | 'ERR_COARSENING_DRIFT_POSITIVE'
   | 'ERR_COARSENING_SYMBOLIC_RATE'
-  | 'ERR_DEFICIT_NONZERO';
+  | 'ERR_DEFICIT_NONZERO'
+  | 'THERMO_FIRST_LAW_VIOLATED'
+  | 'BULE_POSITIVITY_VIOLATED'
+  | 'BULE_EXHAUSTIVENESS_INCOMPLETE'
+  | 'INFO_DEFICIT_SUBGRAPH'
+  | 'ENTANGLE_DIM_MISMATCH'
+  | 'ALEPH_INCOMPLETE'
+  | 'ENTROPY_REVERSAL_DETECTED';
 
 export interface GraphAST {
   nodes: Map<string, ASTNode>;
@@ -81,6 +88,15 @@ export interface BettyParseResult {
   stability: StabilityReport | null;
   optimizer: OptimizerResult | null;
   coarseningSynthesis: CoarseningSynthesisResult | null;
+  voidDimensions: number;
+  landauerHeat: number;
+  deficit: DeficitAnalysis | null;
+}
+
+export interface DeficitAnalysis {
+  perNode: Map<string, number>;
+  totalDeficit: number;
+  diagnostics: Diagnostic[];
 }
 
 const NATIVE_TAGGED_NODE_CASES: Record<string, readonly string[]> = {
@@ -185,6 +201,9 @@ export class BettyCompiler {
         stability: null,
         optimizer: null,
         coarseningSynthesis: null,
+        voidDimensions: 0,
+        landauerHeat: 0,
+        deficit: null,
       };
 
     this.logs = [];
@@ -449,6 +468,29 @@ export class BettyCompiler {
       }
     }
 
+    // Phase 1: Compute void dimensions (sum of FORK branch counts)
+    const voidDimensions = this.computeVoidDimensions();
+
+    // Phase 2: Compute Landauer heat and check first law
+    const landauerHeat = this.computeLandauerHeat();
+    this.checkFirstLaw();
+
+    // Phase 3: Buleyean positivity checks
+    this.checkBuleyeanPositivity();
+
+    // Phase 4: Per-subgraph deficit analysis
+    const deficit = this.computeDeficitAnalysis();
+
+    // Phase 5: Entanglement dimension check
+    this.checkEntangleDimensions();
+
+    // Phase 6: Self-verification annotations
+    this.checkSelfVerificationAnnotations();
+
+    // Phase 7: Aleph completeness + entropy reversal
+    this.checkAlephCompleteness();
+    this.checkEntropyReversal();
+
     const buleyMeasure = this.getBuleyMeasurement();
     const spectralSummary =
       this.stability?.spectralRadius !== null &&
@@ -474,6 +516,9 @@ export class BettyCompiler {
       stability: this.stability,
       optimizer: this.optimizerResult,
       coarseningSynthesis: this.coarseningSynthesisResult,
+      voidDimensions,
+      landauerHeat,
+      deficit,
     };
   }
 
@@ -1335,6 +1380,400 @@ export class BettyCompiler {
         message: `Topology has final β₁=${this.b1} (${this.b1} unclosed fork path(s)). For optimal throughput (THM-SERVER-OPTIMALITY), all fork paths should collapse to β₁=0 at the topology boundary.`,
         severity: 'warning',
       });
+    }
+  }
+
+  // ============================================================================
+  // Phase 1: Void Dimensions
+  // ============================================================================
+
+  private computeVoidDimensions(): number {
+    let dims = 0;
+    for (const edge of this.ast.edges) {
+      if (edge.type === 'FORK' || edge.type === 'EVOLVE' || edge.type === 'SUPERPOSE') {
+        dims += edge.targetIds.length;
+      }
+    }
+    return dims;
+  }
+
+  // ============================================================================
+  // Phase 2: Landauer Heat and First Law
+  // ============================================================================
+
+  private computeLandauerHeat(): number {
+    let heat = 0;
+    for (const edge of this.ast.edges) {
+      if (edge.type === 'FOLD' || edge.type === 'COLLAPSE') {
+        heat += Math.log2(Math.max(1, edge.sourceIds.length));
+      } else if (edge.type === 'VENT') {
+        heat += 1;
+      }
+    }
+    return heat;
+  }
+
+  private checkFirstLaw(): void {
+    // Fork entropy = sum of log2(targets) for each FORK
+    let forkEntropy = 0;
+    for (const edge of this.ast.edges) {
+      if (edge.type === 'FORK' || edge.type === 'EVOLVE' || edge.type === 'SUPERPOSE') {
+        forkEntropy += Math.log2(Math.max(1, edge.targetIds.length));
+      }
+    }
+
+    // Erasure = Landauer heat (fold + vent)
+    const erasure = this.computeLandauerHeat();
+
+    // First law: fork entropy >= erasure (conservation of information)
+    if (forkEntropy > 0 && erasure > 0 && forkEntropy < erasure - 1e-9) {
+      this.diagnostics.push({
+        line: 1,
+        column: 1,
+        code: 'THERMO_FIRST_LAW_VIOLATED',
+        message: `First law violated: fork entropy (${forkEntropy.toFixed(3)}) < erasure cost (${erasure.toFixed(3)}). More information is being erased than was created. Add FORK paths or remove FOLD/VENT edges.`,
+        severity: 'warning',
+      });
+    }
+  }
+
+  // ============================================================================
+  // Phase 3: Buleyean Positivity
+  // ============================================================================
+
+  private checkBuleyeanPositivity(): void {
+    for (const edge of this.ast.edges) {
+      if (edge.type !== 'FOLD' && edge.type !== 'COLLAPSE') continue;
+
+      // Check bule property on nodes
+      for (const sourceId of edge.sourceIds) {
+        const node = this.ast.nodes.get(sourceId.trim());
+        if (!node) continue;
+        const buleRaw = node.properties.bule;
+        if (buleRaw === undefined) continue;
+        const bule = Number(buleRaw);
+        if (Number.isFinite(bule) && bule <= 0) {
+          this.diagnostics.push({
+            line: 1,
+            column: 1,
+            code: 'BULE_POSITIVITY_VIOLATED',
+            message: `Node '${node.id}' has bule=${buleRaw} (non-positive). Buleyean positivity requires all convergence degrees > 0. The sliver guarantee ensures no fold produces probability zero.`,
+            severity: 'error',
+          });
+        }
+      }
+    }
+
+    // Check exhaustiveness for tagged types -- unvented variants violate the sliver
+    for (const node of this.ast.nodes.values()) {
+      const taggedDef = this.resolveTaggedNodeDefinition(node);
+      if (!taggedDef || taggedDef.expectedCases.length === 0) continue;
+
+      const outgoingEdges = this.ast.edges.filter((e) =>
+        e.sourceIds.some((s) => s.trim() === node.id)
+      );
+      const ventedCases = new Set<string>();
+      const foldedCases = new Set<string>();
+      for (const e of outgoingEdges) {
+        const cases = this.extractTaggedCases(e);
+        if (e.type === 'VENT') cases.forEach((c) => ventedCases.add(c));
+        if (e.type === 'FOLD' || e.type === 'COLLAPSE') cases.forEach((c) => foldedCases.add(c));
+      }
+
+      // Unvented variants that also aren't folded means the sliver is broken
+      const unhandled = taggedDef.expectedCases.filter(
+        (c) => !ventedCases.has(c) && !foldedCases.has(c)
+      );
+      if (unhandled.length > 0 && outgoingEdges.length > 0) {
+        // Only warn if there are case-aware edges (otherwise exhaustiveness checker handles it)
+        const hasCaseEdges = outgoingEdges.some((e) => this.extractTaggedCases(e).length > 0);
+        if (hasCaseEdges) {
+          this.diagnostics.push({
+            line: 1,
+            column: 1,
+            code: 'BULE_EXHAUSTIVENESS_INCOMPLETE',
+            message: `${taggedDef.label} node '${node.id}' has unhandled variants: ${unhandled.join(', ')}. Unvented variants violate the Buleyean sliver guarantee.`,
+            severity: 'warning',
+          });
+        }
+      }
+    }
+  }
+
+  // ============================================================================
+  // Phase 4: Per-Subgraph Deficit Analysis
+  // ============================================================================
+
+  private computeDeficitAnalysis(): DeficitAnalysis | null {
+    if (this.ast.edges.length === 0) return null;
+
+    const perNode = new Map<string, number>();
+    const deficitDiags: Diagnostic[] = [];
+
+    // Walk DAG computing per-node beta1
+    const nodeB1 = new Map<string, number>();
+    for (const nodeId of this.ast.nodes.keys()) {
+      nodeB1.set(nodeId, 0);
+    }
+
+    // Process edges in order to accumulate beta1 per node
+    for (const edge of this.ast.edges) {
+      const sourceB1 = Math.max(...edge.sourceIds.map((s) => nodeB1.get(s.trim()) ?? 0));
+
+      if (edge.type === 'FORK' || edge.type === 'EVOLVE' || edge.type === 'SUPERPOSE') {
+        const newB1 = sourceB1 + edge.targetIds.length - 1;
+        for (const t of edge.targetIds) {
+          nodeB1.set(t.trim(), newB1);
+        }
+      } else if (edge.type === 'FOLD' || edge.type === 'COLLAPSE' || edge.type === 'OBSERVE') {
+        const newB1 = Math.max(0, sourceB1 - (edge.sourceIds.length - 1));
+        for (const t of edge.targetIds) {
+          nodeB1.set(t.trim(), newB1);
+        }
+      } else if (edge.type === 'RACE' || edge.type === 'INTERFERE') {
+        const newB1 = Math.max(0, sourceB1 - Math.max(0, edge.sourceIds.length - edge.targetIds.length));
+        for (const t of edge.targetIds) {
+          nodeB1.set(t.trim(), newB1);
+        }
+      } else if (edge.type === 'VENT') {
+        const newB1 = Math.max(0, sourceB1 - 1);
+        for (const t of edge.targetIds) {
+          nodeB1.set(t.trim(), newB1);
+        }
+      } else {
+        for (const t of edge.targetIds) {
+          nodeB1.set(t.trim(), sourceB1);
+        }
+      }
+    }
+
+    let totalDeficit = 0;
+    for (const [nodeId, b1] of nodeB1) {
+      perNode.set(nodeId, b1);
+      if (b1 > 0) {
+        // Check if this is a leaf node (no outgoing edges)
+        const hasOutgoing = this.ast.edges.some((e) =>
+          e.sourceIds.some((s) => s.trim() === nodeId)
+        );
+        if (!hasOutgoing) {
+          totalDeficit += b1;
+          deficitDiags.push({
+            line: 1,
+            column: 1,
+            code: 'INFO_DEFICIT_SUBGRAPH',
+            message: `Node '${nodeId}' has deficit beta1=${b1} (${b1} unclosed fork path(s)). Add FOLD or VENT to close paths.`,
+            severity: 'info',
+          });
+        }
+      }
+    }
+
+    this.diagnostics.push(...deficitDiags);
+
+    return {
+      perNode,
+      totalDeficit,
+      diagnostics: deficitDiags,
+    };
+  }
+
+  // ============================================================================
+  // Phase 5: Entanglement Dimension Check
+  // ============================================================================
+
+  private checkEntangleDimensions(): void {
+    for (const edge of this.ast.edges) {
+      if (edge.type !== 'ENTANGLE') continue;
+
+      // Check that entangled nodes have compatible dimensionality
+      const sourceDims = new Set<number>();
+      const targetDims = new Set<number>();
+
+      for (const s of edge.sourceIds) {
+        const node = this.ast.nodes.get(s.trim());
+        if (node?.properties.dimensions) {
+          sourceDims.add(Number(node.properties.dimensions));
+        }
+      }
+      for (const t of edge.targetIds) {
+        const node = this.ast.nodes.get(t.trim());
+        if (node?.properties.dimensions) {
+          targetDims.add(Number(node.properties.dimensions));
+        }
+      }
+
+      // If both sides declare dimensions, they must match
+      if (sourceDims.size > 0 && targetDims.size > 0) {
+        const allDims = new Set([...sourceDims, ...targetDims]);
+        if (allDims.size > 1) {
+          this.diagnostics.push({
+            line: 1,
+            column: 1,
+            code: 'ENTANGLE_DIM_MISMATCH',
+            message: `ENTANGLE from [${edge.sourceIds.join(', ')}] to [${edge.targetIds.join(', ')}] links nodes with different void dimensionalities: ${[...allDims].join(', ')}. Entangled boundaries must have the same dimensions.`,
+            severity: 'error',
+          });
+        }
+      }
+    }
+  }
+
+  // ============================================================================
+  // Phase 6: Self-Verification Annotations
+  // ============================================================================
+
+  private checkSelfVerificationAnnotations(): void {
+    const validVerify = new Set([
+      'positivity', 'convergence', 'conservation', 'deficit_zero', 'first_law',
+    ]);
+
+    for (const edge of this.ast.edges) {
+      const verify = edge.properties.verify;
+      if (!verify) continue;
+
+      if (!validVerify.has(verify)) {
+        this.diagnostics.push({
+          line: 1,
+          column: 1,
+          message: `Unknown verify annotation '${verify}' on ${edge.type} edge. Expected one of: ${[...validVerify].join(', ')}.`,
+          severity: 'error',
+        });
+        continue;
+      }
+
+      // Route to appropriate check
+      if (verify === 'positivity') {
+        // Check that all source branches have positive Buleyean weight
+        for (const sourceId of edge.sourceIds) {
+          const node = this.ast.nodes.get(sourceId.trim());
+          if (node?.properties.bule) {
+            const bule = Number(node.properties.bule);
+            if (Number.isFinite(bule) && bule <= 0) {
+              this.diagnostics.push({
+                line: 1,
+                column: 1,
+                code: 'BULE_POSITIVITY_VIOLATED',
+                message: `verify: 'positivity' failed: node '${node.id}' has bule=${bule} <= 0.`,
+                severity: 'error',
+              });
+            }
+          }
+        }
+      } else if (verify === 'deficit_zero') {
+        // Check that beta1 at this edge is zero
+        if (this.b1 > 0) {
+          this.diagnostics.push({
+            line: 1,
+            column: 1,
+            code: 'ERR_DEFICIT_NONZERO',
+            message: `verify: 'deficit_zero' failed: beta1=${this.b1} at ${edge.type} edge from [${edge.sourceIds.join(', ')}].`,
+            severity: 'error',
+          });
+        }
+      } else if (verify === 'first_law') {
+        // Already checked globally, make it an error here
+        let forkEntropy = 0;
+        for (const e of this.ast.edges) {
+          if (e.type === 'FORK') forkEntropy += Math.log2(Math.max(1, e.targetIds.length));
+        }
+        const erasure = this.computeLandauerHeat();
+        if (forkEntropy > 0 && forkEntropy < erasure - 1e-9) {
+          this.diagnostics.push({
+            line: 1,
+            column: 1,
+            code: 'THERMO_FIRST_LAW_VIOLATED',
+            message: `verify: 'first_law' failed: fork entropy (${forkEntropy.toFixed(3)}) < erasure (${erasure.toFixed(3)}).`,
+            severity: 'error',
+          });
+        }
+      }
+      // convergence and conservation are handled by existing checks
+    }
+  }
+
+  // ============================================================================
+  // Phase 7: Aleph and Entropy Reversal
+  // ============================================================================
+
+  private checkAlephCompleteness(): void {
+    for (const node of this.ast.nodes.values()) {
+      if (!node.labels.some((l) => l === 'Aleph')) continue;
+
+      // Verify Aleph node receives all upstream void data
+      const incomingEdges = this.ast.edges.filter((e) =>
+        e.targetIds.some((t) => t.trim() === node.id)
+      );
+
+      if (incomingEdges.length === 0) {
+        this.diagnostics.push({
+          line: 1,
+          column: 1,
+          code: 'ALEPH_INCOMPLETE',
+          message: `Aleph node '${node.id}' has no incoming edges. The Aleph must receive all upstream void data to compute the sufficient statistic.`,
+          severity: 'error',
+        });
+        continue;
+      }
+
+      // Check that all fork paths eventually reach the Aleph
+      const forkTargets = new Set<string>();
+      for (const edge of this.ast.edges) {
+        if (edge.type === 'FORK') {
+          edge.targetIds.forEach((t) => forkTargets.add(t.trim()));
+        }
+      }
+
+      if (forkTargets.size > 0) {
+        const alephSources = new Set<string>();
+        const collectUpstream = (nodeId: string, visited: Set<string>): void => {
+          if (visited.has(nodeId)) return;
+          visited.add(nodeId);
+          alephSources.add(nodeId);
+          const incoming = this.ast.edges.filter((e) =>
+            e.targetIds.some((t) => t.trim() === nodeId)
+          );
+          for (const e of incoming) {
+            for (const s of e.sourceIds) {
+              collectUpstream(s.trim(), visited);
+            }
+          }
+        };
+        collectUpstream(node.id, new Set());
+
+        const unreachedForks = [...forkTargets].filter((t) => !alephSources.has(t));
+        if (unreachedForks.length > 0) {
+          this.diagnostics.push({
+            line: 1,
+            column: 1,
+            code: 'ALEPH_INCOMPLETE',
+            message: `Aleph node '${node.id}' does not receive void data from fork branches: ${unreachedForks.join(', ')}. The sufficient statistic requires all upstream void data.`,
+            severity: 'warning',
+          });
+        }
+      }
+    }
+  }
+
+  private checkEntropyReversal(): void {
+    // Detect METACOG loops where entropy might reverse
+    const metacogEdges = this.ast.edges.filter((e) => e.type === 'METACOG');
+    for (const edge of metacogEdges) {
+      // A METACOG edge that targets a node which also sources a FORK
+      // could cause entropy reversal (information creation in a feedback loop)
+      for (const targetId of edge.targetIds) {
+        const downstream = this.ast.edges.filter((e) =>
+          e.sourceIds.some((s) => s.trim() === targetId.trim()) && e.type === 'FORK'
+        );
+        if (downstream.length > 0) {
+          this.diagnostics.push({
+            line: 1,
+            column: 1,
+            code: 'ENTROPY_REVERSAL_DETECTED',
+            message: `METACOG loop at '${targetId.trim()}' feeds into FORK, creating potential entropy reversal. The feedback loop may create information faster than the void boundary can accumulate rejections.`,
+            severity: 'info',
+          });
+        }
+      }
     }
   }
 

@@ -548,10 +548,57 @@ export class OptimizationPassManager {
 
 // ─── Default optimizer ───────────────────────────────────────────────
 
+// ─── Self-verification pass (THM-IRREVERSIBILITY-FRAMEWORK) ─────────
+
+class SelfVerificationPass implements OptimizationPass {
+  readonly name = 'self-verification';
+  readonly theoremId = 'THM-IRREVERSIBILITY-FRAMEWORK';
+  readonly priority = 40;
+  readonly kind = 'analyze' as const;
+
+  predicate(ast: GraphAST): boolean {
+    return ast.edges.some((e) => e.properties.verify !== undefined);
+  }
+
+  apply(ast: GraphAST): OptimizationPassResult {
+    const annotations: { edge: ASTEdge; verify: string }[] = [];
+    for (const edge of ast.edges) {
+      if (edge.properties.verify) {
+        annotations.push({ edge, verify: edge.properties.verify });
+      }
+    }
+
+    return {
+      ast,
+      diagnostics: [],
+      certificates: annotations.length > 0
+        ? [
+            {
+              passName: this.name,
+              theoremId: this.theoremId,
+              leanTheoremName: 'self_verification_collected',
+              summary: `Collected ${annotations.length} verify annotation(s): ${annotations.map((a) => a.verify).join(', ')}`,
+              data: {
+                annotations: annotations.map((a) => ({
+                  type: a.edge.type,
+                  verify: a.verify,
+                  sources: a.edge.sourceIds,
+                  targets: a.edge.targetIds,
+                })),
+              },
+            },
+          ]
+        : [],
+      applied: annotations.length > 0,
+    };
+  }
+}
+
 export function createDefaultOptimizer(): OptimizationPassManager {
   const manager = new OptimizationPassManager();
   manager.register(new CoarseningPass());
   manager.register(new CodecRacingPass());
   manager.register(new WarmupEfficiencyPass());
+  manager.register(new SelfVerificationPass());
   return manager;
 }
