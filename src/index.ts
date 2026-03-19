@@ -478,6 +478,63 @@ export {
 } from './continuous-harris.js';
 export { registerContinuousHarrisHandlers, HARRIS_KERNEL_FAMILIES } from './continuous-harris-handlers.js';
 
+// Thermodynamics — Landauer erasure + Boltzmann as void walking
+export {
+  K_BOLTZMANN,
+  landauerLimit,
+  type ThermodynamicState,
+  type ErasureEvent,
+  type ForkEvent,
+  type FoldEvent,
+  type SecondLawCheck,
+  type HeatEngineMetrics,
+  createThermodynamicState,
+  refreshPotentials,
+  boltzmannDistribution,
+  gibbsEntropy,
+  verifyFreeEnergyIdentity,
+  recordErasure,
+  recordFork as thermodynamicFork,
+  recordFold as thermodynamicFold,
+  checkSecondLaw,
+  analyzeHeatEngine,
+  crooksRatio,
+  jarzynskiAverage,
+} from './thermodynamic.js';
+export { registerThermodynamicHandlers, THERMODYNAMIC_IDENTIFICATIONS } from './thermodynamic-handlers.js';
+
+// Traced Monoidal Category — fork/race/fold as string diagrams
+export {
+  type CatObject,
+  type Morphism,
+  type MorphismKind,
+  type CoherenceCheck,
+  type StringDiagram,
+  catObject, UNIT,
+  identity as catIdentity,
+  process as catProcess,
+  fork as catFork,
+  fold as catFold,
+  race as catRace,
+  vent as catVent,
+  symmetry as catSymmetry,
+  compose as catCompose,
+  tensor as catTensor,
+  trace as catTrace,
+  checkAssociativity,
+  checkLeftUnit,
+  checkRightUnit,
+  checkSymmetryInvolution,
+  checkVanishing,
+  checkYanking,
+  verifyCoherence,
+  buildStringDiagram,
+  diagramBeta1,
+  isDiagramClosed,
+  edgeToMorphism,
+} from './traced-monoidal.js';
+export { registerTracedMonoidalHandlers, COHERENCE_CONDITIONS } from './traced-monoidal-handlers.js';
+
 // Chaitin-Omega — computability-theoretic void boundary
 export {
   type HaltingClassifier,
