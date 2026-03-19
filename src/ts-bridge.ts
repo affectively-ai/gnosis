@@ -800,13 +800,17 @@ function collectTopLevelRuntimeStatements(
     }
 
     for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name)) {
+        continue;
+      }
+
+      topLevelBindingNames.add(declaration.name.text);
+
       if (
-        ts.isIdentifier(declaration.name) &&
         declaration.initializer &&
         (ts.isArrowFunction(declaration.initializer) ||
           ts.isFunctionExpression(declaration.initializer))
       ) {
-        topLevelBindingNames.add(declaration.name.text);
         functionStatementsByName.set(declaration.name.text, statement);
       }
     }
