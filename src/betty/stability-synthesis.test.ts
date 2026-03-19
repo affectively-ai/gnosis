@@ -58,7 +58,7 @@ describe('synthesizeLyapunov', () => {
     const result = synthesizeLyapunov(node, 'custom-potential', 'polynomial', defaultDriftData);
     expect(result.template).toBe('polynomial');
     expect(result.degree).toBe(2);
-    expect(result.coefficients).toEqual([0.1, 0.5, 0.2]);
+    expect(result.coefficients).toEqual([0.1, 0.5, 0.2, 0]);
   });
 
   it('produces log-barrier template V(x) = c * log(1 + x)', () => {

@@ -820,4 +820,41 @@ describe('generateLeanFromGnosisAst', () => {
       'explicit minorization_epsilon property'
     );
   });
+
+  it('emits product Lyapunov for two coupled continuous state nodes', () => {
+    const compiler = new BettyCompiler();
+    const { ast, stability } = compiler.parse(`
+      (source:Source { pressure: "5" })
+      (fluid:State { potential: "fluid_x", observable_kind: "fluid-backlog", observable_scale: "2", observable_offset: "0.5", drift_gap: "1", state_space: "continuous-positive", lyapunov_template: "quadratic", lyapunov_coefficients: "0.5,0.1" })
+      (thermal:State { potential: "thermal_y", observable_kind: "thermal-load", observable_scale: "3", observable_offset: "1", drift_gap: "2", state_space: "continuous-unbounded", lyapunov_template: "affine" })
+      (sink:Sink { beta1_target: "0", capacity: "50" })
+      (source)-[:FORK { weight: "1.0" }]->(fluid)
+      (fluid)-[:PROCESS]->(thermal)
+      (fluid)-[:FOLD { service_rate: "6", drift_gamma: "1.0" }]->(sink)
+      (thermal)-[:FOLD { service_rate: "8", drift_gamma: "2.0" }]->(sink)
+      (fluid)-[:VENT { drift_coefficient: "alpha(n)", repair_debt: "0" }]->(sink)
+      (thermal)-[:VENT { drift_coefficient: "beta(n)", repair_debt: "0" }]->(sink)
+    `);
+
+    expect(stability).not.toBeNull();
+    expect(stability?.productLyapunov).not.toBeNull();
+    expect(stability?.productLyapunov?.components).toHaveLength(2);
+    expect(stability?.productLyapunov?.productDriftGap).toBeGreaterThan(0);
+
+    const artifact = generateLeanFromGnosisAst(ast, stability, {
+      sourceFilePath: '/tmp/product_lyapunov.gg',
+    });
+
+    expect(artifact).not.toBeNull();
+    expect(artifact?.lean).toContain('product-lyapunov: 2 components');
+    expect(artifact?.lean).toContain('Product Lyapunov Composition');
+    expect(artifact?.lean).toContain('productLyapunov');
+    expect(artifact?.lean).toContain('productSmallSet');
+    expect(artifact?.lean).toContain('productV1');
+    expect(artifact?.lean).toContain('productV2');
+    expect(artifact?.lean).toContain('ProductLyapunovWitness');
+    expect(artifact?.lean).toContain('measurable_productLyapunov');
+    expect(artifact?.lean).toContain('measurableSet_productSmallSet');
+    expect(artifact?.lean).toContain('productLyapunovWitness_of_components');
+  });
 });

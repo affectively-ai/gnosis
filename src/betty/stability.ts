@@ -34,6 +34,7 @@ const FORK_EDGE_TYPES = new Set(['FORK', 'EVOLVE', 'SUPERPOSE', 'ENTANGLE']);
 const COLLAPSE_EDGE_TYPES = new Set(['FOLD', 'COLLAPSE', 'OBSERVE']);
 const VENT_EDGE_TYPES = new Set(['VENT', 'TUNNEL']);
 const RACE_EDGE_TYPES = new Set(['RACE']);
+const PROCESS_EDGE_TYPES = new Set(['PROCESS', 'EVOLVE', 'SUPERPOSE', 'ENTANGLE']);
 const DEFAULT_SMALL_SOURCE_PRESSURE = 1;
 const POWER_ITERATION_STEPS = 24;
 const EPSILON = 1e-6;
@@ -70,6 +71,24 @@ export interface MinorizationSynthesis {
   measureKind: 'dirac' | 'uniform-on-small-set' | 'lebesgue-restricted';
   leanMeasureExpression: string;
   derivedFrom: string;
+}
+
+export interface ProductLyapunovComponent {
+  stateNodeId: string;
+  weight: number;
+  lyapunovSynthesis: LyapunovSynthesis;
+  smallSetDiscovery: SmallSetDiscovery;
+  driftGap: number;
+}
+
+export interface ProductLyapunovWitness {
+  components: ProductLyapunovComponent[];
+  productDriftGap: number;
+  productSmallSetExpression: string;
+  productLyapunovExpression: string;
+  leanProductLyapunovExpression: string;
+  leanProductSmallSetExpression: string;
+  theoremName: string;
 }
 
 export interface StabilityKernelEdge {
@@ -218,6 +237,7 @@ export interface StabilityMetadata {
   laminarAtom: number | null;
   queuePotential: string | null;
   continuousHarris: StabilityContinuousHarrisWitness | null;
+  productLyapunov: ProductLyapunovWitness | null;
   heteroMoAFabrics?: StabilityHeteroMoAFabricWitness[];
 }
 
@@ -230,6 +250,7 @@ export interface StabilityReport {
   smallSetNodeIds: string[];
   countableQueue: StabilityCountableQueueWitness | null;
   continuousHarris: StabilityContinuousHarrisWitness | null;
+  productLyapunov: ProductLyapunovWitness | null;
   recurrence: StabilityRecurrenceWitness;
   harrisRecurrent: boolean;
   ventIsolationOk: boolean;
@@ -1602,21 +1623,24 @@ export function synthesizeLyapunov(
       };
     }
     case 'polynomial': {
-      const coeffs = explicitCoeffs.length >= 2 ? explicitCoeffs : [scale, 0, offset];
+      const rawCoeffs = explicitCoeffs.length >= 2 ? explicitCoeffs : [scale, 0, offset];
+      // Pad to exactly four coefficients for realPolynomialObservable(c0, c1, c2, c3)
+      const coeffs = [
+        rawCoeffs[0] ?? 0,
+        rawCoeffs[1] ?? 0,
+        rawCoeffs[2] ?? 0,
+        rawCoeffs[3] ?? 0,
+      ];
       const terms = coeffs.map((c, i) =>
         i === 0 ? formatObservableNumber(c)
           : `${formatObservableNumber(c)} * x^${i}`
-      );
-      const leanTerms = coeffs.map((c, i) =>
-        i === 0 ? formatObservableNumber(c)
-          : `${formatObservableNumber(c)} * x ^ ${i}`
-      );
+      ).filter((_, i) => Math.abs(coeffs[i]) > EPSILON || i === 0);
       return {
         template: 'polynomial',
-        degree: Math.max(1, coeffs.length - 1),
+        degree: Math.max(1, rawCoeffs.length - 1),
         coefficients: coeffs,
         expression: terms.join(' + '),
-        leanExpression: `fun x => ${leanTerms.join(' + ')}`,
+        leanExpression: `fun x => ${formatObservableNumber(coeffs[0])} + ${formatObservableNumber(coeffs[1])} * x + ${formatObservableNumber(coeffs[2])} * x ^ 2 + ${formatObservableNumber(coeffs[3])} * x ^ 3`,
         driftBound: `-(${formatObservableNumber(driftData.driftGap)})`,
       };
     }
@@ -1779,6 +1803,102 @@ export function synthesizeMinorization(
       };
     }
   }
+}
+
+function buildProductLyapunovWitness(
+  ast: GraphAST,
+  continuousHarris: StabilityContinuousHarrisWitness | null,
+  theoremName: string
+): ProductLyapunovWitness | null {
+  // Find all continuous state nodes (non-countable state_space with synthesis data)
+  const continuousStateNodes = [...ast.nodes.values()].filter((node) => {
+    const ssKind = normalizeStateSpaceKind(node.properties.state_space);
+    return ssKind !== 'countable' && node.properties.drift_gap;
+  });
+
+  if (continuousStateNodes.length < 2) {
+    return null;
+  }
+
+  // Check for PROCESS edges connecting continuous state nodes
+  const continuousNodeIds = new Set(continuousStateNodes.map((n) => n.id));
+  const hasProcessEdge = ast.edges.some((edge) => {
+    if (!PROCESS_EDGE_TYPES.has(edge.type.toUpperCase())) return false;
+    const sourceMatch = edge.sourceIds.some((id) => continuousNodeIds.has(id.trim()));
+    const targetMatch = edge.targetIds.some((id) => continuousNodeIds.has(id.trim()));
+    return sourceMatch && targetMatch;
+  });
+
+  // Also detect implicit coupling via shared SINK/FOLD targets
+  const hasCoupledSink = (() => {
+    const sinkTargets = new Map<string, string[]>();
+    for (const edge of ast.edges) {
+      if (!COLLAPSE_EDGE_TYPES.has(edge.type.toUpperCase())) continue;
+      for (const targetId of edge.targetIds) {
+        for (const sourceId of edge.sourceIds) {
+          if (continuousNodeIds.has(sourceId.trim())) {
+            const existing = sinkTargets.get(targetId.trim()) ?? [];
+            existing.push(sourceId.trim());
+            sinkTargets.set(targetId.trim(), existing);
+          }
+        }
+      }
+    }
+    return [...sinkTargets.values()].some((sources) => sources.length >= 2);
+  })();
+
+  if (!hasProcessEdge && !hasCoupledSink) {
+    return null;
+  }
+
+  // Synthesize per-component Lyapunov data
+  const components: ProductLyapunovComponent[] = [];
+  for (const node of continuousStateNodes) {
+    const ssKind = normalizeStateSpaceKind(node.properties.state_space);
+    const template = normalizeLyapunovTemplate(node.properties.lyapunov_template);
+    const obsKind = normalizeObservableKind(node.properties.observable_kind)
+      ?? inferContinuousObservableKind(node, node.properties.potential ?? 'x');
+    const scale = parseFinite(node.properties.observable_scale) ?? 1;
+    const offset = parseFinite(node.properties.observable_offset) ?? 0;
+    const dg = parseFinite(node.properties.drift_gap) ?? 1;
+    if (dg <= 0 || scale <= 0) continue;
+
+    const lyapSynthesis = synthesizeLyapunov(node, obsKind, template, { scale, offset, driftGap: dg });
+    const smallSetDisc = discoverSmallSet(ast, lyapSynthesis, node, ast.edges);
+
+    components.push({
+      stateNodeId: node.id,
+      weight: 1, // equal weighting by default
+      lyapunovSynthesis: lyapSynthesis,
+      smallSetDiscovery: smallSetDisc,
+      driftGap: dg,
+    });
+  }
+
+  if (components.length < 2) {
+    return null;
+  }
+
+  const productGap = Math.min(...components.map((c) => c.weight * c.driftGap));
+  const productSmallSetParts = components.map((c) =>
+    `{${c.stateNodeId} | V(${c.stateNodeId}) <= ${formatObservableNumber(c.smallSetDiscovery.boundary)}}`
+  );
+  const productLyapParts = components.map((c) =>
+    `${formatObservableNumber(c.weight)} * V_${c.stateNodeId}(${c.stateNodeId})`
+  );
+  const leanProductLyapParts = components.map((c) =>
+    `${formatObservableNumber(c.weight)} * (${c.lyapunovSynthesis.leanExpression.replace('fun x => ', '')})`
+  );
+
+  return {
+    components,
+    productDriftGap: round3(productGap),
+    productSmallSetExpression: productSmallSetParts.join(' × '),
+    productLyapunovExpression: productLyapParts.join(' + '),
+    leanProductLyapunovExpression: `fun p => ${leanProductLyapParts.join(' + ').replace(/x/g, 'p.1')}`,
+    leanProductSmallSetExpression: `productSmallSet (${components[0].smallSetDiscovery.leanSetExpression}) (${components[1].smallSetDiscovery.leanSetExpression})`,
+    theoremName: `${theoremName}_product_lyapunov`,
+  };
 }
 
 function buildContinuousHarrisWitness(
@@ -2203,6 +2323,7 @@ export function analyzeTopologyStability(
   );
   diagnostics.push(...continuousHarrisResult.diagnostics);
   const continuousHarris = continuousHarrisResult.witness;
+  const productLyapunov = buildProductLyapunovWitness(ast, continuousHarris, theoremName);
   const proofAssumptions =
     driftAssessment.proofAssumptions.length > 0
       ? driftAssessment.proofAssumptions
@@ -2297,6 +2418,7 @@ export function analyzeTopologyStability(
     laminarAtom: countableQueue?.laminarAtom ?? null,
     queuePotential: countableQueue?.potential ?? null,
     continuousHarris,
+    productLyapunov,
     heteroMoAFabrics,
   };
 
@@ -2309,6 +2431,7 @@ export function analyzeTopologyStability(
     smallSetNodeIds: sinkNodeIds,
     countableQueue,
     continuousHarris,
+    productLyapunov,
     recurrence,
     harrisRecurrent,
     ventIsolationOk: ventIsolation.ok,

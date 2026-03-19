@@ -7,6 +7,7 @@ import type {
   SmallSetDiscovery,
   MinorizationSynthesis,
   StateSpaceKind,
+  ProductLyapunovWitness,
 } from './stability.js';
 import type { OptimizationCertificate } from './optimizer.js';
 import type { CoarseningSynthesisResult } from './coarsen.js';
@@ -1929,6 +1930,59 @@ function stateSpaceToLeanType(kind: StateSpaceKind, boundary?: number): string {
   }
 }
 
+function buildDriftDischargeStrategy(
+  lyapunovSynthesis: LyapunovSynthesis,
+  prefix: string,
+  smallSetDiscovery: SmallSetDiscovery
+): string {
+  const coeffs = lyapunovSynthesis.coefficients;
+  const boundary = formatLeanReal(smallSetDiscovery.boundary);
+
+  switch (lyapunovSynthesis.template) {
+    case 'affine': {
+      const scale = formatLeanReal(coeffs[0] ?? 1);
+      const offset = formatLeanReal(coeffs[1] ?? 0);
+      return `exact realMeasurableLyapunovDriftWitness_of_continuousAffineStep
+    ${boundary} ${scale} ${offset} ${prefix}DriftGap
+    (by norm_num [${prefix}DriftGap])
+    (by norm_num)`;
+    }
+    case 'quadratic': {
+      const c = formatLeanReal(coeffs[0] ?? 1);
+      const o = formatLeanReal(coeffs[1] ?? 0);
+      return `exact realQuadraticDriftWitness
+    ${c} ${o} ${boundary} ${prefix}DriftGap
+    (by norm_num)
+    (by norm_num [${prefix}DriftGap])`;
+    }
+    case 'log-barrier': {
+      const c = formatLeanReal(coeffs[0] ?? 1);
+      return `exact realLogBarrierDriftWitness
+    ${c} ${boundary} ${prefix}DriftGap
+    (by norm_num)
+    (by norm_num [${prefix}DriftGap])`;
+    }
+    case 'piecewise-linear': {
+      const s1 = formatLeanReal(coeffs[0] ?? 1);
+      const o1 = formatLeanReal(coeffs[1] ?? 0);
+      const s2 = formatLeanReal(coeffs[2] ?? coeffs[0] ?? 1);
+      const o2 = formatLeanReal(coeffs[3] ?? coeffs[1] ?? 0);
+      return `exact realPiecewiseLinearDriftWitness
+    ${s1} ${o1} ${s2} ${o2} ${boundary} ${prefix}DriftGap
+    (by norm_num [${prefix}DriftGap])`;
+    }
+    case 'polynomial': {
+      const c0 = formatLeanReal(coeffs[0] ?? 0);
+      const c1 = formatLeanReal(coeffs[1] ?? 0);
+      const c2 = formatLeanReal(coeffs[2] ?? 0);
+      const c3 = formatLeanReal(coeffs[3] ?? 0);
+      return `exact realPolynomialDriftWitness
+    ${c0} ${c1} ${c2} ${c3} ${boundary} ${prefix}DriftGap
+    (by norm_num [${prefix}DriftGap])`;
+    }
+  }
+}
+
 function buildContinuousKernelDefinitions(
   stateSpaceKind: StateSpaceKind,
   lyapunovSynthesis: LyapunovSynthesis,
@@ -2026,22 +2080,16 @@ ${observableDef}
   · exact (measurable_const.mul measurable_id).add measurable_const
   · exact ${theoremName}_${prefix}_small_set_measurable`;
 
+  // Template-specific drift discharge strategy
+  const driftDischarge = buildDriftDischargeStrategy(lyapunovSynthesis, prefix, smallSetDiscovery);
+
   const driftWitnessThm = `theorem ${theoremName}_measurable_observable_drift :
   MeasurableLyapunovDriftWitness
       ${prefix}Observable
       ${prefix}Lyapunov
       ${prefix}SmallSet
       ${prefix}DriftGap := by
-  constructor
-  · exact ${theoremName}_${prefix}_lyapunov_measurable
-  constructor
-  · exact (measurable_const.mul measurable_id).add measurable_const
-  constructor
-  · exact ${theoremName}_${prefix}_small_set_measurable
-  constructor
-  · norm_num [${prefix}DriftGap]
-  · intro current h_not_small
-    sorry -- Discharged by template-specific algebra`;
+  ${driftDischarge}`;
 
   const continuousHarrisThm = `theorem ${theoremName}_measurable_continuous_harris_certified :
   MeasurableContinuousHarrisWitness
@@ -2055,7 +2103,28 @@ ${observableDef}
       ${prefix}MinorizationEpsilon
       (fun _ => 1)
       ${prefix}DriftGap := by
-  sorry -- Composed from observable, drift, and minorization witnesses`;
+  exact measurableContinuousHarrisWitness_of_components
+    ${prefix}MinorizationMeasure
+    ${prefix}MinorizationMeasure
+    ${prefix}MinorizationMeasure
+    ${prefix}MinorizationMeasure
+    ${prefix}Observable
+    ${prefix}Observable
+    ${prefix}Lyapunov
+    ${prefix}SmallSet
+    ${prefix}MinorizationEpsilon
+    (fun _ => 1)
+    ${prefix}DriftGap
+    (by
+      constructor
+      · exact ⟨by
+          constructor
+          · exact ${theoremName}_${prefix}_observable_measurable
+          · exact ${theoremName}_${prefix}_small_set_measurable,
+        ${theoremName}_${prefix}_observable_measurable⟩
+      · exact fun _ => ⟨1, by norm_num⟩)
+    ${theoremName}_measurable_observable
+    ${theoremName}_measurable_observable_drift`;
 
   const theorems = `
 ${lyapMeasurableThm}
@@ -2080,6 +2149,109 @@ ${continuousHarrisThm}
 `;
 
   return { definitions, theorems };
+}
+
+function buildProductLyapunovSection(
+  stability: StabilityReport,
+  theoremName: string
+): string {
+  const product = stability.productLyapunov;
+  if (!product || product.components.length < 2) {
+    return '';
+  }
+
+  const c1 = product.components[0];
+  const c2 = product.components[1];
+  const prefix = 'product';
+
+  const componentDefs = product.components.map((c, i) => {
+    const idx = i + 1;
+    return `/- Component ${idx}: ${c.stateNodeId}
+   Template: ${c.lyapunovSynthesis.template}
+   V_${idx}(x) = ${c.lyapunovSynthesis.expression}
+   Small set: ${c.smallSetDiscovery.expression}
+   Drift gap: ${c.driftGap}
+   Weight: ${c.weight}
+-/
+noncomputable def ${prefix}V${idx} : Real -> Real :=
+  ${c.lyapunovSynthesis.leanExpression}
+
+def ${prefix}C${idx} : Set Real :=
+  ${c.smallSetDiscovery.leanSetExpression}
+
+def ${prefix}Gap${idx} : Real := ${formatLeanReal(c.driftGap)}
+
+def ${prefix}Weight${idx} : Real := ${formatLeanReal(c.weight)}`;
+  }).join('\n\n');
+
+  const productDef = `
+/- Product Lyapunov witness for coupled continuous state nodes.
+   V(x₁, x₂) = ${product.productLyapunovExpression}
+   C = ${product.productSmallSetExpression}
+   Product drift gap: ${product.productDriftGap}
+-/
+noncomputable def ${prefix}Witness : ProductLyapunovWitness := {
+  weight1 := ${prefix}Weight1
+  weight2 := ${prefix}Weight2
+  gap1 := ${prefix}Gap1
+  gap2 := ${prefix}Gap2
+  boundary1 := ${formatLeanReal(c1.smallSetDiscovery.boundary)}
+  boundary2 := ${formatLeanReal(c2.smallSetDiscovery.boundary)}
+  hWeight1Pos := by norm_num [${prefix}Weight1]
+  hWeight2Pos := by norm_num [${prefix}Weight2]
+  hGap1Pos := by norm_num [${prefix}Gap1]
+  hGap2Pos := by norm_num [${prefix}Gap2]
+}
+
+noncomputable def ${prefix}Lyapunov : Real × Real -> Real :=
+  productLyapunov ${prefix}V1 ${prefix}V2 ${prefix}Witness
+
+def ${prefix}SmallSet : Set (Real × Real) :=
+  productSmallSet ${prefix}C1 ${prefix}C2
+
+def ${prefix}DriftGap : Real := ${formatLeanReal(product.productDriftGap)}`;
+
+  const measurabilityThm = `theorem ${product.theoremName}_measurable :
+  Measurable ${prefix}Lyapunov := by
+  exact measurable_productLyapunov
+    (by exact measurable_of_continuous (by continuity))
+    (by exact measurable_of_continuous (by continuity))
+    ${prefix}Witness`;
+
+  const smallSetThm = `theorem ${product.theoremName}_small_set_measurable :
+  MeasurableSet ${prefix}SmallSet := by
+  exact measurableSet_productSmallSet
+    (by exact measurableSet_levelSet_of_continuous (by continuity) _)
+    (by exact measurableSet_levelSet_of_continuous (by continuity) _)`;
+
+  const observableThm = `theorem ${product.theoremName}_observable :
+  MeasurableRealObservableWitness
+      ${prefix}Lyapunov
+      ${prefix}SmallSet := by
+  exact productLyapunovWitness_of_components
+    (by exact measurable_of_continuous (by continuity))
+    (by exact measurable_of_continuous (by continuity))
+    (by exact measurableSet_levelSet_of_continuous (by continuity) _)
+    (by exact measurableSet_levelSet_of_continuous (by continuity) _)
+    ${prefix}Witness
+    (by exact ⟨by exact measurable_of_continuous (by continuity),
+              measurableSet_levelSet_of_continuous (by continuity) _⟩)
+    (by exact ⟨by exact measurable_of_continuous (by continuity),
+              measurableSet_levelSet_of_continuous (by continuity) _⟩)`;
+
+  return `
+/- ── Product Lyapunov Composition ──────────────────────────────────── -/
+
+${componentDefs}
+
+${productDef}
+
+${measurabilityThm}
+
+${smallSetThm}
+
+${observableThm}
+`;
 }
 
 function buildHeteroMoAFabricSection(
@@ -2260,6 +2432,9 @@ export function generateLeanFromGnosisAst(
     continuousKernelSection = `\n${ck.definitions}\n${ck.theorems}`;
   }
 
+  // Build product Lyapunov section if multi-node coupled
+  const productLyapunovSection = buildProductLyapunovSection(stability, theoremName);
+
   const lean = `import GnosisProofs
 import Mathlib.Tactic
 
@@ -2278,6 +2453,7 @@ ${definitions}
    vent-isolation-ok: ${stability.ventIsolationOk}
    state-space-kind: ${continuousHarris?.stateSpaceKind ?? 'countable'}
    lyapunov-template: ${continuousHarris?.lyapunovSynthesis?.template ?? 'affine'}
+   product-lyapunov: ${stability.productLyapunov ? `${stability.productLyapunov.components.length} components` : 'none'}
    hetero-moa-fabrics: ${
      stability.metadata.heteroMoAFabrics?.map((fabric) => fabric.fabricNodeId).join(', ') ??
      'none'
@@ -2287,6 +2463,7 @@ ${definitions}
 
 ${theorem}
 ${continuousKernelSection}
+${productLyapunovSection}
 ${heteroMoAFabricSection}
 ${optimizerSection}
 end ${moduleName}
