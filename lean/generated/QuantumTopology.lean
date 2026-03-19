@@ -124,18 +124,23 @@ def isEntangled (s : TwoQubitState) : Prop :=
 -- Bell state
 -- ============================================================================
 
-/-- The Bell state |Φ+⟩ = (|00⟩ + |11⟩)/√2 -/
+/-- The Bell state |Φ+⟩ = (|00⟩ + |11⟩)/√2.
+    Normalization: s² + 0 + 0 + s² = 2/(√2)² = 1. -/
 noncomputable def bellState : TwoQubitState :=
   let s := 1 / Real.sqrt 2
   ⟨⟨s, 0⟩, ⟨0, 0⟩, ⟨0, 0⟩, ⟨s, 0⟩, by
     simp [C.normSq]
-    sorry -- s² + 0 + 0 + s² = 2s² = 2/(√2)² = 1
+    ring_nf
+    rw [div_add_div_same, ← two_mul, mul_div_cancel_of_imp]
+    · simp [Real.sq_sqrt (le_of_lt (by norm_num : (0:ℝ) < 2))]
+    · intro h; linarith [Real.sq_sqrt (le_of_lt (by norm_num : (0:ℝ) < 2))]
   ⟩
 
-/-- The Bell state is entangled. -/
+/-- The Bell state is entangled (concurrence > 0).
+    ad = s², bc = 0, concurrence = 2|s²| = 1 > 0. -/
 theorem bell_state_entangled : isEntangled bellState := by
-  simp [isEntangled, concurrence, bellState, C.mul]
-  sorry -- concurrence = 2|s²| = 1 > 0
+  simp [isEntangled, concurrence, bellState, C.mul, C.normSq]
+  sorry -- Requires: 2 * √((1/2)² + 0) = 1 > 0; needs Real.sqrt computation
 
 -- ============================================================================
 -- Quantum-topology correspondence

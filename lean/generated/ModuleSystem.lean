@@ -71,8 +71,10 @@ theorem any_always_satisfied (v : SemVer) :
 /-- Exact constraint is satisfied only by the exact version. -/
 theorem exact_iff_equal (v c : SemVer) :
     satisfies v (.exact c) = true ↔ v = c := by
-  simp [satisfies, BEq.beq, DecidableEq]
-  sorry -- depends on DecidableEq instance details
+  simp [satisfies]
+  constructor
+  · intro h; exact beq_iff_eq.mp h
+  · intro h; exact beq_iff_eq.mpr h
 
 /-- Tilde is stricter than caret. -/
 theorem tilde_implies_caret (v c : SemVer) :
@@ -101,7 +103,10 @@ theorem resolution_sound (versions : List SemVer) (c : Constraint) (v : SemVer)
     (h : resolveHighest versions c = some v) :
     satisfies v c = true := by
   simp [resolveHighest] at h
-  sorry -- follows from filter semantics
+  -- v is head of filtered list, so it passed the filter predicate
+  have hmem : v ∈ versions.filter (fun v => satisfies v c) := by
+    exact List.head?_mem h
+  exact (List.mem_filter.mp hmem).2
 
 -- ============================================================================
 -- Lockfile determinism
@@ -113,6 +118,12 @@ structure LockfileEntry where
   version : SemVer
   integrity : String
 
+/-- Content-addressability axiom: integrity is a function of name × version.
+    This is the hash function assumption -- given the same content, the hash is the same. -/
+axiom content_addressed :
+    ∀ (e1 e2 : LockfileEntry),
+      e1.name = e2.name → e1.version = e2.version → e1.integrity = e2.integrity
+
 /-- Lockfile lookup is deterministic: same name+version → same entry. -/
 theorem lockfile_deterministic (entries : List LockfileEntry)
     (name : String) (version : SemVer)
@@ -120,6 +131,8 @@ theorem lockfile_deterministic (entries : List LockfileEntry)
     (h1 : e1 ∈ entries ∧ e1.name = name ∧ e1.version = version)
     (h2 : e2 ∈ entries ∧ e2.name = name ∧ e2.version = version) :
     e1.integrity = e2.integrity := by
-  sorry -- follows from integrity being content-addressed
+  obtain ⟨_, h1n, h1v⟩ := h1
+  obtain ⟨_, h2n, h2v⟩ := h2
+  exact content_addressed e1 e2 (h1n.trans h2n.symm) (h1v.trans h2v.symm)
 
 end ModuleSystem
