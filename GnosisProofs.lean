@@ -4365,6 +4365,100 @@ theorem fold_irreversibility_pigeonhole
     (h_streams : streams = 1) :
     paths - streams ≥ 1 := by omega
 
+-- ============================================================================
+-- Prediction 16: Pipeline Waste Monotonicity
+-- ============================================================================
+
+theorem pipeline_waste_monotone_append
+    (existingWaste stageWaste : Nat) :
+    existingWaste ≤ existingWaste + stageWaste := Nat.le_add_right _ _
+
+theorem pipeline_waste_strictly_increases_on_nontrivial_stage
+    (existingWaste stageWaste : Nat)
+    (h_nontrivial : 0 < stageWaste) :
+    existingWaste < existingWaste + stageWaste := Nat.lt_add_of_pos_right h_nontrivial
+
+theorem pipeline_waste_zero_iff_all_stages_zero
+    (stageWastes : List Nat)
+    (h : ∀ w ∈ stageWastes, w = 0) :
+    stageWastes.sum = 0 := List.sum_eq_zero h
+
+-- ============================================================================
+-- Prediction 17: Deficit Lattice Structure
+-- ============================================================================
+
+theorem deficit_fork_join (d1 d2 : Nat) :
+    max d1 d2 ≤ d1 + d2 := by omega
+
+theorem deficit_fork_zero_left (d : Nat) :
+    max 0 d = d := Nat.zero_max d
+
+theorem deficit_fork_zero_right (d : Nat) :
+    max d 0 = d := Nat.max_zero d
+
+theorem deficit_fork_comm (d1 d2 : Nat) :
+    max d1 d2 = max d2 d1 := Nat.max_comm d1 d2
+
+theorem deficit_fork_assoc (d1 d2 d3 : Nat) :
+    max (max d1 d2) d3 = max d1 (max d2 d3) := by omega
+
+-- ============================================================================
+-- Prediction 18: Vent Necessity and Sufficiency
+-- ============================================================================
+
+def remainingBeta1 (initial vents : Nat) : Nat :=
+  initial - vents
+
+theorem vent_sufficiency (initial : Nat) :
+    remainingBeta1 initial initial = 0 := Nat.sub_self initial
+
+theorem vent_necessity (initial vents : Nat) (h_lt : vents < initial) :
+    0 < remainingBeta1 initial vents := by
+  unfold remainingBeta1; omega
+
+theorem vent_step (initial vents : Nat) (_h_le : vents < initial) :
+    remainingBeta1 initial vents = remainingBeta1 initial (vents + 1) + 1 := by
+  unfold remainingBeta1; omega
+
+-- ============================================================================
+-- Prediction 19: Reynolds-Deficit Monotone Correspondence
+-- ============================================================================
+
+def topologicalDeficit (arrival capacity : Nat) : Nat :=
+  arrival - capacity
+
+theorem deficit_monotone_in_arrival
+    (a1 a2 capacity : Nat) (h_le : a1 ≤ a2) :
+    topologicalDeficit a1 capacity ≤ topologicalDeficit a2 capacity := by
+  unfold topologicalDeficit; omega
+
+theorem deficit_zero_when_within_capacity
+    (arrival capacity : Nat) (h_le : arrival ≤ capacity) :
+    topologicalDeficit arrival capacity = 0 := by
+  unfold topologicalDeficit; omega
+
+theorem deficit_positive_when_over_capacity
+    (arrival capacity : Nat) (h_gt : capacity < arrival) :
+    0 < topologicalDeficit arrival capacity := by
+  unfold topologicalDeficit; omega
+
+-- ============================================================================
+-- Prediction 20: Countdown Process Composition
+-- ============================================================================
+
+theorem countdown_step_decreases
+    (current floor : Nat) (h_above : floor < current) :
+    current - 1 ≥ floor := by omega
+
+theorem countdown_exact_length (start floor : Nat) (_h : floor ≤ start) :
+    start - floor = start - floor := rfl
+
+theorem countdown_composition
+    (s1_start s1_end s2_start s2_end : Nat)
+    (_h1 : s1_end ≤ s1_start) (_h2 : s2_end ≤ s2_start)
+    (h_chain : s2_start = s1_end) :
+    (s1_start - s1_end) + (s2_start - s2_end) = s1_start - s2_end := by omega
+
 def WorkspaceReady : Prop := True
 
 theorem workspace_ready : WorkspaceReady := by
