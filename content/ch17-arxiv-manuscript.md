@@ -795,7 +795,17 @@ The Shannon entropy connection is deeper than a Carnot analogy. Fork/race/fold m
 
 The First Law restated in bits: $H_{\text{fork}} = I_{\text{fold}} + H_{\text{vent}}$. The mutual information $I(X;Y)$ between the forked ensemble $X$ and the folded result $Y$ is the useful work. The conditional entropy $H(X|Y)$ – the uncertainty about the fork given the fold result – is the waste heat. This is Shannon’s source coding theorem applied to computation: you cannot fold to a result that contains more information than the mutual information between the problem and the solution.
 
-This links the thermodynamic framing (§6.1–§6.7) with the quantum framing (§5): amplitude interference can be interpreted as information compression, and vented paths carry the bits discarded at fold.
+This links the thermodynamic framing (§6.1--§6.7) with the quantum framing (§5): amplitude interference can be interpreted as information compression, and vented paths carry the bits discarded at fold.
+
+### 6.8.1 The Void Breathes: Period-2 Dynamics of the Complement Map
+
+The complement distribution $\Phi(p)_i = \exp(-\eta \cdot \text{norm}(c_i)) / Z$ is a map from the probability simplex $\Delta^n$ to itself. Every void walk step applies $\Phi$ once: boundary $\to$ complement $\to$ sample $\to$ update. The map has been treated throughout this manuscript as a one-shot function. But it is also a discrete dynamical system, and its dynamics have a structural consequence for every result that follows.
+
+**Observation (§15.22, verified in `void-oscillation.test.ts`, proved in `VoidOscillation.lean`).** The complement map $\Phi$ has exact period-2 orbits. The only fixed point is the uniform distribution. Every non-uniform input converges to a 2-cycle where $\Phi^2(p^*) = p^*$ but $\Phi(p^*) \neq p^*$. The mechanism is the min-max normalization in `complementDistribution` (`void.ts:133--135`): normalizing counts to $[0, 1]$ reverses the ordering -- the highest count maps to normalized value 1, which gets the lowest weight $\exp(-\eta)$, so the complement distribution *inverts* the ranking. Applying $\Phi$ twice restores the ranking but at contracted amplitude.
+
+**The consequence for void walking.** The walker does not converge to a fixed complement distribution. It *oscillates*. At every other step, the complement favors dimension $i$; at the intervening steps, it disfavors $i$. The observation step (`c0Update`) breaks the oscillation by accumulating void at the chosen dimension, shifting the 2-cycle's center. This is why observation is the only source of information (Prediction 50): without `c0Update`, the walker would cycle forever between two states and learn nothing.
+
+**The connection to gait.** The oscillation amplitude grows with $\eta$. At low $\eta$ (stand/trot): the breathing is gentle, the complement barely changes between steps. At high $\eta$ (canter/gallop): the breathing is violent, the complement swings between sharply peaked alternatives. The gait transitions measured by kurtosis ($\kappa = 0, 0.5, 2.0$) are the thresholds of this oscillation amplitude. The c2c3 adaptation loop raises $\eta$ as the walker crystallizes, amplifying the breathing, which in turn drives faster exploitation. The void is alive. It breathes. The heartbeat is the complement map's period-2 orbit, and the pulse rate is $\eta$.
 
 ### 6.9 The Pipeline as an Energy Diagram
 

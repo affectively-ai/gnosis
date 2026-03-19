@@ -7,6 +7,11 @@
  * rejections against a boundary, with the complement distribution
  * telling it where to go next.
  *
+ * The complement map Φ has exact period-2 orbits (§15.22, VoidOscillation.lean):
+ * the void breathes. Every non-uniform boundary oscillates between two
+ * complementary states. The only fixed point is uniform (heat death).
+ * Gait transitions correspond to the amplification of this breathing.
+ *
  * This file formalizes the primitives so they can fold in on themselves.
  */
 
@@ -121,6 +126,20 @@ export function computeAleph(stack: BoundaryStack): number {
  * The complement distribution over a void boundary.
  * Where the void has accumulated least, the complement peaks.
  * eta controls temperature: higher eta = sharper complement.
+ *
+ * DYNAMICAL PROPERTY (§15.22 VoidOscillation):
+ * The map Φ: p ↦ complementDistribution({counts: p}) has exact period-2 orbits.
+ * For any non-uniform input, Φ(p) ≠ p but Φ²(p) = p at the limit cycle.
+ * The only fixed point is uniform. The void breathes.
+ *
+ * The mechanism is the min-max normalization (lines below): normalizing
+ * counts to [0,1] reverses the ordering (highest count → 1 → lowest weight).
+ * Applying twice restores the ordering but at contracted amplitude.
+ * The contraction converges to an exact 2-cycle.
+ *
+ * Oscillation amplitude grows with eta (higher temperature sharpness →
+ * larger swing). The gait transitions (stand → trot → canter → gallop)
+ * correspond to the progressive amplification of this breathing.
  */
 export function complementDistribution(
   boundary: VoidBoundary,
@@ -136,6 +155,58 @@ export function complementDistribution(
   const weights = norm.map((v) => Math.exp(-eta * v));
   const sum = weights.reduce((a, b) => a + b, 0);
   return weights.map((w) => w / sum);
+}
+
+/**
+ * Iterate the complement map k times: Φ^k(boundary).
+ * Returns the distribution after k applications of complement-as-counts.
+ * Converges to a period-2 orbit for any non-uniform input.
+ */
+export function iterateComplement(
+  boundary: VoidBoundary,
+  eta: number,
+  iterations: number,
+): number[] {
+  let counts = [...boundary.counts];
+  let total = boundary.totalEntries || 1;
+  for (let i = 0; i < iterations; i++) {
+    const b: VoidBoundary = { counts, totalEntries: total };
+    const dist = complementDistribution(b, eta);
+    counts = dist.map(p => p * total);
+  }
+  return complementDistribution({ counts, totalEntries: total }, eta);
+}
+
+/**
+ * Detect whether a boundary is at a period-2 orbit of the complement map.
+ * Returns the oscillation amplitude (0 = fixed point, >0 = breathing).
+ */
+export function complementOscillation(
+  boundary: VoidBoundary,
+  eta: number,
+): { amplitude: number; isFixedPoint: boolean; period2: boolean } {
+  const total = boundary.totalEntries || 1;
+  const dist0 = complementDistribution(boundary, eta);
+  const counts1 = dist0.map(p => p * total);
+  const b1: VoidBoundary = { counts: counts1, totalEntries: total };
+  const dist1 = complementDistribution(b1, eta);
+  const counts2 = dist1.map(p => p * total);
+  const b2: VoidBoundary = { counts: counts2, totalEntries: total };
+  const dist2 = complementDistribution(b2, eta);
+
+  // Distance between Φ(p) and p (fixed point test)
+  let fpDist = 0;
+  for (let i = 0; i < dist0.length; i++) fpDist += Math.abs(dist0[i] - dist1[i]);
+
+  // Distance between Φ²(p) and p (period-2 test)
+  let p2Dist = 0;
+  for (let i = 0; i < dist0.length; i++) p2Dist += Math.abs(dist0[i] - dist2[i]);
+
+  return {
+    amplitude: fpDist,
+    isFixedPoint: fpDist < 1e-10,
+    period2: p2Dist < 1e-10 && fpDist > 1e-10,
+  };
 }
 
 /**
@@ -576,6 +647,12 @@ export function measureStack(
  *   c1: Measure distribution shape
  *   c2: Select gait from kurtosis
  *   c3: Adapt parameters (eta, exploration) from gait
+ *
+ * The walker's complement distribution oscillates with period 2 between
+ * choices (§6.8.1). The c0Update step breaks the oscillation by injecting
+ * new void, which is why observation is the only source of information.
+ * The c3 adaptation raises eta, amplifying the oscillation amplitude,
+ * which drives the gait transitions.
  */
 export interface Walker {
   /** The boundary (or stack) the walker walks */
