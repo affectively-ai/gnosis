@@ -1,0 +1,22 @@
+// semiotic_deficit_positive.gg — THM-SEMIOTIC-DEFICIT witness (paths > streams implies positive deficit)
+//
+// When the number of interpretive paths exceeds the number of available
+// communication streams, the semiotic deficit D = paths - streams > 0.
+// Example: 7 paths over 4 streams -> deficit = 3.
+
+(channel: SemioticChannel { theorem: 'THM-SEMIOTIC-DEFICIT', paths: '7', streams: '4' })
+(path_1: InterpretivePath { id: '1', stream_assignment: '1' })
+(path_2: InterpretivePath { id: '2', stream_assignment: '2' })
+(path_3: InterpretivePath { id: '3', stream_assignment: '3' })
+(path_4: InterpretivePath { id: '4', stream_assignment: '4' })
+(path_5: InterpretivePath { id: '5', stream_assignment: 'overflow' })
+(path_6: InterpretivePath { id: '6', stream_assignment: 'overflow' })
+(path_7: InterpretivePath { id: '7', stream_assignment: 'overflow' })
+(deficit: Invariant { claim: 'paths - streams > 0', paths: '7', streams: '4', deficit: '3' })
+(result: Result { theorem: 'positive-semiotic-deficit' })
+
+(channel)-[:FORK]->(path_1 | path_2 | path_3 | path_4 | path_5 | path_6 | path_7)
+(path_5 | path_6 | path_7)-[:VENT { condition: 'no-stream-available' }]->(overflow: OverflowPool)
+(path_1 | path_2 | path_3 | path_4)-[:FOLD { strategy: 'stream-assigned' }]->(assigned: AssignedPaths)
+(overflow | assigned)-[:RACE { expect: 'deficit-positive' }]->(deficit)
+(deficit)-[:FOLD { strategy: 'verify-positive' }]->(result)

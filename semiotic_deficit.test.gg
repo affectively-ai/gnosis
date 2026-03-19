@@ -1,0 +1,20 @@
+// semiotic_deficit.test.gg — Native Gnosis witnesses for THM-SEMIOTIC-DEFICIT
+//
+// These theorem-shaped `.gg` modules cover:
+//   - paths > streams implies positive deficit
+//   - paths > 1 stream implies pigeonhole collision
+//   - shared context reduces deficit
+
+(test_suite: TestSuite { name: 'semiotic-deficit' })
+
+(positive: Verify { module: './semiotic_deficit_positive.gg', beta1_max: '6' })
+(collision: Verify { module: './semiotic_collision.gg', beta1_max: '6' })
+(context_reduces: Verify { module: './semiotic_context_reduces.gg', beta1_max: '6' })
+
+(test_suite)-[:FORK]->(positive | collision | context_reduces)
+
+(positive)-[:RACE { expect: 'safe' }]->(positive_result: Result)
+(collision)-[:RACE { expect: 'safe' }]->(collision_result: Result)
+(context_reduces)-[:RACE { expect: 'safe' }]->(reduces_result: Result)
+
+(positive_result | collision_result | reduces_result)-[:FOLD { strategy: 'all-pass' }]->(verdict: Verdict)

@@ -1,0 +1,18 @@
+// semiotic_context_reduces.gg — THM-SEMIOTIC-DEFICIT witness (shared context reduces deficit)
+//
+// Shared context effectively increases stream capacity by allowing
+// implicit disambiguation. Each unit of context reduces deficit by 1.
+// Example: deficit=4, context=2 -> effective_deficit=2.
+
+(channel: SemioticChannel { theorem: 'THM-SEMIOTIC-DEFICIT', paths: '8', streams: '4', deficit: '4' })
+(no_context: DeficitState { context: '0', effective_deficit: '4' })
+(some_context: DeficitState { context: '2', effective_deficit: '2' })
+(full_context: DeficitState { context: '4', effective_deficit: '0' })
+(reduction: Invariant { claim: 'effective_deficit = max(0, deficit - context)', sequence: '[4, 2, 0]' })
+(result: Result { theorem: 'context-reduces-deficit' })
+
+(channel)-[:FORK]->(no_context | some_context | full_context)
+(no_context)-[:PROCESS]->(some_context)
+(some_context)-[:PROCESS]->(full_context)
+(no_context | some_context | full_context)-[:RACE { expect: 'deficit-reduced' }]->(reduction)
+(reduction)-[:FOLD { strategy: 'verify-monotone' }]->(result)

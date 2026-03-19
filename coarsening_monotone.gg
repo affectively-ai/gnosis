@@ -1,0 +1,18 @@
+// coarsening_monotone.gg — THM-COARSENING-THERMODYNAMICS witness (composed >= single)
+//
+// Composing two coarsening maps produces at least as much information loss
+// as either map alone. Coarsening is monotone under composition.
+// Example: f: 8->4 (loss=2 bits), g: 4->2 (loss=1 bit). g(f): 8->2 (loss=3 bits >= 2).
+
+(pipeline: CoarseningPipeline { theorem: 'THM-COARSENING-THERMODYNAMICS', stages: '2' })
+(map_f: CoarseningMap { id: 'f', domain: '8', codomain: '4', loss_bits: '2' })
+(map_g: CoarseningMap { id: 'g', domain: '4', codomain: '2', loss_bits: '1' })
+(composed: CoarseningMap { id: 'g_of_f', domain: '8', codomain: '2', loss_bits: '3' })
+(monotonicity: Invariant { claim: 'loss(g.f) >= max(loss(f), loss(g))', composed_loss: '3', max_single: '2' })
+(result: Result { theorem: 'coarsening-monotone-under-composition' })
+
+(pipeline)-[:FORK]->(map_f | map_g)
+(map_f)-[:PROCESS]->(map_g)
+(map_f | map_g)-[:FOLD { strategy: 'compose' }]->(composed)
+(composed)-[:RACE { expect: 'loss-at-least-max' }]->(monotonicity)
+(monotonicity)-[:FOLD { strategy: 'verify-inequality' }]->(result)

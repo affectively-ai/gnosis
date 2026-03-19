@@ -1,0 +1,17 @@
+// semiotic_collision.gg — THM-SEMIOTIC-DEFICIT witness (pigeonhole collision)
+//
+// When paths > streams, by the pigeonhole principle at least two paths
+// must share a stream, causing a semiotic collision.
+// Example: 5 paths into 3 streams -> at least 2 collisions.
+
+(channel: SemioticChannel { theorem: 'THM-SEMIOTIC-DEFICIT', paths: '5', streams: '3' })
+(stream_1: Stream { id: '1', assigned_paths: '[1, 4]', count: '2' })
+(stream_2: Stream { id: '2', assigned_paths: '[2, 5]', count: '2' })
+(stream_3: Stream { id: '3', assigned_paths: '[3]', count: '1' })
+(collision_count: Invariant { claim: 'collisions = paths - streams', collisions: '2', paths: '5', streams: '3' })
+(result: Result { theorem: 'pigeonhole-semiotic-collision' })
+
+(channel)-[:FORK]->(stream_1 | stream_2 | stream_3)
+(stream_1 | stream_2)-[:RACE { expect: 'collision-detected' }]->(collision_count)
+(stream_3)-[:PROCESS]->(collision_count)
+(collision_count)-[:FOLD { strategy: 'verify-pigeonhole' }]->(result)

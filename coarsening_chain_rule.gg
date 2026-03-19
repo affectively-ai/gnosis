@@ -1,0 +1,22 @@
+// coarsening_chain_rule.gg — THM-COARSENING-THERMODYNAMICS witness (loss decomposes additively)
+//
+// The information loss of a composed coarsening equals the sum of
+// individual stage losses. This is the chain rule for coarsening entropy.
+// Example: f: 16->4 (loss=2), g: 4->1 (loss=2). g(f): 16->1 (loss=4 = 2+2).
+
+(pipeline: CoarseningPipeline { theorem: 'THM-COARSENING-THERMODYNAMICS', stages: '2' })
+(stage_1_in: StageInput { elements: '16', description: 'fine-grained states' })
+(map_f: CoarseningMap { id: 'f', domain: '16', codomain: '4', loss_bits: '2' })
+(stage_1_out: StageOutput { elements: '4' })
+(map_g: CoarseningMap { id: 'g', domain: '4', codomain: '1', loss_bits: '2' })
+(stage_2_out: StageOutput { elements: '1' })
+(chain_rule: Invariant { claim: 'loss(g.f) = loss(f) + loss(g)', loss_f: '2', loss_g: '2', total: '4' })
+(result: Result { theorem: 'coarsening-chain-rule' })
+
+(pipeline)-[:PROCESS]->(stage_1_in)
+(stage_1_in)-[:FOLD { strategy: 'coarsen' }]->(map_f)
+(map_f)-[:PROCESS]->(stage_1_out)
+(stage_1_out)-[:FOLD { strategy: 'coarsen' }]->(map_g)
+(map_g)-[:PROCESS]->(stage_2_out)
+(map_f | map_g)-[:RACE { expect: 'losses-computed' }]->(chain_rule)
+(chain_rule)-[:FOLD { strategy: 'verify-sum' }]->(result)

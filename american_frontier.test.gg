@@ -1,0 +1,20 @@
+// american_frontier.test.gg — Native Gnosis witnesses for THM-AMERICAN-FRONTIER
+//
+// These theorem-shaped `.gg` modules cover:
+//   - more diversity implies less waste (monotone)
+//   - matched diversity implies zero waste
+//   - below match implies positive waste
+
+(test_suite: TestSuite { name: 'american-frontier' })
+
+(waste_monotone: Verify { module: './frontier_waste_monotone.gg', beta1_max: '6' })
+(zero_at_match: Verify { module: './frontier_zero_at_match.gg', beta1_max: '6' })
+(positive_below: Verify { module: './frontier_positive_below.gg', beta1_max: '6' })
+
+(test_suite)-[:FORK]->(waste_monotone | zero_at_match | positive_below)
+
+(waste_monotone)-[:RACE { expect: 'safe' }]->(monotone_result: Result)
+(zero_at_match)-[:RACE { expect: 'safe' }]->(zero_result: Result)
+(positive_below)-[:RACE { expect: 'safe' }]->(positive_result: Result)
+
+(monotone_result | zero_result | positive_result)-[:FOLD { strategy: 'all-pass' }]->(verdict: Verdict)

@@ -1,0 +1,19 @@
+// coarsening_identity_zero.gg — THM-COARSENING-THERMODYNAMICS witness (identity map -> zero loss)
+//
+// The identity coarsening map preserves all distinctions.
+// No information is lost, so the coarsening loss is exactly zero.
+// This is the base case for the coarsening hierarchy.
+
+(map_id: CoarseningMap { theorem: 'THM-COARSENING-THERMODYNAMICS', id: 'identity', domain: '6', codomain: '6' })
+(input_1: CoarseningInput { id: '1', maps_to: '1' })
+(input_2: CoarseningInput { id: '2', maps_to: '2' })
+(input_3: CoarseningInput { id: '3', maps_to: '3' })
+(input_4: CoarseningInput { id: '4', maps_to: '4' })
+(input_5: CoarseningInput { id: '5', maps_to: '5' })
+(input_6: CoarseningInput { id: '6', maps_to: '6' })
+(zero_loss: Invariant { claim: 'identity map has zero coarsening loss', loss_bits: '0', domain: '6', codomain: '6' })
+(result: Result { theorem: 'identity-coarsening-zero-loss' })
+
+(map_id)-[:FORK]->(input_1 | input_2 | input_3 | input_4 | input_5 | input_6)
+(input_1 | input_2 | input_3 | input_4 | input_5 | input_6)-[:FOLD { strategy: 'identity' }]->(zero_loss)
+(zero_loss)-[:FOLD { strategy: 'verify-zero' }]->(result)
