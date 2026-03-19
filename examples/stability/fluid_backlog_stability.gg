@@ -1,16 +1,5 @@
 (ingress:Source { pressure: "10" })
-(backlog:State {
-  potential: "fluid_backlog",
-  observable_kind: "fluid-backlog",
-  observable: "backlog_bytes",
-  observable_scale: "2",
-  observable_offset: "0.5",
-  drift_gap: "1.5",
-  state_space: "continuous-positive",
-  lyapunov_template: "quadratic",
-  lyapunov_degree: "2",
-  lyapunov_coefficients: "0.5,0.1"
-})
+(backlog:State { potential: "fluid_backlog", observable_kind: "fluid-backlog", observable: "backlog_bytes", observable_scale: "2", observable_offset: "0.5", drift_gap: "1.5", state_space: "continuous-positive", lyapunov_template: "quadratic", lyapunov_coefficients: "0.5,0.1" })
 (drain:Sink { beta1_target: "0", capacity: "100" })
 (ingress)-[:FORK { weight: "1.0" }]->(backlog)
 (backlog)-[:FOLD { service_rate: "12", drift_gamma: "1.5" }]->(drain)
