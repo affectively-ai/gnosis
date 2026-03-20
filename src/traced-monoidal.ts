@@ -72,7 +72,12 @@ export interface Morphism {
 
 /** Identity morphism: id_A : A → A */
 export function identity(obj: CatObject): Morphism {
-  return { kind: 'identity', source: obj, target: obj, label: `id_${obj.label ?? obj.dimensions}` };
+  return {
+    kind: 'identity',
+    source: obj,
+    target: obj,
+    label: `id_${obj.label ?? obj.dimensions}`,
+  };
 }
 
 /** Process morphism: A → A (sequential transformation, preserves dimensions) */
@@ -120,7 +125,12 @@ export function vent(source: CatObject): Morphism {
  */
 export function symmetry(a: CatObject, b: CatObject): Morphism {
   const total = catObject(a.dimensions + b.dimensions);
-  return { kind: 'symmetry', source: total, target: total, label: `σ(${a.dimensions},${b.dimensions})` };
+  return {
+    kind: 'symmetry',
+    source: total,
+    target: total,
+    label: `σ(${a.dimensions},${b.dimensions})`,
+  };
 }
 
 // ============================================================================
@@ -162,10 +172,7 @@ export function tensor(f: Morphism, g: Morphism): Morphism {
  * The feedback loop -- output U wires feed back to input U wires.
  * This IS the FOLD-that-feeds-back.
  */
-export function trace(
-  f: Morphism,
-  tracedDims: number,
-): Morphism | null {
+export function trace(f: Morphism, tracedDims: number): Morphism | null {
   if (f.source.dimensions < tracedDims || f.target.dimensions < tracedDims) {
     return null;
   }
@@ -194,9 +201,11 @@ export interface CoherenceCheck {
  * Verify associativity: (A ⊗ B) ⊗ C ≅ A ⊗ (B ⊗ C)
  */
 export function checkAssociativity(
-  a: CatObject, b: CatObject, c: CatObject,
+  a: CatObject,
+  b: CatObject,
+  c: CatObject
 ): CoherenceCheck {
-  const lhs = (a.dimensions + b.dimensions) + c.dimensions;
+  const lhs = a.dimensions + b.dimensions + c.dimensions;
   const rhs = a.dimensions + (b.dimensions + c.dimensions);
   return {
     name: 'associativity',
@@ -236,7 +245,8 @@ export function checkRightUnit(a: CatObject): CoherenceCheck {
  * Verify symmetry involution: σ ∘ σ = id
  */
 export function checkSymmetryInvolution(
-  a: CatObject, b: CatObject,
+  a: CatObject,
+  b: CatObject
 ): CoherenceCheck {
   // σ_{A,B} : A⊗B → B⊗A, then σ_{B,A} : B⊗A → A⊗B
   // Composing gives identity on A⊗B
@@ -254,7 +264,8 @@ export function checkSymmetryInvolution(
  */
 export function checkVanishing(f: Morphism): CoherenceCheck {
   const traced = trace(f, 0);
-  const holds = traced !== null &&
+  const holds =
+    traced !== null &&
     traced.source.dimensions === f.source.dimensions &&
     traced.target.dimensions === f.target.dimensions;
   return {
@@ -272,7 +283,8 @@ export function checkVanishing(f: Morphism): CoherenceCheck {
 export function checkYanking(a: CatObject): CoherenceCheck {
   const sigma = symmetry(a, a);
   const traced = trace(sigma, a.dimensions);
-  const holds = traced !== null &&
+  const holds =
+    traced !== null &&
     traced.source.dimensions === a.dimensions &&
     traced.target.dimensions === a.dimensions;
   return {
@@ -287,7 +299,9 @@ export function checkYanking(a: CatObject): CoherenceCheck {
  * Run all coherence checks for given objects.
  */
 export function verifyCoherence(
-  a: CatObject, b: CatObject, c: CatObject,
+  a: CatObject,
+  b: CatObject,
+  c: CatObject
 ): { allHold: boolean; checks: CoherenceCheck[] } {
   const checks = [
     checkAssociativity(a, b, c),
@@ -297,7 +311,7 @@ export function verifyCoherence(
     checkVanishing(identity(a)),
     checkYanking(a),
   ];
-  return { allHold: checks.every(c => c.holds), checks };
+  return { allHold: checks.every((c) => c.holds), checks };
 }
 
 // ============================================================================

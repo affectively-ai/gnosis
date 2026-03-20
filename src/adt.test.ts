@@ -47,7 +47,9 @@ describe('Algebraic Data Types', () => {
     it('builtin types include TaskStatus and ConvergenceState', () => {
       expect(BUILTIN_SUM_TYPES['TaskStatus'].cases).toContain('pending');
       expect(BUILTIN_SUM_TYPES['TaskStatus'].cases).toContain('cancelled');
-      expect(BUILTIN_SUM_TYPES['ConvergenceState'].cases).toContain('converged');
+      expect(BUILTIN_SUM_TYPES['ConvergenceState'].cases).toContain(
+        'converged'
+      );
     });
   });
 
@@ -67,7 +69,9 @@ describe('Algebraic Data Types', () => {
         { name: 'x', required: true },
         { name: 'y', required: true },
       ]);
-      expect(() => createRecord(def, { x: 1 })).toThrow("Missing required field 'y'");
+      expect(() => createRecord(def, { x: 1 })).toThrow(
+        "Missing required field 'y'"
+      );
     });
   });
 
@@ -94,9 +98,11 @@ describe('Algebraic Data Types', () => {
 
     it('throws ExhaustivenessError on missing cases', () => {
       const v = variant('ok', 42);
-      expect(() => matchExhaustive(resultType, v, {
-        ok: (x) => x,
-      } as any)).toThrow(ExhaustivenessError);
+      expect(() =>
+        matchExhaustive(resultType, v, {
+          ok: (x) => x,
+        } as any)
+      ).toThrow(ExhaustivenessError);
     });
 
     it('ExhaustivenessError has correct metadata', () => {
@@ -113,13 +119,21 @@ describe('Algebraic Data Types', () => {
   describe('Partial matching', () => {
     it('matches known case', () => {
       const v = variant('ok', 42);
-      const result = matchPartial(v, { ok: (x) => `got ${x}` }, () => 'default');
+      const result = matchPartial(
+        v,
+        { ok: (x) => `got ${x}` },
+        () => 'default'
+      );
       expect(result).toBe('got 42');
     });
 
     it('falls back on unknown case', () => {
       const v = variant('unknown', null);
-      const result = matchPartial(v, { ok: (x) => `got ${x}` }, () => 'default');
+      const result = matchPartial(
+        v,
+        { ok: (x) => `got ${x}` },
+        () => 'default'
+      );
       expect(result).toBe('default');
     });
   });
@@ -127,14 +141,22 @@ describe('Algebraic Data Types', () => {
   describe('Exhaustiveness checking', () => {
     it('reports missing cases', () => {
       const def = defineSumType('Color', ['red', 'green', 'blue']);
-      const { exhaustive, missing } = checkExhaustiveness(def, ['red', 'green']);
+      const { exhaustive, missing } = checkExhaustiveness(def, [
+        'red',
+        'green',
+      ]);
       expect(exhaustive).toBe(false);
       expect(missing).toEqual(['blue']);
     });
 
     it('reports extra cases', () => {
       const def = defineSumType('Color', ['red', 'green', 'blue']);
-      const { extra } = checkExhaustiveness(def, ['red', 'green', 'blue', 'purple']);
+      const { extra } = checkExhaustiveness(def, [
+        'red',
+        'green',
+        'blue',
+        'purple',
+      ]);
       expect(extra).toEqual(['purple']);
     });
 
@@ -150,7 +172,7 @@ describe('Algebraic Data Types', () => {
       const result = validateNodeExhaustiveness(
         'router',
         BUILTIN_SUM_TYPES['Result'],
-        ['ok', 'err'],
+        ['ok', 'err']
       );
       expect(result.valid).toBe(true);
     });
@@ -159,12 +181,12 @@ describe('Algebraic Data Types', () => {
       const result = validateNodeExhaustiveness(
         'router',
         BUILTIN_SUM_TYPES['Result'],
-        ['ok'],
+        ['ok']
       );
       expect(result.valid).toBe(false);
       expect(result.missing).toEqual(['err']);
-      expect(result.diagnostic).toContain("router");
-      expect(result.diagnostic).toContain("err");
+      expect(result.diagnostic).toContain('router');
+      expect(result.diagnostic).toContain('err');
     });
   });
 
@@ -177,14 +199,18 @@ describe('Algebraic Data Types', () => {
 
     it('registers custom sum types', () => {
       const reg = new TypeRegistry();
-      reg.registerSumType(defineSumType('Direction', ['north', 'south', 'east', 'west']));
+      reg.registerSumType(
+        defineSumType('Direction', ['north', 'south', 'east', 'west'])
+      );
       expect(reg.hasSumType('Direction')).toBe(true);
       expect(reg.getSumType('Direction')!.cases.length).toBe(4);
     });
 
     it('prevents duplicate registration', () => {
       const reg = new TypeRegistry();
-      expect(() => reg.registerSumType(defineSumType('Result', ['a', 'b']))).toThrow();
+      expect(() =>
+        reg.registerSumType(defineSumType('Result', ['a', 'b']))
+      ).toThrow();
     });
   });
 

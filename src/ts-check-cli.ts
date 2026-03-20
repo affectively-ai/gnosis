@@ -53,7 +53,9 @@ async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
 
   if (!args.file) {
-    console.error('Usage: ts-check-cli --file <path> [--json] [--sarif] [--max-buley N] [--target T] [--export NAME]');
+    console.error(
+      'Usage: ts-check-cli --file <path> [--json] [--sarif] [--max-buley N] [--target T] [--export NAME]'
+    );
     process.exit(1);
   }
 
@@ -78,13 +80,19 @@ async function main(): Promise<void> {
     }
 
     if (args.json) {
-      console.log(JSON.stringify({
-        ok: result.ok,
-        diagnostics: result.diagnostics,
-        metrics: result.metrics,
-        topology: result.topology,
-        ggSource: result.ggSource,
-      }, null, 2));
+      console.log(
+        JSON.stringify(
+          {
+            ok: result.ok,
+            diagnostics: result.diagnostics,
+            metrics: result.metrics,
+            topology: result.topology,
+            ggSource: result.ggSource,
+          },
+          null,
+          2
+        )
+      );
       process.exit(result.ok ? 0 : 1);
     }
 
@@ -96,12 +104,16 @@ async function main(): Promise<void> {
     console.log(`  regime: ${result.metrics.regime}`);
     console.log(`  beta1: ${result.metrics.beta1}`);
     console.log(`  quantum-index: ${result.metrics.quantumIndex}`);
-    console.log(`  nodes=${result.metrics.nodeCount} edges=${result.metrics.edgeCount}`);
+    console.log(
+      `  nodes=${result.metrics.nodeCount} edges=${result.metrics.edgeCount}`
+    );
 
     if (result.diagnostics.length > 0) {
       console.log('  diagnostics:');
       for (const diagnostic of result.diagnostics) {
-        console.log(`    [${diagnostic.level}] ${diagnostic.ruleId} ${diagnostic.message} (${diagnostic.line}:${diagnostic.column})`);
+        console.log(
+          `    [${diagnostic.level}] ${diagnostic.ruleId} ${diagnostic.message} (${diagnostic.line}:${diagnostic.column})`
+        );
       }
     }
 
@@ -111,26 +123,46 @@ async function main(): Promise<void> {
     // are not errors -- just no diagnostics
     const message = err instanceof Error ? err.message : String(err);
     if (args.json) {
-      console.log(JSON.stringify({
-        ok: true,
-        diagnostics: [],
-        metrics: null,
-        topology: null,
-        ggSource: null,
-        skipped: true,
-        skipReason: message,
-      }, null, 2));
+      console.log(
+        JSON.stringify(
+          {
+            ok: true,
+            diagnostics: [],
+            metrics: null,
+            topology: null,
+            ggSource: null,
+            skipped: true,
+            skipReason: message,
+          },
+          null,
+          2
+        )
+      );
       process.exit(0);
     }
     if (args.sarif) {
-      console.log(JSON.stringify({
-        version: '2.1.0',
-        $schema: 'https://json.schemastore.org/sarif-2.1.0.json',
-        runs: [{
-          tool: { driver: { name: 'gnosis-ts-check', informationUri: 'https://github.com/forkjoin-ai/gnosis', rules: [] } },
-          results: [],
-        }],
-      }, null, 2));
+      console.log(
+        JSON.stringify(
+          {
+            version: '2.1.0',
+            $schema: 'https://json.schemastore.org/sarif-2.1.0.json',
+            runs: [
+              {
+                tool: {
+                  driver: {
+                    name: 'gnosis-ts-check',
+                    informationUri: 'https://github.com/forkjoin-ai/gnosis',
+                    rules: [],
+                  },
+                },
+                results: [],
+              },
+            ],
+          },
+          null,
+          2
+        )
+      );
       process.exit(0);
     }
     console.log(`[gnosis ts-check] ${args.file} -- skipped: ${message}`);

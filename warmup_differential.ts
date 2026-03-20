@@ -86,26 +86,33 @@ function resolveTopologySource(filePath: string): string {
   return fs.readFileSync(absolutePath, 'utf8');
 }
 
-async function buildDiff(
-  pair: WarmupPairDefinition,
-): Promise<WarmupPairDiff> {
-  const positive = await analyzeGnosisSource(resolveTopologySource(pair.positiveFile));
-  const inverted = await analyzeGnosisSource(resolveTopologySource(pair.invertedFile));
+async function buildDiff(pair: WarmupPairDefinition): Promise<WarmupPairDiff> {
+  const positive = await analyzeGnosisSource(
+    resolveTopologySource(pair.positiveFile)
+  );
+  const inverted = await analyzeGnosisSource(
+    resolveTopologySource(pair.invertedFile)
+  );
 
   return {
     ...pair,
     positive,
     inverted,
-    deltaBeta1: round2(inverted.correctness.topology.beta1 - positive.correctness.topology.beta1),
-    deltaPressure: round2(inverted.quantum.betaPressure - positive.quantum.betaPressure),
+    deltaBeta1: round2(
+      inverted.correctness.topology.beta1 - positive.correctness.topology.beta1
+    ),
+    deltaPressure: round2(
+      inverted.quantum.betaPressure - positive.quantum.betaPressure
+    ),
     deltaInterference: round2(
-      inverted.quantum.interferenceDensity - positive.quantum.interferenceDensity,
+      inverted.quantum.interferenceDensity -
+        positive.quantum.interferenceDensity
     ),
     deltaCollapseCoverage: round2(
-      inverted.quantum.collapseCoverage - positive.quantum.collapseCoverage,
+      inverted.quantum.collapseCoverage - positive.quantum.collapseCoverage
     ),
     deltaQuantumIndex: round2(
-      inverted.quantum.quantumIndex - positive.quantum.quantumIndex,
+      inverted.quantum.quantumIndex - positive.quantum.quantumIndex
     ),
     deltaBuley: round2(inverted.buleyNumber - positive.buleyNumber),
   };
@@ -113,7 +120,7 @@ async function buildDiff(
 
 function strongestShift(
   diffs: WarmupPairDiff[],
-  selector: (diff: WarmupPairDiff) => number,
+  selector: (diff: WarmupPairDiff) => number
 ): WarmupPairDiff {
   return diffs.reduce((currentBest, candidate) => {
     if (selector(candidate) > selector(currentBest)) {
@@ -133,20 +140,41 @@ function renderMarkdown(diffs: WarmupPairDiff[]): string {
 
   for (const diff of diffs) {
     lines.push(
-      `| ${diff.name} | ${diff.failureMode} | ${formatDelta(diff.deltaBeta1)} | ${formatDelta(diff.deltaPressure)} | ${formatDelta(diff.deltaInterference)} | ${formatDelta(diff.deltaCollapseCoverage)} | ${formatDelta(diff.deltaQuantumIndex)} | ${formatDelta(diff.deltaBuley)} |`,
+      `| ${diff.name} | ${diff.failureMode} | ${formatDelta(
+        diff.deltaBeta1
+      )} | ${formatDelta(diff.deltaPressure)} | ${formatDelta(
+        diff.deltaInterference
+      )} | ${formatDelta(diff.deltaCollapseCoverage)} | ${formatDelta(
+        diff.deltaQuantumIndex
+      )} | ${formatDelta(diff.deltaBuley)} |`
     );
   }
 
   const byQuantum = strongestShift(diffs, (diff) => diff.deltaQuantumIndex);
   const byPressure = strongestShift(diffs, (diff) => diff.deltaPressure);
-  const byInterference = strongestShift(diffs, (diff) => diff.deltaInterference);
+  const byInterference = strongestShift(
+    diffs,
+    (diff) => diff.deltaInterference
+  );
 
   lines.push('');
   lines.push('## Strongest Shifts');
   lines.push('');
-  lines.push(`- Quantum burden: ${byQuantum.name} (${formatDelta(byQuantum.deltaQuantumIndex)})`);
-  lines.push(`- Branch pressure: ${byPressure.name} (${formatDelta(byPressure.deltaPressure)})`);
-  lines.push(`- Interference density: ${byInterference.name} (${formatDelta(byInterference.deltaInterference)})`);
+  lines.push(
+    `- Quantum burden: ${byQuantum.name} (${formatDelta(
+      byQuantum.deltaQuantumIndex
+    )})`
+  );
+  lines.push(
+    `- Branch pressure: ${byPressure.name} (${formatDelta(
+      byPressure.deltaPressure
+    )})`
+  );
+  lines.push(
+    `- Interference density: ${byInterference.name} (${formatDelta(
+      byInterference.deltaInterference
+    )})`
+  );
 
   return lines.join('\n');
 }

@@ -65,7 +65,9 @@ function makeTestMoaTransformerEvidenceConfig() {
   };
 }
 
-let cachedReportPromise: Promise<GnosisMoaTransformerEvidenceReport> | undefined;
+let cachedReportPromise:
+  | Promise<GnosisMoaTransformerEvidenceReport>
+  | undefined;
 
 function getEvidenceReport(): Promise<GnosisMoaTransformerEvidenceReport> {
   cachedReportPromise ??= runGnosisMoaTransformerEvidenceBenchmark(
@@ -79,29 +81,31 @@ describe('gnosis MoA transformer evidence benchmark', () => {
     'recovers timing and sparsity evidence across sweep and ablations',
     { timeout: 20_000 },
     async () => {
-    const report = await getEvidenceReport();
+      const report = await getEvidenceReport();
 
-    expect(report.scales).toHaveLength(2);
-    expect(report.ablations).toHaveLength(4);
-    expect(report.topologySurface.moaStructuredPrimitive).toBe('StructuredMoA');
-    expect(report.topologySurface.moaTopologyPath).toContain(
-      'moa-transformer-moa.gg'
-    );
-    expect(report.accuracyGapClosesWithScale).toBe(true);
-    expect(report.outerSparsityImprovesEfficiency).toBe(true);
-    expect(report.innerSparsityImprovesEfficiency).toBe(true);
-    expect(report.underRoutingHurtsAccuracy).toBe(true);
+      expect(report.scales).toHaveLength(2);
+      expect(report.ablations).toHaveLength(4);
+      expect(report.topologySurface.moaStructuredPrimitive).toBe(
+        'StructuredMoA'
+      );
+      expect(report.topologySurface.moaTopologyPath).toContain(
+        'moa-transformer-moa.gg'
+      );
+      expect(report.accuracyGapClosesWithScale).toBe(true);
+      expect(report.outerSparsityImprovesEfficiency).toBe(true);
+      expect(report.innerSparsityImprovesEfficiency).toBe(true);
+      expect(report.underRoutingHurtsAccuracy).toBe(true);
 
-    for (const scale of report.scales) {
-      expect(scale.moaHeadReductionFactor).toBeGreaterThan(1);
-      expect(scale.moaFrameReductionFactor).toBeGreaterThan(1);
-      expect(scale.families.moa.meanActiveHeadCount).toBeLessThan(
-        scale.families.regular.meanActiveHeadCount
-      );
-      expect(scale.families.moa.meanFrameCount).toBeLessThan(
-        scale.families.regular.meanFrameCount
-      );
-    }
+      for (const scale of report.scales) {
+        expect(scale.moaHeadReductionFactor).toBeGreaterThan(1);
+        expect(scale.moaFrameReductionFactor).toBeGreaterThan(1);
+        expect(scale.families.moa.meanActiveHeadCount).toBeLessThan(
+          scale.families.regular.meanActiveHeadCount
+        );
+        expect(scale.families.moa.meanFrameCount).toBeLessThan(
+          scale.families.regular.meanFrameCount
+        );
+      }
     }
   );
 
@@ -109,16 +113,16 @@ describe('gnosis MoA transformer evidence benchmark', () => {
     'renders markdown with sweep and ablation sections',
     { timeout: 20_000 },
     async () => {
-    const markdown = renderGnosisMoaTransformerEvidenceMarkdown(
-      await getEvidenceReport()
-    );
+      const markdown = renderGnosisMoaTransformerEvidenceMarkdown(
+        await getEvidenceReport()
+      );
 
-    expect(markdown).toContain('# Gnosis MoA Transformer Evidence');
-    expect(markdown).toContain('## Scale Sweep');
-    expect(markdown).toContain('## Ablations');
-    expect(markdown).toContain('Timing advantage recovered');
-    expect(markdown).toContain('Sparse GG primitive');
-    expect(markdown).toContain('StructuredMoA');
+      expect(markdown).toContain('# Gnosis MoA Transformer Evidence');
+      expect(markdown).toContain('## Scale Sweep');
+      expect(markdown).toContain('## Ablations');
+      expect(markdown).toContain('Timing advantage recovered');
+      expect(markdown).toContain('Sparse GG primitive');
+      expect(markdown).toContain('StructuredMoA');
     }
   );
 });

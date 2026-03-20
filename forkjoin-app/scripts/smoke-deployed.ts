@@ -1,4 +1,8 @@
-const baseUrl = (process.argv[2] || process.env.GNOSIS_CHURCH_BASE_URL || 'https://forkjoin.ai').replace(/\/+$/, '');
+const baseUrl = (
+  process.argv[2] ||
+  process.env.GNOSIS_CHURCH_BASE_URL ||
+  'https://forkjoin.ai'
+).replace(/\/+$/, '');
 const sessionHeaderName = 'mcp-session-id';
 
 interface JsonRpcPayload {
@@ -31,7 +35,9 @@ async function fetchJson(path: string, init?: RequestInit): Promise<unknown> {
   }
 
   if (!response.ok) {
-    throw new Error(`Request ${path} failed (${response.status}): ${JSON.stringify(parsed)}`);
+    throw new Error(
+      `Request ${path} failed (${response.status}): ${JSON.stringify(parsed)}`
+    );
   }
 
   return parsed;
@@ -57,7 +63,9 @@ async function postMcp(
   const nextSessionId = response.headers.get(sessionHeaderName);
 
   if (!response.ok) {
-    throw new Error(`MCP request failed (${response.status}): ${JSON.stringify(body)}`);
+    throw new Error(
+      `MCP request failed (${response.status}): ${JSON.stringify(body)}`
+    );
   }
 
   return {
@@ -80,8 +88,14 @@ async function main(): Promise<void> {
     status?: string;
     service?: string;
   };
-  assert(health.status === 'healthy', 'Health endpoint did not return healthy status.');
-  assert(health.service === 'forkjoin-app', 'Health endpoint service mismatch.');
+  assert(
+    health.status === 'healthy',
+    'Health endpoint did not return healthy status.'
+  );
+  assert(
+    health.service === 'forkjoin-app',
+    'Health endpoint service mismatch.'
+  );
   console.log('[smoke] /health ok');
 
   const initialize = await postMcp({
@@ -97,7 +111,10 @@ async function main(): Promise<void> {
     'MCP initialize missing protocolVersion.'
   );
   const sessionId = initialize.sessionId;
-  assert(sessionId && sessionId.length > 0, 'MCP initialize missing mcp-session-id header.');
+  assert(
+    sessionId && sessionId.length > 0,
+    'MCP initialize missing mcp-session-id header.'
+  );
   console.log('[smoke] mcp initialize ok');
 
   const toolsList = await postMcp(
@@ -113,7 +130,10 @@ async function main(): Promise<void> {
     ? toolsList.body.result
     : {};
   const tools = toolsListResult.tools;
-  assert(Array.isArray(tools) && tools.length > 0, 'tools/list returned no tools.');
+  assert(
+    Array.isArray(tools) && tools.length > 0,
+    'tools/list returned no tools.'
+  );
   console.log('[smoke] mcp tools/list ok');
 
   const compileCall = await postMcp(
@@ -179,6 +199,8 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  console.error(`[smoke] failed: ${error instanceof Error ? error.message : String(error)}`);
+  console.error(
+    `[smoke] failed: ${error instanceof Error ? error.message : String(error)}`
+  );
   process.exit(1);
 });

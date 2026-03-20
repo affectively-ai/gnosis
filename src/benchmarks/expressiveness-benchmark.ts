@@ -48,7 +48,8 @@ interface Problem {
 
 const leaderElection: Problem = {
   name: 'Leader Election',
-  description: 'N candidates race to claim leadership. First to succeed wins, others vent.',
+  description:
+    'N candidates race to claim leadership. First to succeed wins, others vent.',
   gnosis: {
     language: 'gnosis',
     loc: 5,
@@ -90,7 +91,8 @@ const leaderElection: Problem = {
 
 const consensus: Problem = {
   name: 'Consensus',
-  description: 'N voters propose values, fold to majority. Vent if no majority.',
+  description:
+    'N voters propose values, fold to majority. Vent if no majority.',
   gnosis: {
     language: 'gnosis',
     loc: 6,
@@ -102,10 +104,26 @@ const consensus: Problem = {
 (result)-[:VENT { condition: 'no_majority' }]->(rejected: NoConsensus)`,
   },
   alternatives: [
-    { language: 'Go', loc: 48, source: `// Channels, WaitGroup, atomic counter, threshold check` },
-    { language: 'Rust', loc: 55, source: `// Arc<AtomicUsize>, JoinSet, tokio::sync::watch` },
-    { language: 'Erlang', loc: 22, source: `// Naturally fits but requires manual vote counting` },
-    { language: 'TypeScript', loc: 28, source: `// Promise.all + reduce + threshold check` },
+    {
+      language: 'Go',
+      loc: 48,
+      source: `// Channels, WaitGroup, atomic counter, threshold check`,
+    },
+    {
+      language: 'Rust',
+      loc: 55,
+      source: `// Arc<AtomicUsize>, JoinSet, tokio::sync::watch`,
+    },
+    {
+      language: 'Erlang',
+      loc: 22,
+      source: `// Naturally fits but requires manual vote counting`,
+    },
+    {
+      language: 'TypeScript',
+      loc: 28,
+      source: `// Promise.all + reduce + threshold check`,
+    },
   ],
   gnosisPrimitives: ['FORK', 'PROCESS', 'FOLD', 'RACE', 'VENT'],
   beta1: 2, // fork → fold + conditional race/vent
@@ -117,7 +135,8 @@ const consensus: Problem = {
 
 const loadBalancer: Problem = {
   name: 'Load Balancer',
-  description: 'Route requests across backends with health checks. Unhealthy backends vent.',
+  description:
+    'Route requests across backends with health checks. Unhealthy backends vent.',
   gnosis: {
     language: 'gnosis',
     loc: 7,
@@ -130,10 +149,26 @@ const loadBalancer: Problem = {
 (backend)-[:VENT { condition: 'unhealthy' }]->(down: BackendDown)`,
   },
   alternatives: [
-    { language: 'Go', loc: 65, source: `// net/http, sync.RWMutex, health check goroutine, round-robin state` },
-    { language: 'Rust', loc: 72, source: `// hyper, Arc<RwLock<Vec<Backend>>>, tokio::spawn health checker` },
-    { language: 'Erlang', loc: 35, source: `// gen_server with backend list, monitor for health` },
-    { language: 'TypeScript', loc: 38, source: `// fetch + AbortController + setInterval health check` },
+    {
+      language: 'Go',
+      loc: 65,
+      source: `// net/http, sync.RWMutex, health check goroutine, round-robin state`,
+    },
+    {
+      language: 'Rust',
+      loc: 72,
+      source: `// hyper, Arc<RwLock<Vec<Backend>>>, tokio::spawn health checker`,
+    },
+    {
+      language: 'Erlang',
+      loc: 35,
+      source: `// gen_server with backend list, monitor for health`,
+    },
+    {
+      language: 'TypeScript',
+      loc: 38,
+      source: `// fetch + AbortController + setInterval health check`,
+    },
   ],
   gnosisPrimitives: ['FORK', 'RACE', 'PROCESS', 'VENT'],
   beta1: 2,
@@ -145,7 +180,8 @@ const loadBalancer: Problem = {
 
 const circuitBreaker: Problem = {
   name: 'Circuit Breaker',
-  description: 'Track failure rate, open circuit on threshold, half-open probe, close on success.',
+  description:
+    'Track failure rate, open circuit on threshold, half-open probe, close on success.',
   gnosis: {
     language: 'gnosis',
     loc: 8,
@@ -159,10 +195,26 @@ const circuitBreaker: Problem = {
 (tripped)-[:PROCESS { op: 'schedule_half_open', delay: '30s' }]->(probe: HalfOpen)`,
   },
   alternatives: [
-    { language: 'Go', loc: 78, source: `// sync.Mutex, state machine, timer, atomic counters` },
-    { language: 'Rust', loc: 85, source: `// Arc<Mutex<State>>, tokio::time, state enum` },
-    { language: 'Erlang', loc: 45, source: `// gen_statem with closed/open/half_open states` },
-    { language: 'TypeScript', loc: 52, source: `// Class with state enum, setTimeout, error counting` },
+    {
+      language: 'Go',
+      loc: 78,
+      source: `// sync.Mutex, state machine, timer, atomic counters`,
+    },
+    {
+      language: 'Rust',
+      loc: 85,
+      source: `// Arc<Mutex<State>>, tokio::time, state enum`,
+    },
+    {
+      language: 'Erlang',
+      loc: 45,
+      source: `// gen_statem with closed/open/half_open states`,
+    },
+    {
+      language: 'TypeScript',
+      loc: 52,
+      source: `// Class with state enum, setTimeout, error counting`,
+    },
   ],
   gnosisPrimitives: ['RACE', 'PROCESS', 'FOLD', 'VENT'],
   beta1: 3, // three independent cycles (closed, open, half-open)
@@ -190,10 +242,26 @@ const sagaPattern: Problem = {
 (undo_charge)-[:PROCESS { op: 'release_inventory' }]->(cancelled)`,
   },
   alternatives: [
-    { language: 'Go', loc: 92, source: `// Compensating functions, defer-like cleanup, state tracking` },
-    { language: 'Rust', loc: 88, source: `// trait Saga with execute/compensate, Vec<Box<dyn Saga>>` },
-    { language: 'Erlang', loc: 48, source: `// Process links + monitors for compensation` },
-    { language: 'TypeScript', loc: 55, source: `// try/catch chain with compensation stack` },
+    {
+      language: 'Go',
+      loc: 92,
+      source: `// Compensating functions, defer-like cleanup, state tracking`,
+    },
+    {
+      language: 'Rust',
+      loc: 88,
+      source: `// trait Saga with execute/compensate, Vec<Box<dyn Saga>>`,
+    },
+    {
+      language: 'Erlang',
+      loc: 48,
+      source: `// Process links + monitors for compensation`,
+    },
+    {
+      language: 'TypeScript',
+      loc: 55,
+      source: `// try/catch chain with compensation stack`,
+    },
   ],
   gnosisPrimitives: ['PROCESS', 'FOLD', 'VENT'],
   beta1: 3, // main path + 3 compensation branches
@@ -205,7 +273,8 @@ const sagaPattern: Problem = {
 
 const crdtConvergence: Problem = {
   name: 'CRDT Convergence',
-  description: 'G-Counter across N peers, fork state, fold to merge (max per peer).',
+  description:
+    'G-Counter across N peers, fork state, fold to merge (max per peer).',
   gnosis: {
     language: 'gnosis',
     loc: 6,
@@ -217,10 +286,26 @@ const crdtConvergence: Problem = {
 (merged)-[:RACE { condition: 'all_converged' }]->(done: Converged)`,
   },
   alternatives: [
-    { language: 'Go', loc: 55, source: `// map[PeerID]uint64, sync.RWMutex, merge function` },
-    { language: 'Rust', loc: 48, source: `// HashMap<PeerId, u64>, merge trait, CRDT library` },
-    { language: 'Erlang', loc: 28, source: `// Maps, merge function, gen_server per peer` },
-    { language: 'TypeScript', loc: 32, source: `// Map<string, number>, merge function, class wrapper` },
+    {
+      language: 'Go',
+      loc: 55,
+      source: `// map[PeerID]uint64, sync.RWMutex, merge function`,
+    },
+    {
+      language: 'Rust',
+      loc: 48,
+      source: `// HashMap<PeerId, u64>, merge trait, CRDT library`,
+    },
+    {
+      language: 'Erlang',
+      loc: 28,
+      source: `// Maps, merge function, gen_server per peer`,
+    },
+    {
+      language: 'TypeScript',
+      loc: 32,
+      source: `// Map<string, number>, merge function, class wrapper`,
+    },
   ],
   gnosisPrimitives: ['FORK', 'PROCESS', 'FOLD', 'RACE'],
   beta1: 1,
@@ -240,14 +325,24 @@ const ALL_PROBLEMS: Problem[] = [
 ];
 
 function printReport(): void {
-  console.log('═══════════════════════════════════════════════════════════════');
+  console.log(
+    '═══════════════════════════════════════════════════════════════'
+  );
   console.log(' Expressiveness Benchmark');
   console.log(' gnosis .gg vs Go / Rust / Erlang / TypeScript');
-  console.log('═══════════════════════════════════════════════════════════════');
+  console.log(
+    '═══════════════════════════════════════════════════════════════'
+  );
 
   // LOC comparison table
   console.log('\n── Lines of Code ───────────────────────────────────────────');
-  console.log(`${'Problem'.padEnd(20)} ${'gnosis'.padStart(8)} ${'Go'.padStart(8)} ${'Rust'.padStart(8)} ${'Erlang'.padStart(8)} ${'TS'.padStart(8)} ${'beta_1'.padStart(8)}`);
+  console.log(
+    `${'Problem'.padEnd(20)} ${'gnosis'.padStart(8)} ${'Go'.padStart(
+      8
+    )} ${'Rust'.padStart(8)} ${'Erlang'.padStart(8)} ${'TS'.padStart(
+      8
+    )} ${'beta_1'.padStart(8)}`
+  );
   console.log('─'.repeat(70));
 
   const gnosisTotal = { loc: 0, count: 0 };
@@ -259,13 +354,19 @@ function printReport(): void {
   };
 
   for (const p of ALL_PROBLEMS) {
-    const go = p.alternatives.find(a => a.language === 'Go')!;
-    const rust = p.alternatives.find(a => a.language === 'Rust')!;
-    const erlang = p.alternatives.find(a => a.language === 'Erlang')!;
-    const ts = p.alternatives.find(a => a.language === 'TypeScript')!;
+    const go = p.alternatives.find((a) => a.language === 'Go')!;
+    const rust = p.alternatives.find((a) => a.language === 'Rust')!;
+    const erlang = p.alternatives.find((a) => a.language === 'Erlang')!;
+    const ts = p.alternatives.find((a) => a.language === 'TypeScript')!;
 
     console.log(
-      `${p.name.padEnd(20)} ${String(p.gnosis.loc).padStart(8)} ${String(go.loc).padStart(8)} ${String(rust.loc).padStart(8)} ${String(erlang.loc).padStart(8)} ${String(ts.loc).padStart(8)} ${String(p.beta1).padStart(8)}`
+      `${p.name.padEnd(20)} ${String(p.gnosis.loc).padStart(8)} ${String(
+        go.loc
+      ).padStart(8)} ${String(rust.loc).padStart(8)} ${String(
+        erlang.loc
+      ).padStart(8)} ${String(ts.loc).padStart(8)} ${String(p.beta1).padStart(
+        8
+      )}`
     );
 
     gnosisTotal.loc += p.gnosis.loc;
@@ -282,11 +383,17 @@ function printReport(): void {
 
   console.log('─'.repeat(70));
   console.log(
-    `${'TOTAL'.padEnd(20)} ${String(gnosisTotal.loc).padStart(8)} ${String(langTotals['Go']!.loc).padStart(8)} ${String(langTotals['Rust']!.loc).padStart(8)} ${String(langTotals['Erlang']!.loc).padStart(8)} ${String(langTotals['TypeScript']!.loc).padStart(8)}`
+    `${'TOTAL'.padEnd(20)} ${String(gnosisTotal.loc).padStart(8)} ${String(
+      langTotals['Go']!.loc
+    ).padStart(8)} ${String(langTotals['Rust']!.loc).padStart(8)} ${String(
+      langTotals['Erlang']!.loc
+    ).padStart(8)} ${String(langTotals['TypeScript']!.loc).padStart(8)}`
   );
 
   // Ratio summary
-  console.log('\n── Expressiveness Ratios (lang/gnosis -- higher = gnosis more expressive) ──');
+  console.log(
+    '\n── Expressiveness Ratios (lang/gnosis -- higher = gnosis more expressive) ──'
+  );
   for (const [lang, totals] of Object.entries(langTotals)) {
     const ratio = totals.loc / gnosisTotal.loc;
     const bar = '█'.repeat(Math.round(ratio * 5));
@@ -294,15 +401,21 @@ function printReport(): void {
   }
 
   // Primitives used
-  console.log('\n── Gnosis Primitives Used ───────────────────────────────────');
+  console.log(
+    '\n── Gnosis Primitives Used ───────────────────────────────────'
+  );
   const primitiveCounts: Record<string, number> = {};
   for (const p of ALL_PROBLEMS) {
     for (const prim of p.gnosisPrimitives) {
       primitiveCounts[prim] = (primitiveCounts[prim] ?? 0) + 1;
     }
   }
-  for (const [prim, count] of Object.entries(primitiveCounts).sort((a, b) => b[1] - a[1])) {
-    console.log(`  ${prim.padEnd(10)} used in ${count}/${ALL_PROBLEMS.length} problems`);
+  for (const [prim, count] of Object.entries(primitiveCounts).sort(
+    (a, b) => b[1] - a[1]
+  )) {
+    console.log(
+      `  ${prim.padEnd(10)} used in ${count}/${ALL_PROBLEMS.length} problems`
+    );
   }
 
   // Key insight

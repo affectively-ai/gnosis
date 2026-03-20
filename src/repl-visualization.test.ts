@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import { BettyCompiler } from './betty/compiler.js';
 import {
   buildVisualizationFromExecution,
-  createInitialVisualization
+  createInitialVisualization,
 } from './repl-visualization.js';
 
 describe('repl visualization', () => {

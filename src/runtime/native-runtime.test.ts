@@ -116,24 +116,31 @@ describe('GnosisNativeRuntime', () => {
     ).toBe(
       `${snapshot.stabilityMetadata?.theoremName}_measurable_quantitative_harris_certified`
     );
-    expect(snapshot.stabilityMetadata?.measurableFiniteTimeHarrisTheoremName).toBe(
+    expect(
+      snapshot.stabilityMetadata?.measurableFiniteTimeHarrisTheoremName
+    ).toBe(
       `${snapshot.stabilityMetadata?.theoremName}_measurable_finite_time_harris_recurrent`
     );
-    expect(snapshot.stabilityMetadata?.measurableHarrisRecurrentTheoremName).toBe(
+    expect(
+      snapshot.stabilityMetadata?.measurableHarrisRecurrentTheoremName
+    ).toBe(
       `${snapshot.stabilityMetadata?.theoremName}_measurable_harris_recurrent`
     );
     expect(
-      snapshot.stabilityMetadata?.measurableFiniteTimeGeometricErgodicTheoremName
+      snapshot.stabilityMetadata
+        ?.measurableFiniteTimeGeometricErgodicTheoremName
     ).toBe(
       `${snapshot.stabilityMetadata?.theoremName}_measurable_finite_time_geometric_ergodic`
     );
     expect(
-      snapshot.stabilityMetadata?.measurableLevyProkhorovGeometricErgodicTheoremName
+      snapshot.stabilityMetadata
+        ?.measurableLevyProkhorovGeometricErgodicTheoremName
     ).toBe(
       `${snapshot.stabilityMetadata?.theoremName}_measurable_levy_prokhorov_geometric_ergodic`
     );
     expect(
-      snapshot.stabilityMetadata?.measurableLevyProkhorovGeometricDecayTheoremName
+      snapshot.stabilityMetadata
+        ?.measurableLevyProkhorovGeometricDecayTheoremName
     ).toBe(
       `${snapshot.stabilityMetadata?.theoremName}_measurable_levy_prokhorov_geometric_decay`
     );

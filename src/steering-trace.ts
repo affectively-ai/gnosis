@@ -1,7 +1,12 @@
 import os from 'os';
 import path from 'path';
 import { createHash } from 'node:crypto';
-import { Points, Series, type PointsDescription, type SeriesDescription } from 'twokeys';
+import {
+  Points,
+  Series,
+  type PointsDescription,
+  type SeriesDescription,
+} from 'twokeys';
 import {
   QDoc,
   QDocRelay,
@@ -17,10 +22,7 @@ import {
   type GnosisExecutionAuthContext,
   type GnosisSteeringAuthorizationResult,
 } from './auth/core.js';
-import {
-  classifySteeringBias,
-  type GnosisSteeringBias,
-} from './analysis.js';
+import { classifySteeringBias, type GnosisSteeringBias } from './analysis.js';
 import type {
   GnosisCollapseCostAction,
   GnosisComplexityReport,
@@ -175,7 +177,7 @@ export function fingerprintSteeringTopology(source: string): string {
 }
 
 export function defaultSteeringTraceRoomName(
-  workspace: string = process.cwd(),
+  workspace: string = process.cwd()
 ): string {
   return `gnosis:steering:${stableHash(workspace)}`;
 }
@@ -195,7 +197,7 @@ function describePoints(values: number[][]): PointsDescription | null {
 function correlationAt(
   description: PointsDescription | null,
   rowIndex: number,
-  columnIndex: number,
+  columnIndex: number
 ): number | null {
   const rawValue = description?.correlationMatrix[rowIndex]?.[columnIndex];
   return toFiniteNumber(rawValue);
@@ -220,12 +222,17 @@ function deriveEnvironment(): GnosisSteeringTraceEnvironment {
     platform: process.platform,
     arch: process.arch,
     hostFingerprint: stableHash(
-      `${os.hostname()}:${process.platform}:${process.arch}:${process.release.name}`,
+      `${os.hostname()}:${process.platform}:${process.arch}:${
+        process.release.name
+      }`
     ),
   };
 }
 
-function deriveWorkloadKey(payloadFingerprint: string, payloadBytes: number): string {
+function deriveWorkloadKey(
+  payloadFingerprint: string,
+  payloadBytes: number
+): string {
   return `${payloadFingerprint}:${payloadBytes}`;
 }
 
@@ -233,7 +240,7 @@ function deriveCohortKey(
   topologyFingerprint: string,
   environment: GnosisSteeringTraceEnvironment,
   workloadKey: string,
-  command: GnosisSteeringTraceCommand,
+  command: GnosisSteeringTraceCommand
 ): string {
   return [
     topologyFingerprint,
@@ -256,7 +263,7 @@ export function authorizeBoundaryWalkRun(options: {
 }
 
 function normalizeTraceRecord(
-  candidate: unknown,
+  candidate: unknown
 ): GnosisSteeringTraceRecord | null {
   if (!candidate || typeof candidate !== 'object') {
     return null;
@@ -301,7 +308,8 @@ function normalizeTraceRecord(
       ? rawRecord.payloadFingerprint
       : 'legacy';
   const payloadBytes =
-    typeof rawRecord.payloadBytes === 'number' && Number.isFinite(rawRecord.payloadBytes)
+    typeof rawRecord.payloadBytes === 'number' &&
+    Number.isFinite(rawRecord.payloadBytes)
       ? rawRecord.payloadBytes
       : 0;
   const environment: GnosisSteeringTraceEnvironment = {
@@ -338,24 +346,32 @@ function normalizeTraceRecord(
   return {
     version: 2,
     traceId:
-      typeof rawRecord.traceId === 'string' ? rawRecord.traceId : crypto.randomUUID(),
+      typeof rawRecord.traceId === 'string'
+        ? rawRecord.traceId
+        : crypto.randomUUID(),
     recordedAt,
     command,
     steeringMode,
     topologyPath:
-      typeof rawRecord.topologyPath === 'string' ? rawRecord.topologyPath : null,
+      typeof rawRecord.topologyPath === 'string'
+        ? rawRecord.topologyPath
+        : null,
     topologyName:
-      typeof rawRecord.topologyName === 'string' ? rawRecord.topologyName : null,
+      typeof rawRecord.topologyName === 'string'
+        ? rawRecord.topologyName
+        : null,
     topologyFingerprint,
     cohortKey,
     workloadKey,
     environment,
     buleyNumber:
-      typeof rawRecord.buleyNumber === 'number' && Number.isFinite(rawRecord.buleyNumber)
+      typeof rawRecord.buleyNumber === 'number' &&
+      Number.isFinite(rawRecord.buleyNumber)
         ? rawRecord.buleyNumber
         : 0,
     wallaceNumber:
-      typeof rawRecord.wallaceNumber === 'number' && Number.isFinite(rawRecord.wallaceNumber)
+      typeof rawRecord.wallaceNumber === 'number' &&
+      Number.isFinite(rawRecord.wallaceNumber)
         ? rawRecord.wallaceNumber
         : 0,
     wallaceUnit: 'wally',
@@ -365,7 +381,8 @@ function normalizeTraceRecord(
         ? rawRecord.topologyDeficit
         : 0,
     frontierFill:
-      typeof rawRecord.frontierFill === 'number' && Number.isFinite(rawRecord.frontierFill)
+      typeof rawRecord.frontierFill === 'number' &&
+      Number.isFinite(rawRecord.frontierFill)
         ? rawRecord.frontierFill
         : 0,
     frontierDeficit:
@@ -446,25 +463,23 @@ function normalizeTraceRecord(
       Number.isFinite(rawRecord.prefixCostDeficit)
         ? rawRecord.prefixCostDeficit
         : 0,
-    zeroWasteCollapseRisk:
-      rawRecord.zeroWasteCollapseRisk === true,
-    contagiousRepairPressure:
-      rawRecord.contagiousRepairPressure === true,
-    freeCollapsePrefixRisk:
-      rawRecord.freeCollapsePrefixRisk === true,
+    zeroWasteCollapseRisk: rawRecord.zeroWasteCollapseRisk === true,
+    contagiousRepairPressure: rawRecord.contagiousRepairPressure === true,
+    freeCollapsePrefixRisk: rawRecord.freeCollapsePrefixRisk === true,
     telemetry: {
       wallMicroCharleys: toFiniteNumber(
-        telemetryCandidate.wallMicroCharleys as number | null | undefined,
+        telemetryCandidate.wallMicroCharleys as number | null | undefined
       ),
       cpuMicroCharleys: toFiniteNumber(
-        telemetryCandidate.cpuMicroCharleys as number | null | undefined,
+        telemetryCandidate.cpuMicroCharleys as number | null | undefined
       ),
       wallToCpuRatio: toFiniteNumber(
-        telemetryCandidate.wallToCpuRatio as number | null | undefined,
+        telemetryCandidate.wallToCpuRatio as number | null | undefined
       ),
     },
     stateCount:
-      typeof rawRecord.stateCount === 'number' && Number.isFinite(rawRecord.stateCount)
+      typeof rawRecord.stateCount === 'number' &&
+      Number.isFinite(rawRecord.stateCount)
         ? rawRecord.stateCount
         : 0,
     exploredBeta1:
@@ -477,19 +492,24 @@ function normalizeTraceRecord(
       Number.isFinite(rawRecord.structuralBeta1)
         ? rawRecord.structuralBeta1
         : 0,
-    graphDensity: toFiniteNumber(rawRecord.graphDensity as number | null | undefined),
-    graphDiameter: toFiniteNumber(rawRecord.graphDiameter as number | null | undefined),
+    graphDensity: toFiniteNumber(
+      rawRecord.graphDensity as number | null | undefined
+    ),
+    graphDiameter: toFiniteNumber(
+      rawRecord.graphDiameter as number | null | undefined
+    ),
     payloadBytes,
     payloadFingerprint,
-    outcome:
-      rawRecord.outcome === 'error' ? 'error' : 'ok',
+    outcome: rawRecord.outcome === 'error' ? 'error' : 'ok',
     errorMessage:
-      typeof rawRecord.errorMessage === 'string' ? rawRecord.errorMessage : null,
+      typeof rawRecord.errorMessage === 'string'
+        ? rawRecord.errorMessage
+        : null,
   };
 }
 
 export function createSteeringTraceRecord(
-  options: CreateGnosisSteeringTraceRecordOptions,
+  options: CreateGnosisSteeringTraceRecordOptions
 ): GnosisSteeringTraceRecord {
   const serializedPayload = serializePayload(options.payload);
   const payloadBytes = Buffer.byteLength(serializedPayload, 'utf8');
@@ -511,7 +531,7 @@ export function createSteeringTraceRecord(
       topologyFingerprint,
       environment,
       workloadKey,
-      options.command,
+      options.command
     ),
     workloadKey,
     environment,
@@ -533,7 +553,8 @@ export function createSteeringTraceRecord(
     collapseCostFloor: options.steering.failureBoundary.collapseCostFloor,
     collapseCostMargin: options.steering.failureBoundary.collapseCostMargin,
     prefixCostDeficit: options.steering.failureBoundary.prefixCostDeficit,
-    zeroWasteCollapseRisk: options.steering.failureBoundary.zeroWasteCollapseRisk,
+    zeroWasteCollapseRisk:
+      options.steering.failureBoundary.zeroWasteCollapseRisk,
     contagiousRepairPressure:
       options.steering.failureBoundary.contagiousRepairPressure,
     freeCollapsePrefixRisk:
@@ -553,10 +574,12 @@ export function createSteeringTraceRecord(
 
 export function summarizeSteeringTraceRecords(
   records: readonly GnosisSteeringTraceRecord[],
-  options: Partial<Pick<
-    GnosisSteeringTraceSummary,
-    'invalidLineCount' | 'truncated' | 'recentWindow' | 'cohortKey'
-  >> = {},
+  options: Partial<
+    Pick<
+      GnosisSteeringTraceSummary,
+      'invalidLineCount' | 'truncated' | 'recentWindow' | 'cohortKey'
+    >
+  > = {}
 ): GnosisSteeringTraceSummary {
   const wallaceValues = records.map((record) => record.wallaceNumber);
   const boundaryBiasValues = records.map((record) => record.boundaryWalkBias);
@@ -571,7 +594,9 @@ export function summarizeSteeringTraceRecords(
     .filter((value): value is number => value !== null);
   const wallaceVsWall = records
     .map((record) => {
-      const wallMicroCharleys = toFiniteNumber(record.telemetry.wallMicroCharleys);
+      const wallMicroCharleys = toFiniteNumber(
+        record.telemetry.wallMicroCharleys
+      );
       return wallMicroCharleys === null
         ? null
         : [record.wallaceNumber, wallMicroCharleys];
@@ -579,7 +604,9 @@ export function summarizeSteeringTraceRecords(
     .filter((value): value is [number, number] => value !== null);
   const wallaceVsCpu = records
     .map((record) => {
-      const cpuMicroCharleys = toFiniteNumber(record.telemetry.cpuMicroCharleys);
+      const cpuMicroCharleys = toFiniteNumber(
+        record.telemetry.cpuMicroCharleys
+      );
       return cpuMicroCharleys === null
         ? null
         : [record.wallaceNumber, cpuMicroCharleys];
@@ -587,8 +614,12 @@ export function summarizeSteeringTraceRecords(
     .filter((value): value is [number, number] => value !== null);
   const wallaceWallCpu = records
     .map((record) => {
-      const wallMicroCharleys = toFiniteNumber(record.telemetry.wallMicroCharleys);
-      const cpuMicroCharleys = toFiniteNumber(record.telemetry.cpuMicroCharleys);
+      const wallMicroCharleys = toFiniteNumber(
+        record.telemetry.wallMicroCharleys
+      );
+      const cpuMicroCharleys = toFiniteNumber(
+        record.telemetry.cpuMicroCharleys
+      );
 
       return wallMicroCharleys === null || cpuMicroCharleys === null
         ? null
@@ -597,17 +628,19 @@ export function summarizeSteeringTraceRecords(
     .filter((value): value is [number, number, number] => value !== null);
   const wallaceVsWallMicroCharleys = describePoints(wallaceVsWall);
   const wallaceVsCpuMicroCharleys = describePoints(wallaceVsCpu);
-  const successCount = records.filter((record) => record.outcome === 'ok').length;
+  const successCount = records.filter(
+    (record) => record.outcome === 'ok'
+  ).length;
   const failureCount = records.length - successCount;
   const leanInCounts: Record<GnosisSteeringBias, number> = {
-    'lean-in': records.filter((record) => record.leanInBias === 'lean-in').length,
+    'lean-in': records.filter((record) => record.leanInBias === 'lean-in')
+      .length,
     neutral: records.filter((record) => record.leanInBias === 'neutral').length,
-    'pull-back': records.filter((record) => record.leanInBias === 'pull-back').length,
+    'pull-back': records.filter((record) => record.leanInBias === 'pull-back')
+      .length,
   };
   const latestFailure =
-    [...records]
-      .reverse()
-      .find((record) => record.outcome === 'error') ?? null;
+    [...records].reverse().find((record) => record.outcome === 'error') ?? null;
   const invalidLineCount = options.invalidLineCount ?? 0;
   const failureRate =
     records.length === 0 ? 0 : round2((failureCount / records.length) * 100);
@@ -615,16 +648,20 @@ export function summarizeSteeringTraceRecords(
     failureCount > 0
       ? 'critical'
       : invalidLineCount > 0
-        ? 'warning'
-        : 'healthy';
+      ? 'warning'
+      : 'healthy';
 
   return {
     recordCount: records.length,
     topologyCount: new Set(records.map((record) => record.topologyFingerprint))
       .size,
-    hostCount: new Set(records.map((record) => record.environment.hostFingerprint))
-      .size,
-    latestRecordedAt: records.length === 0 ? null : records[records.length - 1]?.recordedAt ?? null,
+    hostCount: new Set(
+      records.map((record) => record.environment.hostFingerprint)
+    ).size,
+    latestRecordedAt:
+      records.length === 0
+        ? null
+        : records[records.length - 1]?.recordedAt ?? null,
     latestFailureRecordedAt: latestFailure?.recordedAt ?? null,
     latestFailureMessage: latestFailure?.errorMessage ?? null,
     cohortKey: options.cohortKey ?? null,
@@ -650,7 +687,7 @@ export function summarizeSteeringTraceRecords(
 }
 
 export function formatSteeringTraceSummary(
-  summary: GnosisSteeringTraceSummary,
+  summary: GnosisSteeringTraceSummary
 ): string {
   if (summary.recordCount === 0) {
     return 'runs=0';
@@ -697,29 +734,31 @@ export function formatSteeringTraceSummary(
 
   if (summary.wallMicroCharleys) {
     parts.push(
-      `wall-uCharleys-median=${summary.wallMicroCharleys.summary.median.datum}`,
+      `wall-uCharleys-median=${summary.wallMicroCharleys.summary.median.datum}`
     );
   }
 
   if (summary.cpuMicroCharleys) {
     parts.push(
-      `cpu-uCharleys-median=${summary.cpuMicroCharleys.summary.median.datum}`,
+      `cpu-uCharleys-median=${summary.cpuMicroCharleys.summary.median.datum}`
     );
   }
 
   if (summary.wallToCpuRatio) {
-    parts.push(`wall/cpu-median=${summary.wallToCpuRatio.summary.median.datum}`);
+    parts.push(
+      `wall/cpu-median=${summary.wallToCpuRatio.summary.median.datum}`
+    );
   }
 
   const wallaceToWallCorrelation = toFiniteNumber(
-    summary.wallaceToWallCorrelation,
+    summary.wallaceToWallCorrelation
   );
   if (wallaceToWallCorrelation !== null) {
     parts.push(`wallace~wall=${round2(wallaceToWallCorrelation)}`);
   }
 
   const wallaceToCpuCorrelation = toFiniteNumber(
-    summary.wallaceToCpuCorrelation,
+    summary.wallaceToCpuCorrelation
   );
   if (wallaceToCpuCorrelation !== null) {
     parts.push(`wallace~cpu=${round2(wallaceToCpuCorrelation)}`);
@@ -734,7 +773,7 @@ export function formatSteeringTraceSummary(
 
 export function formatSteeringTraceAlert(
   summary: GnosisSteeringTraceSummary,
-  status?: GnosisSteeringTraceStoreStatus | null,
+  status?: GnosisSteeringTraceStoreStatus | null
 ): string | null {
   const relayDisconnected = status?.relayConfigured && !status.relay?.connected;
   const relayError = status?.lastRelayError ?? null;
@@ -752,7 +791,9 @@ export function formatSteeringTraceAlert(
   if (status) {
     parts.push(`durable=${status.durable}`);
     if (status.relayConfigured) {
-      parts.push(`relay=${status.relay?.connected ? 'connected' : 'disconnected'}`);
+      parts.push(
+        `relay=${status.relay?.connected ? 'connected' : 'disconnected'}`
+      );
       if (status.relay?.roomName) {
         parts.push(`room=${status.relay.roomName}`);
       }
@@ -789,7 +830,7 @@ export function formatSteeringTraceAlert(
 }
 
 export function formatSteeringTraceStoreStatus(
-  status: GnosisSteeringTraceStoreStatus,
+  status: GnosisSteeringTraceStoreStatus
 ): string {
   const parts = [
     `durable=${status.durable}`,
@@ -819,7 +860,7 @@ export function formatSteeringTraceStoreStatus(
 
 function compareTraceRecordOrder(
   left: GnosisSteeringTraceRecord,
-  right: GnosisSteeringTraceRecord,
+  right: GnosisSteeringTraceRecord
 ): number {
   const byRecordedAt = left.recordedAt.localeCompare(right.recordedAt);
   return byRecordedAt !== 0
@@ -840,7 +881,11 @@ export class GnosisSteeringTraceStore {
   private executionAuth: GnosisExecutionAuthContext | null = null;
   private readonly tracePath = 'steering.trace.records';
   private readonly observeHandler = (event: QDocEvent): void => {
-    if (event.path !== this.tracePath || !event.key || event.value === undefined) {
+    if (
+      event.path !== this.tracePath ||
+      !event.key ||
+      event.value === undefined
+    ) {
       return;
     }
 
@@ -872,7 +917,8 @@ export class GnosisSteeringTraceStore {
     this.doc = new QDoc({
       guid: config.guid ?? DEFAULT_GNOSIS_STEERING_TRACE_GUID,
     });
-    this.recentWindow = config.recentWindow ?? DEFAULT_GNOSIS_STEERING_TRACE_WINDOW;
+    this.recentWindow =
+      config.recentWindow ?? DEFAULT_GNOSIS_STEERING_TRACE_WINDOW;
     this.recordsMap = this.doc.getMap<string>(this.tracePath);
     this.doc.observe(this.tracePath, this.observeHandler);
     this.relay = config.relay ? new QDocRelay(this.doc, config.relay) : null;
@@ -915,7 +961,7 @@ export class GnosisSteeringTraceStore {
     options: {
       cohortKey?: string | null;
       maxRecords?: number;
-    } = {},
+    } = {}
   ): GnosisSteeringTraceDataset {
     const indexedRecordIds = this.indexedRecordIds(options.cohortKey);
     const maxRecords = options.maxRecords ?? this.recentWindow;
@@ -926,7 +972,9 @@ export class GnosisSteeringTraceStore {
     return {
       records: selectedRecordIds
         .map((recordId) => this.recordsById.get(recordId))
-        .filter((record): record is GnosisSteeringTraceRecord => record !== undefined),
+        .filter(
+          (record): record is GnosisSteeringTraceRecord => record !== undefined
+        ),
       invalidLineCount: this.invalidEventCount,
       truncated,
       recentWindow: maxRecords > 0 ? maxRecords : null,
@@ -938,7 +986,7 @@ export class GnosisSteeringTraceStore {
     options: {
       cohortKey?: string | null;
       maxRecords?: number;
-    } = {},
+    } = {}
   ): GnosisSteeringTraceRecord[] {
     return this.dataset(options).records;
   }
@@ -947,7 +995,7 @@ export class GnosisSteeringTraceStore {
     options: {
       cohortKey?: string | null;
       maxRecords?: number;
-    } = {},
+    } = {}
   ): GnosisSteeringTraceSummary {
     const dataset = this.dataset(options);
 
@@ -989,8 +1037,7 @@ export class GnosisSteeringTraceStore {
 
   private insertIntoIndexes(record: GnosisSteeringTraceRecord): void {
     this.insertRecordId(this.recordOrder, record);
-    const cohortIndex =
-      this.cohortRecordOrder.get(record.cohortKey) ?? [];
+    const cohortIndex = this.cohortRecordOrder.get(record.cohortKey) ?? [];
     this.insertRecordId(cohortIndex, record);
     this.cohortRecordOrder.set(record.cohortKey, cohortIndex);
   }
@@ -1010,7 +1057,7 @@ export class GnosisSteeringTraceStore {
 
   private insertRecordId(
     recordIds: string[],
-    record: GnosisSteeringTraceRecord,
+    record: GnosisSteeringTraceRecord
   ): void {
     const existingIndex = recordIds.indexOf(record.traceId);
     if (existingIndex >= 0) {
@@ -1050,7 +1097,11 @@ export class GnosisSteeringTraceStore {
   }
 
   private assertRelayConnectAuthorized(): void {
-    if (!this.relay || !this.executionAuth || this.executionAuth.enforce !== true) {
+    if (
+      !this.relay ||
+      !this.executionAuth ||
+      this.executionAuth.enforce !== true
+    ) {
       return;
     }
 
@@ -1058,10 +1109,7 @@ export class GnosisSteeringTraceStore {
       roomName: this.relay.status.roomName,
       auth: this.executionAuth,
     });
-    this.throwIfUnauthorized(
-      authorization,
-      'steering relay connect denied'
-    );
+    this.throwIfUnauthorized(authorization, 'steering relay connect denied');
   }
 
   private assertTraceAppendAuthorized(record: GnosisSteeringTraceRecord): void {
@@ -1084,7 +1132,9 @@ export class GnosisSteeringTraceStore {
     message: string
   ): void {
     if (!authorization.allowed) {
-      throw new Error(`${message}: ${authorization.reason ?? 'missing capability'}`);
+      throw new Error(
+        `${message}: ${authorization.reason ?? 'missing capability'}`
+      );
     }
   }
 

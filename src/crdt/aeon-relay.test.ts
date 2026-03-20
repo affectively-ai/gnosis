@@ -71,7 +71,7 @@ describe('QDocAeonRelay', () => {
         metadata: { tenant: 'forge' },
         additionalJoinFields: { lane: 'steering' },
       },
-      'peer-1234',
+      'peer-1234'
     );
 
     expect(envelope).toEqual({
@@ -136,7 +136,7 @@ describe('QDocAeonRelay', () => {
       JSON.stringify({
         type: 'joined',
         serverSeq: 7,
-      }),
+      })
     );
     await connectPromise;
 
@@ -147,7 +147,9 @@ describe('QDocAeonRelay', () => {
     expect(relay.status.joinMode).toBe('qdoc-federated');
     expect(relay.status.relayProduct).toBe('aeon-forge-relay');
     expect(relay.status.serverSeq).toBe(7);
-    expect(socket?.sent.some((payload) => payload instanceof Uint8Array)).toBe(true);
+    expect(socket?.sent.some((payload) => payload instanceof Uint8Array)).toBe(
+      true
+    );
     expect(telemetryEvents.map((event) => event.stage)).toEqual([
       'connect.start',
       'socket.open',

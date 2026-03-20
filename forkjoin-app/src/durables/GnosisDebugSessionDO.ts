@@ -165,7 +165,10 @@ export class GnosisDebugSessionDurableObject implements DurableObject {
     }
 
     const updatedAtMs = Date.parse(this.session.updatedAt);
-    if (Number.isFinite(updatedAtMs) && Date.now() - updatedAtMs > DEBUG_TTL_MS) {
+    if (
+      Number.isFinite(updatedAtMs) &&
+      Date.now() - updatedAtMs > DEBUG_TTL_MS
+    ) {
       await this.state.storage.deleteAll();
       this.session = null;
       return;
@@ -187,7 +190,8 @@ export class GnosisDebugSessionDurableObject implements DurableObject {
       }
 
       this.session =
-        (await this.state.storage.get<DebugSessionState>(DEBUG_STORAGE_KEY)) ?? null;
+        (await this.state.storage.get<DebugSessionState>(DEBUG_STORAGE_KEY)) ??
+        null;
       await this.scheduleAlarm();
       this.initialized = true;
     })();
@@ -208,7 +212,9 @@ export class GnosisDebugSessionDurableObject implements DurableObject {
   }
 
   private createFreshDoc(guid?: string): QDoc {
-    const doc = new QDoc({ guid: guid && guid.trim().length > 0 ? guid.trim() : undefined });
+    const doc = new QDoc({
+      guid: guid && guid.trim().length > 0 ? guid.trim() : undefined,
+    });
     return doc;
   }
 
@@ -256,7 +262,10 @@ export class GnosisDebugSessionDurableObject implements DurableObject {
   private async handleQDocCreate(body: CreateBody): Promise<Response> {
     const doc = this.createFreshDoc(body.guid);
 
-    if (typeof body.initialGg === 'string' && body.initialGg.trim().length > 0) {
+    if (
+      typeof body.initialGg === 'string' &&
+      body.initialGg.trim().length > 0
+    ) {
       const rootMap = doc.getMap<string>('document');
       rootMap.set('source.gg', body.initialGg.trim());
     }
@@ -299,8 +308,13 @@ export class GnosisDebugSessionDurableObject implements DurableObject {
     });
   }
 
-  private async handleQDocApplyUpdate(body: ApplyUpdateBody): Promise<Response> {
-    if (typeof body.updateBase64 !== 'string' || body.updateBase64.trim().length === 0) {
+  private async handleQDocApplyUpdate(
+    body: ApplyUpdateBody
+  ): Promise<Response> {
+    if (
+      typeof body.updateBase64 !== 'string' ||
+      body.updateBase64.trim().length === 0
+    ) {
       return jsonResponse(
         {
           ok: false,
@@ -423,11 +437,14 @@ export class GnosisDebugSessionDurableObject implements DurableObject {
     });
   }
 
-  private async handleDashRelayConnect(body: DashRelayConnectBody): Promise<Response> {
+  private async handleDashRelayConnect(
+    body: DashRelayConnectBody
+  ): Promise<Response> {
     const nowIso = new Date().toISOString();
     const idSuffix = this.state.id.toString().slice(-8);
     const isEphemeral = body.ephemeral !== false;
-    const roomNameRaw = typeof body.roomName === 'string' ? body.roomName.trim() : '';
+    const roomNameRaw =
+      typeof body.roomName === 'string' ? body.roomName.trim() : '';
     const roomName =
       roomNameRaw.length > 0
         ? roomNameRaw
@@ -436,9 +453,10 @@ export class GnosisDebugSessionDurableObject implements DurableObject {
         : `gnosis-${idSuffix}`;
 
     const relay: RelayConfigSnapshot = {
-      url: typeof body.url === 'string' && body.url.trim().length > 0
-        ? body.url.trim()
-        : 'wss://relay.dashrelay.com/relay/sync',
+      url:
+        typeof body.url === 'string' && body.url.trim().length > 0
+          ? body.url.trim()
+          : 'wss://relay.dashrelay.com/relay/sync',
       roomName,
       apiKey:
         typeof body.apiKey === 'string' && body.apiKey.trim().length > 0
@@ -451,11 +469,13 @@ export class GnosisDebugSessionDurableObject implements DurableObject {
           ? body.clientId.trim()
           : `qdoc-${crypto.randomUUID().slice(0, 10)}`,
       webtransportUrl:
-        typeof body.webtransportUrl === 'string' && body.webtransportUrl.trim().length > 0
+        typeof body.webtransportUrl === 'string' &&
+        body.webtransportUrl.trim().length > 0
           ? body.webtransportUrl.trim()
           : 'https://relay.dashrelay.com/relay',
       discoveryUrl:
-        typeof body.discoveryUrl === 'string' && body.discoveryUrl.trim().length > 0
+        typeof body.discoveryUrl === 'string' &&
+        body.discoveryUrl.trim().length > 0
           ? body.discoveryUrl.trim()
           : 'https://relay.dashrelay.com/discovery',
       connected: true,
@@ -478,7 +498,8 @@ export class GnosisDebugSessionDurableObject implements DurableObject {
       relay,
       notes: {
         mode: isEphemeral ? 'ephemeral-fallback' : 'byo-room',
-        handshake: 'Worker stores session relay intent; client establishes websocket.',
+        handshake:
+          'Worker stores session relay intent; client establishes websocket.',
       },
     });
   }

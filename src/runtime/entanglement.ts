@@ -35,7 +35,7 @@ export class EntanglementManager {
   entangle(
     boundaryA: VoidBoundary,
     boundaryB: VoidBoundary,
-    strength: number = 0.1,
+    strength: number = 0.1
   ): EntanglementPair {
     const resonance = createResonance(0, 1, strength, 'entangled boundaries');
     const pair: EntanglementPair = {
@@ -81,7 +81,10 @@ export class EntanglementManager {
         pair.boundaryB.counts[i] += distA[srcIdx] * pair.strength;
       }
     }
-    pair.boundaryB.totalEntries = pair.boundaryB.counts.reduce((a, b) => a + b, 0);
+    pair.boundaryB.totalEntries = pair.boundaryB.counts.reduce(
+      (a, b) => a + b,
+      0
+    );
 
     // B -> A: pull A toward B's complement shape
     if (dimsA === dimsB) {
@@ -95,7 +98,10 @@ export class EntanglementManager {
         pair.boundaryA.counts[i] += distB[srcIdx] * pair.strength;
       }
     }
-    pair.boundaryA.totalEntries = pair.boundaryA.counts.reduce((a, b) => a + b, 0);
+    pair.boundaryA.totalEntries = pair.boundaryA.counts.reduce(
+      (a, b) => a + b,
+      0
+    );
   }
 
   /**

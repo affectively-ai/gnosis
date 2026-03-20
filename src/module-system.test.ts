@@ -1,14 +1,23 @@
 import { describe, it, expect } from 'bun:test';
 import {
-  parseSemVer, formatSemVer, compareSemVer,
-  parseConstraint, satisfiesConstraint,
+  parseSemVer,
+  formatSemVer,
+  compareSemVer,
+  parseConstraint,
+  satisfiesConstraint,
   createManifest,
-  createLockfile, addLockfileEntry, lockfileHas, lockfileGet,
+  createLockfile,
+  addLockfileEntry,
+  lockfileHas,
+  lockfileGet,
   resolveDependencies,
   checkModuleCompatibility,
   type SemVer,
 } from './module-system.js';
-import { registerModuleSystemHandlers, MODULE_SYSTEM_FEATURES } from './module-system-handlers.js';
+import {
+  registerModuleSystemHandlers,
+  MODULE_SYSTEM_FEATURES,
+} from './module-system-handlers.js';
 import { GnosisRegistry } from './runtime/registry.js';
 
 describe('SemVer', () => {
@@ -29,7 +38,9 @@ describe('SemVer', () => {
 
   it('formats correctly', () => {
     expect(formatSemVer({ major: 1, minor: 2, patch: 3 })).toBe('1.2.3');
-    expect(formatSemVer({ major: 1, minor: 0, patch: 0, prerelease: 'rc1' })).toBe('1.0.0-rc1');
+    expect(
+      formatSemVer({ major: 1, minor: 0, patch: 0, prerelease: 'rc1' })
+    ).toBe('1.0.0-rc1');
   });
 
   it('compares correctly', () => {
@@ -92,7 +103,12 @@ describe('Lockfile', () => {
   it('adds and retrieves entries', () => {
     const lf = createLockfile();
     const v = parseSemVer('1.0.0')!;
-    addLockfileEntry(lf, { name: 'test', version: v, integrity: 'sha256-abc', dependencies: {} });
+    addLockfileEntry(lf, {
+      name: 'test',
+      version: v,
+      integrity: 'sha256-abc',
+      dependencies: {},
+    });
     expect(lockfileHas(lf, 'test', v)).toBe(true);
     expect(lockfileGet(lf, 'test', v)?.integrity).toBe('sha256-abc');
   });
@@ -113,7 +129,10 @@ describe('Dependency resolution', () => {
     });
 
     const available = new Map([
-      ['dep-a', [parseSemVer('1.0.0')!, parseSemVer('1.1.0')!, parseSemVer('2.0.0')!]],
+      [
+        'dep-a',
+        [parseSemVer('1.0.0')!, parseSemVer('1.1.0')!, parseSemVer('2.0.0')!],
+      ],
     ]);
 
     const result = resolveDependencies(manifest, available);

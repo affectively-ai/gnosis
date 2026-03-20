@@ -21,7 +21,12 @@
  *   bun run src/benchmarks/concurrency-benchmark.ts --verbose
  */
 
-import { mean, stdev, bootstrapMeanConfidenceInterval, createDeterministicRandom } from './statistics.js';
+import {
+  mean,
+  stdev,
+  bootstrapMeanConfidenceInterval,
+  createDeterministicRandom,
+} from './statistics.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Types
@@ -63,7 +68,7 @@ interface BenchmarkReport {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function simulateWork(durationMs: number, seed: number): Promise<number> {
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     // Simulate CPU work with deterministic result
     const random = createDeterministicRandom(seed);
     let result = 0;
@@ -125,7 +130,13 @@ async function runParallelFetch(iterations: number): Promise<TaskResult> {
   }
 
   const ci = bootstrapMeanConfidenceInterval(timings);
-  return { timingsMs: timings, meanMs: mean(timings), stdevMs: stdev(timings), ci95: ci, correctness: correct };
+  return {
+    timingsMs: timings,
+    meanMs: mean(timings),
+    stdevMs: stdev(timings),
+    ci95: ci,
+    correctness: correct,
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -142,7 +153,7 @@ const pipelineGG = `// pipeline.gg -- 7 lines
 (serialized)-[:FOLD { strategy: 'ordered' }]->(output: Result)`;
 
 const pipelineTS = `// pipeline.ts -- 28 lines
-async function pipeline(data: Buffer[], stages: Function[]) {
+async function pipeline(data: Buffer[], stages: ((...args: unknown[]) => unknown)[]) {
   const results: any[] = new Array(data.length);
   const inFlight = new Map<number, Promise<void>>();
   const maxConcurrent = 4;
@@ -187,7 +198,9 @@ async function runPipeline(iterations: number): Promise<TaskResult> {
       chunks.map(async (chunk) => {
         let val = chunk;
         for (let stage = 0; stage < 4; stage++) {
-          val = await simulateWork(0.5, iter * 100 + chunk * 10 + stage).then(r => val + r);
+          val = await simulateWork(0.5, iter * 100 + chunk * 10 + stage).then(
+            (r) => val + r
+          );
         }
         return val;
       })
@@ -200,7 +213,13 @@ async function runPipeline(iterations: number): Promise<TaskResult> {
   }
 
   const ci = bootstrapMeanConfidenceInterval(timings);
-  return { timingsMs: timings, meanMs: mean(timings), stdevMs: stdev(timings), ci95: ci, correctness: correct };
+  return {
+    timingsMs: timings,
+    meanMs: mean(timings),
+    stdevMs: stdev(timings),
+    ci95: ci,
+    correctness: correct,
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -273,7 +292,13 @@ async function runFanOutFanIn(iterations: number): Promise<TaskResult> {
   }
 
   const ci = bootstrapMeanConfidenceInterval(timings);
-  return { timingsMs: timings, meanMs: mean(timings), stdevMs: stdev(timings), ci95: ci, correctness: correct };
+  return {
+    timingsMs: timings,
+    meanMs: mean(timings),
+    stdevMs: stdev(timings),
+    ci95: ci,
+    correctness: correct,
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -322,7 +347,9 @@ async function runTimeoutRace(iterations: number): Promise<TaskResult> {
 
     const result = await Promise.race([
       simulateWork(workDuration, iter),
-      new Promise<'timeout'>(resolve => setTimeout(() => resolve('timeout'), deadline)),
+      new Promise<'timeout'>((resolve) =>
+        setTimeout(() => resolve('timeout'), deadline)
+      ),
     ]);
 
     const elapsed = performance.now() - start;
@@ -333,7 +360,13 @@ async function runTimeoutRace(iterations: number): Promise<TaskResult> {
   }
 
   const ci = bootstrapMeanConfidenceInterval(timings);
-  return { timingsMs: timings, meanMs: mean(timings), stdevMs: stdev(timings), ci95: ci, correctness: correct };
+  return {
+    timingsMs: timings,
+    meanMs: mean(timings),
+    stdevMs: stdev(timings),
+    ci95: ci,
+    correctness: correct,
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -384,51 +417,90 @@ const TASKS: BenchmarkTask[] = [
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function printReport(report: BenchmarkReport, verbose: boolean): void {
-  console.log('\n═══════════════════════════════════════════════════════════════');
+  console.log(
+    '\n═══════════════════════════════════════════════════════════════'
+  );
   console.log(' Concurrency Benchmark');
   console.log(' fork/race/fold vs async/await');
-  console.log('═══════════════════════════════════════════════════════════════');
+  console.log(
+    '═══════════════════════════════════════════════════════════════'
+  );
 
   // Expressiveness comparison
-  console.log('\n── Expressiveness (lines of code) ───────────────────────────');
-  console.log(`${'Task'.padEnd(20)} ${'gnosis'.padStart(8)} ${'async'.padStart(8)} ${'ratio'.padStart(8)} ${'winner'.padStart(10)}`);
+  console.log(
+    '\n── Expressiveness (lines of code) ───────────────────────────'
+  );
+  console.log(
+    `${'Task'.padEnd(20)} ${'gnosis'.padStart(8)} ${'async'.padStart(
+      8
+    )} ${'ratio'.padStart(8)} ${'winner'.padStart(10)}`
+  );
   console.log('─'.repeat(56));
 
   for (const t of report.tasks) {
     const ratio = `${t.expressiveness.ratio.toFixed(1)}x`;
     const winner = t.expressiveness.ratio > 1 ? 'gnosis' : 'async';
     console.log(
-      `${t.name.padEnd(20)} ${String(t.expressiveness.gnosisLines).padStart(8)} ${String(t.expressiveness.asyncAwaitLines).padStart(8)} ${ratio.padStart(8)} ${winner.padStart(10)}`
+      `${t.name.padEnd(20)} ${String(t.expressiveness.gnosisLines).padStart(
+        8
+      )} ${String(t.expressiveness.asyncAwaitLines).padStart(
+        8
+      )} ${ratio.padStart(8)} ${winner.padStart(10)}`
     );
   }
 
-  const avgRatio = mean(report.tasks.map(t => t.expressiveness.ratio));
+  const avgRatio = mean(report.tasks.map((t) => t.expressiveness.ratio));
   console.log('─'.repeat(56));
-  console.log(`${'AVERAGE'.padEnd(20)} ${''.padStart(8)} ${''.padStart(8)} ${(avgRatio.toFixed(1) + 'x').padStart(8)} ${'gnosis'.padStart(10)}`);
+  console.log(
+    `${'AVERAGE'.padEnd(20)} ${''.padStart(8)} ${''.padStart(8)} ${(
+      avgRatio.toFixed(1) + 'x'
+    ).padStart(8)} ${'gnosis'.padStart(10)}`
+  );
 
   // Performance comparison
   console.log('\n── Performance (ms, lower is better) ───────────────────────');
-  console.log(`${'Task'.padEnd(20)} ${'Mean'.padStart(10)} ${'Stdev'.padStart(10)} ${'95% CI'.padStart(20)} ${'Correct'.padStart(8)}`);
+  console.log(
+    `${'Task'.padEnd(20)} ${'Mean'.padStart(10)} ${'Stdev'.padStart(
+      10
+    )} ${'95% CI'.padStart(20)} ${'Correct'.padStart(8)}`
+  );
   console.log('─'.repeat(70));
 
   for (const t of report.tasks) {
-    const ci = `[${t.performance.ci95.low.toFixed(2)}, ${t.performance.ci95.high.toFixed(2)}]`;
+    const ci = `[${t.performance.ci95.low.toFixed(
+      2
+    )}, ${t.performance.ci95.high.toFixed(2)}]`;
     console.log(
-      `${t.name.padEnd(20)} ${t.performance.meanMs.toFixed(2).padStart(10)} ${t.performance.stdevMs.toFixed(2).padStart(10)} ${ci.padStart(20)} ${(t.performance.correctness ? 'PASS' : 'FAIL').padStart(8)}`
+      `${t.name.padEnd(20)} ${t.performance.meanMs
+        .toFixed(2)
+        .padStart(10)} ${t.performance.stdevMs
+        .toFixed(2)
+        .padStart(10)} ${ci.padStart(20)} ${(t.performance.correctness
+        ? 'PASS'
+        : 'FAIL'
+      ).padStart(8)}`
     );
   }
 
   // Source code comparison (verbose)
   if (verbose) {
-    console.log('\n── Source Code Comparison ───────────────────────────────────');
+    console.log(
+      '\n── Source Code Comparison ───────────────────────────────────'
+    );
     for (const t of report.tasks) {
       console.log(`\n  [${t.name}] ${t.description}`);
       console.log(`\n  gnosis (${t.expressiveness.gnosisLines} lines):`);
-      for (const line of TASKS.find(task => task.name === t.name)!.gnosisSource.split('\n')) {
+      for (const line of TASKS.find(
+        (task) => task.name === t.name
+      )!.gnosisSource.split('\n')) {
         console.log(`    ${line}`);
       }
-      console.log(`\n  async/await (${t.expressiveness.asyncAwaitLines} lines):`);
-      for (const line of TASKS.find(task => task.name === t.name)!.asyncAwaitSource.split('\n')) {
+      console.log(
+        `\n  async/await (${t.expressiveness.asyncAwaitLines} lines):`
+      );
+      for (const line of TASKS.find(
+        (task) => task.name === t.name
+      )!.asyncAwaitSource.split('\n')) {
         console.log(`    ${line}`);
       }
     }
@@ -444,24 +516,30 @@ async function main() {
   const verbose = args.includes('--verbose');
   const iterations = 50;
 
-  console.log(`Running ${TASKS.length} concurrency benchmarks (${iterations} iterations each)...`);
+  console.log(
+    `Running ${TASKS.length} concurrency benchmarks (${iterations} iterations each)...`
+  );
 
   const report: BenchmarkReport = {
-    tasks: await Promise.all(TASKS.map(async (task) => {
-      console.log(`  [${task.name}] running...`);
-      const result = await task.run(iterations);
-      console.log(`  [${task.name}] done (mean: ${result.meanMs.toFixed(2)}ms)`);
-      return {
-        name: task.name,
-        description: task.description,
-        expressiveness: {
-          gnosisLines: task.gnosisLines,
-          asyncAwaitLines: task.asyncAwaitLines,
-          ratio: task.asyncAwaitLines / task.gnosisLines,
-        },
-        performance: result,
-      };
-    })),
+    tasks: await Promise.all(
+      TASKS.map(async (task) => {
+        console.log(`  [${task.name}] running...`);
+        const result = await task.run(iterations);
+        console.log(
+          `  [${task.name}] done (mean: ${result.meanMs.toFixed(2)}ms)`
+        );
+        return {
+          name: task.name,
+          description: task.description,
+          expressiveness: {
+            gnosisLines: task.gnosisLines,
+            asyncAwaitLines: task.asyncAwaitLines,
+            ratio: task.asyncAwaitLines / task.gnosisLines,
+          },
+          performance: result,
+        };
+      })
+    ),
   };
 
   printReport(report, verbose);

@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'bun:test';
 import { GnosisRegistry } from './registry.js';
-import { registerOmegaCheckerHandlers, REYNOLDS_BFT_THEOREMS } from './omega-checker-handlers.js';
+import {
+  registerOmegaCheckerHandlers,
+  REYNOLDS_BFT_THEOREMS,
+} from './omega-checker-handlers.js';
 
 describe('Omega Checker — Daisy Chain MOA Proof Verification', () => {
   const registry = new GnosisRegistry();
@@ -10,7 +13,10 @@ describe('Omega Checker — Daisy Chain MOA Proof Verification', () => {
   describe('ReynoldsBFT.lean theorems', () => {
     for (const thm of REYNOLDS_BFT_THEOREMS) {
       it(`verifies ${thm.name}: ${thm.statement} | ${thm.variables}`, async () => {
-        const result = await checker(null, { statement: thm.statement, variables: thm.variables });
+        const result = await checker(null, {
+          statement: thm.statement,
+          variables: thm.variables,
+        });
         expect(result.status).toBe('QED');
         expect(result.verified).toBe(true);
         expect(result.margin).toBeGreaterThanOrEqual(0);
@@ -22,18 +28,27 @@ describe('Omega Checker — Daisy Chain MOA Proof Verification', () => {
 
   describe('Self-verification properties', () => {
     it('uses exactly 4 agents (β₁ = 3)', async () => {
-      const result = await checker(null, { statement: '3*(k-1)>=k', variables: 'k>=2' });
+      const result = await checker(null, {
+        statement: '3*(k-1)>=k',
+        variables: 'k>=2',
+      });
       expect(result.agents).toBe(4);
       expect(result.beta1).toBe(3);
     });
 
     it('completes in under 1ms (Vickrey Table lookup)', async () => {
-      const result = await checker(null, { statement: '3*(k-1)>=k', variables: 'k>=2' });
+      const result = await checker(null, {
+        statement: '3*(k-1)>=k',
+        variables: 'k>=2',
+      });
       expect(result.timeMs).toBeLessThan(1);
     });
 
     it('winner-take-all is BFT-forced (vent fraction 3/4 ≥ 1/2)', async () => {
-      const result = await checker(null, { statement: '3*(k-1)>=k', variables: 'k>=2' });
+      const result = await checker(null, {
+        statement: '3*(k-1)>=k',
+        variables: 'k>=2',
+      });
       // The checker itself has 4 agents and 1 output
       // Vent fraction = 3/4 = 0.75 ≥ 0.5 (majority threshold)
       // By daisy_chain_moa_determinism: winner-take-all forced
@@ -46,7 +61,10 @@ describe('Omega Checker — Daisy Chain MOA Proof Verification', () => {
     it('verifies all 10 ReynoldsBFT theorems', async () => {
       let verified = 0;
       for (const thm of REYNOLDS_BFT_THEOREMS) {
-        const result = await checker(null, { statement: thm.statement, variables: thm.variables });
+        const result = await checker(null, {
+          statement: thm.statement,
+          variables: thm.variables,
+        });
         if (result.status === 'QED') verified++;
       }
       expect(verified).toBe(REYNOLDS_BFT_THEOREMS.length);

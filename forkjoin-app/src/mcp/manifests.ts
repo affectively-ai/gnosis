@@ -151,7 +151,10 @@ function normalizeBaseUrl(value: string): string {
   return value.replace(/\/+$/, '');
 }
 
-export function resolvePublicBaseUrl(request: Request, configured?: string): string {
+export function resolvePublicBaseUrl(
+  request: Request,
+  configured?: string
+): string {
   if (typeof configured === 'string' && configured.trim().length > 0) {
     return normalizeBaseUrl(configured.trim());
   }
@@ -183,7 +186,9 @@ export function buildDiscoveryEndpoints(
 }
 
 export function buildLlmsTxt(endpoints: DiscoveryEndpoints): string {
-  const publicTools = GNOSIS_MCP_TOOLS.filter((tool) => tool.access === 'public');
+  const publicTools = GNOSIS_MCP_TOOLS.filter(
+    (tool) => tool.access === 'public'
+  );
   const authTools = GNOSIS_MCP_TOOLS.filter((tool) => tool.access === 'auth');
 
   return [
@@ -232,14 +237,18 @@ export function buildLlmsFullTxt(endpoints: DiscoveryEndpoints): string {
     `Security: ${endpoints.security}`,
     '',
     'Features:',
-    ...GNOSIS_FEATURES.map((feature) => `- ${feature.name}: ${feature.description}`),
+    ...GNOSIS_FEATURES.map(
+      (feature) => `- ${feature.name}: ${feature.description}`
+    ),
     '',
     'Examples:',
     ...GNOSIS_EXAMPLES.map((example) => `- ${example.prompt}`),
   ].join('\n');
 }
 
-export function buildMcpWellKnownManifest(endpoints: DiscoveryEndpoints): Record<string, unknown> {
+export function buildMcpWellKnownManifest(
+  endpoints: DiscoveryEndpoints
+): Record<string, unknown> {
   return {
     id: SERVER_NAME,
     name: 'ForkJoin MCP',
@@ -286,7 +295,9 @@ export function buildMcpMarketingManifest(
   };
 }
 
-export function buildAgentCardManifest(endpoints: DiscoveryEndpoints): Record<string, unknown> {
+export function buildAgentCardManifest(
+  endpoints: DiscoveryEndpoints
+): Record<string, unknown> {
   return {
     id: 'forkjoin-app-agent-card',
     name: 'ForkJoin',
@@ -308,7 +319,9 @@ export function buildAgentCardManifest(endpoints: DiscoveryEndpoints): Record<st
   };
 }
 
-export function buildAgentsManifest(endpoints: DiscoveryEndpoints): Record<string, unknown> {
+export function buildAgentsManifest(
+  endpoints: DiscoveryEndpoints
+): Record<string, unknown> {
   return {
     schema_version: '1.0.0',
     name: SERVER_NAME,
@@ -339,7 +352,9 @@ export function buildAgentsManifest(endpoints: DiscoveryEndpoints): Record<strin
   };
 }
 
-export function buildAiPluginManifest(endpoints: DiscoveryEndpoints): Record<string, unknown> {
+export function buildAiPluginManifest(
+  endpoints: DiscoveryEndpoints
+): Record<string, unknown> {
   return {
     schema_version: 'v1',
     name_for_human: 'ForkJoin MCP',
@@ -363,7 +378,9 @@ export function buildAiPluginManifest(endpoints: DiscoveryEndpoints): Record<str
   };
 }
 
-export function buildOpenApiManifest(endpoints: DiscoveryEndpoints): Record<string, unknown> {
+export function buildOpenApiManifest(
+  endpoints: DiscoveryEndpoints
+): Record<string, unknown> {
   return {
     openapi: '3.1.0',
     info: {
@@ -523,7 +540,9 @@ export function buildOpenApiManifest(endpoints: DiscoveryEndpoints): Record<stri
   };
 }
 
-export function buildSkillsIndex(endpoints: DiscoveryEndpoints): PublicSkillsIndex {
+export function buildSkillsIndex(
+  endpoints: DiscoveryEndpoints
+): PublicSkillsIndex {
   return buildPublicSkillsIndex({
     server: {
       id: SERVER_NAME,
@@ -544,7 +563,9 @@ export function buildSkillsIndex(endpoints: DiscoveryEndpoints): PublicSkillsInd
 }
 
 export function buildSecurityTxt(endpoints: DiscoveryEndpoints): string {
-  const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 365).toISOString();
+  const expiresAt = new Date(
+    Date.now() + 1000 * 60 * 60 * 24 * 365
+  ).toISOString();
 
   return [
     'Contact: mailto:security@forkjoin.ai',

@@ -131,11 +131,10 @@ function findForkBoundaries(
     }
 
     // Find corresponding FOLD
-    const foldEdge = edges.find(
-      (e) =>
-        e.type === 'FOLD' &&
-        branches.some((b) => b.id === e.from)
-    ) ?? null;
+    const foldEdge =
+      edges.find(
+        (e) => e.type === 'FOLD' && branches.some((b) => b.id === e.from)
+      ) ?? null;
 
     boundaries.push({
       forkEdge,
@@ -180,9 +179,7 @@ export function generateAutofixSuggestions(
     const forkBoundaries = findForkBoundaries(result);
     if (forkBoundaries.length > 0) {
       for (const boundary of forkBoundaries) {
-        const branchNames = boundary.branches
-          .map((b) => b.label)
-          .join(', ');
+        const branchNames = boundary.branches.map((b) => b.label).join(', ');
         suggestions.push({
           ruleId: 'gnosis/split-at-fork',
           kind: 'split-function',
@@ -272,9 +269,7 @@ function findLongProcessChains(
   }
 
   // Find chain starts (nodes with no PROCESS predecessor)
-  const chainStarts = nodes.filter(
-    (n) => !prev.has(n.id) && next.has(n.id)
-  );
+  const chainStarts = nodes.filter((n) => !prev.has(n.id) && next.has(n.id));
 
   const chains: GnosisTypeScriptCheckTopologyNode[][] = [];
   for (const start of chainStarts) {
@@ -298,10 +293,16 @@ function findLongProcessChains(
 function findIndependentNodes(
   chain: readonly GnosisTypeScriptCheckTopologyNode[],
   result: GnosisTypeScriptCheckResult
-): readonly [GnosisTypeScriptCheckTopologyNode, GnosisTypeScriptCheckTopologyNode][] {
+): readonly [
+  GnosisTypeScriptCheckTopologyNode,
+  GnosisTypeScriptCheckTopologyNode
+][] {
   // Two nodes are independent if neither reads from the other's output
   // Heuristic: call nodes with different callee names and no shared bindings
-  const pairs: [GnosisTypeScriptCheckTopologyNode, GnosisTypeScriptCheckTopologyNode][] = [];
+  const pairs: [
+    GnosisTypeScriptCheckTopologyNode,
+    GnosisTypeScriptCheckTopologyNode
+  ][] = [];
 
   for (let i = 0; i < chain.length; i++) {
     for (let j = i + 1; j < chain.length; j++) {

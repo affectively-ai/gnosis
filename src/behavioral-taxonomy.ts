@@ -416,18 +416,19 @@ function parseBehavioralExecutionContext(
   }
 
   const interventions = Array.isArray(payload.interventions)
-    ? payload.interventions
-        .filter(
-          (value): value is BehavioralExecutionInterventionKind =>
-            typeof value === 'string' &&
-            BEHAVIOR_INTERVENTION_KINDS.includes(
-              value as BehavioralExecutionInterventionKind
-            )
-        )
+    ? payload.interventions.filter(
+        (value): value is BehavioralExecutionInterventionKind =>
+          typeof value === 'string' &&
+          BEHAVIOR_INTERVENTION_KINDS.includes(
+            value as BehavioralExecutionInterventionKind
+          )
+      )
     : [];
 
   const evidence = Array.isArray(payload.evidence)
-    ? payload.evidence.filter((value): value is string => typeof value === 'string')
+    ? payload.evidence.filter(
+        (value): value is string => typeof value === 'string'
+      )
     : undefined;
 
   return {
@@ -436,15 +437,19 @@ function parseBehavioralExecutionContext(
         ? payload.givenSatisfied
         : undefined,
     whenSatisfied:
-      typeof payload.whenSatisfied === 'boolean' ? payload.whenSatisfied : undefined,
+      typeof payload.whenSatisfied === 'boolean'
+        ? payload.whenSatisfied
+        : undefined,
     signalState:
       typeof payload.signalState === 'string' ? payload.signalState : undefined,
-    eventState: typeof payload.eventState === 'string' ? payload.eventState : undefined,
+    eventState:
+      typeof payload.eventState === 'string' ? payload.eventState : undefined,
     interventions,
     evidence,
     intensity:
       typeof payload.intensity === 'number' ? payload.intensity : undefined,
-    observer: typeof payload.observer === 'string' ? payload.observer : undefined,
+    observer:
+      typeof payload.observer === 'string' ? payload.observer : undefined,
     subject: typeof payload.subject === 'string' ? payload.subject : undefined,
   };
 }
@@ -459,7 +464,8 @@ function resolveStageSatisfied(
     return explicitFlag;
   }
 
-  const stateValue = stage === 'given' ? context.signalState : context.eventState;
+  const stateValue =
+    stage === 'given' ? context.signalState : context.eventState;
   if (!stateValue) {
     return false;
   }
@@ -516,15 +522,23 @@ function parseBehaviorRuntimeLoopDescriptor(
   };
 }
 
-function getTaggedErrorPayload(payload: unknown): Record<string, unknown> | undefined {
-  if (!isRecord(payload) || payload.kind !== 'err' || !isRecord(payload.error)) {
+function getTaggedErrorPayload(
+  payload: unknown
+): Record<string, unknown> | undefined {
+  if (
+    !isRecord(payload) ||
+    payload.kind !== 'err' ||
+    !isRecord(payload.error)
+  ) {
     return undefined;
   }
 
   return payload.error;
 }
 
-function getTaggedValuePayload(payload: unknown): Record<string, unknown> | undefined {
+function getTaggedValuePayload(
+  payload: unknown
+): Record<string, unknown> | undefined {
   if (
     !isRecord(payload) ||
     (payload.kind !== 'ok' && payload.kind !== 'some') ||
@@ -548,9 +562,9 @@ function getFirstBranchRecord(
   branches: Record<string, unknown>[],
   key: string
 ): Record<string, unknown> | undefined {
-  return branches.find(
-    (branch) => key in branch && isRecord(branch[key])
-  )?.[key] as Record<string, unknown> | undefined;
+  return branches.find((branch) => key in branch && isRecord(branch[key]))?.[
+    key
+  ] as Record<string, unknown> | undefined;
 }
 
 function getStringProperty(
@@ -585,9 +599,7 @@ function getBehavioralExecutionMode(
 }
 
 function formatBehaviorParseDiagnostics(diagnostics: Diagnostic[]): string {
-  return diagnostics
-    .map((diagnostic) => diagnostic.message)
-    .join('; ');
+  return diagnostics.map((diagnostic) => diagnostic.message).join('; ');
 }
 
 function isBehavioralExecutionPayload(
@@ -654,9 +666,10 @@ function inferDependencies(loops: BehavioralLoopRecord[]): LoopDependency[] {
   return dependencies;
 }
 
-export function loadBehavioralLoopsDataset(
-  sourcePath?: string
-): { dataset: BehavioralLoopsDataset; datasetPath: string } {
+export function loadBehavioralLoopsDataset(sourcePath?: string): {
+  dataset: BehavioralLoopsDataset;
+  datasetPath: string;
+} {
   const datasetPath = sourcePath
     ? path.resolve(process.cwd(), sourcePath)
     : resolveDefaultDatasetPath();
@@ -664,7 +677,9 @@ export function loadBehavioralLoopsDataset(
   const dataset = JSON.parse(raw) as BehavioralLoopsDataset;
 
   if (!Array.isArray(dataset.categories) || dataset.categories.length === 0) {
-    throw new Error(`Dataset at ${datasetPath} does not contain any categories.`);
+    throw new Error(
+      `Dataset at ${datasetPath} does not contain any categories.`
+    );
   }
 
   return { dataset, datasetPath };
@@ -680,7 +695,9 @@ export function selectBehavioralTaxonomy(
   const filterLoops = requestedLoopIds.size > 0;
 
   const categories = dataset.categories
-    .filter((category) => !filterCategories || requestedCategories.has(category.id))
+    .filter(
+      (category) => !filterCategories || requestedCategories.has(category.id)
+    )
     .map((category) => ({
       ...category,
       loops: category.loops.filter(
@@ -717,8 +734,12 @@ export function buildBehavioralTaxonomyTopology(
     const categorySummaryNodeId = sanitizeNodeId(
       `category_${category.id}_summary`
     );
-    const loopIds = category.loops.map((loop) => sanitizeNodeId(`loop_${loop.id}`));
-    const resultIds = category.loops.map((loop) => getLoopNodeId(loop.id, 'result'));
+    const loopIds = category.loops.map((loop) =>
+      sanitizeNodeId(`loop_${loop.id}`)
+    );
+    const resultIds = category.loops.map((loop) =>
+      getLoopNodeId(loop.id, 'result')
+    );
 
     nodeLines.add(renderNode(categoryNodeId, 'Category'));
     nodeLines.add(renderNode(categorySummaryNodeId, 'CategorySummary'));
@@ -845,10 +866,16 @@ export function buildBehavioralTaxonomyTopology(
       dependency.targetLoopId,
       dependency.type === 'prerequisite' ? 'given' : 'when'
     );
-    const edgeType = dependency.type === 'prerequisite' ? 'PROCESS' : 'INTERFERE';
+    const edgeType =
+      dependency.type === 'prerequisite' ? 'PROCESS' : 'INTERFERE';
     const relation = JSON.stringify(dependency.type);
     edgeLines.push(
-      renderEdge([sourceNodeId], edgeType, [targetNodeId], `relation: ${relation}`)
+      renderEdge(
+        [sourceNodeId],
+        edgeType,
+        [targetNodeId],
+        `relation: ${relation}`
+      )
     );
   }
 
@@ -898,10 +925,13 @@ export async function measureBehavioralTaxonomySelection(
 export async function measureBehavioralTaxonomy(
   options: BehavioralTaxonomyMeasureOptions = {}
 ): Promise<BehavioralTaxonomyMeasurement> {
-  const { dataset, datasetPath } = loadBehavioralLoopsDataset(options.sourcePath);
+  const { dataset, datasetPath } = loadBehavioralLoopsDataset(
+    options.sourcePath
+  );
   const selection = selectBehavioralTaxonomy(dataset, options);
-  const { topologySource, report } =
-    await measureBehavioralTaxonomySelection(selection);
+  const { topologySource, report } = await measureBehavioralTaxonomySelection(
+    selection
+  );
 
   if (options.writeTopologyPath) {
     const writePath = path.resolve(process.cwd(), options.writeTopologyPath);
@@ -927,7 +957,9 @@ export function formatBehavioralTaxonomyMeasurement(
     `buley-number: ${report.buleyNumber}`,
     `topology: nodes=${report.topology.nodeCount}, edges=${report.topology.edgeCount}, beta1=${report.topology.structuralBeta1}`,
     `quantum: index=${report.quantum.quantumIndex}, collapse-deficit=${report.quantum.collapseDeficit}`,
-    `steering: wally=${report.steering.wallaceNumber}, regime=${report.steering.regime}, action=${report.steering.recommendedAction ?? 'n/a'}`,
+    `steering: wally=${report.steering.wallaceNumber}, regime=${
+      report.steering.regime
+    }, action=${report.steering.recommendedAction ?? 'n/a'}`,
   ].join('\n');
 }
 
@@ -941,7 +973,9 @@ function createBehavioralExecutionRegistry(): GnosisRegistry {
 
   registry.register('BehaviorAssess', async (payload, props) => {
     const stage = props.stage === 'when' ? 'when' : 'given';
-    const source = getTaggedValuePayload(payload) ?? (isRecord(payload) ? payload : undefined);
+    const source =
+      getTaggedValuePayload(payload) ??
+      (isRecord(payload) ? payload : undefined);
     const context =
       source && isRecord(source.context)
         ? parseBehavioralExecutionContext(source.context)
@@ -983,7 +1017,9 @@ function createBehavioralExecutionRegistry(): GnosisRegistry {
   });
 
   registry.register('BehaviorEmit', async (payload, props) => {
-    const context = isRecord(payload) ? parseBehavioralExecutionContext(payload.context) : {};
+    const context = isRecord(payload)
+      ? parseBehavioralExecutionContext(payload.context)
+      : {};
     const emission = props.emission ?? 'unknown';
 
     switch (emission) {
@@ -1031,7 +1067,8 @@ function createBehavioralExecutionRegistry(): GnosisRegistry {
           interventions: {
             [interventionKind]: {
               text: decodeBehaviorText(props.text) ?? '',
-              active: context.interventions?.includes(interventionKind) ?? false,
+              active:
+                context.interventions?.includes(interventionKind) ?? false,
             },
           },
         };
@@ -1129,8 +1166,11 @@ function createBehavioralExecutionRegistry(): GnosisRegistry {
         ? getStringProperty(errorPayload.assessment, 'reason')
         : undefined;
     const loopRecord =
-      errorPayload && isRecord(errorPayload.loop) ? errorPayload.loop : undefined;
-    const loopName = getStringProperty(loopRecord, 'name') ?? props.loopName ?? '';
+      errorPayload && isRecord(errorPayload.loop)
+        ? errorPayload.loop
+        : undefined;
+    const loopName =
+      getStringProperty(loopRecord, 'name') ?? props.loopName ?? '';
     const decodedLoopName = decodeBehaviorText(loopName) ?? loopName;
     const loopId = Number.parseInt(props.loopId ?? '0', 10);
 
@@ -1140,7 +1180,9 @@ function createBehavioralExecutionRegistry(): GnosisRegistry {
       loopName: decodedLoopName,
       reason: reason ?? 'precondition-not-satisfied',
       context,
-      summary: `${decodedLoopName} stayed inactive because ${reason ?? 'a precondition failed'}.`,
+      summary: `${decodedLoopName} stayed inactive because ${
+        reason ?? 'a precondition failed'
+      }.`,
     } satisfies BehavioralExecutionPayload;
   });
 
@@ -1290,16 +1332,36 @@ export function buildBehavioralLoopExecutionTopology(
 
   edgeLines.push(renderEdge([startNodeId], 'PROCESS', [givenGateNodeId]));
   edgeLines.push(
-    renderEdge([givenGateNodeId], 'PROCESS', [whenGateNodeId], `case: ${JSON.stringify('ok')}`)
+    renderEdge(
+      [givenGateNodeId],
+      'PROCESS',
+      [whenGateNodeId],
+      `case: ${JSON.stringify('ok')}`
+    )
   );
   edgeLines.push(
-    renderEdge([givenGateNodeId], 'PROCESS', [inactiveNodeId], `case: ${JSON.stringify('err')}`)
+    renderEdge(
+      [givenGateNodeId],
+      'PROCESS',
+      [inactiveNodeId],
+      `case: ${JSON.stringify('err')}`
+    )
   );
   edgeLines.push(
-    renderEdge([whenGateNodeId], 'PROCESS', [contextNodeId], `case: ${JSON.stringify('ok')}`)
+    renderEdge(
+      [whenGateNodeId],
+      'PROCESS',
+      [contextNodeId],
+      `case: ${JSON.stringify('ok')}`
+    )
   );
   edgeLines.push(
-    renderEdge([whenGateNodeId], 'PROCESS', [inactiveNodeId], `case: ${JSON.stringify('err')}`)
+    renderEdge(
+      [whenGateNodeId],
+      'PROCESS',
+      [inactiveNodeId],
+      `case: ${JSON.stringify('err')}`
+    )
   );
 
   const branchTargets = [
@@ -1331,7 +1393,9 @@ export function buildBehavioralLoopExecutionTopology(
 
   for (const interventionNode of interventionNodeIds) {
     const targetNodeId =
-      interventionNode.kind === 'leverage' ? resultBranchNodeId : thenBranchNodeId;
+      interventionNode.kind === 'leverage'
+        ? resultBranchNodeId
+        : thenBranchNodeId;
     const mode =
       interventionNode.kind === 'leverage' ? 'constructive' : 'destructive';
     edgeLines.push(
@@ -1366,14 +1430,18 @@ export async function executeBehavioralLoop(
 
   if (!ast) {
     throw new Error(
-      `Unable to parse executable topology for loop ${loop.id}: ${formatBehaviorParseDiagnostics(diagnostics)}`
+      `Unable to parse executable topology for loop ${
+        loop.id
+      }: ${formatBehaviorParseDiagnostics(diagnostics)}`
     );
   }
 
   const engine = new GnosisEngine(createBehavioralExecutionRegistry());
   const execution = await engine.executeWithResult(ast, context);
   if (!isBehavioralExecutionPayload(execution.payload)) {
-    throw new Error(`Behavioral loop ${loop.id} produced an invalid execution payload.`);
+    throw new Error(
+      `Behavioral loop ${loop.id} produced an invalid execution payload.`
+    );
   }
 
   return {
@@ -1465,7 +1533,9 @@ async function buildBehavioralLoopArtifactManifest(
 export async function writeBehavioralLoopExecutionArtifacts(
   options: BehavioralLoopArtifactWriteOptions
 ): Promise<BehavioralLoopArtifactManifest> {
-  const { dataset, datasetPath } = loadBehavioralLoopsDataset(options.sourcePath);
+  const { dataset, datasetPath } = loadBehavioralLoopsDataset(
+    options.sourcePath
+  );
   const selection = selectBehavioralTaxonomy(dataset, options);
   const outputDirectory = path.resolve(process.cwd(), options.outputDirectory);
   const manifest = await buildBehavioralLoopArtifactManifest(

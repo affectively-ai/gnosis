@@ -319,9 +319,9 @@ describe('BettyCompiler', () => {
         `);
 
     expect(diagnostics.some((d) => d.code === 'ETHICS_NO_TRACE')).toBe(false);
-    expect(
-      diagnostics.some((d) => d.code === 'ETHICS_MISSING_VENT_PATH')
-    ).toBe(false);
+    expect(diagnostics.some((d) => d.code === 'ETHICS_MISSING_VENT_PATH')).toBe(
+      false
+    );
   });
 
   it('treats race and interfere edges as branch-closing evidence for debt and ethics checks', () => {
@@ -333,13 +333,13 @@ describe('BettyCompiler', () => {
         `);
 
     expect(b1).toBe(0);
-    expect(
-      diagnostics.some((d) => d.code === 'ETHICS_MISSING_VENT_PATH')
-    ).toBe(false);
+    expect(diagnostics.some((d) => d.code === 'ETHICS_MISSING_VENT_PATH')).toBe(
+      false
+    );
     expect(diagnostics.some((d) => d.code === 'ETHICS_NO_TRACE')).toBe(false);
-    expect(
-      diagnostics.some((d) => d.code === 'ERR_DEFICIT_NONZERO')
-    ).toBe(false);
+    expect(diagnostics.some((d) => d.code === 'ERR_DEFICIT_NONZERO')).toBe(
+      false
+    );
   });
 
   it('accepts fold evidence that arrives transitively through branch-local processing', () => {
@@ -382,7 +382,9 @@ describe('BettyCompiler', () => {
 
     expect(stability?.enabled).toBe(true);
     expect(
-      diagnostics.some((diagnostic) => diagnostic.code === 'ERR_SPECTRAL_EXPLOSION')
+      diagnostics.some(
+        (diagnostic) => diagnostic.code === 'ERR_SPECTRAL_EXPLOSION'
+      )
     ).toBe(true);
     expect(
       diagnostics.some((diagnostic) => diagnostic.code === 'ERR_DRIFT_POSITIVE')
@@ -401,7 +403,9 @@ describe('BettyCompiler', () => {
 
     expect(stability?.proof.kind).toBe('symbolic-reneging');
     expect(stability?.metadata.redline).toBe(64);
-    expect(stability?.countableQueue?.predecessorStepMode).toBe('margin-predecessor');
+    expect(stability?.countableQueue?.predecessorStepMode).toBe(
+      'margin-predecessor'
+    );
     expect(stability?.countableQueue?.queueBoundary).toBe(64);
     expect(stability?.countableQueue?.laminarAtom).toBe(0);
     expect(stability?.countableQueue?.arrivalExpression).toBe('lambda');
@@ -415,10 +419,12 @@ describe('BettyCompiler', () => {
     expect(stability?.continuousHarris?.observableExpression).toBe('beta1');
     expect(stability?.continuousHarris?.lyapunovExpression).toBe('beta1');
     expect(stability?.continuousHarris?.smallSetBoundary).toBe(64);
-    expect(stability?.metadata.continuousHarris?.observableDriftTheoremName).toBe(
-      'complete_is_geometrically_stable_measurable_observable_drift'
-    );
-    expect(stability?.metadata.continuousHarris?.continuousHarrisTheoremName).toBe(
+    expect(
+      stability?.metadata.continuousHarris?.observableDriftTheoremName
+    ).toBe('complete_is_geometrically_stable_measurable_observable_drift');
+    expect(
+      stability?.metadata.continuousHarris?.continuousHarrisTheoremName
+    ).toBe(
       'complete_is_geometrically_stable_measurable_continuous_harris_certified'
     );
     expect(stability?.metadata.laminarGeometricTheoremName).toBe(
@@ -442,7 +448,9 @@ describe('BettyCompiler', () => {
     expect(stability?.metadata.measurableHarrisRecurrentTheoremName).toBe(
       'complete_is_geometrically_stable_measurable_harris_recurrent'
     );
-    expect(stability?.metadata.measurableFiniteTimeGeometricErgodicTheoremName).toBe(
+    expect(
+      stability?.metadata.measurableFiniteTimeGeometricErgodicTheoremName
+    ).toBe(
       'complete_is_geometrically_stable_measurable_finite_time_geometric_ergodic'
     );
     expect(
@@ -456,11 +464,14 @@ describe('BettyCompiler', () => {
       'complete_is_geometrically_stable_measurable_levy_prokhorov_geometric_decay'
     );
     expect(
-      stability?.metadata.measurableLevyProkhorovAbstractGeometricErgodicTheoremName
+      stability?.metadata
+        .measurableLevyProkhorovAbstractGeometricErgodicTheoremName
     ).toBe(
       'complete_is_geometrically_stable_measurable_levy_prokhorov_geometric_ergodic_abstract'
     );
-    expect(stability?.metadata.measurableWitnessQuantitativeHarrisTheoremName).toBe(
+    expect(
+      stability?.metadata.measurableWitnessQuantitativeHarrisTheoremName
+    ).toBe(
       'complete_is_geometrically_stable_measurable_witness_quantitative_harris_certified'
     );
     expect(stability?.recurrence.finiteStateCertified).toBe(true);
@@ -479,9 +490,9 @@ describe('BettyCompiler', () => {
             (processing)-[:VENT { drift_coefficient: "alpha(n)", repair_debt: "0" }]->(complete)
         `);
 
-    expect(diagnostics.some((d) => d.code === 'ERR_CONTINUOUS_WITNESS_INVALID')).toBe(
-      false
-    );
+    expect(
+      diagnostics.some((d) => d.code === 'ERR_CONTINUOUS_WITNESS_INVALID')
+    ).toBe(false);
     expect(stability?.continuousHarris).toMatchObject({
       observableKind: 'fluid-backlog',
       observableExpression: '2.5 * backlog_bytes + 0.25',
@@ -505,9 +516,9 @@ describe('BettyCompiler', () => {
             (processing)-[:VENT { drift_coefficient: "alpha(n)", repair_debt: "0" }]->(complete)
         `);
 
-    expect(diagnostics.some((d) => d.code === 'ERR_CONTINUOUS_WITNESS_INVALID')).toBe(
-      false
-    );
+    expect(
+      diagnostics.some((d) => d.code === 'ERR_CONTINUOUS_WITNESS_INVALID')
+    ).toBe(false);
     expect(stability?.continuousHarris).toMatchObject({
       observableKind: 'thermal-load',
       observableExpression: '2 * thermal_load',
@@ -552,7 +563,9 @@ describe('BettyCompiler', () => {
         `);
 
     expect(
-      diagnostics.some((diagnostic) => diagnostic.code === 'ERR_REPAIR_DEBT_LEAK')
+      diagnostics.some(
+        (diagnostic) => diagnostic.code === 'ERR_REPAIR_DEBT_LEAK'
+      )
     ).toBe(true);
   });
 
@@ -578,9 +591,9 @@ describe('BettyCompiler', () => {
       const { diagnostics } = compiler.parse(`
         (walker { eta: "0.1" })-[:PROCESS]->(sink)
       `);
-      expect(
-        diagnostics.some((d) => d.code === 'VOID_ETA_UNBOUNDED')
-      ).toBe(true);
+      expect(diagnostics.some((d) => d.code === 'VOID_ETA_UNBOUNDED')).toBe(
+        true
+      );
       expect(
         diagnostics.find((d) => d.code === 'VOID_ETA_UNBOUNDED')?.severity
       ).toBe('warning');
@@ -590,9 +603,9 @@ describe('BettyCompiler', () => {
       const { diagnostics } = compiler.parse(`
         (walker { eta: "5.0" })-[:PROCESS]->(sink)
       `);
-      expect(
-        diagnostics.some((d) => d.code === 'VOID_ETA_UNBOUNDED')
-      ).toBe(false);
+      expect(diagnostics.some((d) => d.code === 'VOID_ETA_UNBOUNDED')).toBe(
+        false
+      );
     });
 
     it('warns when exploration is outside [0.01, 0.5]', () => {
@@ -618,7 +631,9 @@ describe('BettyCompiler', () => {
         (src)-[:PROCESS { distribution: "0.3, 0.3, 0.3" }]->(sink)
       `);
       expect(
-        diagnostics.some((d) => d.code === 'VOID_COMPLEMENT_DISTRIBUTION_INVALID')
+        diagnostics.some(
+          (d) => d.code === 'VOID_COMPLEMENT_DISTRIBUTION_INVALID'
+        )
       ).toBe(true);
     });
 
@@ -627,7 +642,9 @@ describe('BettyCompiler', () => {
         (src)-[:PROCESS { distribution: "0.5, 0.3, 0.2" }]->(sink)
       `);
       expect(
-        diagnostics.some((d) => d.code === 'VOID_COMPLEMENT_DISTRIBUTION_INVALID')
+        diagnostics.some(
+          (d) => d.code === 'VOID_COMPLEMENT_DISTRIBUTION_INVALID'
+        )
       ).toBe(false);
     });
 
@@ -721,7 +738,9 @@ describe('BettyCompiler', () => {
         (a)-[:PROCESS]->(b)
         (b)-[:PROCESS]->(a)
       `);
-      const d = diagnostics.find((d) => d.code === 'VOID_METACOG_MISSING_CONVERGENCE');
+      const d = diagnostics.find(
+        (d) => d.code === 'VOID_METACOG_MISSING_CONVERGENCE'
+      );
       expect(d?.message).toContain('METACOG');
     });
 

@@ -942,7 +942,9 @@ export class GnosisModuleLoader {
 
     if (!resolvedTopLevel.resolved) {
       throw new Error(
-        `Failed to resolve module '${modulePath}': ${(resolvedTopLevel as { resolved: false; error: string }).error}`
+        `Failed to resolve module '${modulePath}': ${
+          (resolvedTopLevel as { resolved: false; error: string }).error
+        }`
       );
     }
 
@@ -1073,7 +1075,9 @@ export class GnosisModuleLoader {
         );
         if (!resolved.resolved) {
           throw new Error(
-            `Cannot resolve import '${declaration.source}' from '${state.modulePath}': ${(resolved as { resolved: false; error: string }).error}`
+            `Cannot resolve import '${declaration.source}' from '${
+              state.modulePath
+            }': ${(resolved as { resolved: false; error: string }).error}`
           );
         }
 

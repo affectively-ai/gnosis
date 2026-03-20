@@ -2,12 +2,7 @@
   "name": "forkjoin-app",
   "sourceRoot": "open-source/gnosis/forkjoin-app/src",
   "projectType": "application",
-  "tags": [
-    "scope:edge",
-    "scope:mcp",
-    "scope:docs",
-    "type:app"
-  ],
+  "tags": ["scope:edge", "scope:mcp", "scope:docs", "type:app"],
   "targets": {
     "build": {
       "executor": "a0:run-commands",
@@ -15,9 +10,7 @@
         "cwd": "open-source/gnosis/forkjoin-app",
         "command": "bun run build"
       },
-      "outputs": [
-        "{projectRoot}/dist"
-      ]
+      "outputs": ["{projectRoot}/dist"]
     },
     "dev": {
       "executor": "a0:run-commands",
@@ -32,9 +25,7 @@
         "cwd": "open-source/gnosis/forkjoin-app",
         "command": "bun run deploy:dev"
       },
-      "dependsOn": [
-        "build"
-      ]
+      "dependsOn": ["build"]
     },
     "deploy:stage": {
       "executor": "a0:run-commands",
@@ -42,9 +33,7 @@
         "cwd": "open-source/gnosis/forkjoin-app",
         "command": "bun run deploy:stage"
       },
-      "dependsOn": [
-        "build"
-      ]
+      "dependsOn": ["build"]
     },
     "deploy:prod": {
       "executor": "a0:run-commands",
@@ -52,9 +41,7 @@
         "cwd": "open-source/gnosis/forkjoin-app",
         "command": "bun run deploy:prod"
       },
-      "dependsOn": [
-        "build"
-      ]
+      "dependsOn": ["build"]
     },
     "test": {
       "executor": "a0:run-commands",

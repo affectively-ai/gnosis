@@ -19,7 +19,10 @@ import {
   complementDistribution,
   shannonEntropy,
 } from './void.js';
-import { klDivergence, jensenShannonDivergence } from './information-geometry.js';
+import {
+  klDivergence,
+  jensenShannonDivergence,
+} from './information-geometry.js';
 
 // ============================================================================
 // Channel capacity
@@ -35,7 +38,7 @@ import { klDivergence, jensenShannonDivergence } from './information-geometry.js
  */
 export function mutualInformation(
   priorDist: number[],
-  posteriorDist: number[],
+  posteriorDist: number[]
 ): number {
   // I(X;Y) = D_KL(posterior || prior) when Y is observed
   return klDivergence(posteriorDist, priorDist);
@@ -59,7 +62,7 @@ export function channelCapacity(numDimensions: number): number {
 export function informationGainPerStep(
   boundaryBefore: VoidBoundary,
   boundaryAfter: VoidBoundary,
-  eta: number,
+  eta: number
 ): number {
   const prior = complementDistribution(boundaryBefore, eta);
   const posterior = complementDistribution(boundaryAfter, eta);
@@ -70,10 +73,7 @@ export function informationGainPerStep(
  * Learning rate: cumulative information gain / number of steps.
  * Bounded by channel capacity / step.
  */
-export function learningRate(
-  totalInfoGain: number,
-  steps: number,
-): number {
+export function learningRate(totalInfoGain: number, steps: number): number {
   return steps > 0 ? totalInfoGain / steps : 0;
 }
 
@@ -88,11 +88,12 @@ export function learningRate(
  */
 export function foldInformationLoss(
   branchDistribution: number[],
-  survivorProbability: number,
+  survivorProbability: number
 ): number {
   const branchEntropy = shannonEntropy(branchDistribution);
   // Survivor carries at most -log(p_survivor) bits
-  const survivorInfo = survivorProbability > 0 ? -Math.log(survivorProbability) : 0;
+  const survivorInfo =
+    survivorProbability > 0 ? -Math.log(survivorProbability) : 0;
   return Math.max(0, branchEntropy - survivorInfo);
 }
 
@@ -108,7 +109,7 @@ export function foldLossEqualBranches(k: number): number {
  * I(survivor; branches) bits of information about the branches.
  */
 export function informationBottleneckBound(
-  branchDistribution: number[],
+  branchDistribution: number[]
 ): number {
   return shannonEntropy(branchDistribution);
 }
@@ -127,7 +128,7 @@ export function informationBottleneckBound(
  */
 export function ventRateDistortion(
   preDist: number[],
-  postDist: number[],
+  postDist: number[]
 ): { rate: number; distortion: number } {
   const rate = shannonEntropy(preDist) - shannonEntropy(postDist);
   const distortion = klDivergence(preDist, postDist);
@@ -155,7 +156,7 @@ export function minimumDistortion(entropy: number, rateBudget: number): number {
  */
 export function mixingTimeBound(
   spectralGap: number,
-  epsilon: number = 0.01,
+  epsilon: number = 0.01
 ): number {
   if (spectralGap <= 0) return Infinity;
   return Math.ceil(Math.log(1 / epsilon) / spectralGap);
@@ -168,7 +169,7 @@ export function mixingTimeBound(
  */
 export function spectralGapLowerBound(
   numNodes: number,
-  diameter: number,
+  diameter: number
 ): number {
   return numNodes > 0 && diameter > 0 ? 1 / (numNodes * diameter) : 0;
 }
@@ -180,7 +181,7 @@ export function spectralGapLowerBound(
 export function mixingTimeFromGraph(
   numNodes: number,
   diameter: number,
-  epsilon: number = 0.01,
+  epsilon: number = 0.01
 ): number {
   return Math.ceil(numNodes * diameter * Math.log(1 / epsilon));
 }
@@ -195,10 +196,7 @@ export function mixingTimeFromGraph(
  *
  * P(|p_hat - p| > δ) ≤ 2 exp(-2tδ²)
  */
-export function hoeffdingBound(
-  steps: number,
-  delta: number,
-): number {
+export function hoeffdingBound(steps: number, delta: number): number {
   return 2 * Math.exp(-2 * steps * delta * delta);
 }
 
@@ -208,7 +206,7 @@ export function hoeffdingBound(
  */
 export function minimumStepsForConcentration(
   delta: number,
-  alpha: number = 0.05,
+  alpha: number = 0.05
 ): number {
   return Math.ceil(Math.log(2 / alpha) / (2 * delta * delta));
 }
@@ -218,9 +216,6 @@ export function minimumStepsForConcentration(
  * After t steps, the total variation distance to stationary is at most
  * (1 - gap)^t where gap is the spectral gap.
  */
-export function concentrationRate(
-  spectralGap: number,
-  steps: number,
-): number {
+export function concentrationRate(spectralGap: number, steps: number): number {
   return Math.pow(1 - spectralGap, steps);
 }

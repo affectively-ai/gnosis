@@ -123,7 +123,15 @@ export class CoarseningPass implements OptimizationPass {
         diagnostics.push({
           line: 1,
           column: 1,
-          message: `Coarsening: node group ${cn.coarseId} has non-negative aggregate drift ${cn.coarseDrift.toFixed(3)} (arrival=${cn.aggregateArrival.toFixed(3)}, service=${cn.aggregateService.toFixed(3)}). Cannot synthesize certificate.`,
+          message: `Coarsening: node group ${
+            cn.coarseId
+          } has non-negative aggregate drift ${cn.coarseDrift.toFixed(
+            3
+          )} (arrival=${cn.aggregateArrival.toFixed(
+            3
+          )}, service=${cn.aggregateService.toFixed(
+            3
+          )}). Cannot synthesize certificate.`,
           severity: 'info',
         });
       }
@@ -146,9 +154,16 @@ export class CoarseningPass implements OptimizationPass {
     certificates.push({
       passName: this.name,
       theoremId: this.theoremId,
-      leanTheoremName:
-        'RecursiveCoarseningSynthesis.synthesis_sound',
-      summary: `Coarsened ${ast.nodes.size} nodes → ${coarsenedAst.nodes.size} nodes. Fine drift=${totalFineDrift.toFixed(3)}, coarse drift=${totalCoarseDrift.toFixed(3)}. Conservation delta=${Math.abs(totalFineDrift - totalCoarseDrift).toFixed(6)}.`,
+      leanTheoremName: 'RecursiveCoarseningSynthesis.synthesis_sound',
+      summary: `Coarsened ${ast.nodes.size} nodes → ${
+        coarsenedAst.nodes.size
+      } nodes. Fine drift=${totalFineDrift.toFixed(
+        3
+      )}, coarse drift=${totalCoarseDrift.toFixed(
+        3
+      )}. Conservation delta=${Math.abs(
+        totalFineDrift - totalCoarseDrift
+      ).toFixed(6)}.`,
       data: {
         fineNodeCount: ast.nodes.size,
         coarseNodeCount: coarsenedAst.nodes.size,
@@ -166,7 +181,13 @@ export class CoarseningPass implements OptimizationPass {
     diagnostics.push({
       line: 1,
       column: 1,
-      message: `[${this.theoremId}] Coarsened topology: ${ast.nodes.size} → ${coarsenedAst.nodes.size} nodes (${groups.length} quotient groups). Drift conservation: ${Math.abs(totalFineDrift - totalCoarseDrift).toFixed(6)} residual.`,
+      message: `[${this.theoremId}] Coarsened topology: ${ast.nodes.size} → ${
+        coarsenedAst.nodes.size
+      } nodes (${
+        groups.length
+      } quotient groups). Drift conservation: ${Math.abs(
+        totalFineDrift - totalCoarseDrift
+      ).toFixed(6)} residual.`,
       severity: 'info',
     });
 
@@ -331,7 +352,11 @@ export class CodecRacingPass implements OptimizationPass {
         passName: this.name,
         theoremId: this.theoremId,
         leanTheoremName: 'CodecRacing.raceMin_le_fixedCodec',
-        summary: `LAMINAR edge (${edge.sourceIds.join(',')}→${edge.targetIds.join(',')}): ${codecCount} codecs × ${resourceCount} resources. Internal beta1=${internalBeta1}, external deficit=0.`,
+        summary: `LAMINAR edge (${edge.sourceIds.join(
+          ','
+        )}→${edge.targetIds.join(
+          ','
+        )}): ${codecCount} codecs × ${resourceCount} resources. Internal beta1=${internalBeta1}, external deficit=0.`,
         data: {
           sourceIds: edge.sourceIds,
           targetIds: edge.targetIds,
@@ -431,7 +456,9 @@ export class WarmupEfficiencyPass implements OptimizationPass {
           theoremId: this.theoremId,
           leanTheoremName:
             'WarmupEfficiency.warmup_wallace_drop_cross_closed_form',
-          summary: `Fork(${forkWidth})→Fold(${foldWidth}): Wallace drop cross=${wallaceDropCross.toFixed(3)}. Warmup ${warmupWorth ? 'recommended' : 'not beneficial'}.`,
+          summary: `Fork(${forkWidth})→Fold(${foldWidth}): Wallace drop cross=${wallaceDropCross.toFixed(
+            3
+          )}. Warmup ${warmupWorth ? 'recommended' : 'not beneficial'}.`,
           data: {
             forkSourceIds: fork.sourceIds,
             forkTargetIds: fork.targetIds,
@@ -449,7 +476,13 @@ export class WarmupEfficiencyPass implements OptimizationPass {
           diagnostics.push({
             line: 1,
             column: 1,
-            message: `[${this.theoremId}] Warmup opportunity: fork(${forkWidth})→fold(${foldWidth}) has Wallace drop=${wallaceDropCross.toFixed(3)}. Staged expansion would recover ${(wallaceDropCross * 100).toFixed(1)}% throughput waste.`,
+            message: `[${
+              this.theoremId
+            }] Warmup opportunity: fork(${forkWidth})→fold(${foldWidth}) has Wallace drop=${wallaceDropCross.toFixed(
+              3
+            )}. Staged expansion would recover ${(
+              wallaceDropCross * 100
+            ).toFixed(1)}% throughput waste.`,
             severity: 'info',
           });
         }
@@ -571,24 +604,29 @@ class SelfVerificationPass implements OptimizationPass {
     return {
       ast,
       diagnostics: [],
-      certificates: annotations.length > 0
-        ? [
-            {
-              passName: this.name,
-              theoremId: this.theoremId,
-              leanTheoremName: 'self_verification_collected',
-              summary: `Collected ${annotations.length} verify annotation(s): ${annotations.map((a) => a.verify).join(', ')}`,
-              data: {
-                annotations: annotations.map((a) => ({
-                  type: a.edge.type,
-                  verify: a.verify,
-                  sources: a.edge.sourceIds,
-                  targets: a.edge.targetIds,
-                })),
+      certificates:
+        annotations.length > 0
+          ? [
+              {
+                passName: this.name,
+                theoremId: this.theoremId,
+                leanTheoremName: 'self_verification_collected',
+                summary: `Collected ${
+                  annotations.length
+                } verify annotation(s): ${annotations
+                  .map((a) => a.verify)
+                  .join(', ')}`,
+                data: {
+                  annotations: annotations.map((a) => ({
+                    type: a.edge.type,
+                    verify: a.verify,
+                    sources: a.edge.sourceIds,
+                    targets: a.edge.targetIds,
+                  })),
+                },
               },
-            },
-          ]
-        : [],
+            ]
+          : [],
       applied: annotations.length > 0,
     };
   }

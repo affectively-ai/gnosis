@@ -168,7 +168,6 @@ export function StackSection() {
             );
           })}
         </div>
-
       </div>
 
       <style>{`

@@ -30,10 +30,7 @@ export interface QDocAeonRelayTelemetryEvent {
 }
 
 export interface QDocAeonRelaySpan {
-  addEvent?: (
-    name: string,
-    attributes?: QDocAeonRelayAttributes,
-  ) => void;
+  addEvent?: (name: string, attributes?: QDocAeonRelayAttributes) => void;
   setAttributes?: (attributes: QDocAeonRelayAttributes) => void;
   recordException?: (error: unknown) => void;
   end?: (status?: 'ok' | 'error') => void;
@@ -43,7 +40,7 @@ export interface QDocAeonRelayTelemetry {
   onEvent?: (event: QDocAeonRelayTelemetryEvent) => void;
   startSpan?: (
     name: string,
-    attributes: QDocAeonRelayAttributes,
+    attributes: QDocAeonRelayAttributes
   ) => QDocAeonRelaySpan | null;
 }
 
@@ -137,11 +134,16 @@ function currentTimestamp(): number {
 }
 
 function normalizeRelayConfig(
-  config: QDocAeonRelayConfig,
+  config: QDocAeonRelayConfig
 ): Required<
   Pick<
     QDocAeonRelayConfig,
-    'url' | 'roomName' | 'protocol' | 'joinMode' | 'relayProduct' | 'readyStrategy'
+    | 'url'
+    | 'roomName'
+    | 'protocol'
+    | 'joinMode'
+    | 'relayProduct'
+    | 'readyStrategy'
   >
 > &
   Pick<
@@ -166,7 +168,7 @@ function normalizeRelayConfig(
 
 export function createQDocAeonRelayJoinEnvelope(
   config: QDocAeonRelayConfig,
-  peerId: string,
+  peerId: string
 ): QDocAeonRelayJoinEnvelope {
   const normalizedConfig = normalizeRelayConfig(config);
   const baseEnvelope: QDocAeonRelayJoinEnvelope = {
@@ -196,9 +198,8 @@ export class QDocAeonRelay {
   private peerId: string;
   private serverSeq = 0;
   private connected = false;
-  private updateHandler:
-    | ((delta: Uint8Array, origin: string) => void)
-    | null = null;
+  private updateHandler: ((delta: Uint8Array, origin: string) => void) | null =
+    null;
 
   constructor(doc: QDoc, config: QDocAeonRelayConfig) {
     this.doc = doc;
@@ -257,7 +258,7 @@ export class QDocAeonRelay {
         this.emitTelemetry('socket.open', this.telemetryAttributes());
         const joinEnvelope = createQDocAeonRelayJoinEnvelope(
           this.config,
-          this.peerId,
+          this.peerId
         );
         ws.send(JSON.stringify(joinEnvelope));
         this.emitTelemetry('join.sent', this.telemetryAttributes());
@@ -324,7 +325,9 @@ export class QDocAeonRelay {
           }
 
           case 'error':
-            rejectConnection(new Error(String(envelope.error ?? 'Relay error')));
+            rejectConnection(
+              new Error(String(envelope.error ?? 'Relay error'))
+            );
             break;
         }
       };
@@ -384,7 +387,7 @@ export class QDocAeonRelay {
   }
 
   private telemetryAttributes(
-    overrides: QDocAeonRelayAttributes = {},
+    overrides: QDocAeonRelayAttributes = {}
   ): QDocAeonRelayAttributes {
     return {
       'aeon.relay.url': this.config.url,
@@ -402,7 +405,7 @@ export class QDocAeonRelay {
   private emitTelemetry(
     stage: QDocAeonRelayTelemetryStage,
     attributes: QDocAeonRelayAttributes,
-    error?: Error,
+    error?: Error
   ): void {
     this.config.telemetry?.onEvent?.({
       stage,
@@ -414,7 +417,7 @@ export class QDocAeonRelay {
 
   private startSpan(
     name: string,
-    attributes: QDocAeonRelayAttributes,
+    attributes: QDocAeonRelayAttributes
   ): QDocAeonRelaySpan | null {
     return this.config.telemetry?.startSpan?.(name, attributes) ?? null;
   }

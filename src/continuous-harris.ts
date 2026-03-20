@@ -35,11 +35,16 @@ export interface SmallSet {
 export function synthesizeSmallSet(
   nodeId: string,
   observableKind: ObservableKind,
-  properties: Record<string, string>,
+  properties: Record<string, string>
 ): SmallSet {
   // Queue boundary: C = {x : queue_length(x) <= B}
-  if (observableKind === 'queue-length' || observableKind === 'bounded-affine-queue') {
-    const boundary = parseFloat(properties['queue_boundary'] ?? properties['capacity'] ?? '10');
+  if (
+    observableKind === 'queue-length' ||
+    observableKind === 'bounded-affine-queue'
+  ) {
+    const boundary = parseFloat(
+      properties['queue_boundary'] ?? properties['capacity'] ?? '10'
+    );
     return {
       kind: 'queue-boundary',
       description: `{x : queue_length(x) <= ${boundary}}`,
@@ -51,7 +56,9 @@ export function synthesizeSmallSet(
 
   // Level set: C = {x : V(x) <= c}
   if (observableKind === 'lyapunov' || observableKind === 'energy') {
-    const level = parseFloat(properties['level'] ?? properties['energy_threshold'] ?? '1');
+    const level = parseFloat(
+      properties['level'] ?? properties['energy_threshold'] ?? '1'
+    );
     return {
       kind: 'level-set',
       description: `{x : V(x) <= ${level}}`,
@@ -75,7 +82,9 @@ export function synthesizeSmallSet(
 
   // Compact sublevel for general observables
   if (observableKind === 'compact' || observableKind === 'bounded') {
-    const bound = parseFloat(properties['bound'] ?? properties['diameter'] ?? '1');
+    const bound = parseFloat(
+      properties['bound'] ?? properties['diameter'] ?? '1'
+    );
     return {
       kind: 'compact-sublevel',
       description: `{x : ||x|| <= ${bound}}`,
@@ -126,9 +135,10 @@ export interface Observable {
 }
 
 export function inferObservable(
-  properties: Record<string, string>,
+  properties: Record<string, string>
 ): Observable {
-  const kind = (properties['observable_kind'] ?? 'queue-length') as ObservableKind;
+  const kind = (properties['observable_kind'] ??
+    'queue-length') as ObservableKind;
   const expression = properties['observable'] ?? 'queue_length';
   const scale = parseFloat(properties['observable_scale'] ?? '1');
   const offset = parseFloat(properties['observable_offset'] ?? '0');
@@ -189,7 +199,7 @@ export interface LyapunovFunction {
 
 export function synthesizeLyapunov(
   observable: Observable,
-  properties: Record<string, string>,
+  properties: Record<string, string>
 ): LyapunovFunction {
   const driftGap = parseFloat(properties['drift_gap'] ?? '0.1');
   const lambda = 1 - driftGap;
@@ -277,7 +287,7 @@ export interface MinorizationData {
 
 export function synthesizeMinorization(
   smallSet: SmallSet,
-  properties: Record<string, string>,
+  properties: Record<string, string>
 ): MinorizationData {
   const epsilon = parseFloat(properties['minorization_epsilon'] ?? '0.01');
   const steps = parseInt(properties['minorization_steps'] ?? '1', 10);
@@ -342,7 +352,7 @@ export interface HarrisCertificate {
 
 export function synthesizeHarrisCertificate(
   nodeId: string,
-  properties: Record<string, string>,
+  properties: Record<string, string>
 ): HarrisCertificate {
   const observable = inferObservable(properties);
   const smallSet = synthesizeSmallSet(nodeId, observable.kind, properties);
@@ -390,9 +400,10 @@ export interface MeasurableKernel {
 }
 
 export function inferKernelFamily(
-  properties: Record<string, string>,
+  properties: Record<string, string>
 ): MeasurableKernel {
-  const family = (properties['kernel_family'] ?? 'queue-support') as KernelFamily;
+  const family = (properties['kernel_family'] ??
+    'queue-support') as KernelFamily;
 
   switch (family) {
     case 'diffusion':
@@ -401,7 +412,8 @@ export function inferKernelFamily(
         stateSpace: 'ℝ^n',
         feller: true,
         stronglyFeller: true,
-        leanType: 'MeasureTheory.Kernel (EuclideanSpace ℝ (Fin n)) (EuclideanSpace ℝ (Fin n))',
+        leanType:
+          'MeasureTheory.Kernel (EuclideanSpace ℝ (Fin n)) (EuclideanSpace ℝ (Fin n))',
       };
 
     case 'jump-diffusion':
@@ -410,7 +422,8 @@ export function inferKernelFamily(
         stateSpace: 'ℝ^n',
         feller: true,
         stronglyFeller: false,
-        leanType: 'MeasureTheory.Kernel (EuclideanSpace ℝ (Fin n)) (EuclideanSpace ℝ (Fin n))',
+        leanType:
+          'MeasureTheory.Kernel (EuclideanSpace ℝ (Fin n)) (EuclideanSpace ℝ (Fin n))',
       };
 
     case 'piecewise-deterministic':
@@ -471,17 +484,25 @@ export function generateHarrisLean(cert: HarrisCertificate): string {
   lines.push(`/-- Lyapunov function: ${cert.lyapunov.expression} -/`);
   lines.push(`noncomputable def lyapunov := ${cert.lyapunov.leanExpr}`);
   lines.push('');
-  lines.push(`/-- Drift condition: λ = ${cert.lyapunov.lambda}, b = ${cert.lyapunov.b} -/`);
+  lines.push(
+    `/-- Drift condition: λ = ${cert.lyapunov.lambda}, b = ${cert.lyapunov.b} -/`
+  );
   lines.push(`def driftLambda : ℝ := ${cert.lyapunov.lambda}`);
   lines.push(`def driftB : ℝ := ${cert.lyapunov.b}`);
   lines.push('');
-  lines.push(`/-- Minorization: ε = ${cert.minorization.epsilon}, m = ${cert.minorization.steps} -/`);
+  lines.push(
+    `/-- Minorization: ε = ${cert.minorization.epsilon}, m = ${cert.minorization.steps} -/`
+  );
   lines.push(`def minorizationEpsilon : ℝ := ${cert.minorization.epsilon}`);
   lines.push(`def minorizationSteps : ℕ := ${cert.minorization.steps}`);
   lines.push('');
-  lines.push(`/-- ${cert.theoremName}: Harris recurrence with geometric ergodicity -/`);
+  lines.push(
+    `/-- ${cert.theoremName}: Harris recurrence with geometric ergodicity -/`
+  );
   lines.push(`theorem ${cert.theoremName} :`);
-  lines.push(`    HarrisRecurrent kernel smallSet minorizationEpsilon minorizationSteps`);
+  lines.push(
+    `    HarrisRecurrent kernel smallSet minorizationEpsilon minorizationSteps`
+  );
   lines.push(`    ∧ GeometricErgodic kernel lyapunov driftLambda driftB := by`);
   lines.push(`  exact ⟨harris_of_drift_and_minorization, geometric_of_drift⟩`);
   lines.push('');

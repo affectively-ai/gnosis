@@ -18,7 +18,8 @@ export const GNOSIS_MCP_RESOURCES: McpResourceDefinition[] = [
   {
     uri: 'gnosis://legal',
     name: 'Legal and Policy Surface',
-    description: 'Privacy, cookies, cookie settings, terms, and colophon routes.',
+    description:
+      'Privacy, cookies, cookie settings, terms, and colophon routes.',
     mimeType: 'application/json',
   },
   {
@@ -36,7 +37,8 @@ export const GNOSIS_MCP_RESOURCES: McpResourceDefinition[] = [
   {
     uri: 'gnosis://tools/auth',
     name: 'Auth-Gated Tool Catalog',
-    description: 'Execution, CRDT, relay, test, and deploy tools requiring auth.',
+    description:
+      'Execution, CRDT, relay, test, and deploy tools requiring auth.',
     mimeType: 'application/json',
   },
   {
@@ -74,7 +76,8 @@ export function readGnosisResource(
               endpoint: `${normalizedBaseUrl}/mcp`,
               sessionHeader: 'mcp-session-id',
               hasAuthSecret:
-                typeof env.MCP_AUTH_TOKEN === 'string' && env.MCP_AUTH_TOKEN.trim().length > 0,
+                typeof env.MCP_AUTH_TOKEN === 'string' &&
+                env.MCP_AUTH_TOKEN.trim().length > 0,
               publicToolRateLimitPerHour: env.PUBLIC_TOOL_RATE_LIMIT ?? '180',
             },
             null,
@@ -153,7 +156,8 @@ export function readGnosisResource(
               webtransportUrl:
                 env.DASH_RELAY_WT_URL ?? 'https://relay.dashrelay.com/relay',
               discoveryUrl:
-                env.DASH_RELAY_DISCOVERY_URL ?? 'https://relay.dashrelay.com/discovery',
+                env.DASH_RELAY_DISCOVERY_URL ??
+                'https://relay.dashrelay.com/discovery',
               modes: ['hybrid', 'bring-your-own-room', 'ephemeral-fallback'],
             },
             null,
@@ -170,7 +174,11 @@ export function readGnosisResource(
         {
           uri,
           mimeType: 'application/json',
-          text: JSON.stringify({ tools: Array.from(PUBLIC_TOOL_NAMES).sort() }, null, 2),
+          text: JSON.stringify(
+            { tools: Array.from(PUBLIC_TOOL_NAMES).sort() },
+            null,
+            2
+          ),
         },
       ],
     };

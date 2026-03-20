@@ -16,7 +16,10 @@ import {
   compileTypeScriptToGnosis,
   type GnosisTypeScriptBridgeResult,
 } from './ts-bridge.js';
-import { analyzeGnosisSource, type GnosisComplexityReport } from './analysis.js';
+import {
+  analyzeGnosisSource,
+  type GnosisComplexityReport,
+} from './analysis.js';
 
 export interface LeanCertificate {
   readonly filePath: string;
@@ -57,7 +60,8 @@ export async function generateLeanCertificate(
     return null;
   }
 
-  const functionName = options.exportName ?? path.basename(filePath, path.extname(filePath));
+  const functionName =
+    options.exportName ?? path.basename(filePath, path.extname(filePath));
   const safeName = functionName.replace(/[^A-Za-z0-9_]/g, '_');
   const timestamp = new Date().toISOString();
 
@@ -114,8 +118,10 @@ export async function verifyCertificate(
       };
     }
 
-    if (result.metrics.nodeCount !== certificate.nodeCount ||
-        result.metrics.edgeCount !== certificate.edgeCount) {
+    if (
+      result.metrics.nodeCount !== certificate.nodeCount ||
+      result.metrics.edgeCount !== certificate.edgeCount
+    ) {
       return {
         valid: false,
         reason: 'Topology structure changed (node/edge count mismatch)',
@@ -253,14 +259,21 @@ export async function generateCertificatesForDirectory(
 
   // Write index
   const indexPath = path.join(outputDir, 'index.json');
-  fs.writeFileSync(indexPath, JSON.stringify(certificates.map((c) => ({
-    filePath: c.filePath,
-    functionName: c.functionName,
-    buleyNumber: c.buleyNumber,
-    regime: c.regime,
-    verified: c.verified,
-    timestamp: c.timestamp,
-  })), null, 2));
+  fs.writeFileSync(
+    indexPath,
+    JSON.stringify(
+      certificates.map((c) => ({
+        filePath: c.filePath,
+        functionName: c.functionName,
+        buleyNumber: c.buleyNumber,
+        regime: c.regime,
+        verified: c.verified,
+        timestamp: c.timestamp,
+      })),
+      null,
+      2
+    )
+  );
 
   return certificates;
 }
@@ -276,7 +289,10 @@ function findTypeScriptFiles(dirPath: string): string[] {
     }
     for (const entry of entries) {
       const full = path.join(dir, entry.name);
-      if (entry.isDirectory() && !['node_modules', 'dist', '.next', '.bun'].includes(entry.name)) {
+      if (
+        entry.isDirectory() &&
+        !['node_modules', 'dist', '.next', '.bun'].includes(entry.name)
+      ) {
         walk(full);
       } else if (
         entry.isFile() &&

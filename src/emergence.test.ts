@@ -1,8 +1,12 @@
 import { describe, it, expect } from 'bun:test';
 import {
-  computeOrderParameter, detectPhaseTransitions,
-  susceptibility, correlationLength, isCritical,
-  detectSymmetryBreaking, analyzeEmergence,
+  computeOrderParameter,
+  detectPhaseTransitions,
+  susceptibility,
+  correlationLength,
+  isCritical,
+  detectSymmetryBreaking,
+  analyzeEmergence,
 } from './emergence.js';
 import { createVoidBoundary, updateVoidBoundary } from './void.js';
 
@@ -43,11 +47,19 @@ describe('Order parameters', () => {
 describe('Phase transitions', () => {
   it('detects transition from disordered to ordered', () => {
     const history = [
-      { step: 0, order: computeOrderParameter(createVoidBoundary(5), 1.0), gait: 'trot' as const },
+      {
+        step: 0,
+        order: computeOrderParameter(createVoidBoundary(5), 1.0),
+        gait: 'trot' as const,
+      },
     ];
     const b = createVoidBoundary(5);
     for (let i = 0; i < 4; i++) updateVoidBoundary(b, i, 50);
-    history.push({ step: 1, order: computeOrderParameter(b, 3.0), gait: 'canter' as const });
+    history.push({
+      step: 1,
+      order: computeOrderParameter(b, 3.0),
+      gait: 'canter' as const,
+    });
 
     const transitions = detectPhaseTransitions(history);
     expect(transitions.length).toBeGreaterThanOrEqual(1);

@@ -9,7 +9,10 @@ function createBaseAst(
   return {
     nodes: new Map([
       ['source', { id: 'source', labels: ['Source'], properties: {} }],
-      ['target', { id: 'target', labels: ['Target'], properties: targetProperties }],
+      [
+        'target',
+        { id: 'target', labels: ['Target'], properties: targetProperties },
+      ],
     ]),
     edges: [
       {
@@ -40,13 +43,16 @@ describe('injectSensitiveZkEnvelopes', () => {
   });
 
   it('injects sync and materialization envelopes when both sensitivities are present', () => {
-    const ast = createBaseAst({
-      private: 'true',
-      op: 'write_file',
-      persistence: 'fs.durable',
-    }, {
-      crossTenant: 'true',
-    });
+    const ast = createBaseAst(
+      {
+        private: 'true',
+        op: 'write_file',
+        persistence: 'fs.durable',
+      },
+      {
+        crossTenant: 'true',
+      }
+    );
     const injected = injectSensitiveZkEnvelopes(ast);
 
     expect(injected.injected.length).toBe(2);
@@ -55,7 +61,9 @@ describe('injectSensitiveZkEnvelopes', () => {
       'materialization',
     ]);
 
-    const labels = Array.from(injected.ast.nodes.values()).flatMap((node) => node.labels);
+    const labels = Array.from(injected.ast.nodes.values()).flatMap(
+      (node) => node.labels
+    );
     expect(labels).toContain('ZKSyncEnvelope');
     expect(labels).toContain('ZKMaterializeEnvelope');
     expect(injected.ast.edges.length).toBe(3);

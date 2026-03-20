@@ -16,25 +16,35 @@ describe('gnosis fold training benchmark', () => {
     expect(report.topology.parameterCount).toBe(4);
     expect(report.topology.branchCount).toBe(2);
     expect(report.topology.structuralBeta1).toBe(1);
-    expect(report.strategies.linear.meanEvalMeanSquaredError).toBeLessThan(0.01);
-    expect(report.strategies.linear.evalMeanSquaredErrorCi95.high).toBeLessThan(0.01);
-    expect(report.strategies['winner-take-all'].meanEvalMeanSquaredError).toBeGreaterThan(
-      report.strategies.linear.meanEvalMeanSquaredError,
+    expect(report.strategies.linear.meanEvalMeanSquaredError).toBeLessThan(
+      0.01
     );
-    expect(report.strategies['early-stop'].meanEvalMeanSquaredError).toBeGreaterThan(
-      report.strategies['winner-take-all'].meanEvalMeanSquaredError,
+    expect(report.strategies.linear.evalMeanSquaredErrorCi95.high).toBeLessThan(
+      0.01
     );
-    expect(report.strategies.linear.meanCancellationLineMeanAbsoluteError).toBeLessThan(0.05);
-    expect(report.strategies['winner-take-all'].meanCancellationLineMeanAbsoluteError).toBeGreaterThan(
-      0.2,
+    expect(
+      report.strategies['winner-take-all'].meanEvalMeanSquaredError
+    ).toBeGreaterThan(report.strategies.linear.meanEvalMeanSquaredError);
+    expect(
+      report.strategies['early-stop'].meanEvalMeanSquaredError
+    ).toBeGreaterThan(
+      report.strategies['winner-take-all'].meanEvalMeanSquaredError
     );
-    expect(report.strategies['early-stop'].meanCancellationLineMeanAbsoluteError).toBeGreaterThan(
-      0.2,
-    );
+    expect(
+      report.strategies.linear.meanCancellationLineMeanAbsoluteError
+    ).toBeLessThan(0.05);
+    expect(
+      report.strategies['winner-take-all'].meanCancellationLineMeanAbsoluteError
+    ).toBeGreaterThan(0.2);
+    expect(
+      report.strategies['early-stop'].meanCancellationLineMeanAbsoluteError
+    ).toBeGreaterThan(0.2);
   });
 
   test('ships a .test.gg suite for the three benchmark modules', async () => {
-    const result = await runGGTestFile(resolve(__dirname, '../../examples/benchmarks/fold-training.test.gg'));
+    const result = await runGGTestFile(
+      resolve(__dirname, '../../examples/benchmarks/fold-training.test.gg')
+    );
 
     expect(result.ok).toBe(true);
     expect(result.modules).toHaveLength(3);
@@ -43,24 +53,26 @@ describe('gnosis fold training benchmark', () => {
   });
 
   test('points at the checked-in topology modules', () => {
-    expect(DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES.linear.endsWith('fold-training-linear.gg')).toBe(
-      true,
-    );
+    expect(
+      DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES.linear.endsWith(
+        'fold-training-linear.gg'
+      )
+    ).toBe(true);
     expect(
       DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES['winner-take-all'].endsWith(
-        'fold-training-winner-take-all.gg',
-      ),
+        'fold-training-winner-take-all.gg'
+      )
     ).toBe(true);
     expect(
       DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES['early-stop'].endsWith(
-        'fold-training-early-stop.gg',
-      ),
+        'fold-training-early-stop.gg'
+      )
     ).toBe(true);
   });
 
   test('renders a markdown report with learned intervals', async () => {
     const markdown = renderGnosisFoldTrainingBenchmarkMarkdown(
-      await runGnosisFoldTrainingBenchmark(),
+      await runGnosisFoldTrainingBenchmark()
     );
 
     expect(markdown).toContain('# Gnosis Fold Training Benchmark');

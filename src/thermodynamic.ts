@@ -75,7 +75,7 @@ export interface ThermodynamicState {
  */
 export function createThermodynamicState(
   boundary: VoidBoundary,
-  beta: number,
+  beta: number
 ): ThermodynamicState {
   const temperature = 1 / (K_BOLTZMANN * beta);
   const { partitionFunction, freeEnergy, internalEnergy } =
@@ -97,7 +97,7 @@ export function createThermodynamicState(
 function computeThermodynamicPotentials(
   boundary: VoidBoundary,
   beta: number,
-  temperature: number,
+  temperature: number
 ): { partitionFunction: number; freeEnergy: number; internalEnergy: number } {
   // Z = Σ exp(-β E_i) where E_i = counts[i]
   let Z = 0;
@@ -110,7 +110,7 @@ function computeThermodynamicPotentials(
   // U = Σ E_i p_i = Σ E_i exp(-β E_i) / Z
   let U = 0;
   for (const E of boundary.counts) {
-    U += E * Math.exp(-beta * E) / Z;
+    U += (E * Math.exp(-beta * E)) / Z;
   }
 
   return { partitionFunction: Z, freeEnergy, internalEnergy: U };
@@ -121,7 +121,11 @@ function computeThermodynamicPotentials(
  */
 export function refreshPotentials(state: ThermodynamicState): void {
   const { partitionFunction, freeEnergy, internalEnergy } =
-    computeThermodynamicPotentials(state.boundary, state.beta, state.temperature);
+    computeThermodynamicPotentials(
+      state.boundary,
+      state.beta,
+      state.temperature
+    );
   state.partitionFunction = partitionFunction;
   state.freeEnergy = freeEnergy;
   state.internalEnergy = internalEnergy;
@@ -205,7 +209,7 @@ export interface ErasureEvent {
 export function recordErasure(
   state: ThermodynamicState,
   dimensionIdx: number,
-  magnitude: number,
+  magnitude: number
 ): ErasureEvent {
   // Information content of the erased path
   const dist = boltzmannDistribution(state);
@@ -260,7 +264,7 @@ export interface ForkEvent {
  */
 export function recordFork(
   state: ThermodynamicState,
-  newDimensions: number,
+  newDimensions: number
 ): ForkEvent {
   const oldDims = state.boundary.counts.length;
   const entropyBefore = gibbsEntropy(state);
@@ -300,7 +304,7 @@ export interface FoldEvent {
 export function recordFold(
   state: ThermodynamicState,
   collapsedDimensions: number[],
-  survivor: number,
+  survivor: number
 ): FoldEvent {
   const entropyBefore = gibbsEntropy(state);
 
@@ -311,7 +315,10 @@ export function recordFold(
       state.boundary.counts[dim] = 0;
     }
   }
-  state.boundary.totalEntries = state.boundary.counts.reduce((a, b) => a + b, 0);
+  state.boundary.totalEntries = state.boundary.counts.reduce(
+    (a, b) => a + b,
+    0
+  );
   refreshPotentials(state);
 
   const entropyAfter = gibbsEntropy(state);
@@ -342,15 +349,13 @@ export interface SecondLawCheck {
  * Verify the second law: total entropy production >= 0.
  */
 export function checkSecondLaw(state: ThermodynamicState): SecondLawCheck {
-  const avgEntropy = state.erasures > 0
-    ? state.entropyProduction / state.erasures
-    : 0;
+  const avgEntropy =
+    state.erasures > 0 ? state.entropyProduction / state.erasures : 0;
 
   // Landauer efficiency: how close to the theoretical minimum
   const minWork = state.erasures * landauerLimit(state.temperature);
-  const efficiency = state.dissipatedWork > 0
-    ? minWork / state.dissipatedWork
-    : 1;
+  const efficiency =
+    state.dissipatedWork > 0 ? minWork / state.dissipatedWork : 1;
 
   return {
     totalEntropyProduction: state.entropyProduction,
@@ -430,9 +435,11 @@ export function analyzeHeatEngine(walker: Walker): HeatEngineMetrics {
  * We verify this by computing the forward/reverse probability
  * ratio along a sequence of steps.
  */
-export function crooksRatio(
-  forwardEntropy: number,
-): { ratio: number; theoreticalRatio: number; consistent: boolean } {
+export function crooksRatio(forwardEntropy: number): {
+  ratio: number;
+  theoreticalRatio: number;
+  consistent: boolean;
+} {
   const theoreticalRatio = Math.exp(forwardEntropy);
   // In practice, the ratio should be > 1 for entropy-producing paths
   return {
@@ -451,10 +458,10 @@ export function crooksRatio(
  */
 export function jarzynskiAverage(
   beta: number,
-  workValues: number[],
+  workValues: number[]
 ): { average: number; freeEnergyEstimate: number } {
   if (workValues.length === 0) return { average: 1, freeEnergyEstimate: 0 };
-  const expValues = workValues.map(w => Math.exp(-beta * w));
+  const expValues = workValues.map((w) => Math.exp(-beta * w));
   const average = expValues.reduce((a, b) => a + b, 0) / expValues.length;
   const freeEnergyEstimate = -Math.log(average) / beta;
   return { average, freeEnergyEstimate };

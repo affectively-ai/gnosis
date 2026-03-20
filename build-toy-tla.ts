@@ -80,7 +80,9 @@ function walkForToyTopologies(rootPath: string): string[] {
   const discovered: string[] = [];
 
   const walk = (directoryPath: string): void => {
-    for (const entry of fs.readdirSync(directoryPath, { withFileTypes: true })) {
+    for (const entry of fs.readdirSync(directoryPath, {
+      withFileTypes: true,
+    })) {
       const entryPath = path.join(directoryPath, entry.name);
       if (entry.isDirectory()) {
         if (ignoredDirectoryNames.has(entry.name)) {
@@ -116,13 +118,18 @@ function discoverToyTopologies(): string[] {
 }
 
 function sanitizeModuleName(input: string): string {
-  const collapsed = input.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  const collapsed = input
+    .replace(/[^A-Za-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
   const candidate = collapsed.length > 0 ? collapsed : 'gg_topology';
   return /^[A-Za-z_]/.test(candidate) ? candidate : `Gnosis_${candidate}`;
 }
 
 function toModuleName(sourcePath: string): string {
-  const relativePath = toPosix(path.relative(repoRoot, sourcePath)).replace(/\.gg$/u, '');
+  const relativePath = toPosix(path.relative(repoRoot, sourcePath)).replace(
+    /\.gg$/u,
+    ''
+  );
   return sanitizeModuleName(relativePath);
 }
 
@@ -133,7 +140,7 @@ function resolveLogicalOppositePath(sourcePath: string): string | null {
   if (basename.startsWith('warmup_invert_')) {
     const positiveCandidate = path.join(
       directoryPath,
-      `warmup_${basename.slice('warmup_invert_'.length)}.gg`,
+      `warmup_${basename.slice('warmup_invert_'.length)}.gg`
     );
     return fs.existsSync(positiveCandidate) ? positiveCandidate : null;
   }
@@ -141,7 +148,7 @@ function resolveLogicalOppositePath(sourcePath: string): string | null {
   if (basename.startsWith('warmup_')) {
     const invertedCandidate = path.join(
       directoryPath,
-      `warmup_invert_${basename.slice('warmup_'.length)}.gg`,
+      `warmup_invert_${basename.slice('warmup_'.length)}.gg`
     );
     return fs.existsSync(invertedCandidate) ? invertedCandidate : null;
   }
@@ -151,13 +158,15 @@ function resolveLogicalOppositePath(sourcePath: string): string | null {
 
 function parseBuildPayload(
   relativeSourcePath: string,
-  rawPayload: string,
+  rawPayload: string
 ): BuildCommandPayload {
   try {
     return JSON.parse(rawPayload) as BuildCommandPayload;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Invalid JSON output for ${relativeSourcePath}: ${message}`);
+    throw new Error(
+      `Invalid JSON output for ${relativeSourcePath}: ${message}`
+    );
   }
 }
 
@@ -183,7 +192,7 @@ function buildTopology(sourcePath: string): BuildArtifactRecord {
     {
       cwd: gnosisRoot,
       encoding: 'utf8',
-    },
+    }
   );
 
   if (buildProcess.error) {
@@ -199,7 +208,7 @@ function buildTopology(sourcePath: string): BuildArtifactRecord {
         stderr ? `stderr:\n${stderr}` : null,
       ]
         .filter((line) => line !== null)
-        .join('\n\n'),
+        .join('\n\n')
     );
   }
 
@@ -215,21 +224,21 @@ function buildTopology(sourcePath: string): BuildArtifactRecord {
         stderr ? `stderr:\n${stderr}` : null,
       ]
         .filter((line) => line !== null)
-        .join('\n\n'),
+        .join('\n\n')
     );
   }
 
   const violations = Array.isArray(payload.correctness?.violations)
     ? payload.correctness.violations.filter(
-        (violation): violation is string => typeof violation === 'string',
+        (violation): violation is string => typeof violation === 'string'
       )
     : [];
   const logicalChecksOk =
     typeof payload.correctness?.ok === 'boolean'
       ? payload.correctness.ok
       : typeof payload.ok === 'boolean'
-        ? payload.ok
-        : buildProcess.status === 0;
+      ? payload.ok
+      : buildProcess.status === 0;
   const violationCount =
     typeof payload.correctness?.violationCount === 'number'
       ? payload.correctness.violationCount
@@ -251,7 +260,7 @@ function buildTopology(sourcePath: string): BuildArtifactRecord {
 }
 
 function countLogicalOppositePairs(
-  artifacts: readonly BuildArtifactRecord[],
+  artifacts: readonly BuildArtifactRecord[]
 ): number {
   const pairKeys = new Set<string>();
 
@@ -296,7 +305,15 @@ function writeManifest(manifest: BuildManifest): void {
       ? 'pass'
       : `fail (${artifact.violationCount})`;
     markdownLines.push(
-      `| ${artifact.relativeSourcePath} | ${artifact.moduleName} | ${checkSummary} | ${toPosix(path.relative(gnosisRoot, artifact.tlaFilePath))} | ${toPosix(path.relative(gnosisRoot, artifact.cfgFilePath))} | ${artifact.logicalOppositePath ? toPosix(path.relative(repoRoot, artifact.logicalOppositePath)) : '—'} |`,
+      `| ${artifact.relativeSourcePath} | ${
+        artifact.moduleName
+      } | ${checkSummary} | ${toPosix(
+        path.relative(gnosisRoot, artifact.tlaFilePath)
+      )} | ${toPosix(path.relative(gnosisRoot, artifact.cfgFilePath))} | ${
+        artifact.logicalOppositePath
+          ? toPosix(path.relative(repoRoot, artifact.logicalOppositePath))
+          : '—'
+      } |`
     );
   }
 
@@ -307,7 +324,10 @@ function writeManifest(manifest: BuildManifest): void {
         continue;
       }
       markdownLines.push(
-        `- ${artifact.relativeSourcePath}: ${artifact.violations.join('; ') || `exited ${artifact.exitCode} with logical-check failures`}`,
+        `- ${artifact.relativeSourcePath}: ${
+          artifact.violations.join('; ') ||
+          `exited ${artifact.exitCode} with logical-check failures`
+        }`
       );
     }
   }
@@ -322,7 +342,7 @@ function writeManifest(manifest: BuildManifest): void {
   fs.writeFileSync(
     path.join(generatedRoot, 'manifest.md'),
     `${markdownLines.join('\n')}\n`,
-    'utf8',
+    'utf8'
   );
 }
 
@@ -352,7 +372,7 @@ function main(): void {
     generatedArtifactCount: artifacts.length,
     logicalOppositePairCount: countLogicalOppositePairs(artifacts),
     logicalCheckFailureCount: artifacts.filter(
-      (artifact) => !artifact.logicalChecksOk,
+      (artifact) => !artifact.logicalChecksOk
     ).length,
     fatalFailureCount: failures.length,
     artifacts,
@@ -362,24 +382,24 @@ function main(): void {
   writeManifest(manifest);
 
   process.stdout.write(
-    `Discovered ${manifest.toySystemCount} toy .gg systems\n`,
+    `Discovered ${manifest.toySystemCount} toy .gg systems\n`
   );
   process.stdout.write(
-    `Emitted ${manifest.generatedArtifactCount} TLA/CFG artifact sets to ${generatedRoot}\n`,
+    `Emitted ${manifest.generatedArtifactCount} TLA/CFG artifact sets to ${generatedRoot}\n`
   );
   process.stdout.write(
-    `Detected ${manifest.logicalOppositePairCount} explicit logical opposite pairings\n`,
+    `Detected ${manifest.logicalOppositePairCount} explicit logical opposite pairings\n`
   );
 
   if (manifest.logicalCheckFailureCount > 0) {
     process.stdout.write(
-      `Retained ${manifest.logicalCheckFailureCount} topology builds with logical-check failures in the manifest\n`,
+      `Retained ${manifest.logicalCheckFailureCount} topology builds with logical-check failures in the manifest\n`
     );
   }
 
   if (manifest.fatalFailureCount > 0) {
     process.stderr.write(
-      `Failed to emit artifacts for ${manifest.fatalFailureCount} toy systems\n`,
+      `Failed to emit artifacts for ${manifest.fatalFailureCount} toy systems\n`
     );
     process.exitCode = 1;
   }

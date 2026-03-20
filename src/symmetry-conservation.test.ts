@@ -1,29 +1,59 @@
 import { describe, it, expect } from 'bun:test';
 import {
-  isAutomorphism, findAutomorphisms, hasScaleSymmetry,
-  beta1Conservation, entropyConservation, voidChargeConservation,
+  isAutomorphism,
+  findAutomorphisms,
+  hasScaleSymmetry,
+  beta1Conservation,
+  entropyConservation,
+  voidChargeConservation,
   verifyNoether,
 } from './symmetry-conservation.js';
 import { createVoidBoundary, updateVoidBoundary } from './void.js';
 
 describe('Automorphisms', () => {
   it('identity is always an automorphism', () => {
-    expect(isAutomorphism([[0, 1], [1, 2]], [0, 1, 2])).toBe(true);
+    expect(
+      isAutomorphism(
+        [
+          [0, 1],
+          [1, 2],
+        ],
+        [0, 1, 2]
+      )
+    ).toBe(true);
   });
 
   it('detects non-automorphism', () => {
-    expect(isAutomorphism([[0, 1], [1, 2]], [2, 0, 1])).toBe(false);
+    expect(
+      isAutomorphism(
+        [
+          [0, 1],
+          [1, 2],
+        ],
+        [2, 0, 1]
+      )
+    ).toBe(false);
   });
 
   it('finds automorphisms of symmetric graph', () => {
     // Complete graph K3: every permutation is an automorphism
-    const edges: [number, number][] = [[0, 1], [1, 0], [0, 2], [2, 0], [1, 2], [2, 1]];
+    const edges: [number, number][] = [
+      [0, 1],
+      [1, 0],
+      [0, 2],
+      [2, 0],
+      [1, 2],
+      [2, 1],
+    ];
     const auts = findAutomorphisms(3, edges);
     expect(auts.length).toBe(6); // 3! = 6
   });
 
   it('path graph has only identity automorphism', () => {
-    const edges: [number, number][] = [[0, 1], [1, 2]];
+    const edges: [number, number][] = [
+      [0, 1],
+      [1, 2],
+    ];
     const auts = findAutomorphisms(3, edges);
     expect(auts.length).toBe(1); // Only identity
   });

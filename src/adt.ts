@@ -38,7 +38,7 @@ export interface SumTypeDefinition {
 export function defineSumType(
   name: string,
   cases: readonly string[],
-  sealed: boolean = true,
+  sealed: boolean = true
 ): SumTypeDefinition {
   return { name, cases, sealed };
 }
@@ -49,8 +49,21 @@ export const BUILTIN_SUM_TYPES: Record<string, SumTypeDefinition> = {
   Option: defineSumType('Option', ['some', 'none']),
   Either: defineSumType('Either', ['left', 'right']),
   Ordering: defineSumType('Ordering', ['lt', 'eq', 'gt']),
-  TaskStatus: defineSumType('TaskStatus', ['pending', 'running', 'success', 'error', 'timeout', 'cancelled', 'vented']),
-  ConvergenceState: defineSumType('ConvergenceState', ['converged', 'diverged', 'oscillating', 'stalled']),
+  TaskStatus: defineSumType('TaskStatus', [
+    'pending',
+    'running',
+    'success',
+    'error',
+    'timeout',
+    'cancelled',
+    'vented',
+  ]),
+  ConvergenceState: defineSumType('ConvergenceState', [
+    'converged',
+    'diverged',
+    'oscillating',
+    'stalled',
+  ]),
 };
 
 // ============================================================================
@@ -70,14 +83,14 @@ export interface ProductTypeDefinition {
 
 export function defineProductType(
   name: string,
-  fields: readonly FieldDefinition[],
+  fields: readonly FieldDefinition[]
 ): ProductTypeDefinition {
   return { name, fields };
 }
 
 export function createRecord(
   typeDef: ProductTypeDefinition,
-  values: Record<string, unknown>,
+  values: Record<string, unknown>
 ): Record<string, unknown> {
   const record: Record<string, unknown> = {};
   for (const field of typeDef.fields) {
@@ -86,7 +99,9 @@ export function createRecord(
     } else if (field.defaultValue !== undefined) {
       record[field.name] = field.defaultValue;
     } else if (field.required) {
-      throw new Error(`Missing required field '${field.name}' in ${typeDef.name}`);
+      throw new Error(
+        `Missing required field '${field.name}' in ${typeDef.name}`
+      );
     }
   }
   return record;
@@ -114,10 +129,10 @@ export interface MatchResult<R> {
 export function matchExhaustive<T, R>(
   typeDef: SumTypeDefinition,
   value: Variant<T>,
-  arms: Record<string, (v: T) => R>,
+  arms: Record<string, (v: T) => R>
 ): R {
   // Check exhaustiveness
-  const missing = typeDef.cases.filter(c => !(c in arms));
+  const missing = typeDef.cases.filter((c) => !(c in arms));
   if (missing.length > 0) {
     throw new ExhaustivenessError(typeDef.name, missing);
   }
@@ -136,7 +151,7 @@ export function matchExhaustive<T, R>(
 export function matchPartial<T, R>(
   value: Variant<T>,
   arms: Record<string, (v: T) => R>,
-  fallback: (v: Variant<T>) => R,
+  fallback: (v: Variant<T>) => R
 ): R {
   const handler = arms[value.tag];
   return handler ? handler(value.value) : fallback(value);
@@ -152,7 +167,9 @@ export class ExhaustivenessError extends Error {
 
   constructor(typeName: string, missingCases: string[]) {
     super(
-      `Non-exhaustive match on '${typeName}': missing cases [${missingCases.join(', ')}]`,
+      `Non-exhaustive match on '${typeName}': missing cases [${missingCases.join(
+        ', '
+      )}]`
     );
     this.name = 'ExhaustivenessError';
     this.typeName = typeName;
@@ -165,11 +182,11 @@ export class ExhaustivenessError extends Error {
  */
 export function checkExhaustiveness(
   typeDef: SumTypeDefinition,
-  handledCases: string[],
+  handledCases: string[]
 ): { exhaustive: boolean; missing: string[]; extra: string[] } {
   const handled = new Set(handledCases);
-  const missing = typeDef.cases.filter(c => !handled.has(c));
-  const extra = handledCases.filter(c => !typeDef.cases.includes(c));
+  const missing = typeDef.cases.filter((c) => !handled.has(c));
+  const extra = handledCases.filter((c) => !typeDef.cases.includes(c));
   return { exhaustive: missing.length === 0, missing, extra };
 }
 
@@ -180,7 +197,7 @@ export function checkExhaustiveness(
 export function validateNodeExhaustiveness(
   nodeId: string,
   typeDef: SumTypeDefinition,
-  edgeCases: string[],
+  edgeCases: string[]
 ): { valid: boolean; missing: string[]; diagnostic: string | null } {
   const { exhaustive, missing } = checkExhaustiveness(typeDef, edgeCases);
   if (exhaustive) {
@@ -189,7 +206,9 @@ export function validateNodeExhaustiveness(
   return {
     valid: false,
     missing,
-    diagnostic: `Node '${nodeId}' (${typeDef.name}): missing cases [${missing.join(', ')}]`,
+    diagnostic: `Node '${nodeId}' (${
+      typeDef.name
+    }): missing cases [${missing.join(', ')}]`,
   };
 }
 

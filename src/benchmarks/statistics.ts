@@ -27,7 +27,7 @@ export function stdev(values: readonly number[]): number {
     values.map((value) => {
       const delta = value - center;
       return delta * delta;
-    }),
+    })
   );
 
   return Math.sqrt(variance);
@@ -68,7 +68,8 @@ function percentile(sortedValues: readonly number[], fraction: number): number {
   const lowerIndex = Math.floor(scaledIndex);
   const upperIndex = Math.ceil(scaledIndex);
   const lowerValue = sortedValues[lowerIndex] ?? sortedValues[0] ?? 0;
-  const upperValue = sortedValues[upperIndex] ?? sortedValues[sortedValues.length - 1] ?? 0;
+  const upperValue =
+    sortedValues[upperIndex] ?? sortedValues[sortedValues.length - 1] ?? 0;
 
   if (lowerIndex === upperIndex) {
     return lowerValue;
@@ -80,7 +81,7 @@ function percentile(sortedValues: readonly number[], fraction: number): number {
 
 export function bootstrapMeanConfidenceInterval(
   values: readonly number[],
-  options: BootstrapOptions = {},
+  options: BootstrapOptions = {}
 ): ConfidenceInterval {
   if (values.length === 0) {
     return { low: 0, high: 0 };

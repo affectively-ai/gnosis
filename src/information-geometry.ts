@@ -30,9 +30,12 @@ import {
  * For the exponential family (which complement distribution is),
  * F_{ij} = δ_{ij} / p_i (diagonal).
  */
-export function fisherInformation(boundary: VoidBoundary, eta: number): number[] {
+export function fisherInformation(
+  boundary: VoidBoundary,
+  eta: number
+): number[] {
   const dist = complementDistribution(boundary, eta);
-  return dist.map(p => p > 1e-15 ? 1 / p : 0);
+  return dist.map((p) => (p > 1e-15 ? 1 / p : 0));
 }
 
 /**
@@ -85,7 +88,9 @@ export function jensenShannonDivergence(p: number[], q: number[]): number {
  * KL divergence between two void boundaries' complement distributions.
  */
 export function voidDivergence(
-  a: VoidBoundary, b: VoidBoundary, eta: number,
+  a: VoidBoundary,
+  b: VoidBoundary,
+  eta: number
 ): number {
   const pa = complementDistribution(a, eta);
   const pb = complementDistribution(b, eta);
@@ -107,7 +112,7 @@ export function voidDivergence(
 export function naturalGradient(
   boundary: VoidBoundary,
   euclideanGradient: number[],
-  eta: number,
+  eta: number
 ): number[] {
   const dist = complementDistribution(boundary, eta);
   return euclideanGradient.map((g, i) => g * dist[i]);
@@ -121,15 +126,15 @@ export function naturalGradient(
 export function isNaturalGradientSampling(
   complementDist: number[],
   fisherInverse: number[],
-  tolerance: number = 1e-10,
+  tolerance: number = 1e-10
 ): boolean {
   // Fisher inverse for exponential family: F^{-1}_{ii} = p_i
   // Complement distribution: p_i
   // They are the same!
   const totalFisher = fisherInverse.reduce((a, b) => a + b, 0);
-  const normalizedFisher = fisherInverse.map(f => f / totalFisher);
-  return complementDist.every((p, i) =>
-    Math.abs(p - normalizedFisher[i]) < tolerance
+  const normalizedFisher = fisherInverse.map((f) => f / totalFisher);
+  return complementDist.every(
+    (p, i) => Math.abs(p - normalizedFisher[i]) < tolerance
   );
 }
 
@@ -175,10 +180,12 @@ export function fisherRaoDistance(p: number[], q: number[]): number {
  * Geodesic distance between two void boundaries.
  */
 export function voidGeodesicDistance(
-  a: VoidBoundary, b: VoidBoundary, eta: number,
+  a: VoidBoundary,
+  b: VoidBoundary,
+  eta: number
 ): number {
   return fisherRaoDistance(
     complementDistribution(a, eta),
-    complementDistribution(b, eta),
+    complementDistribution(b, eta)
   );
 }

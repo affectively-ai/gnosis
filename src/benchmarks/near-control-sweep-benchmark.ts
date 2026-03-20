@@ -20,11 +20,13 @@ export interface GnosisNearControlSweepReport {
 }
 
 function findLastParityRegimeValue(
-  family: RegimeSweepFamilyReport,
+  family: RegimeSweepFamilyReport
 ): number | null {
   let lastParityRegimeValue: number | null = null;
   for (const point of family.points) {
-    if (point.linearAdvantageEvalMeanSquaredError <= family.separationThreshold) {
+    if (
+      point.linearAdvantageEvalMeanSquaredError <= family.separationThreshold
+    ) {
       lastParityRegimeValue = point.regimeValue;
     }
   }
@@ -32,7 +34,7 @@ function findLastParityRegimeValue(
 }
 
 function summarizeNearControlFamily(
-  family: RegimeSweepFamilyReport,
+  family: RegimeSweepFamilyReport
 ): NearControlFamilyReport {
   const lastParityRegimeValue = findLastParityRegimeValue(family);
   return {
@@ -62,7 +64,7 @@ export function makeNearControlSweepConfig(): RegimeSweepRunConfig {
 export async function runGnosisNearControlSweep(): Promise<GnosisNearControlSweepReport> {
   const baseReport = await buildGnosisFoldBoundaryRegimeSweepReport(
     makeNearControlSweepConfig(),
-    'gnosis-near-control-sweep-v1',
+    'gnosis-near-control-sweep-v1'
   );
   const affine = summarizeNearControlFamily(baseReport.affine);
   const routed = summarizeNearControlFamily(baseReport.routed);
@@ -87,20 +89,38 @@ function renderFamilyMarkdown(family: NearControlFamilyReport): string {
   lines.push(`- Description: ${family.description}`);
   lines.push(`- Sweep dimension: ${family.sweepDimension}`);
   lines.push(
-    `- Last parity regime value: \`${family.lastParityRegimeValue === null ? 'none' : family.lastParityRegimeValue.toFixed(2)}\``,
+    `- Last parity regime value: \`${
+      family.lastParityRegimeValue === null
+        ? 'none'
+        : family.lastParityRegimeValue.toFixed(2)
+    }\``
   );
   lines.push(
-    `- First separated regime value: \`${family.firstSeparatedRegimeValue === null ? 'none' : family.firstSeparatedRegimeValue.toFixed(2)}\``,
+    `- First separated regime value: \`${
+      family.firstSeparatedRegimeValue === null
+        ? 'none'
+        : family.firstSeparatedRegimeValue.toFixed(2)
+    }\``
   );
   lines.push(
-    `- Near-control divergence recovered: \`${family.nearControlDivergenceRecovered ? 'yes' : 'no'}\``,
+    `- Near-control divergence recovered: \`${
+      family.nearControlDivergenceRecovered ? 'yes' : 'no'
+    }\``
   );
   lines.push('');
-  lines.push('| Regime | Linear advantage (eval MSE) | Linear exact advantage | Best nonlinear |');
+  lines.push(
+    '| Regime | Linear advantage (eval MSE) | Linear exact advantage | Best nonlinear |'
+  );
   lines.push('| ---: | ---: | ---: | --- |');
   for (const point of family.points) {
     lines.push(
-      `| ${point.regimeValue.toFixed(2)} | ${point.linearAdvantageEvalMeanSquaredError.toFixed(3)} | ${point.linearAdvantageExactWithinToleranceFraction.toFixed(3)} | \`${point.bestNonlinearStrategy}\` |`,
+      `| ${point.regimeValue.toFixed(
+        2
+      )} | ${point.linearAdvantageEvalMeanSquaredError.toFixed(
+        3
+      )} | ${point.linearAdvantageExactWithinToleranceFraction.toFixed(
+        3
+      )} | \`${point.bestNonlinearStrategy}\` |`
     );
   }
   lines.push('');
@@ -108,20 +128,26 @@ function renderFamilyMarkdown(family: NearControlFamilyReport): string {
 }
 
 export function renderGnosisNearControlSweepMarkdown(
-  report: GnosisNearControlSweepReport,
+  report: GnosisNearControlSweepReport
 ): string {
   const lines: string[] = [];
   lines.push('# Gnosis Near-Control Sweep');
   lines.push('');
   lines.push(`- Label: \`${report.label}\``);
   lines.push(
-    `- Predicted near-control recovery: \`${report.predictedNearControlRecovered ? 'yes' : 'no'}\``,
+    `- Predicted near-control recovery: \`${
+      report.predictedNearControlRecovered ? 'yes' : 'no'
+    }\``
   );
   lines.push(
-    `- Affine regime values: ${report.affine.regimeValues.map((value) => `\`${value.toFixed(2)}\``).join(', ')}`,
+    `- Affine regime values: ${report.affine.regimeValues
+      .map((value) => `\`${value.toFixed(2)}\``)
+      .join(', ')}`
   );
   lines.push(
-    `- Routed regime values: ${report.routed.regimeValues.map((value) => `\`${value.toFixed(2)}\``).join(', ')}`,
+    `- Routed regime values: ${report.routed.regimeValues
+      .map((value) => `\`${value.toFixed(2)}\``)
+      .join(', ')}`
   );
   lines.push('');
   lines.push(renderFamilyMarkdown(report.affine));
@@ -129,7 +155,7 @@ export function renderGnosisNearControlSweepMarkdown(
   lines.push(renderFamilyMarkdown(report.routed));
   lines.push('');
   lines.push(
-    'Interpretation: this near-control sweep zooms the control end of the boundary, showing how long parity persists before linear recombination opens a measurable advantage as additive demand rises.',
+    'Interpretation: this near-control sweep zooms the control end of the boundary, showing how long parity persists before linear recombination opens a measurable advantage as additive demand rises.'
   );
   lines.push('');
   return `${lines.join('\n')}\n`;

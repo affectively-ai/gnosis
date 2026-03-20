@@ -259,11 +259,16 @@ export function mergeExecutionAuthContexts(
     incomingToken !== null &&
     currentToken !== incomingToken
   ) {
-    throw new Error('Conflicting execution auth tokens encountered during merge.');
+    throw new Error(
+      'Conflicting execution auth tokens encountered during merge.'
+    );
   }
 
   const mergedCapabilities = new Map<string, GnosisCapability>();
-  for (const capability of [...current.capabilities, ...incoming.capabilities]) {
+  for (const capability of [
+    ...current.capabilities,
+    ...incoming.capabilities,
+  ]) {
     mergedCapabilities.set(`${capability.can}:${capability.with}`, capability);
   }
 
@@ -439,9 +444,11 @@ export function authorizeSteeringApply(options: {
   });
 }
 
-export async function generateUcanIdentity(options: {
-  displayName?: string;
-} = {}): Promise<GnosisIdentity> {
+export async function generateUcanIdentity(
+  options: {
+    displayName?: string;
+  } = {}
+): Promise<GnosisIdentity> {
   const generateIdentity = await requireAuthFunction('generateIdentity');
   return generateIdentity(options);
 }
@@ -467,7 +474,11 @@ export async function verifyGranularUcan(options: {
   verifyOptions?: GnosisVerifyUcanOptions;
 }): Promise<GnosisVerificationResult> {
   const verifyUCAN = await requireAuthFunction('verifyUCAN');
-  return verifyUCAN(options.token, options.issuerPublicKey, options.verifyOptions);
+  return verifyUCAN(
+    options.token,
+    options.issuerPublicKey,
+    options.verifyOptions
+  );
 }
 
 export async function delegateGranularUcan(options: {
@@ -477,7 +488,9 @@ export async function delegateGranularUcan(options: {
   capabilities: GnosisCapability[];
   delegationOptions?: GnosisDelegationOptions;
 }): Promise<string> {
-  const delegateCapabilities = await requireAuthFunction('delegateCapabilities');
+  const delegateCapabilities = await requireAuthFunction(
+    'delegateCapabilities'
+  );
   return delegateCapabilities(
     options.parentToken,
     options.issuer,

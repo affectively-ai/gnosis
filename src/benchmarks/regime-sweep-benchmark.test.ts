@@ -12,18 +12,30 @@ describe('gnosis fold boundary regime sweep', () => {
     expect(report.predictedBoundaryRecovered).toBe(true);
     expect(report.affine.topology.parameterCount).toBe(4);
     expect(report.routed.topology.parameterCount).toBe(16);
-    expect(report.affine.points).toHaveLength(report.config.regimeValues.length);
-    expect(report.routed.points).toHaveLength(report.config.regimeValues.length);
+    expect(report.affine.points).toHaveLength(
+      report.config.regimeValues.length
+    );
+    expect(report.routed.points).toHaveLength(
+      report.config.regimeValues.length
+    );
 
     const affineStart = report.affine.points[0];
     const affineEnd = report.affine.points[report.affine.points.length - 1];
     const routedStart = report.routed.points[0];
     const routedEnd = report.routed.points[report.routed.points.length - 1];
 
-    expect(affineStart?.linearAdvantageEvalMeanSquaredError ?? 1).toBeLessThan(0.05);
-    expect(affineEnd?.linearAdvantageEvalMeanSquaredError ?? 0).toBeGreaterThan(0.1);
-    expect(routedStart?.linearAdvantageEvalMeanSquaredError ?? 1).toBeLessThan(0.05);
-    expect(routedEnd?.linearAdvantageEvalMeanSquaredError ?? 0).toBeGreaterThan(0.08);
+    expect(affineStart?.linearAdvantageEvalMeanSquaredError ?? 1).toBeLessThan(
+      0.05
+    );
+    expect(affineEnd?.linearAdvantageEvalMeanSquaredError ?? 0).toBeGreaterThan(
+      0.1
+    );
+    expect(routedStart?.linearAdvantageEvalMeanSquaredError ?? 1).toBeLessThan(
+      0.05
+    );
+    expect(routedEnd?.linearAdvantageEvalMeanSquaredError ?? 0).toBeGreaterThan(
+      0.08
+    );
 
     expect(report.affine.firstSeparatedRegimeValue).not.toBeNull();
     expect(report.routed.firstSeparatedRegimeValue).not.toBeNull();
@@ -33,7 +45,7 @@ describe('gnosis fold boundary regime sweep', () => {
 
   test('renders a markdown report with both regime families', async () => {
     const markdown = renderGnosisFoldBoundaryRegimeSweepMarkdown(
-      await runGnosisFoldBoundaryRegimeSweep(),
+      await runGnosisFoldBoundaryRegimeSweep()
     );
 
     expect(markdown).toContain('# Gnosis Fold Boundary Regime Sweep');

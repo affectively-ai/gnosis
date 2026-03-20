@@ -15,13 +15,17 @@ describe('GnosisCoreCache', () => {
     const lookup = cache.lookup(session);
     expect(lookup.kind).toBe('miss');
 
-    cache.commit(session, { ok: true, value: 'seed -> done' }, {
-      collapseCount: 1,
-      firstSufficientCount: 1,
-      ventCount: 0,
-      repairDebt: 0,
-      lastWinnerPath: 'b',
-    });
+    cache.commit(
+      session,
+      { ok: true, value: 'seed -> done' },
+      {
+        collapseCount: 1,
+        firstSufficientCount: 1,
+        ventCount: 0,
+        repairDebt: 0,
+        lastWinnerPath: 'b',
+      }
+    );
 
     const corridor = cache.getCorridor(session.corridorKey);
     const entry = cache.getEntry(session.requestKey);

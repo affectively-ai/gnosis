@@ -51,7 +51,10 @@ export function registerThermodynamicHandlers(registry: GnosisRegistry): void {
   });
 
   registry.register('ThermodynamicFold', async (payload, props) => {
-    const collapsed = (props.collapsed ?? '').split(',').map(Number).filter(n => !isNaN(n));
+    const collapsed = (props.collapsed ?? '')
+      .split(',')
+      .map(Number)
+      .filter((n) => !isNaN(n));
     const survivor = parseInt(props.survivor ?? '0', 10);
     return recordFold(payload, collapsed, survivor);
   });

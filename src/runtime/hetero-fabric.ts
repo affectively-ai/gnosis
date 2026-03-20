@@ -350,10 +350,7 @@ function toBytes(
   if (ArrayBuffer.isView(value)) {
     const view = value as ArrayBufferView;
     return new Uint8Array(
-      view.buffer.slice(
-        view.byteOffset,
-        view.byteOffset + view.byteLength
-      )
+      view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength)
     );
   }
   if (value instanceof ArrayBuffer) {
@@ -574,7 +571,11 @@ function startBackendAttempt(
           signal: controller.signal,
         });
         const finishedAtMs = clock();
-        const bytes = toBytes(result.value, context.inputDocument, result.bytes);
+        const bytes = toBytes(
+          result.value,
+          context.inputDocument,
+          result.bytes
+        );
         return {
           backendId: backend.id,
           backendKind: backend.kind,
@@ -586,7 +587,10 @@ function startBackendAttempt(
           status: 'success',
           value: result.value,
           bytes,
-          cpuTimeMs: Math.max(0, result.cpuTimeMs ?? finishedAtMs - startedAtMs),
+          cpuTimeMs: Math.max(
+            0,
+            result.cpuTimeMs ?? finishedAtMs - startedAtMs
+          ),
           wallTimeMs: Math.max(0, finishedAtMs - startedAtMs),
           startedAtMs,
           finishedAtMs,
@@ -684,10 +688,7 @@ async function runMirroredPair(
   cursorPosition: number,
   plan: HeteroMoAFabricPlan,
   options: Required<
-    Pick<
-      HeteroMoAFabricRunOptions,
-      'compareOutputs' | 'isSufficient' | 'nowMs'
-    >
+    Pick<HeteroMoAFabricRunOptions, 'compareOutputs' | 'isSufficient' | 'nowMs'>
   > &
     Pick<HeteroMoAFabricRunOptions, 'communityMemory' | 'inputDocument'> & {
       abortSignal?: AbortSignal;
@@ -744,8 +745,7 @@ async function runMirroredPair(
         ? {
             ...primary,
             status: 'vented' as const,
-            detail:
-              primary.detail ?? 'vented after mirrored pair disagreement',
+            detail: primary.detail ?? 'vented after mirrored pair disagreement',
           }
         : primary;
     const ventedShadow =
@@ -753,8 +753,7 @@ async function runMirroredPair(
         ? {
             ...shadow,
             status: 'vented' as const,
-            detail:
-              shadow.detail ?? 'vented after mirrored pair disagreement',
+            detail: shadow.detail ?? 'vented after mirrored pair disagreement',
           }
         : shadow;
 
@@ -831,10 +830,10 @@ async function runMirroredPair(
     shadowBackend,
     input,
     {
-        ...baseContext,
-        role: 'shadow',
-      },
-      occupancy,
+      ...baseContext,
+      role: 'shadow',
+    },
+    occupancy,
     options.nowMs,
     options.abortSignal
   );
@@ -854,8 +853,7 @@ async function runMirroredPair(
       ? {
           ...primary,
           status: 'vented' as const,
-          detail:
-            primary.detail ?? 'vented after mirrored pair disagreement',
+          detail: primary.detail ?? 'vented after mirrored pair disagreement',
         }
       : primary;
   const ventedShadow =
@@ -863,8 +861,7 @@ async function runMirroredPair(
       ? {
           ...shadow,
           status: 'vented' as const,
-          detail:
-            shadow.detail ?? 'vented after mirrored pair disagreement',
+          detail: shadow.detail ?? 'vented after mirrored pair disagreement',
         }
       : shadow;
 
@@ -892,7 +889,10 @@ function buildFabricKey(
   if (plan.fabricNodeId) {
     return plan.fabricNodeId;
   }
-  return `fabric:${descriptors.map((descriptor) => descriptor.id).sort().join('|')}`;
+  return `fabric:${descriptors
+    .map((descriptor) => descriptor.id)
+    .sort()
+    .join('|')}`;
 }
 
 async function selectLayerBackends(
@@ -986,10 +986,7 @@ export class HeteroMoAFabricCommunityMemory {
     this.relay?.disconnect();
   }
 
-  currentCursor(
-    fabricKey: string,
-    layer: HeteroMoAFabricLayerKind
-  ): number {
+  currentCursor(fabricKey: string, layer: HeteroMoAFabricLayerKind): number {
     const current = this.layerCursors.get(`${fabricKey}:${layer}`);
     return Math.max(0, Math.floor(current?.cursor ?? 0));
   }
@@ -1159,11 +1156,7 @@ export class HeteroMoAFabricCommunityMemory {
         : 0;
       const skipped = attempt.status === 'skipped' ? 1 : 0;
       const scoreDelta =
-        won * 3 +
-        succeeded * 1 -
-        failed * 2 -
-        disagreement * 2 +
-        skipped * 0.5;
+        won * 3 + succeeded * 1 - failed * 2 - disagreement * 2 + skipped * 0.5;
       const latency =
         attempt.status !== 'aborted' && attempt.status !== 'skipped'
           ? updateLatencyEstimate(next, attempt.wallTimeMs)
@@ -1314,7 +1307,9 @@ function parseCommandSpec(raw: string): string[] {
     if (
       !Array.isArray(parsed) ||
       parsed.length === 0 ||
-      !parsed.every((entry) => typeof entry === 'string' && entry.trim().length > 0)
+      !parsed.every(
+        (entry) => typeof entry === 'string' && entry.trim().length > 0
+      )
     ) {
       throw new Error('Runner JSON command must be a non-empty string array');
     }
@@ -1326,7 +1321,10 @@ function parseCommandSpec(raw: string): string[] {
 export interface CommandFabricBackendOptions {
   readonly id: string;
   readonly label: string;
-  readonly kind: Exclude<HeteroMoAFabricBackendKind, 'cpu' | 'webgpu' | 'webnn'>;
+  readonly kind: Exclude<
+    HeteroMoAFabricBackendKind,
+    'cpu' | 'webgpu' | 'webnn'
+  >;
   readonly layer: HeteroMoAFabricLayerKind;
   readonly command: readonly string[] | string;
   readonly priority?: number;
@@ -1342,7 +1340,9 @@ export function createCommandFabricBackend(
       : [...options.command];
 
   if (command.length === 0) {
-    throw new Error(`Command backend '${options.id}' requires a non-empty command`);
+    throw new Error(
+      `Command backend '${options.id}' requires a non-empty command`
+    );
   }
 
   return {
@@ -1523,7 +1523,10 @@ async function launchMetaLayerTask(
     Pick<HeteroMoAFabricRunOptions, 'communityMemory' | 'inputDocument'>,
   occupancy: MutableOccupancyCounter,
   abortSignal: AbortSignal
-): Promise<{ layer: HeteroMoAFabricLayerKind; pair: HeteroMoAFabricPairResult | null }> {
+): Promise<{
+  layer: HeteroMoAFabricLayerKind;
+  pair: HeteroMoAFabricPairResult | null;
+}> {
   const launchReady = await waitForAbortableDelay(launchOffsetMs, abortSignal);
   if (!launchReady) {
     return {
@@ -1614,7 +1617,8 @@ export async function runHeteroMoAFabric(
         }
         const shadowBackend =
           selection.selected.length > 1
-            ? selection.selected[(lane + 1) % selection.selected.length] ?? backend
+            ? selection.selected[(lane + 1) % selection.selected.length] ??
+              backend
             : backend;
         const pair = await runMirroredPair(
           backend,
@@ -1639,10 +1643,12 @@ export async function runHeteroMoAFabric(
         }
       }
 
-      const winner = [...pairs]
-        .filter((pair) => pair.accepted !== null)
-        .map((pair) => pair.accepted as HeteroMoAFabricAttempt)
-        .sort((left, right) => left.finishedAtMs - right.finishedAtMs)[0] ?? null;
+      const winner =
+        [...pairs]
+          .filter((pair) => pair.accepted !== null)
+          .map((pair) => pair.accepted as HeteroMoAFabricAttempt)
+          .sort((left, right) => left.finishedAtMs - right.finishedAtMs)[0] ??
+        null;
 
       layerResults.push({
         layer: selection.layer,
@@ -1720,7 +1726,10 @@ export async function runHeteroMoAFabric(
     }
 
     const settledPairs = await Promise.all(taskPromises);
-    const pairsByLayer = new Map<HeteroMoAFabricLayerKind, HeteroMoAFabricPairResult[]>();
+    const pairsByLayer = new Map<
+      HeteroMoAFabricLayerKind,
+      HeteroMoAFabricPairResult[]
+    >();
     for (const settled of settledPairs) {
       if (!settled.pair) {
         continue;
@@ -1731,14 +1740,15 @@ export async function runHeteroMoAFabric(
     }
 
     for (const selection of selections) {
-      const pairs =
-        (pairsByLayer.get(selection.layer) ?? []).sort(
-          (left, right) => left.lane - right.lane
-        );
-      const winner = [...pairs]
-        .filter((pair) => pair.accepted !== null)
-        .map((pair) => pair.accepted as HeteroMoAFabricAttempt)
-        .sort((left, right) => left.finishedAtMs - right.finishedAtMs)[0] ?? null;
+      const pairs = (pairsByLayer.get(selection.layer) ?? []).sort(
+        (left, right) => left.lane - right.lane
+      );
+      const winner =
+        [...pairs]
+          .filter((pair) => pair.accepted !== null)
+          .map((pair) => pair.accepted as HeteroMoAFabricAttempt)
+          .sort((left, right) => left.finishedAtMs - right.finishedAtMs)[0] ??
+        null;
 
       layerResults.push({
         layer: selection.layer,
@@ -1766,7 +1776,9 @@ export async function runHeteroMoAFabric(
   const loserAttempts = attempts.filter(
     (attempt) =>
       attempt.status === 'success' &&
-      (!winner || attempt.backendId !== winner.backendId || attempt.role !== winner.role)
+      (!winner ||
+        attempt.backendId !== winner.backendId ||
+        attempt.role !== winner.role)
   );
   const loserCompletions = loserAttempts.length;
   const loserBytes = loserAttempts.reduce(

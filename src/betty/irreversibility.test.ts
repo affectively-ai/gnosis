@@ -13,7 +13,10 @@ import {
   createTimescaleBoundary,
 } from '../void.js';
 import { ExecutionBoundary } from '../runtime/execution-boundary.js';
-import { computeBuleyeanDistribution, checkFoldZeroProbability } from './buleyean.js';
+import {
+  computeBuleyeanDistribution,
+  checkFoldZeroProbability,
+} from './buleyean.js';
 import { EntanglementManager } from '../runtime/entanglement.js';
 
 // ─── Phase 1: Void Boundary as First-Class Runtime Data ────────────────
@@ -46,10 +49,10 @@ describe('VoidBoundary extensions', () => {
   });
 
   it('buleyeanWeight returns T - min(v, T) + 1', () => {
-    expect(buleyeanWeight(10, 0)).toBe(11);  // max weight
+    expect(buleyeanWeight(10, 0)).toBe(11); // max weight
     expect(buleyeanWeight(10, 5)).toBe(6);
-    expect(buleyeanWeight(10, 10)).toBe(1);  // minimum (sliver)
-    expect(buleyeanWeight(10, 15)).toBe(1);  // clamped to sliver
+    expect(buleyeanWeight(10, 10)).toBe(1); // minimum (sliver)
+    expect(buleyeanWeight(10, 15)).toBe(1); // clamped to sliver
   });
 
   it('buleyeanPositivity is always true', () => {
@@ -299,8 +302,8 @@ describe('Self-verification annotations', () => {
     const result = compiler.parse(`
       (a)-[:FOLD { verify: 'invalid' }]->(b:Sink)
     `);
-    const error = result.diagnostics.find(
-      (d) => d.message.includes('Unknown verify annotation')
+    const error = result.diagnostics.find((d) =>
+      d.message.includes('Unknown verify annotation')
     );
     expect(error).toBeDefined();
   });

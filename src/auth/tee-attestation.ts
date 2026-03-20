@@ -206,7 +206,11 @@ function stableStringify(value: unknown): string {
     const entries = Object.entries(record)
       .filter(([, entryValue]) => {
         const entryType = typeof entryValue;
-        return entryType !== 'undefined' && entryType !== 'function' && entryType !== 'symbol';
+        return (
+          entryType !== 'undefined' &&
+          entryType !== 'function' &&
+          entryType !== 'symbol'
+        );
       })
       .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey));
 
@@ -297,23 +301,15 @@ function signaturePayload(claims: HaltAttestationClaims): Uint8Array {
 }
 
 async function importPublicKey(key: JsonWebKey): Promise<CryptoKey> {
-  return crypto.subtle.importKey(
-    'jwk',
-    key,
-    ECDSA_SIGNING_ALGORITHM,
-    false,
-    ['verify']
-  );
+  return crypto.subtle.importKey('jwk', key, ECDSA_SIGNING_ALGORITHM, false, [
+    'verify',
+  ]);
 }
 
 async function importPrivateKey(key: JsonWebKey): Promise<CryptoKey> {
-  return crypto.subtle.importKey(
-    'jwk',
-    key,
-    ECDSA_SIGNING_ALGORITHM,
-    false,
-    ['sign']
-  );
+  return crypto.subtle.importKey('jwk', key, ECDSA_SIGNING_ALGORITHM, false, [
+    'sign',
+  ]);
 }
 
 function resolveTrustedPublicKeys(
@@ -396,7 +392,9 @@ function checkExpectedValue(
   return null;
 }
 
-export async function hashPublicSignals(publicSignals: unknown): Promise<string> {
+export async function hashPublicSignals(
+  publicSignals: unknown
+): Promise<string> {
   return sha256Hex(stableStringify(publicSignals));
 }
 
@@ -435,11 +433,15 @@ export function asHaltAttestationEnvelope(
     signature,
     claims,
     keyId: isNonEmptyString(keyId) ? keyId : undefined,
-    publicKey: isObjectRecord(publicKey) ? (publicKey as JsonWebKey) : undefined,
+    publicKey: isObjectRecord(publicKey)
+      ? (publicKey as JsonWebKey)
+      : undefined,
   };
 }
 
-export function asHaltExecutionEnvelope(value: unknown): HaltExecutionEnvelope | null {
+export function asHaltExecutionEnvelope(
+  value: unknown
+): HaltExecutionEnvelope | null {
   const record = isObjectRecord(value) ? value : null;
   if (!record) {
     return null;
@@ -487,7 +489,9 @@ export async function createHaltAttestation(
   }
 
   if (claims.expiresAt <= claims.issuedAt) {
-    throw new Error('HALT attestation expiresAt must be greater than issuedAt.');
+    throw new Error(
+      'HALT attestation expiresAt must be greater than issuedAt.'
+    );
   }
 
   const key = await importPrivateKey(options.privateKey);
@@ -522,7 +526,10 @@ export async function verifyHaltAttestation(
   }
 
   if (claims.expiresAt <= claims.issuedAt) {
-    return { valid: false, reason: 'Attestation has invalid issuedAt/expiresAt bounds.' };
+    return {
+      valid: false,
+      reason: 'Attestation has invalid issuedAt/expiresAt bounds.',
+    };
   }
 
   if (claims.expiresAt <= nowMs) {
@@ -652,7 +659,10 @@ export async function verifyHaltAttestation(
     };
   }
 
-  const signatureValid = await verifyAttestationSignature(attestation, trustedPublicKeys);
+  const signatureValid = await verifyAttestationSignature(
+    attestation,
+    trustedPublicKeys
+  );
   if (!signatureValid) {
     return {
       valid: false,

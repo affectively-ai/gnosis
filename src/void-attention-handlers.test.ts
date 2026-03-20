@@ -85,7 +85,14 @@ describe('voidAttentionForward', () => {
   });
 
   test('with void decay (layer norm)', async () => {
-    let p = createVoidAttentionPayload(2, 2, hawkDovePayoff, seededRng(42), 1, 0.01);
+    let p = createVoidAttentionPayload(
+      2,
+      2,
+      hawkDovePayoff,
+      seededRng(42),
+      1,
+      0.01
+    );
     for (let i = 0; i < 50; i++) {
       p = await voidAttentionForward(p);
     }
@@ -120,11 +127,12 @@ describe('voidAttentionForward', () => {
 });
 
 describe('Benchmark: gnosis core void-attention handlers', () => {
-  const games: [string, (a: number, b: number) => [number, number], number][] = [
-    ['Hawk-Dove (2x2)', hawkDovePayoff, 2],
-    ['PD (2x2)', prisonerPayoff, 2],
-    ['Coordination (3x3)', coordination3, 3],
-  ];
+  const games: [string, (a: number, b: number) => [number, number], number][] =
+    [
+      ['Hawk-Dove (2x2)', hawkDovePayoff, 2],
+      ['PD (2x2)', prisonerPayoff, 2],
+      ['Coordination (3x3)', coordination3, 3],
+    ];
 
   for (const [name, payoff, n] of games) {
     test(`${name}: 500 rounds`, async () => {
@@ -147,7 +155,8 @@ describe('Benchmark: gnosis core void-attention handlers', () => {
         });
       }
 
-      const avgCoord = results.reduce((s, r) => s + r.coordRate, 0) / results.length;
+      const avgCoord =
+        results.reduce((s, r) => s + r.coordRate, 0) / results.length;
       console.log(`\n=== gnosis void-attention: ${name} ===`);
       console.log(`  Coordination: ${(avgCoord * 100).toFixed(1)}%`);
       console.log(`  Gaits: ${results.map((r) => r.finalGaits).join(', ')}`);

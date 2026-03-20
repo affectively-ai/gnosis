@@ -25,16 +25,19 @@ export function registerEffectHandlers(registry: GnosisRegistry): void {
   registry.register('EffectInference', async (payload, props) => {
     const node: NodeDescriptor = payload ?? {
       id: props.nodeId ?? 'unknown',
-      labels: (props.labels ?? '').split(',').map(s => s.trim()).filter(Boolean),
+      labels: (props.labels ?? '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
       properties: { ...props },
     };
     const declared = parseDeclaredEffects(node);
     const inferred = inferNodeEffects(node);
     return {
       nodeId: node.id,
-      declared: declared.map(r => ({ kind: r.kind, reason: r.reason })),
-      inferred: inferred.map(r => ({ kind: r.kind, reason: r.reason })),
-      all: [...new Set([...declared, ...inferred].map(r => r.kind))],
+      declared: declared.map((r) => ({ kind: r.kind, reason: r.reason })),
+      inferred: inferred.map((r) => ({ kind: r.kind, reason: r.reason })),
+      all: [...new Set([...declared, ...inferred].map((r) => r.kind))],
     };
   });
 

@@ -92,14 +92,21 @@ describe('structured GG primitives', () => {
     );
 
     expect(normalized).toContain('(collapsed__router: RoutingGate');
-    expect(normalized).toContain('(left__rotation__scheduler: RotationScheduler');
-    expect(normalized).toContain('(right__rotation__scheduler: RotationScheduler');
+    expect(normalized).toContain(
+      '(left__rotation__scheduler: RotationScheduler'
+    );
+    expect(normalized).toContain(
+      '(right__rotation__scheduler: RotationScheduler'
+    );
     expect(normalized).toContain(
       "(left__rotation | right__rotation)-[:FOLD { strategy: 'worthington_whip', boundary: 'shards' }]->(collapsed__collapse)"
     );
     expect(ingressEdge).toBeDefined();
     expect(egressEdge).toBeDefined();
-    expect(collapseEdge?.sourceIds).toEqual(['left__rotation', 'right__rotation']);
+    expect(collapseEdge?.sourceIds).toEqual([
+      'left__rotation',
+      'right__rotation',
+    ]);
     expect(rotationSchedulers).toHaveLength(2);
   });
 
@@ -269,13 +276,11 @@ describe('structured GG primitives', () => {
     );
     const globalCollapseEdge = program.edges.find(
       (edge) =>
-        edge.type === 'FOLD' &&
-        edge.targetIds[0] === 'fabric__global_collapse'
+        edge.type === 'FOLD' && edge.targetIds[0] === 'fabric__global_collapse'
     );
     const pairRace = program.edges.find(
       (edge) =>
-        edge.type === 'RACE' &&
-        edge.targetIds[0] === 'fabric__cpu_0__pair'
+        edge.type === 'RACE' && edge.targetIds[0] === 'fabric__cpu_0__pair'
     );
 
     expect(normalized).toContain('(fabric__launch_gate: RoutingGate');
@@ -284,8 +289,12 @@ describe('structured GG primitives', () => {
     expect(normalized).toContain('(fabric__gpu__scheduler: RotationScheduler');
     expect(normalized).toContain('(fabric__npu__scheduler: RotationScheduler');
     expect(normalized).toContain('(fabric__wasm__scheduler: RotationScheduler');
-    expect(normalized).toContain('(fabric__cpu_0__primary__outer_rotation: RotationScheduler');
-    expect(normalized).toContain('(fabric__cpu_0__shadow__outer_rotation: RotationScheduler');
+    expect(normalized).toContain(
+      '(fabric__cpu_0__primary__outer_rotation: RotationScheduler'
+    );
+    expect(normalized).toContain(
+      '(fabric__cpu_0__shadow__outer_rotation: RotationScheduler'
+    );
     expect(normalized).toContain('(fabric__cpu_0__pair: RoutingGate');
     expect(normalized).toContain('(fabric__global_trace: CorridorTrace');
     expect(ingressEdge).toBeDefined();
@@ -308,13 +317,11 @@ describe('structured GG primitives', () => {
 
     const pairRace = program.edges.find(
       (edge) =>
-        edge.type === 'RACE' &&
-        edge.targetIds[0] === 'fabric__gpu_0__pair'
+        edge.type === 'RACE' && edge.targetIds[0] === 'fabric__gpu_0__pair'
     );
     const metaCollapse = program.edges.find(
       (edge) =>
-        edge.type === 'FOLD' &&
-        edge.targetIds[0] === 'fabric__global_collapse'
+        edge.type === 'FOLD' && edge.targetIds[0] === 'fabric__global_collapse'
     );
 
     expect(pairRace?.properties.strategy).toBe('cannon');
@@ -324,7 +331,9 @@ describe('structured GG primitives', () => {
     expect(pairRace?.properties.corridor_mode).toBe('readonly');
     expect(pairRace?.properties.reuse_scope).toBe('corridor');
     expect(metaCollapse?.properties.frame_protocol).toBe('aeon-10-byte-binary');
-    expect(program.nodes.find((node) => node.id === 'fabric__wasm__scheduler')).toBeDefined();
+    expect(
+      program.nodes.find((node) => node.id === 'fabric__wasm__scheduler')
+    ).toBeDefined();
   });
 
   test('expands multiline HeteroMoAFabric declarations before UFCS lowering', () => {
@@ -340,9 +349,15 @@ describe('structured GG primitives', () => {
 `);
     const program = parseGgProgram(normalized);
 
-    expect(normalized).toContain("(fabric: FlowFrame { primitive: 'HeteroMoAFabric'");
-    expect(program.nodes.find((node) => node.id === 'fabric__cpu__scheduler')).toBeDefined();
-    expect(program.nodes.find((node) => node.id === 'fabric__gpu__scheduler')).toBeDefined();
+    expect(normalized).toContain(
+      "(fabric: FlowFrame { primitive: 'HeteroMoAFabric'"
+    );
+    expect(
+      program.nodes.find((node) => node.id === 'fabric__cpu__scheduler')
+    ).toBeDefined();
+    expect(
+      program.nodes.find((node) => node.id === 'fabric__gpu__scheduler')
+    ).toBeDefined();
     expect(
       program.edges.find(
         (edge) =>

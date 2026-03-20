@@ -31,7 +31,7 @@ export class GnosisNeo4jBridge {
     const idPrefix = options.idPrefix || '';
     const lines: string[] = ['// Gnosis GGL to Neo4j Export'];
 
-    if (diagnostics.some(d => d.severity === 'error')) {
+    if (diagnostics.some((d) => d.severity === 'error')) {
       lines.push(`// WARNING: Compilation had errors`);
     }
 
@@ -42,25 +42,29 @@ export class GnosisNeo4jBridge {
       const props = {
         id: fullId,
         originalId: id,
-        ...node.properties
+        ...node.properties,
       };
       const propsStr = this.propsToCypher(props);
-      lines.push(`MERGE (n:${labels} {id: '${fullId}'}) ON CREATE SET n = ${propsStr} ON MATCH SET n = ${propsStr};`);
+      lines.push(
+        `MERGE (n:${labels} {id: '${fullId}'}) ON CREATE SET n = ${propsStr} ON MATCH SET n = ${propsStr};`
+      );
     }
 
     // Edges (Gnosis edges can be multi-source/multi-target)
     ast.edges.forEach((edge, index) => {
       const edgeType = edge.type;
-      const propsStr = this.propsToCypher({ 
+      const propsStr = this.propsToCypher({
         edgeIndex: index,
-        ...edge.properties 
+        ...edge.properties,
       });
 
-      edge.sourceIds.forEach(sourceId => {
+      edge.sourceIds.forEach((sourceId) => {
         const fullSourceId = `${idPrefix}${sourceId}`;
-        edge.targetIds.forEach(targetId => {
+        edge.targetIds.forEach((targetId) => {
           const fullTargetId = `${idPrefix}${targetId}`;
-          lines.push(`MATCH (s:${nodeLabel} {id: '${fullSourceId}'}), (t:${nodeLabel} {id: '${fullTargetId}'}) MERGE (s)-[r:${edgeType} ${propsStr}]->(t);`);
+          lines.push(
+            `MATCH (s:${nodeLabel} {id: '${fullSourceId}'}), (t:${nodeLabel} {id: '${fullTargetId}'}) MERGE (s)-[r:${edgeType} ${propsStr}]->(t);`
+          );
         });
       });
     });

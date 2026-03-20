@@ -1,4 +1,8 @@
-import type { CapabilityProfile, HostCapability, RuntimeTarget } from './types.js';
+import type {
+  CapabilityProfile,
+  HostCapability,
+  RuntimeTarget,
+} from './types.js';
 
 const NODE_CAPABILITIES: HostCapability[] = [
   'net.tcp.client',
@@ -19,16 +23,21 @@ const WORKERS_CAPABILITIES: HostCapability[] = [
   'auth.custodial',
 ];
 
-export const CAPABILITY_PROFILES: Record<Exclude<RuntimeTarget, 'agnostic'>, CapabilityProfile> = {
+export const CAPABILITY_PROFILES: Record<
+  Exclude<RuntimeTarget, 'agnostic'>,
+  CapabilityProfile
+> = {
   node: {
     target: 'node',
     supported: new Set(NODE_CAPABILITIES),
-    description: 'Node.js host with TCP server/client, UDP, and durable local file access.',
+    description:
+      'Node.js host with TCP server/client, UDP, and durable local file access.',
   },
-  bun: {
-    target: 'bun',
+  gnode: {
+    target: 'gnode',
     supported: new Set(NODE_CAPABILITIES),
-    description: 'Bun host with Node-compatible networking and local file access.',
+    description:
+      'gnode host with Node-compatible networking, local file access, and topology compilation.',
   },
   workers: {
     target: 'workers',

@@ -12,18 +12,22 @@
  * corresponds to a conserved quantity of its execution.
  */
 
-import { type VoidBoundary, complementDistribution, shannonEntropy } from './void.js';
+import {
+  type VoidBoundary,
+  complementDistribution,
+  shannonEntropy,
+} from './void.js';
 
 // ============================================================================
 // Symmetry detection
 // ============================================================================
 
 export type SymmetryKind =
-  | 'permutation'      // Relabeling nodes preserves topology
+  | 'permutation' // Relabeling nodes preserves topology
   | 'time-translation' // Shifting all depths preserves dynamics
-  | 'scale'           // Multiplying all counts preserves complement distribution shape
-  | 'reflection'      // Reversing edge direction preserves beta-1
-  | 'gauge';          // Relabeling VoidBoundary dimensions
+  | 'scale' // Multiplying all counts preserves complement distribution shape
+  | 'reflection' // Reversing edge direction preserves beta-1
+  | 'gauge'; // Relabeling VoidBoundary dimensions
 
 export interface Symmetry {
   kind: SymmetryKind;
@@ -38,14 +42,12 @@ export interface Symmetry {
  */
 export function isAutomorphism(
   edges: [number, number][],
-  permutation: number[],
+  permutation: number[]
 ): boolean {
   const permutedEdges = new Set(
-    edges.map(([s, t]) => `${permutation[s]}-${permutation[t]}`),
+    edges.map(([s, t]) => `${permutation[s]}-${permutation[t]}`)
   );
-  const originalEdges = new Set(
-    edges.map(([s, t]) => `${s}-${t}`),
-  );
+  const originalEdges = new Set(edges.map(([s, t]) => `${s}-${t}`));
   if (permutedEdges.size !== originalEdges.size) return false;
   for (const e of originalEdges) {
     if (!permutedEdges.has(e)) return false;
@@ -59,7 +61,7 @@ export function isAutomorphism(
  */
 export function findAutomorphisms(
   n: number,
-  edges: [number, number][],
+  edges: [number, number][]
 ): number[][] {
   if (n > 8) return []; // Only tractable for small graphs
   const automorphisms: number[][] = [];
@@ -78,7 +80,10 @@ export function findAutomorphisms(
     }
   }
 
-  permute(Array.from({ length: n }, (_, i) => i), 0);
+  permute(
+    Array.from({ length: n }, (_, i) => i),
+    0
+  );
   return automorphisms;
 }
 
@@ -89,12 +94,12 @@ export function findAutomorphisms(
 export function hasScaleSymmetry(
   boundary: VoidBoundary,
   eta: number,
-  tolerance: number = 1e-10,
+  tolerance: number = 1e-10
 ): boolean {
   const dist1 = complementDistribution(boundary, eta);
   // Scale counts by 2
   const scaled = {
-    counts: boundary.counts.map(c => c * 2),
+    counts: boundary.counts.map((c) => c * 2),
     totalEntries: boundary.totalEntries * 2,
   };
   const dist2 = complementDistribution(scaled, eta);
@@ -119,13 +124,14 @@ export interface ConservedQuantity {
  */
 export function beta1Conservation(
   forkDims: number,
-  foldDims: number,
+  foldDims: number
 ): ConservedQuantity {
   return {
     name: 'beta-1',
     symmetry: 'time-translation',
     value: forkDims - foldDims,
-    description: 'First Betti number: fork creates, fold destroys. Net = 0 at boundary.',
+    description:
+      'First Betti number: fork creates, fold destroys. Net = 0 at boundary.',
   };
 }
 
@@ -136,7 +142,7 @@ export function beta1Conservation(
  */
 export function entropyConservation(
   boundary: VoidBoundary,
-  eta: number,
+  eta: number
 ): ConservedQuantity {
   const dist = complementDistribution(boundary, eta);
   return {
@@ -152,7 +158,9 @@ export function entropyConservation(
  * This is the "charge conservation" of void walking -- the total
  * void count is monotonically non-decreasing.
  */
-export function voidChargeConservation(boundary: VoidBoundary): ConservedQuantity {
+export function voidChargeConservation(
+  boundary: VoidBoundary
+): ConservedQuantity {
   return {
     name: 'void-charge',
     symmetry: 'time-translation',
@@ -168,14 +176,14 @@ export function voidChargeConservation(boundary: VoidBoundary): ConservedQuantit
 export function verifyNoether(
   boundary: VoidBoundary,
   permutation: number[],
-  eta: number,
+  eta: number
 ): { conserved: boolean; entropyBefore: number; entropyAfter: number } {
   const distBefore = complementDistribution(boundary, eta);
   const entropyBefore = shannonEntropy(distBefore);
 
   // Apply permutation to boundary
   const permuted: VoidBoundary = {
-    counts: permutation.map(i => boundary.counts[i]),
+    counts: permutation.map((i) => boundary.counts[i]),
     totalEntries: boundary.totalEntries,
   };
   const distAfter = complementDistribution(permuted, eta);

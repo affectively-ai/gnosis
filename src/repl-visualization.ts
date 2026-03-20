@@ -8,7 +8,7 @@ const QUANTUM_EVENT_MARKERS = [
   '[OBSERVE]',
   '[MEASURE]',
   '[HALT]',
-  'Race concluded!'
+  'Race concluded!',
 ] as const;
 
 export type VisualNodeStatus = 'pending' | 'active' | 'completed' | 'cycled';
@@ -54,7 +54,7 @@ export function createInitialVisualization(
   return {
     nodeStates,
     activeWaveFunction: [],
-    quantumEvents: []
+    quantumEvents: [],
   };
 }
 
@@ -147,6 +147,6 @@ export function buildVisualizationFromExecution(
   return {
     nodeStates,
     activeWaveFunction: Array.from(activeNodes),
-    quantumEvents: quantumEvents.slice(-MAX_QUANTUM_EVENTS)
+    quantumEvents: quantumEvents.slice(-MAX_QUANTUM_EVENTS),
   };
 }

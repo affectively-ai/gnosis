@@ -81,7 +81,10 @@ describe('QMap — replaces Y.Map', () => {
     const handler = (event: {
       keysChanged: Set<string>;
       changes: {
-        keys: Map<string, { action: 'add' | 'update' | 'delete'; oldValue?: unknown }>;
+        keys: Map<
+          string,
+          { action: 'add' | 'update' | 'delete'; oldValue?: unknown }
+        >;
       };
     }) => {
       expect(event.keysChanged.has('k')).toBe(true);

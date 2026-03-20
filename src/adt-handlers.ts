@@ -110,12 +110,12 @@ export function registerAdtHandlers(registry: GnosisRegistry): void {
   // List all registered types
   registry.register('TypeRegistryLister', async () => {
     return {
-      sumTypes: typeRegistry.allSumTypes().map(t => ({
+      sumTypes: typeRegistry.allSumTypes().map((t) => ({
         name: t.name,
         cases: t.cases,
         sealed: t.sealed,
       })),
-      productTypes: typeRegistry.allProductTypes().map(t => ({
+      productTypes: typeRegistry.allProductTypes().map((t) => ({
         name: t.name,
         fields: t.fields,
       })),

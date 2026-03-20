@@ -45,15 +45,30 @@ export type EffectKind =
 
 /** All valid effect kinds */
 export const ALL_EFFECT_KINDS: readonly EffectKind[] = [
-  'fs.local', 'fs.durable',
-  'net.tcp.client', 'net.tcp.server', 'net.udp',
-  'auth.ucan', 'auth.zk', 'auth.custodial',
-  'render.dom', 'render.canvas', 'render.webgpu',
-  'neural.cpu', 'neural.gpu', 'neural.webnn',
-  'quantum.sim', 'quantum.hardware',
-  'diff.forward', 'diff.backward',
-  'time.timeout', 'time.deadline', 'time.interval',
-  'crypto.random', 'crypto.sign', 'crypto.verify',
+  'fs.local',
+  'fs.durable',
+  'net.tcp.client',
+  'net.tcp.server',
+  'net.udp',
+  'auth.ucan',
+  'auth.zk',
+  'auth.custodial',
+  'render.dom',
+  'render.canvas',
+  'render.webgpu',
+  'neural.cpu',
+  'neural.gpu',
+  'neural.webnn',
+  'quantum.sim',
+  'quantum.hardware',
+  'diff.forward',
+  'diff.backward',
+  'time.timeout',
+  'time.deadline',
+  'time.interval',
+  'crypto.random',
+  'crypto.sign',
+  'crypto.verify',
 ];
 
 export function isEffectKind(s: string): s is EffectKind {
@@ -81,9 +96,9 @@ export interface EffectSignature {
 }
 
 export function createEffectSignature(
-  requirements: EffectRequirement[],
+  requirements: EffectRequirement[]
 ): EffectSignature {
-  const kinds = [...new Set(requirements.map(r => r.kind))];
+  const kinds = [...new Set(requirements.map((r) => r.kind))];
   return {
     requirements,
     kinds,
@@ -96,45 +111,45 @@ export function createEffectSignature(
 // ============================================================================
 
 const LABEL_EFFECT_MAP: Record<string, EffectKind[]> = {
-  'FileReader': ['fs.local'],
-  'FileWriter': ['fs.local'],
-  'DurableStore': ['fs.durable'],
-  'DurableObject': ['fs.durable'],
-  'KVStore': ['fs.durable'],
-  'HttpClient': ['net.tcp.client'],
-  'HttpServer': ['net.tcp.server'],
-  'WebSocket': ['net.tcp.client'],
-  'UdpSocket': ['net.udp'],
-  'UCANVerifier': ['auth.ucan'],
-  'UCANIssuer': ['auth.ucan'],
-  'ZKProver': ['auth.zk'],
-  'ZKVerifier': ['auth.zk'],
-  'Renderer': ['render.dom'],
-  'CanvasRenderer': ['render.canvas'],
-  'WebGPURenderer': ['render.webgpu'],
-  'NeuralEngine': ['neural.cpu'],
-  'GPUEngine': ['neural.gpu'],
-  'WebNNEngine': ['neural.webnn'],
-  'QuantumCircuit': ['quantum.sim'],
-  'QuantumDevice': ['quantum.hardware'],
-  'DifferentiableNode': ['diff.forward', 'diff.backward'],
-  'GradientNode': ['diff.backward'],
-  'Timer': ['time.timeout'],
-  'Scheduler': ['time.interval'],
-  'Signer': ['crypto.sign'],
-  'Verifier': ['crypto.verify'],
+  FileReader: ['fs.local'],
+  FileWriter: ['fs.local'],
+  DurableStore: ['fs.durable'],
+  DurableObject: ['fs.durable'],
+  KVStore: ['fs.durable'],
+  HttpClient: ['net.tcp.client'],
+  HttpServer: ['net.tcp.server'],
+  WebSocket: ['net.tcp.client'],
+  UdpSocket: ['net.udp'],
+  UCANVerifier: ['auth.ucan'],
+  UCANIssuer: ['auth.ucan'],
+  ZKProver: ['auth.zk'],
+  ZKVerifier: ['auth.zk'],
+  Renderer: ['render.dom'],
+  CanvasRenderer: ['render.canvas'],
+  WebGPURenderer: ['render.webgpu'],
+  NeuralEngine: ['neural.cpu'],
+  GPUEngine: ['neural.gpu'],
+  WebNNEngine: ['neural.webnn'],
+  QuantumCircuit: ['quantum.sim'],
+  QuantumDevice: ['quantum.hardware'],
+  DifferentiableNode: ['diff.forward', 'diff.backward'],
+  GradientNode: ['diff.backward'],
+  Timer: ['time.timeout'],
+  Scheduler: ['time.interval'],
+  Signer: ['crypto.sign'],
+  Verifier: ['crypto.verify'],
 };
 
 const PROPERTY_EFFECT_MAP: Record<string, EffectKind[]> = {
-  'timeout': ['time.timeout'],
-  'deadline': ['time.deadline'],
-  'interval': ['time.interval'],
-  'transport': ['net.tcp.client'],
-  'protocol': ['net.tcp.client'],
-  'render_target': ['render.dom'],
-  'gpu_backend': ['neural.gpu'],
-  'learning_rate': ['diff.forward', 'diff.backward'],
-  'gradient': ['diff.backward'],
+  timeout: ['time.timeout'],
+  deadline: ['time.deadline'],
+  interval: ['time.interval'],
+  transport: ['net.tcp.client'],
+  protocol: ['net.tcp.client'],
+  render_target: ['render.dom'],
+  gpu_backend: ['neural.gpu'],
+  learning_rate: ['diff.forward', 'diff.backward'],
+  gradient: ['diff.backward'],
 };
 
 export interface NodeDescriptor {
@@ -192,15 +207,17 @@ export function inferNodeEffects(node: NodeDescriptor): EffectRequirement[] {
 /**
  * Parse declared effects from a node's 'effects' or 'effect' property.
  */
-export function parseDeclaredEffects(node: NodeDescriptor): EffectRequirement[] {
+export function parseDeclaredEffects(
+  node: NodeDescriptor
+): EffectRequirement[] {
   const raw = node.properties['effects'] ?? node.properties['effect'] ?? '';
   if (!raw) return [];
 
   return raw
     .split(/[,|]/)
-    .map(s => s.trim())
+    .map((s) => s.trim())
     .filter(isEffectKind)
-    .map(kind => ({
+    .map((kind) => ({
       kind,
       source: 'declared' as const,
       nodeId: node.id,
@@ -212,43 +229,78 @@ export function parseDeclaredEffects(node: NodeDescriptor): EffectRequirement[] 
 // Effect validation -- check declared vs inferred, target compatibility
 // ============================================================================
 
-export type RuntimeTarget = 'agnostic' | 'workers' | 'node' | 'bun';
+export type RuntimeTarget = 'agnostic' | 'workers' | 'node' | 'gnode';
 
 /** Effects supported per target */
 const TARGET_SUPPORT: Record<RuntimeTarget, Set<EffectKind>> = {
   agnostic: new Set([
-    'time.timeout', 'time.deadline', 'time.interval',
-    'crypto.random', 'crypto.sign', 'crypto.verify',
+    'time.timeout',
+    'time.deadline',
+    'time.interval',
+    'crypto.random',
+    'crypto.sign',
+    'crypto.verify',
   ]),
   workers: new Set([
-    'fs.durable', 'net.tcp.client',
-    'auth.ucan', 'auth.zk',
-    'render.dom', 'render.canvas',
-    'neural.cpu', 'neural.webnn',
+    'fs.durable',
+    'net.tcp.client',
+    'auth.ucan',
+    'auth.zk',
+    'render.dom',
+    'render.canvas',
+    'neural.cpu',
+    'neural.webnn',
     'quantum.sim',
-    'diff.forward', 'diff.backward',
-    'time.timeout', 'time.deadline', 'time.interval',
-    'crypto.random', 'crypto.sign', 'crypto.verify',
+    'diff.forward',
+    'diff.backward',
+    'time.timeout',
+    'time.deadline',
+    'time.interval',
+    'crypto.random',
+    'crypto.sign',
+    'crypto.verify',
   ]),
   node: new Set([
-    'fs.local', 'fs.durable',
-    'net.tcp.client', 'net.tcp.server', 'net.udp',
-    'auth.ucan', 'auth.zk', 'auth.custodial',
-    'neural.cpu', 'neural.gpu',
+    'fs.local',
+    'fs.durable',
+    'net.tcp.client',
+    'net.tcp.server',
+    'net.udp',
+    'auth.ucan',
+    'auth.zk',
+    'auth.custodial',
+    'neural.cpu',
+    'neural.gpu',
     'quantum.sim',
-    'diff.forward', 'diff.backward',
-    'time.timeout', 'time.deadline', 'time.interval',
-    'crypto.random', 'crypto.sign', 'crypto.verify',
+    'diff.forward',
+    'diff.backward',
+    'time.timeout',
+    'time.deadline',
+    'time.interval',
+    'crypto.random',
+    'crypto.sign',
+    'crypto.verify',
   ]),
   bun: new Set([
-    'fs.local', 'fs.durable',
-    'net.tcp.client', 'net.tcp.server', 'net.udp',
-    'auth.ucan', 'auth.zk', 'auth.custodial',
-    'neural.cpu', 'neural.gpu',
+    'fs.local',
+    'fs.durable',
+    'net.tcp.client',
+    'net.tcp.server',
+    'net.udp',
+    'auth.ucan',
+    'auth.zk',
+    'auth.custodial',
+    'neural.cpu',
+    'neural.gpu',
     'quantum.sim',
-    'diff.forward', 'diff.backward',
-    'time.timeout', 'time.deadline', 'time.interval',
-    'crypto.random', 'crypto.sign', 'crypto.verify',
+    'diff.forward',
+    'diff.backward',
+    'time.timeout',
+    'time.deadline',
+    'time.interval',
+    'crypto.random',
+    'crypto.sign',
+    'crypto.verify',
   ]),
 };
 
@@ -276,7 +328,7 @@ export interface EffectValidationResult {
  */
 export function validateEffects(
   nodes: NodeDescriptor[],
-  target: RuntimeTarget = 'agnostic',
+  target: RuntimeTarget = 'agnostic'
 ): EffectValidationResult {
   const diagnostics: EffectDiagnostic[] = [];
   const allRequirements: EffectRequirement[] = [];
@@ -287,8 +339,8 @@ export function validateEffects(
     allRequirements.push(...declared, ...inferred);
 
     // Check: inferred effects not in declared set
-    const declaredKinds = new Set(declared.map(d => d.kind));
-    const inferredKinds = new Set(inferred.map(i => i.kind));
+    const declaredKinds = new Set(declared.map((d) => d.kind));
+    const inferredKinds = new Set(inferred.map((i) => i.kind));
 
     for (const inf of inferred) {
       if (!declaredKinds.has(inf.kind)) {
@@ -331,16 +383,24 @@ export function validateEffects(
 
   const signature = createEffectSignature(allRequirements);
   const undeclared = allRequirements.filter(
-    r => r.source === 'inferred' &&
-    !allRequirements.some(d => d.source === 'declared' && d.kind === r.kind && d.nodeId === r.nodeId),
+    (r) =>
+      r.source === 'inferred' &&
+      !allRequirements.some(
+        (d) =>
+          d.source === 'declared' && d.kind === r.kind && d.nodeId === r.nodeId
+      )
   );
   const unused = allRequirements.filter(
-    r => r.source === 'declared' &&
-    !allRequirements.some(i => i.source === 'inferred' && i.kind === r.kind && i.nodeId === r.nodeId),
+    (r) =>
+      r.source === 'declared' &&
+      !allRequirements.some(
+        (i) =>
+          i.source === 'inferred' && i.kind === r.kind && i.nodeId === r.nodeId
+      )
   );
 
   return {
-    ok: diagnostics.filter(d => d.severity === 'error').length === 0,
+    ok: diagnostics.filter((d) => d.severity === 'error').length === 0,
     signature,
     diagnostics,
     undeclared,
@@ -369,7 +429,7 @@ export interface EffectContract {
  */
 export function buildEffectContract(
   module: string,
-  signature: EffectSignature,
+  signature: EffectSignature
 ): EffectContract {
   const requires = signature.kinds;
 
@@ -401,12 +461,9 @@ export function buildEffectContract(
 export function contractsCompatible(
   consumer: EffectContract,
   provider: EffectContract,
-  target: RuntimeTarget,
+  target: RuntimeTarget
 ): { compatible: boolean; missing: EffectKind[] } {
-  const available = new Set([
-    ...provider.provides,
-    ...TARGET_SUPPORT[target],
-  ]);
-  const missing = consumer.requires.filter(k => !available.has(k));
+  const available = new Set([...provider.provides, ...TARGET_SUPPORT[target]]);
+  const missing = consumer.requires.filter((k) => !available.has(k));
   return { compatible: missing.length === 0, missing };
 }

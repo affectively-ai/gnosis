@@ -46,7 +46,7 @@ export function findFixedPoint(
   initial: VoidBoundary,
   f: (b: VoidBoundary) => VoidBoundary,
   tolerance: number = 1e-8,
-  maxIter: number = 1000,
+  maxIter: number = 1000
 ): FixedPoint<VoidBoundary> {
   let current = initial;
   for (let i = 0; i < maxIter; i++) {
@@ -87,7 +87,7 @@ function boundaryDistance(a: VoidBoundary, b: VoidBoundary): number {
 export function selfReferentialBoundary(
   n: number,
   eta: number = 3.0,
-  maxIter: number = 100,
+  maxIter: number = 100
 ): FixedPoint<VoidBoundary> {
   const initial = createVoidBoundary(n);
   // Seed with small random values
@@ -102,14 +102,14 @@ export function selfReferentialBoundary(
       const dist = complementDistribution(b, eta);
       // Use complement distribution as new counts (scaled)
       const scale = b.totalEntries > 0 ? b.totalEntries : 1;
-      const newCounts = dist.map(p => p * scale);
+      const newCounts = dist.map((p) => p * scale);
       return {
         counts: newCounts,
         totalEntries: newCounts.reduce((a, b) => a + b, 0),
       };
     },
     1e-8,
-    maxIter,
+    maxIter
   );
 }
 
@@ -124,13 +124,13 @@ export function selfReferentialBoundary(
 export function isQuineBoundary(
   boundary: VoidBoundary,
   eta: number,
-  tolerance: number = 1e-6,
+  tolerance: number = 1e-6
 ): boolean {
   const dist = complementDistribution(boundary, eta);
   const total = boundary.totalEntries;
   if (total === 0) return false;
 
-  const normalized = boundary.counts.map(c => c / total);
+  const normalized = boundary.counts.map((c) => c / total);
   return normalized.every((n, i) => Math.abs(n - dist[i]) < tolerance);
 }
 
@@ -160,9 +160,7 @@ export function uniformQuine(n: number): VoidBoundary {
  * Given a list of boundaries (all same dimension n), construct
  * a boundary that differs from boundary i at dimension i.
  */
-export function diagonalBoundary(
-  boundaries: VoidBoundary[],
-): VoidBoundary {
+export function diagonalBoundary(boundaries: VoidBoundary[]): VoidBoundary {
   const n = boundaries.length;
   const diagonal = createVoidBoundary(n);
   for (let i = 0; i < n && i < (boundaries[i]?.counts.length ?? 0); i++) {
@@ -178,10 +176,10 @@ export function diagonalBoundary(
  */
 export function verifyDiagonal(
   boundaries: VoidBoundary[],
-  diagonal: VoidBoundary,
+  diagonal: VoidBoundary
 ): boolean {
-  return boundaries.every((b, i) =>
-    i < diagonal.counts.length && diagonal.counts[i] !== b.counts[i],
+  return boundaries.every(
+    (b, i) => i < diagonal.counts.length && diagonal.counts[i] !== b.counts[i]
   );
 }
 
@@ -195,7 +193,7 @@ export function verifyDiagonal(
  */
 export function godelEncode(
   n: number,
-  edges: [number, number][],
+  edges: [number, number][]
 ): VoidBoundary {
   const boundary = createVoidBoundary(n * n);
   for (const [i, j] of edges) {
@@ -211,7 +209,7 @@ export function godelEncode(
  */
 export function godelDecode(
   boundary: VoidBoundary,
-  n: number,
+  n: number
 ): [number, number][] {
   const edges: [number, number][] = [];
   for (let k = 0; k < boundary.counts.length; k++) {
@@ -232,8 +230,12 @@ export function godelDecode(
 export function selfApply(
   n: number,
   edges: [number, number][],
-  eta: number = 3.0,
-): { encoded: VoidBoundary; complement: number[]; decoded: [number, number][] } {
+  eta: number = 3.0
+): {
+  encoded: VoidBoundary;
+  complement: number[];
+  decoded: [number, number][];
+} {
   const encoded = godelEncode(n, edges);
   const complement = complementDistribution(encoded, eta);
   // Threshold complement into edges

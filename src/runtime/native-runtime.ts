@@ -45,7 +45,9 @@ export class GnosisNativeRuntime {
   private fallbackBeta1 = 0;
   private fallbackTrace: string[] = [];
 
-  public setStabilityMetadata(stabilityMetadata: StabilityMetadata | null): void {
+  public setStabilityMetadata(
+    stabilityMetadata: StabilityMetadata | null
+  ): void {
     this.stabilityMetadata = stabilityMetadata;
   }
 
@@ -87,7 +89,8 @@ export class GnosisNativeRuntime {
               measurableHarrisRecurrentTheoremName:
                 this.stabilityMetadata.measurableHarrisRecurrentTheoremName,
               measurableFiniteTimeGeometricErgodicTheoremName:
-                this.stabilityMetadata.measurableFiniteTimeGeometricErgodicTheoremName,
+                this.stabilityMetadata
+                  .measurableFiniteTimeGeometricErgodicTheoremName,
               measurableLevyProkhorovGeometricErgodicTheoremName:
                 this.stabilityMetadata
                   .measurableLevyProkhorovGeometricErgodicTheoremName,

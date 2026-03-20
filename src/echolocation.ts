@@ -90,7 +90,7 @@ export interface ProbeResponse {
 export function uniformProbes(
   dimensions: number,
   intensity: number = 1.0,
-  labels?: readonly string[],
+  labels?: readonly string[]
 ): Probe[] {
   return Array.from({ length: dimensions }, (_, i) => ({
     dimension: i,
@@ -108,7 +108,7 @@ export function complementGuidedProbes(
   echoBoundary: VoidBoundary,
   eta: number,
   count: number,
-  intensity: number = 1.0,
+  intensity: number = 1.0
 ): Probe[] {
   const dist = complementDistribution(echoBoundary, eta);
   // Sort by complement weight (highest = least explored)
@@ -130,7 +130,7 @@ export function neighborhoodProbes(
   center: number,
   radius: number,
   totalDimensions: number,
-  intensity: number = 1.0,
+  intensity: number = 1.0
 ): Probe[] {
   const probes: Probe[] = [];
   for (let d = -radius; d <= radius; d++) {
@@ -163,7 +163,7 @@ export interface EchoBoundary {
 
 export function createEchoBoundary(
   dimensions: number,
-  labels?: readonly string[],
+  labels?: readonly string[]
 ): EchoBoundary {
   return {
     boundary: createVoidBoundary(dimensions),
@@ -178,7 +178,7 @@ export function createEchoBoundary(
 /** Accumulate a probe response into the echo boundary */
 export function accumulateEcho(
   echo: EchoBoundary,
-  response: ProbeResponse,
+  response: ProbeResponse
 ): void {
   const dim = response.probe.dimension;
   echo.probeCounts[dim]++;
@@ -190,13 +190,17 @@ export function accumulateEcho(
   }
 
   // Update rejection rate
-  echo.rejectionRates[dim] = echo.probeCounts[dim] > 0
-    ? echo.boundary.counts[dim] / echo.probeCounts[dim]
-    : 0;
+  echo.rejectionRates[dim] =
+    echo.probeCounts[dim] > 0
+      ? echo.boundary.counts[dim] / echo.probeCounts[dim]
+      : 0;
 }
 
 /** Measure the echo boundary -- how much have we learned? */
-export function measureEcho(echo: EchoBoundary, eta: number = 3.0): {
+export function measureEcho(
+  echo: EchoBoundary,
+  eta: number = 3.0
+): {
   measurement: Measurement;
   coverage: number;
   confidence: number;
@@ -266,7 +270,7 @@ export interface EcholocationResult {
  */
 export function echolocate(
   config: EcholocationConfig,
-  subject: (probe: Probe) => ProbeResponse,
+  subject: (probe: Probe) => ProbeResponse
 ): EcholocationResult {
   const eta = config.eta ?? 3.0;
   const intensity = config.intensity ?? 1.0;
@@ -280,7 +284,11 @@ export function echolocate(
   let converged = false;
 
   // Phase 1: uniform sweep (at least one probe per dimension)
-  const initialProbes = uniformProbes(config.dimensions, intensity, config.labels);
+  const initialProbes = uniformProbes(
+    config.dimensions,
+    intensity,
+    config.labels
+  );
   for (const probe of initialProbes) {
     const response = subject(probe);
     accumulateEcho(echo, response);
@@ -292,7 +300,12 @@ export function echolocate(
 
   // Phase 2: complement-guided probing until convergence
   while (echo.totalProbes < maxProbes && !converged) {
-    const probes = complementGuidedProbes(echo.boundary, eta, probesPerRound, intensity);
+    const probes = complementGuidedProbes(
+      echo.boundary,
+      eta,
+      probesPerRound,
+      intensity
+    );
     for (const probe of probes) {
       const response = subject(probe);
       accumulateEcho(echo, response);
@@ -307,7 +320,7 @@ export function echolocate(
       const recent = entropyHistory.slice(-3);
       const maxDelta = Math.max(
         Math.abs(recent[2] - recent[1]),
-        Math.abs(recent[1] - recent[0]),
+        Math.abs(recent[1] - recent[0])
       );
       if (maxDelta < convergenceThreshold) {
         converged = true;
@@ -350,7 +363,7 @@ export function echolocate(
  */
 export function echoToPersonality(
   echo: EchoBoundary,
-  layerConfigs?: PersonalityLayerConfig[],
+  layerConfigs?: PersonalityLayerConfig[]
 ): BoundaryStack {
   const dims = echo.boundary.counts.length;
 
@@ -365,7 +378,12 @@ export function echoToPersonality(
   ];
 
   const layers: TimescaleBoundary[] = defaultLayers.map((lc) => {
-    const tb = createTimescaleBoundary(lc.name, lc.timescale, lc.dimensions, lc.labels);
+    const tb = createTimescaleBoundary(
+      lc.name,
+      lc.timescale,
+      lc.dimensions,
+      lc.labels
+    );
 
     // Project echo signal with timescale-appropriate attenuation
     const attenuation = getAttenuation(lc.timescale);
@@ -397,14 +415,25 @@ export function echoToPersonality(
 
 function getAttenuation(timescale: string): number {
   switch (timescale) {
-    case 'instant': case 'seconds': case 'minutes': return 1.0;
-    case 'hours': case 'days': return 0.5;
-    case 'weeks': return 0.3;
-    case 'months': return 0.8;
-    case 'years': return 0.1;
-    case 'lifetime': return 0.01;
-    case 'generational': return 0.01;
-    default: return 0.1;
+    case 'instant':
+    case 'seconds':
+    case 'minutes':
+      return 1.0;
+    case 'hours':
+    case 'days':
+      return 0.5;
+    case 'weeks':
+      return 0.3;
+    case 'months':
+      return 0.8;
+    case 'years':
+      return 0.1;
+    case 'lifetime':
+      return 0.01;
+    case 'generational':
+      return 0.01;
+    default:
+      return 0.1;
   }
 }
 
@@ -424,18 +453,21 @@ function getAttenuation(timescale: string): number {
 export function createDigitalTwin(
   name: string,
   echoResult: EcholocationResult,
-  rng: () => number = Math.random,
+  rng: () => number = Math.random
 ): VoidAgent {
   const personality = echoToPersonality(echoResult.echo);
-  return createVoidAgent({
-    name: `${name}:twin`,
-    actionDimensions: echoResult.echo.boundary.counts.length,
-    personality,
-    eta: 2.0,
-    numHeads: 2,
-    neighborhoodRadius: 1,
-    decayRate: 0.005,
-  }, rng);
+  return createVoidAgent(
+    {
+      name: `${name}:twin`,
+      actionDimensions: echoResult.echo.boundary.counts.length,
+      personality,
+      eta: 2.0,
+      numHeads: 2,
+      neighborhoodRadius: 1,
+      decayRate: 0.005,
+    },
+    rng
+  );
 }
 
 // ============================================================================
@@ -452,7 +484,7 @@ export function createDigitalTwin(
 export function measureFidelity(
   original: (probe: Probe) => ProbeResponse,
   twin: VoidAgent,
-  probes: Probe[],
+  probes: Probe[]
 ): {
   l1Distance: number;
   perDimensionDelta: number[];
@@ -460,7 +492,7 @@ export function measureFidelity(
 } {
   const twinDist = complementDistribution(
     twin.perception[0].walker.boundary,
-    twin.perception[0].walker.eta,
+    twin.perception[0].walker.eta
   );
 
   // Run probes against original, build echo
@@ -468,7 +500,10 @@ export function measureFidelity(
   for (const probe of probes) {
     accumulateEcho(origEcho, original(probe));
   }
-  const origDist = complementDistribution(origEcho.boundary, twin.perception[0].walker.eta);
+  const origDist = complementDistribution(
+    origEcho.boundary,
+    twin.perception[0].walker.eta
+  );
 
   // L1 distance
   let l1 = 0;

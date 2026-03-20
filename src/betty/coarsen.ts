@@ -1,8 +1,4 @@
-import type {
-  Diagnostic,
-  DiagnosticCode,
-  GraphAST,
-} from './compiler.js';
+import type { Diagnostic, DiagnosticCode, GraphAST } from './compiler.js';
 import type { StabilityReport, StabilityStateAssessment } from './stability.js';
 
 export interface FiberPartition {
@@ -96,7 +92,10 @@ export function validatePartition(
 
   for (const assessment of stability.stateAssessments) {
     const service = Number(assessment.service);
-    if (assessment.service !== null && (!Number.isFinite(service) || service <= 0)) {
+    if (
+      assessment.service !== null &&
+      (!Number.isFinite(service) || service <= 0)
+    ) {
       if (assessment.service !== null && Number.isFinite(service)) {
         diagnostics.push({
           line: 0,
@@ -169,10 +168,16 @@ export function synthesizeCoarsening(
     }
 
     if (arrival !== null) {
-      coarseArrival.set(coarseId, round3((coarseArrival.get(coarseId) ?? 0) + arrival));
+      coarseArrival.set(
+        coarseId,
+        round3((coarseArrival.get(coarseId) ?? 0) + arrival)
+      );
     }
     if (service !== null) {
-      coarseService.set(coarseId, round3((coarseService.get(coarseId) ?? 0) + service));
+      coarseService.set(
+        coarseId,
+        round3((coarseService.get(coarseId) ?? 0) + service)
+      );
     }
   }
 
@@ -248,12 +253,12 @@ export function synthesizeCoarsening(
 
   const arrivalRates = fineNodeIds.map((nodeId) => {
     const assessment = assessmentsByNodeId.get(nodeId);
-    return assessment ? (getNumericRate(assessment.arrival) ?? 0) : 0;
+    return assessment ? getNumericRate(assessment.arrival) ?? 0 : 0;
   });
 
   const serviceRates = fineNodeIds.map((nodeId) => {
     const assessment = assessmentsByNodeId.get(nodeId);
-    return assessment ? (getNumericRate(assessment.service) ?? 0) : 0;
+    return assessment ? getNumericRate(assessment.service) ?? 0 : 0;
   });
 
   return {

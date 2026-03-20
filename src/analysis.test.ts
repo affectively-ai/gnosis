@@ -118,18 +118,26 @@ describe('Gnosis analysis steering', () => {
     expect(serializedTopology.wallaceNumber).toBe(
       report.correctness.topology.wallaceNumber
     );
-    expect(serializedSteering.wallaceNumber).toBe(report.steering.wallaceNumber);
+    expect(serializedSteering.wallaceNumber).toBe(
+      report.steering.wallaceNumber
+    );
     expect(
       Object.prototype.hasOwnProperty.call(serializedTopology, 'wally')
     ).toBe(false);
     expect(
-      Object.prototype.hasOwnProperty.call(serializedTopology, 'frontierDeficit')
+      Object.prototype.hasOwnProperty.call(
+        serializedTopology,
+        'frontierDeficit'
+      )
     ).toBe(false);
     expect(
       Object.prototype.hasOwnProperty.call(serializedSteering, 'wally')
     ).toBe(false);
     expect(
-      Object.prototype.hasOwnProperty.call(serializedSteering, 'frontierDeficit')
+      Object.prototype.hasOwnProperty.call(
+        serializedSteering,
+        'frontierDeficit'
+      )
     ).toBe(false);
   });
 

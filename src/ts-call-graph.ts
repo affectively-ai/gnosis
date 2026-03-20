@@ -99,7 +99,16 @@ export interface CallGraphOptions {
 // ---------------------------------------------------------------------------
 
 const TS_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts'] as const;
-const ALL_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs'] as const;
+const ALL_EXTENSIONS = [
+  '.ts',
+  '.tsx',
+  '.mts',
+  '.cts',
+  '.js',
+  '.jsx',
+  '.mjs',
+  '.cjs',
+] as const;
 
 function resolveImportPath(specifier: string, fromFile: string): string | null {
   if (!specifier.startsWith('./') && !specifier.startsWith('../')) {
@@ -166,8 +175,8 @@ function extractFileInfo(filePath: string, sourceText: string): FileExtraction {
   const scriptKind = filePath.endsWith('.tsx')
     ? ts.ScriptKind.TSX
     : filePath.endsWith('.jsx')
-      ? ts.ScriptKind.JSX
-      : ts.ScriptKind.TS;
+    ? ts.ScriptKind.JSX
+    : ts.ScriptKind.TS;
 
   const sourceFile = ts.createSourceFile(
     filePath,
@@ -235,14 +244,24 @@ function extractFileInfo(filePath: string, sourceText: string): FileExtraction {
     }
 
     // Exported function declarations
-    const isExported = ts.canHaveModifiers(statement) &&
-      ts.getModifiers(statement)?.some(
-        (m) => m.kind === ts.SyntaxKind.ExportKeyword
-      );
+    const isExported =
+      ts.canHaveModifiers(statement) &&
+      ts
+        .getModifiers(statement)
+        ?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
 
-    if (ts.isFunctionDeclaration(statement) && statement.name && statement.body) {
+    if (
+      ts.isFunctionDeclaration(statement) &&
+      statement.name &&
+      statement.body
+    ) {
       const name = statement.name.text;
-      const calledFunctions = collectCalledFunctions(statement.body, sourceFile, ts, topLevelFunctionNames);
+      const calledFunctions = collectCalledFunctions(
+        statement.body,
+        sourceFile,
+        ts,
+        topLevelFunctionNames
+      );
       const start = sourceFile.getLineAndCharacterOfPosition(
         statement.getStart(sourceFile)
       );
@@ -256,10 +275,12 @@ function extractFileInfo(filePath: string, sourceText: string): FileExtraction {
         endLine: end.line + 1,
         endColumn: end.character + 1,
         calledFunctions,
-        isAsync: ts.canHaveModifiers(statement) &&
-          (ts.getModifiers(statement)?.some(
-            (m) => m.kind === ts.SyntaxKind.AsyncKeyword
-          ) ?? false),
+        isAsync:
+          ts.canHaveModifiers(statement) &&
+          (ts
+            .getModifiers(statement)
+            ?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) ??
+            false),
       });
     }
 
@@ -276,7 +297,12 @@ function extractFileInfo(filePath: string, sourceText: string): FileExtraction {
             ? decl.initializer.body
             : decl.initializer.body;
           const calledFunctions = ts.isBlock(body)
-            ? collectCalledFunctions(body, sourceFile, ts, topLevelFunctionNames)
+            ? collectCalledFunctions(
+                body,
+                sourceFile,
+                ts,
+                topLevelFunctionNames
+              )
             : [];
           const start = sourceFile.getLineAndCharacterOfPosition(
             decl.getStart(sourceFile)
@@ -291,10 +317,14 @@ function extractFileInfo(filePath: string, sourceText: string): FileExtraction {
             endLine: end.line + 1,
             endColumn: end.character + 1,
             calledFunctions,
-            isAsync: ts.canHaveModifiers(decl.initializer) &&
-              (ts.getModifiers(decl.initializer)?.some(
-                (m: TsTypes.Modifier) => m.kind === ts.SyntaxKind.AsyncKeyword
-              ) ?? false),
+            isAsync:
+              ts.canHaveModifiers(decl.initializer) &&
+              (ts
+                .getModifiers(decl.initializer)
+                ?.some(
+                  (m: TsTypes.Modifier) => m.kind === ts.SyntaxKind.AsyncKeyword
+                ) ??
+                false),
           });
         }
       }
@@ -366,7 +396,9 @@ export async function buildCallGraph(
 
       try {
         const bridgeResult = compileTypeScriptToGnosis(sourceText, {
-          exportName: func.exportName.startsWith('_') ? undefined : func.exportName,
+          exportName: func.exportName.startsWith('_')
+            ? undefined
+            : func.exportName,
           sourceFilePath: absPath,
         });
 
@@ -381,7 +413,9 @@ export async function buildCallGraph(
         // Functions that can't be bridged get zero metrics
       }
 
-      const nodeId = `${path.basename(absPath, path.extname(absPath))}::${func.name}`;
+      const nodeId = `${path.basename(absPath, path.extname(absPath))}::${
+        func.name
+      }`;
       nodes.push({
         id: nodeId,
         filePath: absPath,
@@ -403,9 +437,14 @@ export async function buildCallGraph(
 
       // Internal call edges
       for (const calledName of func.calledFunctions) {
-        const targetNode = extraction.functions.find((f) => f.name === calledName);
+        const targetNode = extraction.functions.find(
+          (f) => f.name === calledName
+        );
         if (targetNode) {
-          const targetId = `${path.basename(absPath, path.extname(absPath))}::${calledName}`;
+          const targetId = `${path.basename(
+            absPath,
+            path.extname(absPath)
+          )}::${calledName}`;
           const existing = internalCalls.find(
             (e) => e.from === nodeId && e.to === targetId
           );
@@ -444,7 +483,7 @@ export async function buildCallGraph(
       // Follow imports
       if (followImports && resolvedPath) {
         const ext = path.extname(resolvedPath);
-        if (TS_EXTENSIONS.includes(ext as typeof TS_EXTENSIONS[number])) {
+        if (TS_EXTENSIONS.includes(ext as (typeof TS_EXTENSIONS)[number])) {
           await processFile(resolvedPath, depth + 1);
         }
       }
@@ -473,12 +512,15 @@ export async function buildCallGraph(
     for (const imp of module.externalImports) {
       if (!imp.resolvedPath) continue;
 
-      const targetModule = allModules.find((m) => m.filePath === imp.resolvedPath);
+      const targetModule = allModules.find(
+        (m) => m.filePath === imp.resolvedPath
+      );
       if (!targetModule) continue;
 
       for (const importedName of imp.importedNames) {
         const targetNode = targetModule.functions.find(
-          (n) => n.functionName === importedName || n.exportName === importedName
+          (n) =>
+            n.functionName === importedName || n.exportName === importedName
         );
         if (!targetNode) continue;
 
@@ -504,7 +546,11 @@ export async function buildCallGraph(
   // Compose GG source for the full call graph
   const ggLines = ['// call-graph.gg — composed module topology'];
   for (const node of allNodes) {
-    ggLines.push(`(${sanitizeNodeId(node.id)}:Function { buley: '${node.buleyNumber}', regime: '${node.regime}' })`);
+    ggLines.push(
+      `(${sanitizeNodeId(node.id)}:Function { buley: '${
+        node.buleyNumber
+      }', regime: '${node.regime}' })`
+    );
   }
   for (const edge of allEdges) {
     ggLines.push(
@@ -525,10 +571,14 @@ export async function buildCallGraph(
     modules: allModules,
     nodes: allNodes,
     edges: allEdges,
-    composedBuley: composedReport?.buleyNumber ?? sumMetric(allNodes, 'buleyNumber'),
-    composedWallace: composedReport?.steering.wallaceNumber ?? maxMetric(allNodes, 'wallaceNumber'),
+    composedBuley:
+      composedReport?.buleyNumber ?? sumMetric(allNodes, 'buleyNumber'),
+    composedWallace:
+      composedReport?.steering.wallaceNumber ??
+      maxMetric(allNodes, 'wallaceNumber'),
     composedRegime: composedReport?.steering.regime ?? worstRegime(allNodes),
-    composedBeta1: composedReport?.topology.structuralBeta1 ?? maxMetric(allNodes, 'beta1'),
+    composedBeta1:
+      composedReport?.topology.structuralBeta1 ?? maxMetric(allNodes, 'beta1'),
     composedGgSource,
   };
 }
@@ -537,11 +587,17 @@ function sanitizeNodeId(id: string): string {
   return id.replace(/[^A-Za-z0-9_]/g, '_');
 }
 
-function sumMetric(nodes: readonly CallGraphNode[], key: 'buleyNumber'): number {
+function sumMetric(
+  nodes: readonly CallGraphNode[],
+  key: 'buleyNumber'
+): number {
   return nodes.reduce((sum, n) => sum + n[key], 0);
 }
 
-function maxMetric(nodes: readonly CallGraphNode[], key: 'wallaceNumber' | 'beta1'): number {
+function maxMetric(
+  nodes: readonly CallGraphNode[],
+  key: 'wallaceNumber' | 'beta1'
+): number {
   return nodes.reduce((max, n) => Math.max(max, n[key]), 0);
 }
 

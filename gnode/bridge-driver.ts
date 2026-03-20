@@ -298,7 +298,9 @@ function writeBytesFileAtomic(targetPath: string, value: Uint8Array): void {
   fs.renameSync(tempPath, targetPath);
 }
 
-function parsePositiveIntegerEnv(value: string | undefined): number | undefined {
+function parsePositiveIntegerEnv(
+  value: string | undefined
+): number | undefined {
   if (!value) {
     return undefined;
   }
@@ -559,9 +561,7 @@ async function connectCacheRelay(
       new Promise<never>((_, reject) => {
         timeoutId = setTimeout(() => {
           reject(
-            new Error(
-              `Timed out connecting to cache relay room '${roomName}'.`
-            )
+            new Error(`Timed out connecting to cache relay room '${roomName}'.`)
           );
         }, relayConfig.timeoutMs);
       }),
@@ -594,9 +594,7 @@ async function readQDocRecord<T>(
     }
 
     const record =
-      doc
-        .getMap<T>(CACHE_RECORD_MAP_NAME)
-        .get(CACHE_RECORD_VALUE_KEY) ?? null;
+      doc.getMap<T>(CACHE_RECORD_MAP_NAME).get(CACHE_RECORD_VALUE_KEY) ?? null;
     if (record !== null) {
       writeBytesFileAtomic(targetPath, doc.encodeStateAsUpdate());
     }
@@ -612,7 +610,10 @@ async function writeQDocRecord<T>(
   relayRoomName?: string | null
 ): Promise<void> {
   if (!relayRoomName || resolveCacheRelayConfig() === null) {
-    writeBytesFileAtomic(targetPath, encodeQDocRecordUpdate(value, `file:${targetPath}`));
+    writeBytesFileAtomic(
+      targetPath,
+      encodeQDocRecordUpdate(value, `file:${targetPath}`)
+    );
     return;
   }
 
@@ -727,10 +728,17 @@ async function loadArtifact(
   const cacheLookupStarted = performance.now();
   const cacheRoot = resolveCacheRoot();
   const cacheDate = getCacheDateSegment();
-  const fingerprint = computeArtifactFingerprint(sourceText, filePath, exportName);
+  const fingerprint = computeArtifactFingerprint(
+    sourceText,
+    filePath,
+    exportName
+  );
   const artifactDirectory = path.join(cacheRoot, cacheDate, fingerprint);
   const artifactRecordPath = path.join(artifactDirectory, 'artifact.qdoc');
-  const artifactRelayRoomName = buildCacheRelayRoomName('artifact', fingerprint);
+  const artifactRelayRoomName = buildCacheRelayRoomName(
+    'artifact',
+    fingerprint
+  );
   const cachedArtifact = await readQDocRecord<CachedArtifactRecord>(
     artifactRecordPath,
     artifactRelayRoomName
@@ -745,7 +753,10 @@ async function loadArtifact(
     const runtimeModulePath =
       cachedArtifact.runtimeModuleRelativePath === null
         ? undefined
-        : path.join(artifactDirectory, cachedArtifact.runtimeModuleRelativePath);
+        : path.join(
+            artifactDirectory,
+            cachedArtifact.runtimeModuleRelativePath
+          );
 
     if (!runtimeModulePath || fs.existsSync(runtimeModulePath)) {
       const cacheLookupMs = performance.now() - cacheLookupStarted;
@@ -794,12 +805,7 @@ async function loadArtifact(
 
   const writeStarted = performance.now();
   const headKey = computeHeadKey(filePath, exportName);
-  const headPath = path.join(
-    cacheRoot,
-    cacheDate,
-    'heads',
-    `${headKey}.qdoc`
-  );
+  const headPath = path.join(cacheRoot, cacheDate, 'heads', `${headKey}.qdoc`);
   const headRelayRoomName = buildCacheRelayRoomName('head', headKey);
   const previousFingerprint =
     (await readQDocRecord<DaisyChainHeadRecord>(headPath, headRelayRoomName))
@@ -942,7 +948,8 @@ function getCompileCacheTrace():
   }
 
   if (
-    COMPILE_CACHE_RESULT.status === moduleConstants.compileCacheStatus.ENABLED ||
+    COMPILE_CACHE_RESULT.status ===
+      moduleConstants.compileCacheStatus.ENABLED ||
     COMPILE_CACHE_RESULT.status ===
       moduleConstants.compileCacheStatus.ALREADY_ENABLED
   ) {

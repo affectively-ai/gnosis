@@ -1,10 +1,20 @@
 import { describe, it, expect } from 'bun:test';
 import { checkTypeScriptWithGnosis } from './ts-check';
 import { GnosisIncrementalChecker } from './ts-check-incremental';
-import { detectDeadBranches, generateAutofixSuggestions } from './ts-check-autofix';
+import {
+  detectDeadBranches,
+  generateAutofixSuggestions,
+} from './ts-check-autofix';
 import { computeTopologyDiff, formatPrComment } from './ts-check-diff';
-import { generateLeanCertificate, verifyCertificate } from './ts-lean-certificate';
-import { GnosisProbeCollector, createProbeWrapper, buildOtelAttributes } from './ts-runtime-probe';
+import {
+  generateLeanCertificate,
+  verifyCertificate,
+} from './ts-lean-certificate';
+import {
+  GnosisProbeCollector,
+  createProbeWrapper,
+  buildOtelAttributes,
+} from './ts-runtime-probe';
 
 const SIMPLE_TS = `
 export async function orchestrate(input: unknown) {
@@ -153,7 +163,9 @@ describe('computeTopologyDiff', () => {
     if (diff.functions[0]?.regimeTransition) {
       expect(typeof diff.functions[0].regimeTransition.from).toBe('string');
       expect(typeof diff.functions[0].regimeTransition.to).toBe('string');
-      expect(typeof diff.functions[0].regimeTransition.degraded).toBe('boolean');
+      expect(typeof diff.functions[0].regimeTransition.degraded).toBe(
+        'boolean'
+      );
     }
   });
 });
@@ -243,7 +255,9 @@ describe('GnosisProbeCollector', () => {
     expect(metrics.invocationCount).toBe(5);
     expect(metrics.functionName).toBe('test');
     expect(metrics.filePath).toBe('test.ts');
-    expect(['laminar', 'transitional', 'turbulent']).toContain(metrics.empiricalRegime);
+    expect(['laminar', 'transitional', 'turbulent']).toContain(
+      metrics.empiricalRegime
+    );
   });
 
   it('computes wallace divergence', async () => {
@@ -254,7 +268,11 @@ describe('GnosisProbeCollector', () => {
     collector.recordEvent(sessionId, { nodeId: 'entry', kind: 'exit' });
     collector.endSession(sessionId);
 
-    const divergence = collector.computeWallaceDivergence('test', 'test.ts', 0.5);
+    const divergence = collector.computeWallaceDivergence(
+      'test',
+      'test.ts',
+      0.5
+    );
     expect(typeof divergence.divergence).toBe('number');
     expect(['pessimistic-model', 'aligned', 'latent-risk']).toContain(
       divergence.interpretation
@@ -288,12 +306,10 @@ describe('GnosisProbeCollector', () => {
 describe('createProbeWrapper', () => {
   it('wraps a function with probes', async () => {
     const collector = new GnosisProbeCollector();
-    const wrapper = createProbeWrapper(
-      collector,
-      'test',
-      'test.ts',
-      ['entry', 'call_1']
-    );
+    const wrapper = createProbeWrapper(collector, 'test', 'test.ts', [
+      'entry',
+      'call_1',
+    ]);
 
     const result = await wrapper(async () => 42);
     expect(result).toBe(42);
@@ -302,12 +318,7 @@ describe('createProbeWrapper', () => {
 
   it('records errors in probes', async () => {
     const collector = new GnosisProbeCollector();
-    const wrapper = createProbeWrapper(
-      collector,
-      'test',
-      'test.ts',
-      ['entry']
-    );
+    const wrapper = createProbeWrapper(collector, 'test', 'test.ts', ['entry']);
 
     await expect(
       wrapper(async () => {

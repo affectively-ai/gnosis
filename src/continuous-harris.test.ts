@@ -8,7 +8,10 @@ import {
   inferKernelFamily,
   generateHarrisLean,
 } from './continuous-harris.js';
-import { registerContinuousHarrisHandlers, HARRIS_KERNEL_FAMILIES } from './continuous-harris-handlers.js';
+import {
+  registerContinuousHarrisHandlers,
+  HARRIS_KERNEL_FAMILIES,
+} from './continuous-harris-handlers.js';
 import { GnosisRegistry } from './runtime/registry.js';
 
 describe('Observable inference', () => {
@@ -20,7 +23,10 @@ describe('Observable inference', () => {
   });
 
   it('infers from observable_kind property', () => {
-    const obs = inferObservable({ observable_kind: 'energy', observable: 'E(x)' });
+    const obs = inferObservable({
+      observable_kind: 'energy',
+      observable: 'E(x)',
+    });
     expect(obs.kind).toBe('energy');
     expect(obs.expression).toBe('E(x)');
   });
@@ -62,7 +68,11 @@ describe('Small set synthesis', () => {
 
 describe('Lyapunov synthesis', () => {
   it('synthesizes affine for queue', () => {
-    const obs = inferObservable({ observable_kind: 'queue-length', observable_scale: '2', observable_offset: '1' });
+    const obs = inferObservable({
+      observable_kind: 'queue-length',
+      observable_scale: '2',
+      observable_offset: '1',
+    });
     const lyap = synthesizeLyapunov(obs, { drift_gap: '0.1' });
     expect(lyap.kind).toBe('affine');
     expect(lyap.lambda).toBeCloseTo(0.9, 10);

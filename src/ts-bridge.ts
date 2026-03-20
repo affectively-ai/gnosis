@@ -3,18 +3,17 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import type * as TsTypes from 'typescript';
-import {
-  type ASTEdge,
-  type ASTNode,
-  type GraphAST,
-} from './betty/compiler.js';
+import { type ASTEdge, type ASTNode, type GraphAST } from './betty/compiler.js';
 import {
   GnosisEngine,
   type GnosisEngineExecutionResult,
   type GnosisEngineExecuteOptions,
   type GnosisEngineOptions,
 } from './runtime/engine.js';
-import { GnosisRegistry, type GnosisHandlerContext } from './runtime/registry.js';
+import {
+  GnosisRegistry,
+  type GnosisHandlerContext,
+} from './runtime/registry.js';
 
 type TypeScriptModule = typeof import('typescript');
 
@@ -308,8 +307,8 @@ function createSourceFile(
   const scriptKind = sourceFilePath.endsWith('.tsx')
     ? ts.ScriptKind.TSX
     : sourceFilePath.endsWith('.jsx')
-      ? ts.ScriptKind.JSX
-      : ts.ScriptKind.TS;
+    ? ts.ScriptKind.JSX
+    : ts.ScriptKind.TS;
 
   return ts.createSourceFile(
     sourceFilePath,
@@ -336,9 +335,10 @@ function isRelativeModuleSpecifier(specifier: string): boolean {
   return specifier.startsWith('./') || specifier.startsWith('../');
 }
 
-function splitModuleSpecifierSuffix(
-  specifier: string
-): { readonly bare: string; readonly suffix: string } {
+function splitModuleSpecifierSuffix(specifier: string): {
+  readonly bare: string;
+  readonly suffix: string;
+} {
   const suffixStart = specifier.search(/[?#]/u);
   return suffixStart === -1
     ? { bare: specifier, suffix: '' }
@@ -425,10 +425,7 @@ function tryResolveRelativeModuleSpecifier(
         ];
       });
 
-  if (
-    specifierStyle === 'relative' &&
-    hasExplicitModuleExtension(specifier)
-  ) {
+  if (specifierStyle === 'relative' && hasExplicitModuleExtension(specifier)) {
     return specifier;
   }
 
@@ -528,15 +525,15 @@ function rewriteRelativeImportSpecifiers(
   return rewrittenSource;
 }
 
-function hasModifier(
-  node: ts.Node,
-  modifierKind: ts.SyntaxKind
-): boolean {
+function hasModifier(node: ts.Node, modifierKind: ts.SyntaxKind): boolean {
   if (!ts.canHaveModifiers(node)) {
     return false;
   }
 
-  return ts.getModifiers(node)?.some((modifier) => modifier.kind === modifierKind) ?? false;
+  return (
+    ts.getModifiers(node)?.some((modifier) => modifier.kind === modifierKind) ??
+    false
+  );
 }
 
 function getNodeLocation(
@@ -603,11 +600,7 @@ function isPromiseAllCall(
   );
 }
 
-function createNodeId(
-  state: CompileState,
-  kind: string,
-  hint: string
-): string {
+function createNodeId(state: CompileState, kind: string, hint: string): string {
   const nodeId = `${state.prefix}_${kind}_${String(state.nextId).padStart(
     2,
     '0'
@@ -617,7 +610,9 @@ function createNodeId(
 }
 
 function createTempBinding(state: CompileState, hint: string): string {
-  const bindingName = `__bridge_tmp_${sanitizeIdentifier(hint)}_${state.tempId}`;
+  const bindingName = `__bridge_tmp_${sanitizeIdentifier(hint)}_${
+    state.tempId
+  }`;
   state.tempId += 1;
   state.knownBindings.add(bindingName);
   return bindingName;
@@ -633,9 +628,7 @@ function getFunctionBodyStatements(
   return [ts.factory.createReturnStatement(node.body)];
 }
 
-function collectFunctions(
-  sourceFile: ts.SourceFile
-): {
+function collectFunctions(sourceFile: ts.SourceFile): {
   readonly functionsByLocalName: ReadonlyMap<string, FunctionRecord>;
   readonly exportsByName: ReadonlyMap<string, string>;
 } {
@@ -769,9 +762,7 @@ function collectImportBindingNames(
   return names;
 }
 
-function collectTopLevelRuntimeStatements(
-  sourceFile: ts.SourceFile
-): {
+function collectTopLevelRuntimeStatements(sourceFile: ts.SourceFile): {
   readonly functionStatementsByName: ReadonlyMap<string, ts.Statement>;
   readonly importStatementsByName: ReadonlyMap<string, ts.ImportDeclaration>;
   readonly topLevelBindingNames: ReadonlySet<string>;
@@ -929,9 +920,9 @@ function collectRuntimeBindingNames(
   operations?: readonly GnosisTypeScriptBridgeOperation[]
 ): readonly string[] {
   if (!operations) {
-    return normalizeRuntimeBindingNames(
-      [...collectTopLevelRuntimeStatements(sourceFile).topLevelBindingNames]
-    );
+    return normalizeRuntimeBindingNames([
+      ...collectTopLevelRuntimeStatements(sourceFile).topLevelBindingNames,
+    ]);
   }
 
   const runtimeStatements = collectTopLevelRuntimeStatements(sourceFile);
@@ -959,7 +950,8 @@ function collectRuntimeBindingNames(
 
     resolved.add(bindingName);
 
-    const statement = runtimeStatements.functionStatementsByName.get(bindingName);
+    const statement =
+      runtimeStatements.functionStatementsByName.get(bindingName);
     if (!statement) {
       continue;
     }
@@ -1185,8 +1177,8 @@ function selectEntrypoint(
   const preferredExportNames: readonly string[] = options.exportName
     ? [options.exportName]
     : exportsByName.has('default')
-      ? ['default']
-      : ['app', 'main', 'handler'];
+    ? ['default']
+    : ['app', 'main', 'handler'];
 
   for (const exportName of preferredExportNames) {
     const localName = exportsByName.get(exportName);
@@ -1449,9 +1441,7 @@ function resolveCallPlan(
 }
 
 function compilePromiseAllOperation(
-  bindingName:
-    | ts.Identifier
-    | ts.ArrayBindingPattern,
+  bindingName: ts.Identifier | ts.ArrayBindingPattern,
   promiseAllCall: ts.CallExpression,
   state: CompileState
 ): void {
@@ -1750,9 +1740,10 @@ function renderTopologySource(
         renderNodeSpec(plan.nodeId, plan.handlerLabel)
       );
       lines.push(
-        `${renderNodeRef(currentNodeId, currentLabel)}-[:FORK]->(${branchRefs.join(
-          ' | '
-        )})`
+        `${renderNodeRef(
+          currentNodeId,
+          currentLabel
+        )}-[:FORK]->(${branchRefs.join(' | ')})`
       );
       const branchIds = operation.branches
         .map((plan) => plan.nodeId)
@@ -1770,7 +1761,10 @@ function renderTopologySource(
 
     const targetPlan = operation.plan;
     lines.push(
-      `${renderNodeRef(currentNodeId, currentLabel)}-[:PROCESS]->${renderNodeRef(
+      `${renderNodeRef(
+        currentNodeId,
+        currentLabel
+      )}-[:PROCESS]->${renderNodeRef(
         targetPlan.nodeId,
         targetPlan.handlerLabel
       )}`
@@ -1811,7 +1805,12 @@ function buildBridgeAst(
   operations: readonly GnosisTypeScriptBridgeOperation[]
 ): GraphAST {
   const ast: GraphAST = {
-    nodes: new Map([[entryPlan.nodeId, createBridgeAstNode(entryPlan.nodeId, entryPlan.handlerLabel)]]),
+    nodes: new Map([
+      [
+        entryPlan.nodeId,
+        createBridgeAstNode(entryPlan.nodeId, entryPlan.handlerLabel),
+      ],
+    ]),
     edges: [],
   };
 
@@ -2091,7 +2090,9 @@ function evaluateBridgeExpression(
   }
 
   if (expression.kind === 'array') {
-    return expression.items.map((item) => evaluateBridgeExpression(item, state));
+    return expression.items.map((item) =>
+      evaluateBridgeExpression(item, state)
+    );
   }
 
   return Object.fromEntries(
@@ -2103,7 +2104,11 @@ function evaluateBridgeExpression(
 }
 
 function mergeBridgeStates(payload: unknown, nodeId: string): BridgeState {
-  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+  if (
+    typeof payload !== 'object' ||
+    payload === null ||
+    Array.isArray(payload)
+  ) {
     throw new Error(
       `Bridge join node '${nodeId}' expected a folded record of branch states.`
     );
@@ -2276,10 +2281,10 @@ async function loadRuntimeBindings(
       : sourceText && sourceFilePath
       ? await loadRuntimeBridgeModuleBindings(sourceText, sourceFilePath)
       : options.modulePath !== undefined
-        ? ((await import(
-            pathToFileURL(path.resolve(options.modulePath)).href
-          )) as GnosisTypeScriptBridgeBindings)
-        : {};
+      ? ((await import(
+          pathToFileURL(path.resolve(options.modulePath)).href
+        )) as GnosisTypeScriptBridgeBindings)
+      : {};
 
   return {
     ...importedModule,
@@ -2307,9 +2312,7 @@ async function loadRuntimeBridgeModuleBindings(
     `.${path.basename(
       absoluteSourcePath,
       path.extname(absoluteSourcePath)
-    )}.gnode.${Date.now()}.${Math.random()
-      .toString(36)
-      .slice(2, 8)}.ts`
+    )}.gnode.${Date.now()}.${Math.random().toString(36).slice(2, 8)}.ts`
   );
 
   fs.writeFileSync(tempModulePath, renderedModule.moduleSource, 'utf8');

@@ -104,7 +104,9 @@ export interface QuantumRegister {
 
 export function createRegister(numQubits: number): QuantumRegister {
   const size = 1 << numQubits;
-  const amplitudes: Complex[] = new Array(size).fill(null).map(() => complex(0));
+  const amplitudes: Complex[] = new Array(size)
+    .fill(null)
+    .map(() => complex(0));
   amplitudes[0] = complex(1); // Initialize to |00...0⟩
   return { numQubits, amplitudes };
 }
@@ -113,7 +115,10 @@ export function registerFromQubit(q: Qubit): QuantumRegister {
   return { numQubits: 1, amplitudes: [q.alpha, q.beta] };
 }
 
-export function registerNormalized(reg: QuantumRegister, tolerance: number = 1e-10): boolean {
+export function registerNormalized(
+  reg: QuantumRegister,
+  tolerance: number = 1e-10
+): boolean {
   const norm = reg.amplitudes.reduce((s, a) => s + complexNorm(a), 0);
   return Math.abs(norm - 1) < tolerance;
 }
@@ -126,15 +131,24 @@ export function registerNormalized(reg: QuantumRegister, tolerance: number = 1e-
 export type Gate2x2 = [[Complex, Complex], [Complex, Complex]];
 
 function applyGate2x2(q: Qubit, gate: Gate2x2): Qubit {
-  const alpha = complexAdd(complexMul(gate[0][0], q.alpha), complexMul(gate[0][1], q.beta));
-  const beta = complexAdd(complexMul(gate[1][0], q.alpha), complexMul(gate[1][1], q.beta));
+  const alpha = complexAdd(
+    complexMul(gate[0][0], q.alpha),
+    complexMul(gate[0][1], q.beta)
+  );
+  const beta = complexAdd(
+    complexMul(gate[1][0], q.alpha),
+    complexMul(gate[1][1], q.beta)
+  );
   return qubit(alpha, beta);
 }
 
 /** Hadamard gate: creates superposition */
 export const H_GATE: Gate2x2 = (() => {
   const s = 1 / Math.sqrt(2);
-  return [[complex(s), complex(s)], [complex(s), complex(-s)]] as Gate2x2;
+  return [
+    [complex(s), complex(s)],
+    [complex(s), complex(-s)],
+  ] as Gate2x2;
 })();
 
 /** Pauli-X gate (NOT): |0⟩↔|1⟩ */
@@ -209,7 +223,7 @@ export function phaseGate(theta: number): Gate2x2 {
 export function applyCNOT(
   reg: QuantumRegister,
   control: number,
-  target: number,
+  target: number
 ): QuantumRegister {
   const size = 1 << reg.numQubits;
   const newAmps: Complex[] = reg.amplitudes.map(() => complex(0));
@@ -234,10 +248,10 @@ export function applyCNOT(
 export function applyCZ(
   reg: QuantumRegister,
   control: number,
-  target: number,
+  target: number
 ): QuantumRegister {
   const size = 1 << reg.numQubits;
-  const newAmps: Complex[] = [...reg.amplitudes.map(a => [...a] as Complex)];
+  const newAmps: Complex[] = [...reg.amplitudes.map((a) => [...a] as Complex)];
 
   for (let i = 0; i < size; i++) {
     const controlBit = (i >> (reg.numQubits - 1 - control)) & 1;
@@ -256,7 +270,7 @@ export function applyCZ(
 export function applyGateToRegister(
   reg: QuantumRegister,
   qubitIdx: number,
-  gate: Gate2x2,
+  gate: Gate2x2
 ): QuantumRegister {
   const size = 1 << reg.numQubits;
   const newAmps: Complex[] = new Array(size).fill(null).map(() => complex(0));
@@ -267,12 +281,24 @@ export function applyGateToRegister(
 
     if (bit === 0) {
       // |0⟩ component
-      newAmps[i] = complexAdd(newAmps[i], complexMul(gate[0][0], reg.amplitudes[i]));
-      newAmps[i] = complexAdd(newAmps[i], complexMul(gate[0][1], reg.amplitudes[partner]));
+      newAmps[i] = complexAdd(
+        newAmps[i],
+        complexMul(gate[0][0], reg.amplitudes[i])
+      );
+      newAmps[i] = complexAdd(
+        newAmps[i],
+        complexMul(gate[0][1], reg.amplitudes[partner])
+      );
     } else {
       // |1⟩ component
-      newAmps[i] = complexAdd(newAmps[i], complexMul(gate[1][0], reg.amplitudes[partner]));
-      newAmps[i] = complexAdd(newAmps[i], complexMul(gate[1][1], reg.amplitudes[i]));
+      newAmps[i] = complexAdd(
+        newAmps[i],
+        complexMul(gate[1][0], reg.amplitudes[partner])
+      );
+      newAmps[i] = complexAdd(
+        newAmps[i],
+        complexMul(gate[1][1], reg.amplitudes[i])
+      );
     }
   }
 
@@ -323,7 +349,7 @@ export function measure(q: Qubit, rng: () => number): MeasurementOutcome {
 export function measureRegister(
   reg: QuantumRegister,
   qubitIdx: number,
-  rng: () => number,
+  rng: () => number
 ): { result: 0 | 1; register: QuantumRegister } {
   const size = 1 << reg.numQubits;
 
@@ -342,13 +368,17 @@ export function measureRegister(
   for (let i = 0; i < size; i++) {
     const bit = (i >> (reg.numQubits - 1 - qubitIdx)) & 1;
     if (bit === result) {
-      newAmps[i] = norm > 0
-        ? [reg.amplitudes[i][0] / norm, reg.amplitudes[i][1] / norm]
-        : complex(0);
+      newAmps[i] =
+        norm > 0
+          ? [reg.amplitudes[i][0] / norm, reg.amplitudes[i][1] / norm]
+          : complex(0);
     }
   }
 
-  return { result, register: { numQubits: reg.numQubits, amplitudes: newAmps } };
+  return {
+    result,
+    register: { numQubits: reg.numQubits, amplitudes: newAmps },
+  };
 }
 
 // ============================================================================
@@ -368,7 +398,10 @@ export function bellState(): QuantumRegister {
  * Check if a two-qubit register is entangled (non-separable).
  * Uses the concurrence measure.
  */
-export function isEntangled(reg: QuantumRegister, tolerance: number = 1e-10): boolean {
+export function isEntangled(
+  reg: QuantumRegister,
+  tolerance: number = 1e-10
+): boolean {
   if (reg.numQubits !== 2) return false;
   const [a, b, c, d] = reg.amplitudes;
   // Concurrence = 2|ad - bc|
@@ -402,15 +435,28 @@ export function createCircuit(numQubits: number): QuantumCircuit {
   return { numQubits, ops: [] };
 }
 
-export function addGate(circuit: QuantumCircuit, qubit: number, gate: Gate2x2, name: string): void {
+export function addGate(
+  circuit: QuantumCircuit,
+  qubit: number,
+  gate: Gate2x2,
+  name: string
+): void {
   circuit.ops.push({ type: 'gate', qubit, gate, name });
 }
 
-export function addCNOT(circuit: QuantumCircuit, control: number, target: number): void {
+export function addCNOT(
+  circuit: QuantumCircuit,
+  control: number,
+  target: number
+): void {
   circuit.ops.push({ type: 'cnot', control, target });
 }
 
-export function addCZ(circuit: QuantumCircuit, control: number, target: number): void {
+export function addCZ(
+  circuit: QuantumCircuit,
+  control: number,
+  target: number
+): void {
   circuit.ops.push({ type: 'cz', control, target });
 }
 
@@ -427,7 +473,7 @@ export function addBarrier(circuit: QuantumCircuit): void {
  */
 export function executeCircuit(
   circuit: QuantumCircuit,
-  rng: () => number,
+  rng: () => number
 ): { register: QuantumRegister; measurements: Map<number, 0 | 1> } {
   let reg = createRegister(circuit.numQubits);
   const measurements = new Map<number, 0 | 1>();

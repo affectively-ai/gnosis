@@ -7,7 +7,13 @@
  * Roadmap item #3: depends on ADTs.
  */
 
-import { type Variant, variant, type SumTypeDefinition, BUILTIN_SUM_TYPES, matchExhaustive } from './adt.js';
+import {
+  type Variant,
+  variant,
+  type SumTypeDefinition,
+  BUILTIN_SUM_TYPES,
+  matchExhaustive,
+} from './adt.js';
 
 // ============================================================================
 // Option<T> = Some(T) | None
@@ -42,20 +48,23 @@ export function unwrapOptionOr<T>(opt: GnosisOption<T>, defaultValue: T): T {
   return opt.tag === 'some' ? opt.value : defaultValue;
 }
 
-export function mapOption<T, U>(opt: GnosisOption<T>, f: (v: T) => U): GnosisOption<U> {
+export function mapOption<T, U>(
+  opt: GnosisOption<T>,
+  f: (v: T) => U
+): GnosisOption<U> {
   return opt.tag === 'some' ? some(f(opt.value)) : none<U>();
 }
 
 export function flatMapOption<T, U>(
   opt: GnosisOption<T>,
-  f: (v: T) => GnosisOption<U>,
+  f: (v: T) => GnosisOption<U>
 ): GnosisOption<U> {
   return opt.tag === 'some' ? f(opt.value) : none<U>();
 }
 
 export function filterOption<T>(
   opt: GnosisOption<T>,
-  predicate: (v: T) => boolean,
+  predicate: (v: T) => boolean
 ): GnosisOption<T> {
   return opt.tag === 'some' && predicate(opt.value) ? opt : none<T>();
 }
@@ -96,27 +105,34 @@ export function unwrapErr<T, E>(result: GnosisResult<T, E>): E {
   return result.value as E;
 }
 
-export function unwrapResultOr<T, E>(result: GnosisResult<T, E>, defaultValue: T): T {
+export function unwrapResultOr<T, E>(
+  result: GnosisResult<T, E>,
+  defaultValue: T
+): T {
   return result.tag === 'ok' ? (result.value as T) : defaultValue;
 }
 
 export function mapResult<T, U, E>(
   result: GnosisResult<T, E>,
-  f: (v: T) => U,
+  f: (v: T) => U
 ): GnosisResult<U, E> {
-  return result.tag === 'ok' ? ok(f(result.value as T)) : err(result.value as E);
+  return result.tag === 'ok'
+    ? ok(f(result.value as T))
+    : err(result.value as E);
 }
 
 export function mapErr<T, E, F>(
   result: GnosisResult<T, E>,
-  f: (e: E) => F,
+  f: (e: E) => F
 ): GnosisResult<T, F> {
-  return result.tag === 'err' ? err(f(result.value as E)) : ok(result.value as T);
+  return result.tag === 'err'
+    ? err(f(result.value as E))
+    : ok(result.value as T);
 }
 
 export function flatMapResult<T, U, E>(
   result: GnosisResult<T, E>,
-  f: (v: T) => GnosisResult<U, E>,
+  f: (v: T) => GnosisResult<U, E>
 ): GnosisResult<U, E> {
   return result.tag === 'ok' ? f(result.value as T) : err(result.value as E);
 }
@@ -134,7 +150,7 @@ export function tryCatch<T>(f: () => T): GnosisResult<T, Error> {
 }
 
 export async function tryCatchAsync<T>(
-  f: () => Promise<T>,
+  f: () => Promise<T>
 ): Promise<GnosisResult<T, Error>> {
   try {
     return ok(await f());
@@ -149,16 +165,18 @@ export async function tryCatchAsync<T>(
 
 /** Transpose Option<Result<T,E>> → Result<Option<T>,E> */
 export function transposeOptionResult<T, E>(
-  opt: GnosisOption<GnosisResult<T, E>>,
+  opt: GnosisOption<GnosisResult<T, E>>
 ): GnosisResult<GnosisOption<T>, E> {
   if (opt.tag === 'none') return ok(none<T>());
   const inner = opt.value as GnosisResult<T, E>;
-  return inner.tag === 'ok' ? ok(some(inner.value as T)) : err(inner.value as E);
+  return inner.tag === 'ok'
+    ? ok(some(inner.value as T))
+    : err(inner.value as E);
 }
 
 /** Collect an array of Results into a Result of array (short-circuit on first Err) */
 export function collectResults<T, E>(
-  results: GnosisResult<T, E>[],
+  results: GnosisResult<T, E>[]
 ): GnosisResult<T[], E> {
   const values: T[] = [];
   for (const r of results) {
@@ -170,7 +188,7 @@ export function collectResults<T, E>(
 
 /** Partition Results into [oks, errs] */
 export function partitionResults<T, E>(
-  results: GnosisResult<T, E>[],
+  results: GnosisResult<T, E>[]
 ): { oks: T[]; errs: E[] } {
   const oks: T[] = [];
   const errs: E[] = [];
@@ -184,13 +202,15 @@ export function partitionResults<T, E>(
 /** Convert Option to Result (None → Err with provided error) */
 export function optionToResult<T, E>(
   opt: GnosisOption<T>,
-  error: E,
+  error: E
 ): GnosisResult<T, E> {
   return opt.tag === 'some' ? ok(opt.value) : err(error);
 }
 
 /** Convert Result to Option (Err → None) */
-export function resultToOption<T, E>(result: GnosisResult<T, E>): GnosisOption<T> {
+export function resultToOption<T, E>(
+  result: GnosisResult<T, E>
+): GnosisOption<T> {
   return result.tag === 'ok' ? some(result.value as T) : none<T>();
 }
 
@@ -203,8 +223,11 @@ export function resultToOption<T, E>(result: GnosisResult<T, E>): GnosisOption<T
  * This is the migration path for existing handlers.
  */
 export function resultHandler<P, T>(
-  handler: (payload: P, props: Record<string, string>) => Promise<T>,
-): (payload: P, props: Record<string, string>) => Promise<GnosisResult<T, Error>> {
+  handler: (payload: P, props: Record<string, string>) => Promise<T>
+): (
+  payload: P,
+  props: Record<string, string>
+) => Promise<GnosisResult<T, Error>> {
   return async (payload, props) => tryCatchAsync(() => handler(payload, props));
 }
 
@@ -213,7 +236,7 @@ export function resultHandler<P, T>(
  * Returns { value, shouldVent } for the engine to route.
  */
 export function routeResult<T, E>(
-  result: GnosisResult<T, E>,
+  result: GnosisResult<T, E>
 ): { value: unknown; shouldVent: boolean; tag: string } {
   return {
     value: result.value,

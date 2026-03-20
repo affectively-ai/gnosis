@@ -7,7 +7,11 @@
  * Roadmap item #8: depends on ADTs and Option/Result.
  */
 
-import { type Variant, type SumTypeDefinition, type ProductTypeDefinition } from './adt.js';
+import {
+  type Variant,
+  type SumTypeDefinition,
+  type ProductTypeDefinition,
+} from './adt.js';
 
 // ============================================================================
 // Pattern types -- what can be destructured
@@ -64,20 +68,20 @@ export interface NestedPattern {
 
 export function recordPattern(
   fields: Record<string, string | DestructurePattern>,
-  rest?: string,
+  rest?: string
 ): RecordPattern {
   return { type: 'record', fields, rest };
 }
 
 export function tuplePattern(
-  elements: (string | DestructurePattern)[],
+  elements: (string | DestructurePattern)[]
 ): TuplePattern {
   return { type: 'tuple', elements };
 }
 
 export function variantPattern(
   tag: string,
-  payload: string | DestructurePattern,
+  payload: string | DestructurePattern
 ): VariantPattern {
   return { type: 'variant', tag, payload };
 }
@@ -116,7 +120,7 @@ function failBinding(diagnostic: string): BindingResult {
  */
 export function extractBindings(
   pattern: DestructurePattern,
-  value: unknown,
+  value: unknown
 ): BindingResult {
   switch (pattern.type) {
     case 'wildcard':
@@ -125,7 +129,9 @@ export function extractBindings(
     case 'literal':
       return value === pattern.value
         ? successBinding({})
-        : failBinding(`Expected literal ${String(pattern.value)}, got ${String(value)}`);
+        : failBinding(
+            `Expected literal ${String(pattern.value)}, got ${String(value)}`
+          );
 
     case 'record':
       return extractRecordBindings(pattern, value);
@@ -143,7 +149,7 @@ export function extractBindings(
 
 function extractRecordBindings(
   pattern: RecordPattern,
-  value: unknown,
+  value: unknown
 ): BindingResult {
   if (typeof value !== 'object' || value === null) {
     return failBinding(`Expected object, got ${typeof value}`);
@@ -183,7 +189,7 @@ function extractRecordBindings(
 
 function extractTupleBindings(
   pattern: TuplePattern,
-  value: unknown,
+  value: unknown
 ): BindingResult {
   if (!Array.isArray(value)) {
     return failBinding(`Expected array, got ${typeof value}`);
@@ -191,7 +197,7 @@ function extractTupleBindings(
 
   if (value.length < pattern.elements.length) {
     return failBinding(
-      `Expected at least ${pattern.elements.length} elements, got ${value.length}`,
+      `Expected at least ${pattern.elements.length} elements, got ${value.length}`
     );
   }
 
@@ -213,7 +219,7 @@ function extractTupleBindings(
 
 function extractVariantBindings(
   pattern: VariantPattern,
-  value: unknown,
+  value: unknown
 ): BindingResult {
   if (typeof value !== 'object' || value === null) {
     return failBinding(`Expected variant object, got ${typeof value}`);
@@ -233,7 +239,7 @@ function extractVariantBindings(
 
 function extractNestedBindings(
   pattern: NestedPattern,
-  value: unknown,
+  value: unknown
 ): BindingResult {
   const outer = extractBindings(pattern.outer, value);
   if (!outer.matched) return outer;
@@ -257,12 +263,14 @@ export interface PatternValidation {
  */
 export function validateVariantPattern(
   pattern: VariantPattern,
-  typeDef: SumTypeDefinition,
+  typeDef: SumTypeDefinition
 ): PatternValidation {
   const diagnostics: string[] = [];
   if (!typeDef.cases.includes(pattern.tag)) {
     diagnostics.push(
-      `Tag '${pattern.tag}' is not a valid case of ${typeDef.name}. Valid cases: [${typeDef.cases.join(', ')}]`,
+      `Tag '${pattern.tag}' is not a valid case of ${
+        typeDef.name
+      }. Valid cases: [${typeDef.cases.join(', ')}]`
     );
   }
   return { valid: diagnostics.length === 0, diagnostics };
@@ -273,10 +281,10 @@ export function validateVariantPattern(
  */
 export function validateRecordPattern(
   pattern: RecordPattern,
-  typeDef: ProductTypeDefinition,
+  typeDef: ProductTypeDefinition
 ): PatternValidation {
   const diagnostics: string[] = [];
-  const fieldNames = new Set(typeDef.fields.map(f => f.name));
+  const fieldNames = new Set(typeDef.fields.map((f) => f.name));
 
   for (const key of Object.keys(pattern.fields)) {
     if (!fieldNames.has(key)) {
@@ -288,9 +296,7 @@ export function validateRecordPattern(
   if (!pattern.rest) {
     for (const field of typeDef.fields) {
       if (field.required && !(field.name in pattern.fields)) {
-        diagnostics.push(
-          `Required field '${field.name}' not bound in pattern`,
-        );
+        diagnostics.push(`Required field '${field.name}' not bound in pattern`);
       }
     }
   }
@@ -303,10 +309,10 @@ export function validateRecordPattern(
  */
 export function checkPatternExhaustiveness(
   patterns: VariantPattern[],
-  typeDef: SumTypeDefinition,
+  typeDef: SumTypeDefinition
 ): { exhaustive: boolean; missing: string[] } {
-  const covered = new Set(patterns.map(p => p.tag));
-  const missing = typeDef.cases.filter(c => !covered.has(c));
+  const covered = new Set(patterns.map((p) => p.tag));
+  const missing = typeDef.cases.filter((c) => !covered.has(c));
   return { exhaustive: missing.length === 0, missing };
 }
 
@@ -326,14 +332,18 @@ export interface MatchArmWithPattern<R> {
  */
 export function matchPatterns<R>(
   value: unknown,
-  arms: MatchArmWithPattern<R>[],
+  arms: MatchArmWithPattern<R>[]
 ): { matched: boolean; result?: R; armIndex?: number } {
   for (let i = 0; i < arms.length; i++) {
     const arm = arms[i];
     const binding = extractBindings(arm.pattern, value);
     if (binding.matched) {
       if (arm.guard && !arm.guard(binding.bindings)) continue;
-      return { matched: true, result: arm.handler(binding.bindings), armIndex: i };
+      return {
+        matched: true,
+        result: arm.handler(binding.bindings),
+        armIndex: i,
+      };
     }
   }
   return { matched: false };

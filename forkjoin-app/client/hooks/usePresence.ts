@@ -542,11 +542,13 @@ export function usePresence(): UsePresenceResult {
         x,
         y,
         scrollX:
-          typeof context?.scrollX === 'number' && Number.isFinite(context.scrollX)
+          typeof context?.scrollX === 'number' &&
+          Number.isFinite(context.scrollX)
             ? context.scrollX
             : undefined,
         scrollY:
-          typeof context?.scrollY === 'number' && Number.isFinite(context.scrollY)
+          typeof context?.scrollY === 'number' &&
+          Number.isFinite(context.scrollY)
             ? context.scrollY
             : undefined,
         viewportWidth:

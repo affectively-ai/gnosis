@@ -26,7 +26,9 @@ function makeTestMoaTransformerShootoutConfig() {
   } as const;
 }
 
-let cachedReportPromise: Promise<GnosisMoaTransformerShootoutReport> | undefined;
+let cachedReportPromise:
+  | Promise<GnosisMoaTransformerShootoutReport>
+  | undefined;
 
 function getShootoutReport(): Promise<GnosisMoaTransformerShootoutReport> {
   cachedReportPromise ??= runGnosisMoaTransformerShootoutBenchmark(
@@ -40,30 +42,32 @@ describe('gnosis MoA transformer shootout benchmark', () => {
     'keeps the MoA family accuracy-competitive while using less compute',
     { timeout: 20_000 },
     async () => {
-    const report = await getShootoutReport();
+      const report = await getShootoutReport();
 
-    expect(report.sharedCapacity.parameterCount).toBe(72);
-    expect(report.sharedCapacity.transformerletCount).toBe(4);
-    expect(report.sharedCapacity.headChainCount).toBe(16);
-    expect(report.sharedCapacity.rotationStageCount).toBe(4);
-    expect(report.families.regular.meanActiveBlockCount).toBe(4);
-    expect(report.families.regular.meanActiveHeadCount).toBe(16);
-    expect(report.families.moa.meanActiveBlockCount).toBe(2);
-    expect(report.families.moa.meanActiveHeadCount).toBe(4);
-    expect(report.moaUsesLessCompute).toBe(true);
-    expect(report.rawAccuracyCompetitive).toBe(true);
-    expect(report.winnerByComputeAdjustedExactFraction).toBe('moa');
-    expect(report.families.moa.computeAdjustedExactFraction).toBeGreaterThan(
-      report.families.regular.computeAdjustedExactFraction
-    );
-    expect(report.families.moa.meanFrameCount).toBeLessThan(
-      report.families.regular.meanFrameCount
-    );
-    expect(report.families.moa.meanEvalMeanSquaredError).toBeLessThan(0.06);
-    expect(report.families.regular.meanEvalMeanSquaredError).toBeLessThan(0.08);
-    expect(report.families.moa.meanCodecRoundTripExactFraction).toBe(1);
-    expect(report.families.regular.meanReassemblyExactFraction).toBe(1);
-    expect(report.families.moa.meanFoldInvarianceExactFraction).toBe(1);
+      expect(report.sharedCapacity.parameterCount).toBe(72);
+      expect(report.sharedCapacity.transformerletCount).toBe(4);
+      expect(report.sharedCapacity.headChainCount).toBe(16);
+      expect(report.sharedCapacity.rotationStageCount).toBe(4);
+      expect(report.families.regular.meanActiveBlockCount).toBe(4);
+      expect(report.families.regular.meanActiveHeadCount).toBe(16);
+      expect(report.families.moa.meanActiveBlockCount).toBe(2);
+      expect(report.families.moa.meanActiveHeadCount).toBe(4);
+      expect(report.moaUsesLessCompute).toBe(true);
+      expect(report.rawAccuracyCompetitive).toBe(true);
+      expect(report.winnerByComputeAdjustedExactFraction).toBe('moa');
+      expect(report.families.moa.computeAdjustedExactFraction).toBeGreaterThan(
+        report.families.regular.computeAdjustedExactFraction
+      );
+      expect(report.families.moa.meanFrameCount).toBeLessThan(
+        report.families.regular.meanFrameCount
+      );
+      expect(report.families.moa.meanEvalMeanSquaredError).toBeLessThan(0.06);
+      expect(report.families.regular.meanEvalMeanSquaredError).toBeLessThan(
+        0.08
+      );
+      expect(report.families.moa.meanCodecRoundTripExactFraction).toBe(1);
+      expect(report.families.regular.meanReassemblyExactFraction).toBe(1);
+      expect(report.families.moa.meanFoldInvarianceExactFraction).toBe(1);
     }
   );
 
@@ -95,14 +99,14 @@ describe('gnosis MoA transformer shootout benchmark', () => {
     'renders a markdown report with compute-adjusted metrics',
     { timeout: 20_000 },
     async () => {
-    const markdown = renderGnosisMoaTransformerShootoutMarkdown(
-      await getShootoutReport()
-    );
+      const markdown = renderGnosisMoaTransformerShootoutMarkdown(
+        await getShootoutReport()
+      );
 
-    expect(markdown).toContain('# Gnosis MoA Transformer Shootout');
-    expect(markdown).toContain('Compute-adjusted exact');
-    expect(markdown).toContain('regular');
-    expect(markdown).toContain('moa');
+      expect(markdown).toContain('# Gnosis MoA Transformer Shootout');
+      expect(markdown).toContain('Compute-adjusted exact');
+      expect(markdown).toContain('regular');
+      expect(markdown).toContain('moa');
     }
   );
 });

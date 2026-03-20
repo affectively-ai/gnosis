@@ -91,17 +91,23 @@ export interface VoidAttentionPayload {
 // ============================================================================
 
 /** Compute complement distribution = softmax(-eta * voidCounts) */
-const ComplementDistributionAHandler: GnosisHandler = async (p: VoidAttentionPayload) => {
+const ComplementDistributionAHandler: GnosisHandler = async (
+  p: VoidAttentionPayload
+) => {
   const dist = complementDistribution(p.boundaryA, p.walkerA.eta);
   return { ...p, complementA: dist };
 };
 
-const ComplementDistributionBHandler: GnosisHandler = async (p: VoidAttentionPayload) => {
+const ComplementDistributionBHandler: GnosisHandler = async (
+  p: VoidAttentionPayload
+) => {
   const dist = complementDistribution(p.boundaryB, p.walkerB.eta);
   return { ...p, complementB: dist };
 };
 
-const ComplementDistributionCrossHandler: GnosisHandler = async (p: VoidAttentionPayload) => {
+const ComplementDistributionCrossHandler: GnosisHandler = async (
+  p: VoidAttentionPayload
+) => {
   const dist = complementDistribution(p.boundaryCross, p.walkerCross.eta);
   return { ...p, complementCross: dist };
 };
@@ -178,15 +184,21 @@ const SampleCrossHandler: GnosisHandler = async (p: VoidAttentionPayload) => {
 };
 
 /** Accept proposal if complement weight >= own choice weight */
-const AcceptIfHigherWeightHandler: GnosisHandler = async (p: VoidAttentionPayload) => {
+const AcceptIfHigherWeightHandler: GnosisHandler = async (
+  p: VoidAttentionPayload
+) => {
   if (!p.complementA || !p.complementB) return p;
   if (p.proposalA === undefined || p.proposalB === undefined) return p;
   if (p.ownChoiceA === undefined || p.ownChoiceB === undefined) return p;
 
-  const offerA = p.complementA[p.proposalA] >= p.complementA[p.ownChoiceA]
-    ? p.proposalA : p.ownChoiceA;
-  const offerB = p.complementB[p.proposalB] >= p.complementB[p.ownChoiceB]
-    ? p.proposalB : p.ownChoiceB;
+  const offerA =
+    p.complementA[p.proposalA] >= p.complementA[p.ownChoiceA]
+      ? p.proposalA
+      : p.ownChoiceA;
+  const offerB =
+    p.complementB[p.proposalB] >= p.complementB[p.ownChoiceB]
+      ? p.proposalB
+      : p.ownChoiceB;
 
   return {
     ...p,
@@ -200,7 +212,9 @@ const AcceptIfHigherWeightHandler: GnosisHandler = async (p: VoidAttentionPayloa
 // Interaction Handler
 // ============================================================================
 
-const EvaluatePayoffHandler: GnosisHandler = async (p: VoidAttentionPayload) => {
+const EvaluatePayoffHandler: GnosisHandler = async (
+  p: VoidAttentionPayload
+) => {
   if (p.offerA === undefined || p.offerB === undefined) return p;
   const [payA, payB] = p.payoff(p.offerA, p.offerB);
   return { ...p, payoffA: payA, payoffB: payB };
@@ -210,8 +224,15 @@ const EvaluatePayoffHandler: GnosisHandler = async (p: VoidAttentionPayload) => 
 // Residual Update Handlers (void boundary absorbs outcome)
 // ============================================================================
 
-const ResidualUpdateAHandler: GnosisHandler = async (p: VoidAttentionPayload) => {
-  if (p.offerA === undefined || p.payoffA === undefined || p.payoffB === undefined) return p;
+const ResidualUpdateAHandler: GnosisHandler = async (
+  p: VoidAttentionPayload
+) => {
+  if (
+    p.offerA === undefined ||
+    p.payoffA === undefined ||
+    p.payoffB === undefined
+  )
+    return p;
   if (p.payoffA < p.payoffB || p.payoffA < 0) {
     const mag = p.payoffA < 0 ? Math.abs(p.payoffA) : 1;
     updateVoidBoundary(p.boundaryA, p.offerA, mag);
@@ -225,8 +246,15 @@ const ResidualUpdateAHandler: GnosisHandler = async (p: VoidAttentionPayload) =>
   return p;
 };
 
-const ResidualUpdateBHandler: GnosisHandler = async (p: VoidAttentionPayload) => {
-  if (p.offerB === undefined || p.payoffA === undefined || p.payoffB === undefined) return p;
+const ResidualUpdateBHandler: GnosisHandler = async (
+  p: VoidAttentionPayload
+) => {
+  if (
+    p.offerB === undefined ||
+    p.payoffA === undefined ||
+    p.payoffB === undefined
+  )
+    return p;
   if (p.payoffB < p.payoffA || p.payoffB < 0) {
     const mag = p.payoffB < 0 ? Math.abs(p.payoffB) : 1;
     updateVoidBoundary(p.boundaryB, p.offerB, mag);
@@ -239,7 +267,9 @@ const ResidualUpdateBHandler: GnosisHandler = async (p: VoidAttentionPayload) =>
   return p;
 };
 
-const ResidualUpdateCrossHandler: GnosisHandler = async (p: VoidAttentionPayload) => {
+const ResidualUpdateCrossHandler: GnosisHandler = async (
+  p: VoidAttentionPayload
+) => {
   if (p.proposalA === undefined || p.proposalB === undefined) return p;
   if (!p.proposalAccepted || p.offerA !== p.offerB) {
     const flat = p.proposalA * p.dimB + p.proposalB;
@@ -258,7 +288,11 @@ const ResidualUpdateCrossHandler: GnosisHandler = async (p: VoidAttentionPayload
           if (nA >= 0 && nA < p.dimA && nB >= 0 && nB < p.dimB) {
             const neighborFlat = nA * p.dimB + nB;
             const dist = Math.abs(da) + Math.abs(db);
-            c0Update(p.walkerCross, neighborFlat, Math.max(1, Math.round(magnitude / dist)));
+            c0Update(
+              p.walkerCross,
+              neighborFlat,
+              Math.max(1, Math.round(magnitude / dist))
+            );
           }
         }
       }
@@ -294,7 +328,7 @@ const GaitAdaptHandler: GnosisHandler = async (p: VoidAttentionPayload) => {
 
 async function invokeVoidAttentionHandler(
   handler: GnosisHandler,
-  payload: VoidAttentionPayload,
+  payload: VoidAttentionPayload
 ): Promise<VoidAttentionPayload> {
   return handler(payload, {}, undefined) as Promise<VoidAttentionPayload>;
 }
@@ -324,7 +358,10 @@ export function registerVoidAttentionHandlers(registry: GnosisRegistry): void {
   // Self-attention
   registry.register('ComplementDistributionA', ComplementDistributionAHandler);
   registry.register('ComplementDistributionB', ComplementDistributionBHandler);
-  registry.register('ComplementDistributionCross', ComplementDistributionCrossHandler);
+  registry.register(
+    'ComplementDistributionCross',
+    ComplementDistributionCrossHandler
+  );
 
   // Cross-attention
   registry.register('OuterProduct', OuterProductHandler);
@@ -363,7 +400,7 @@ export function createVoidAttentionPayload(
   payoff: (a: number, b: number) => [number, number],
   rng: () => number = Math.random,
   neighborhoodRadius = 1,
-  decayRate = 0,
+  decayRate = 0
 ): VoidAttentionPayload {
   const boundaryA = createVoidBoundary(dimA);
   const boundaryB = createVoidBoundary(dimB);
@@ -391,7 +428,7 @@ export function createVoidAttentionPayload(
  * of the void-attention.gg topology).
  */
 export async function voidAttentionForward(
-  payload: VoidAttentionPayload,
+  payload: VoidAttentionPayload
 ): Promise<VoidAttentionPayload> {
   let p = payload;
 

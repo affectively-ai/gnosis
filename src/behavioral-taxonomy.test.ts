@@ -148,7 +148,9 @@ describe('behavioral taxonomy measurement', () => {
     expect(topology).toContain(
       '(loop_1_result)-[:INTERFERE { relation: "enhances" }]->(loop_2_when)'
     );
-    expect(topology).toContain('(behavioral_taxonomy_summary: TaxonomySummary)');
+    expect(topology).toContain(
+      '(behavioral_taxonomy_summary: TaxonomySummary)'
+    );
   });
 
   test('produces a non-zero buley number for the modeled fixture', async () => {
@@ -231,8 +233,10 @@ describe('behavioral taxonomy measurement', () => {
       },
       intervention: {
         difficulty: 7,
-        interdict: 'Use implementation intentions: "When X happens, I will do Y"',
-        minimize: 'Reframe the situation: what would an objective observer see?',
+        interdict:
+          'Use implementation intentions: "When X happens, I will do Y"',
+        minimize:
+          'Reframe the situation: what would an objective observer see?',
         recognize: 'Notice when internal narratives affect external behavior',
       },
       meta: {
@@ -252,7 +256,9 @@ describe('behavioral taxonomy measurement', () => {
       'recognize',
       'interdict',
     ]);
-    expect(execution.payload.operator?.mechanism).toContain('executive function');
+    expect(execution.payload.operator?.mechanism).toContain(
+      'executive function'
+    );
     expect(execution.payload.summary).toContain(
       'Calm demeanor followed by explosive, manic productivity'
     );
@@ -290,11 +296,15 @@ describe('behavioral taxonomy measurement', () => {
       expect(manifest.entries).toHaveLength(3);
 
       const firstEntry = manifest.entries[0];
-      expect(existsSync(path.join(outputDirectory, firstEntry.topologyFile))).toBe(
+      expect(
+        existsSync(path.join(outputDirectory, firstEntry.topologyFile))
+      ).toBe(true);
+      expect(existsSync(path.join(outputDirectory, firstEntry.tlaFile))).toBe(
         true
       );
-      expect(existsSync(path.join(outputDirectory, firstEntry.tlaFile))).toBe(true);
-      expect(existsSync(path.join(outputDirectory, firstEntry.cfgFile))).toBe(true);
+      expect(existsSync(path.join(outputDirectory, firstEntry.cfgFile))).toBe(
+        true
+      );
 
       const tla = readFileSync(
         path.join(outputDirectory, firstEntry.tlaFile),
@@ -305,7 +315,9 @@ describe('behavioral taxonomy measurement', () => {
       const manifestOnDisk = JSON.parse(
         readFileSync(path.join(outputDirectory, 'manifest.json'), 'utf8')
       ) as { entries: Array<{ loopId: number }> };
-      expect(manifestOnDisk.entries.map((entry) => entry.loopId)).toEqual([1, 2, 3]);
+      expect(manifestOnDisk.entries.map((entry) => entry.loopId)).toEqual([
+        1, 2, 3,
+      ]);
     } finally {
       rmSync(outputDirectory, { recursive: true, force: true });
     }
@@ -357,7 +369,9 @@ describe('behavioral taxonomy measurement', () => {
 
       const topologyFiles = manifest.entries.map((entry) => entry.topologyFile);
       expect(new Set(topologyFiles).size).toBe(2);
-      expect(topologyFiles.every((file) => file.includes('category'))).toBe(true);
+      expect(topologyFiles.every((file) => file.includes('category'))).toBe(
+        true
+      );
     } finally {
       rmSync(outputDirectory, { recursive: true, force: true });
     }

@@ -869,7 +869,7 @@ const VALID_RUNTIME_TARGETS: RuntimeTarget[] = [
   'agnostic',
   'workers',
   'node',
-  'bun',
+  'gnode',
 ];
 
 function parseRuntimeTarget(rawArgs: string[]): RuntimeTarget | null {

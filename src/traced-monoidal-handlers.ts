@@ -5,8 +5,16 @@
 import type { GnosisRegistry } from './runtime/registry.js';
 import {
   catObject,
-  identity, process, fork, fold, race, vent, symmetry,
-  compose, tensor, trace,
+  identity,
+  process,
+  fork,
+  fold,
+  race,
+  vent,
+  symmetry,
+  compose,
+  tensor,
+  trace,
   verifyCoherence,
   buildStringDiagram,
   diagramBeta1,
@@ -79,7 +87,9 @@ export function registerTracedMonoidalHandlers(registry: GnosisRegistry): void {
   });
 
   registry.register('EdgeMorphismConverter', async (payload) => {
-    return edgeToMorphism(payload as { edgeType: string; sourceCount: number; targetCount: number });
+    return edgeToMorphism(
+      payload as { edgeType: string; sourceCount: number; targetCount: number }
+    );
   });
 }
 

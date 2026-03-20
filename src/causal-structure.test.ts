@@ -1,14 +1,25 @@
 import { describe, it, expect } from 'bun:test';
 import {
-  buildCausalStructure, causalRelation, lightCone,
-  causalDiamond, properTime, causalToVoidBoundary, causalHorizon,
+  buildCausalStructure,
+  causalRelation,
+  lightCone,
+  causalDiamond,
+  properTime,
+  causalToVoidBoundary,
+  causalHorizon,
 } from './causal-structure.js';
 import { complementDistribution } from './void.js';
 
 describe('Causal structure', () => {
   const cs = buildCausalStructure(
     ['a', 'b', 'c', 'd', 'e'],
-    [['a', 'b'], ['a', 'c'], ['b', 'd'], ['c', 'd'], ['d', 'e']],
+    [
+      ['a', 'b'],
+      ['a', 'c'],
+      ['b', 'd'],
+      ['c', 'd'],
+      ['d', 'e'],
+    ]
   );
 
   it('computes correct depths', () => {
@@ -18,11 +29,15 @@ describe('Causal structure', () => {
   });
 
   it('a is in the causal past of e', () => {
-    expect(causalRelation(cs, cs.nodeIndex.get('a')!, cs.nodeIndex.get('e')!)).toBe('future');
+    expect(
+      causalRelation(cs, cs.nodeIndex.get('a')!, cs.nodeIndex.get('e')!)
+    ).toBe('future');
   });
 
   it('b and c are spacelike separated', () => {
-    expect(causalRelation(cs, cs.nodeIndex.get('b')!, cs.nodeIndex.get('c')!)).toBe('spacelike');
+    expect(
+      causalRelation(cs, cs.nodeIndex.get('b')!, cs.nodeIndex.get('c')!)
+    ).toBe('spacelike');
   });
 
   it('identical relation', () => {
@@ -32,20 +47,30 @@ describe('Causal structure', () => {
 
   it('light cone partitions all nodes', () => {
     const cone = lightCone(cs, cs.nodeIndex.get('a')!);
-    expect(cone.past.length + cone.future.length + cone.spacelike.length).toBe(cs.nodes.length - 1);
+    expect(cone.past.length + cone.future.length + cone.spacelike.length).toBe(
+      cs.nodes.length - 1
+    );
   });
 
   it('causal diamond between a and e contains b, c, d', () => {
-    const diamond = causalDiamond(cs, cs.nodeIndex.get('a')!, cs.nodeIndex.get('e')!);
+    const diamond = causalDiamond(
+      cs,
+      cs.nodeIndex.get('a')!,
+      cs.nodeIndex.get('e')!
+    );
     expect(diamond.length).toBe(3);
   });
 
   it('proper time from a to e is 3', () => {
-    expect(properTime(cs, cs.nodeIndex.get('a')!, cs.nodeIndex.get('e')!)).toBe(3);
+    expect(properTime(cs, cs.nodeIndex.get('a')!, cs.nodeIndex.get('e')!)).toBe(
+      3
+    );
   });
 
   it('proper time between spacelike nodes is null', () => {
-    expect(properTime(cs, cs.nodeIndex.get('b')!, cs.nodeIndex.get('c')!)).toBeNull();
+    expect(
+      properTime(cs, cs.nodeIndex.get('b')!, cs.nodeIndex.get('c')!)
+    ).toBeNull();
   });
 
   it('void boundary has more void at deeper nodes', () => {

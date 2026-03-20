@@ -455,7 +455,9 @@ export class QDoc {
     ) {
       const key = edge.properties.key;
       const map = this._maps.get(path);
-      const value = deserializeCrdtValue(this._resolveEdgeProperty(edge, 'value'));
+      const value = deserializeCrdtValue(
+        this._resolveEdgeProperty(edge, 'value')
+      );
       const hadPreviousValue = map?.has(key) ?? false;
       const previousValue = map?.applyRemoteSet(key, value);
       return hadPreviousValue
@@ -507,7 +509,9 @@ export class QDoc {
     if (sourceId === `arr_${path}` && edge.type === 'FORK') {
       const array = this._arrays.get(path);
       if (edge.properties.op === 'push') {
-        const value = deserializeCrdtValue(this._resolveEdgeProperty(edge, 'value'));
+        const value = deserializeCrdtValue(
+          this._resolveEdgeProperty(edge, 'value')
+        );
         array?.applyRemotePush(value);
         return {
           type: 'insert',
@@ -1016,9 +1020,7 @@ export class QMap<T = unknown> {
     return this._doc;
   }
 
-  observe(
-    handler: (event: QMapEvent<T>) => void
-  ): void {
+  observe(handler: (event: QMapEvent<T>) => void): void {
     if (this._observeHandlers.has(handler)) {
       return;
     }
@@ -1051,9 +1053,7 @@ export class QMap<T = unknown> {
     this._doc.observe(this._name, wrapped);
   }
 
-  unobserve(
-    handler: (event: QMapEvent<T>) => void
-  ): void {
+  unobserve(handler: (event: QMapEvent<T>) => void): void {
     const wrapped = this._observeHandlers.get(handler);
     if (!wrapped) {
       return;

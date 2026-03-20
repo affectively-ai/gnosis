@@ -57,7 +57,10 @@ describe('checkTypeScriptWithGnosis', () => {
   });
 
   it('handles parallel operations (Promise.all)', async () => {
-    const result = await checkTypeScriptWithGnosis(PARALLEL_TS, 'test-parallel.ts');
+    const result = await checkTypeScriptWithGnosis(
+      PARALLEL_TS,
+      'test-parallel.ts'
+    );
     expect(result).toBeDefined();
     expect(result.topology.nodes.length).toBeGreaterThan(2);
     expect(result.topology.edges.length).toBeGreaterThan(0);
@@ -67,9 +70,13 @@ describe('checkTypeScriptWithGnosis', () => {
   });
 
   it('reports buley threshold violations', async () => {
-    const result = await checkTypeScriptWithGnosis(SIMPLE_TS, 'test-simple.ts', {
-      maxBuley: 0,
-    });
+    const result = await checkTypeScriptWithGnosis(
+      SIMPLE_TS,
+      'test-simple.ts',
+      {
+        maxBuley: 0,
+      }
+    );
     const buleyDiags = result.diagnostics.filter(
       (d) => d.ruleId === 'gnosis/buley-threshold'
     );

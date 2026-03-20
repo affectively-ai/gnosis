@@ -44,7 +44,9 @@ function parseProperties(propertiesRaw?: string): Record<string, string> {
   return properties;
 }
 
-function renderProperties(properties: Readonly<Record<string, string>>): string {
+function renderProperties(
+  properties: Readonly<Record<string, string>>
+): string {
   const entries = Object.entries(properties);
   if (entries.length === 0) {
     return '';
@@ -141,7 +143,10 @@ function resolveMiddleOutCorridorKey(
     'middleOut',
     'corridor'
   );
-  if (explicit && !['true', '1', 'yes', 'on'].includes(explicit.toLowerCase())) {
+  if (
+    explicit &&
+    !['true', '1', 'yes', 'on'].includes(explicit.toLowerCase())
+  ) {
     return explicit;
   }
 
@@ -377,7 +382,9 @@ export function lowerUfcsSource(source: string): string {
   // FORK: per-line lowering (independent, parallelizable)
   const lines = expanded.split('\n');
   const lowered = lines.flatMap((line) => lowerUfcsLine(line));
-  const normalized = expandMiddleOutRequestCompressionSource(lowered.join('\n'));
+  const normalized = expandMiddleOutRequestCompressionSource(
+    lowered.join('\n')
+  );
   // FOLD: join results
   return normalized;
 }

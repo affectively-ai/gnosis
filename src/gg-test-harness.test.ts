@@ -61,9 +61,7 @@ describe('synth formal proofs', () => {
   });
 
   test('envelope.gg — zero superposition (pure state machine)', async () => {
-    const result = await ggTest(readGG(SYNTH_DIR, 'envelope.gg'))
-      .safe()
-      .run();
+    const result = await ggTest(readGG(SYNTH_DIR, 'envelope.gg')).safe().run();
 
     expect(result.ok).toBe(true);
     expect(result.program.nodeCount).toBeGreaterThanOrEqual(5);
@@ -79,9 +77,7 @@ describe('synth formal proofs', () => {
   });
 
   test('lfo.gg — pure process chain, zero superposition', async () => {
-    const result = await ggTest(readGG(SYNTH_DIR, 'lfo.gg'))
-      .safe()
-      .run();
+    const result = await ggTest(readGG(SYNTH_DIR, 'lfo.gg')).safe().run();
 
     expect(result.ok).toBe(true);
     expect(result.program.terminalNodes).toContain('lfo_out');
@@ -133,9 +129,7 @@ describe('transformer formal proofs', () => {
   });
 
   test('ffn.gg — pure sequential, zero superposition', async () => {
-    const result = await ggTest(readGG(TRANSFORMER_DIR, 'ffn.gg'))
-      .safe()
-      .run();
+    const result = await ggTest(readGG(TRANSFORMER_DIR, 'ffn.gg')).safe().run();
 
     expect(result.ok).toBe(true);
     expect(result.program.terminalNodes).toContain('ffn_out');
@@ -160,7 +154,10 @@ describe('transformer formal proofs', () => {
   });
 
   test('torture.gg — complex high-entropy verification', async () => {
-    const tortureGg = readFileSync(resolve(__dirname, '../examples/torture.gg'), 'utf-8');
+    const tortureGg = readFileSync(
+      resolve(__dirname, '../examples/torture.gg'),
+      'utf-8'
+    );
     const result = await ggTest(tortureGg)
       .beta1Bounded(50)
       .reachable('sink')
@@ -264,7 +261,9 @@ describe('quantum CRDT formal proofs', () => {
 
 describe('aeon-inspired formal proofs', () => {
   test('edge-pipeline-parallelism.gg — bounded failover pipeline stays within shard capacity', async () => {
-    const result = await ggTest(readGG(EXAMPLES_DIR, 'edge-pipeline-parallelism.gg'))
+    const result = await ggTest(
+      readGG(EXAMPLES_DIR, 'edge-pipeline-parallelism.gg')
+    )
       .safe()
       .beta1Bounded(8)
       .reachable('response_out')
@@ -275,7 +274,9 @@ describe('aeon-inspired formal proofs', () => {
 
     const program = parseGG(EXAMPLES_DIR, 'edge-pipeline-parallelism.gg');
     const shardNodes = program.nodes.filter((node) =>
-      node.labels.some((label) => label === 'WorkerShard' || label === 'WarmStandby')
+      node.labels.some(
+        (label) => label === 'WorkerShard' || label === 'WarmStandby'
+      )
     );
 
     expect(shardNodes).toHaveLength(3);
@@ -289,7 +290,8 @@ describe('aeon-inspired formal proofs', () => {
 
     expect(
       program.edges.some(
-        (edge) => edge.type === 'RACE' && edge.properties.strategy === 'first-healthy'
+        (edge) =>
+          edge.type === 'RACE' && edge.properties.strategy === 'first-healthy'
       )
     ).toBe(true);
   });
@@ -305,15 +307,21 @@ describe('aeon-inspired formal proofs', () => {
     expect(result.program.terminalNodes).toContain('public_mesh');
 
     const program = parseGG(EXAMPLES_DIR, 'audio-token-privacy.gg');
-    const noiseNode = program.nodes.find((node) => node.id === 'identity_noise');
-    const publicMeshNode = program.nodes.find((node) => node.id === 'public_mesh');
+    const noiseNode = program.nodes.find(
+      (node) => node.id === 'identity_noise'
+    );
+    const publicMeshNode = program.nodes.find(
+      (node) => node.id === 'public_mesh'
+    );
 
     expect(noiseNode?.properties.target_layers).toBe('5-8');
     expect(publicMeshNode?.properties.voiceprint_recoverable).toBe('false');
   });
 
   test('crdt-split-brain-prevention.gg — replay-guarded writes converge deterministically', async () => {
-    const result = await ggTest(readGG(EXAMPLES_DIR, 'crdt-split-brain-prevention.gg'))
+    const result = await ggTest(
+      readGG(EXAMPLES_DIR, 'crdt-split-brain-prevention.gg')
+    )
       .safe()
       .beta1Bounded(8)
       .reachable('canonical_state')
@@ -323,20 +331,30 @@ describe('aeon-inspired formal proofs', () => {
     expect(result.program.terminalNodes).toContain('canonical_state');
 
     const program = parseGG(EXAMPLES_DIR, 'crdt-split-brain-prevention.gg');
-    const guardedWest = program.nodes.find((node) => node.id === 'guarded_west');
-    const guardedEast = program.nodes.find((node) => node.id === 'guarded_east');
-    const canonicalState = program.nodes.find((node) => node.id === 'canonical_state');
+    const guardedWest = program.nodes.find(
+      (node) => node.id === 'guarded_west'
+    );
+    const guardedEast = program.nodes.find(
+      (node) => node.id === 'guarded_east'
+    );
+    const canonicalState = program.nodes.find(
+      (node) => node.id === 'canonical_state'
+    );
     const observeEdge = program.edges.find((edge) => edge.type === 'OBSERVE');
 
     expect(guardedWest?.properties.nonce).toBe('west-41');
     expect(guardedEast?.properties.nonce).toBe('east-77');
-    expect(guardedWest?.properties.nonce).not.toBe(guardedEast?.properties.nonce);
+    expect(guardedWest?.properties.nonce).not.toBe(
+      guardedEast?.properties.nonce
+    );
     expect(observeEdge?.properties.strategy).toBe('deterministic-crdt');
     expect(canonicalState?.properties.split_brain).toBe('false');
   });
 
   test('webgpu-graph-flattening.gg — contiguous Float32Array path races the scattered walk', async () => {
-    const result = await ggTest(readGG(EXAMPLES_DIR, 'webgpu-graph-flattening.gg'))
+    const result = await ggTest(
+      readGG(EXAMPLES_DIR, 'webgpu-graph-flattening.gg')
+    )
       .safe()
       .beta1Bounded(8)
       .reachable('prediction_out')
@@ -346,8 +364,12 @@ describe('aeon-inspired formal proofs', () => {
     expect(result.program.terminalNodes).toContain('prediction_out');
 
     const program = parseGG(EXAMPLES_DIR, 'webgpu-graph-flattening.gg');
-    const objectGraph = program.nodes.find((node) => node.id === 'object_graph');
-    const flattenBuffer = program.nodes.find((node) => node.id === 'flatten_buffer');
+    const objectGraph = program.nodes.find(
+      (node) => node.id === 'object_graph'
+    );
+    const flattenBuffer = program.nodes.find(
+      (node) => node.id === 'flatten_buffer'
+    );
     const raceEdge = program.edges.find((edge) => edge.type === 'RACE');
 
     expect(objectGraph?.properties.layout).toBe('pointer-chasing');
@@ -405,18 +427,13 @@ describe('gg test harness API', () => {
   });
 
   test('reachable assertion', async () => {
-    const result = await ggTest(SIMPLE_GG)
-      .reachable('b')
-      .run();
+    const result = await ggTest(SIMPLE_GG).reachable('b').run();
 
     expect(result.ok).toBe(true);
   });
 
   test('reachesBeta1 assertion', async () => {
-    const result = await ggTest(FORK_GG)
-      .reachesBeta1(1)
-      .reachesBeta1(0)
-      .run();
+    const result = await ggTest(FORK_GG).reachesBeta1(1).reachesBeta1(0).run();
 
     expect(result.ok).toBe(true);
   });

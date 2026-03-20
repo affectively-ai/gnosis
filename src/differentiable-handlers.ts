@@ -8,11 +8,23 @@
 import type { GnosisRegistry } from './runtime/registry.js';
 import {
   GradientTape,
-  parameter, constant, diffValue,
-  add, mul, sub, neg,
-  relu, sigmoid, tanh, exp, log, pow,
-  mseLoss, bceLoss,
-  createOptimizer, optimizerStep,
+  parameter,
+  constant,
+  diffValue,
+  add,
+  mul,
+  sub,
+  neg,
+  relu,
+  sigmoid,
+  tanh,
+  exp,
+  log,
+  pow,
+  mseLoss,
+  bceLoss,
+  createOptimizer,
+  optimizerStep,
   analyzeGradientFlow,
   type DiffValue,
   type OptimizerConfig,
@@ -32,8 +44,17 @@ export function registerDifferentiableHandlers(registry: GnosisRegistry): void {
     const lr = parseFloat(props.learning_rate ?? '0.01');
     const momentum = parseFloat(props.momentum ?? '0');
     const decay = parseFloat(props.weight_decay ?? '0');
-    activeOptimizer = createOptimizer({ learningRate: lr, momentum, weightDecay: decay });
-    return { initialized: true, learningRate: lr, momentum, weightDecay: decay };
+    activeOptimizer = createOptimizer({
+      learningRate: lr,
+      momentum,
+      weightDecay: decay,
+    });
+    return {
+      initialized: true,
+      learningRate: lr,
+      momentum,
+      weightDecay: decay,
+    };
   });
 
   // Create a parameter (tracked, requires grad)
@@ -94,7 +115,10 @@ export function registerDifferentiableHandlers(registry: GnosisRegistry): void {
 
   // Loss functions
   registry.register('MSELoss', async (payload) => {
-    const { prediction, target } = payload as { prediction: number; target: number };
+    const { prediction, target } = payload as {
+      prediction: number;
+      target: number;
+    };
     const result = mseLoss(activeTape, prediction, target);
     return { index: result, value: activeTape.get(result).data };
   });
@@ -105,7 +129,7 @@ export function registerDifferentiableHandlers(registry: GnosisRegistry): void {
     activeTape.backward(lossIdx);
     const params = activeTape.parameters();
     return {
-      gradients: params.map(p => ({
+      gradients: params.map((p) => ({
         value: p.data,
         grad: p.grad,
         label: p.label,
@@ -119,7 +143,7 @@ export function registerDifferentiableHandlers(registry: GnosisRegistry): void {
       return { error: 'No optimizer initialized' };
     }
     optimizerStep(activeTape, activeOptimizer, paramIndices);
-    const params = paramIndices.map(i => {
+    const params = paramIndices.map((i) => {
       const p = activeTape.get(i);
       return { index: i, value: p.data, grad: p.grad, label: p.label };
     });
@@ -162,7 +186,16 @@ export function registerDifferentiableHandlers(registry: GnosisRegistry): void {
 }
 
 export const DIFFERENTIABLE_OPS = [
-  'add', 'mul', 'sub', 'neg',
-  'relu', 'sigmoid', 'tanh', 'exp', 'log', 'pow',
-  'mseLoss', 'bceLoss',
+  'add',
+  'mul',
+  'sub',
+  'neg',
+  'relu',
+  'sigmoid',
+  'tanh',
+  'exp',
+  'log',
+  'pow',
+  'mseLoss',
+  'bceLoss',
 ] as const;

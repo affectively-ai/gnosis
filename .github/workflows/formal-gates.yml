@@ -51,20 +51,19 @@ jobs:
           echo "needs_java=${needs_java}" >> "$GITHUB_OUTPUT"
           echo "has_package_json=${has_package_json}" >> "$GITHUB_OUTPUT"
 
-      - uses: oven-sh/setup-bun@v2
+      - name: Setup Node
         if: steps.detect.outputs.has_gg == 'true'
+        uses: actions/setup-node@v4
         with:
-          bun-version: latest
+          node-version: '22'
+
+      - name: Setup pnpm
+        if: steps.detect.outputs.has_gg == 'true'
+        uses: pnpm/action-setup@v4
 
       - name: Install dependencies
         if: steps.detect.outputs.has_gg == 'true' && steps.detect.outputs.has_package_json == 'true'
-        run: |
-          set -euo pipefail
-          if [ -f bun.lock ] || [ -f bun.lockb ]; then
-            bun install --frozen-lockfile
-          else
-            bun install
-          fi
+        run: pnpm install
 
       - name: Install Lean toolchain
         if: steps.detect.outputs.needs_lean == 'true'
@@ -89,7 +88,7 @@ jobs:
           mkdir -p "${TLA_OUT}" "${LEAN_OUT}" "${JSON_OUT}"
 
           if [ -f ./bin/gnosis.js ]; then
-            GNOSIS_CMD=(bun ./bin/gnosis.js)
+            GNOSIS_CMD=(node ./bin/gnosis.js)
           elif [ -x ./bin/gnosis ]; then
             GNOSIS_CMD=(./bin/gnosis)
           elif [ -x ./node_modules/.bin/gnosis ]; then
@@ -107,10 +106,10 @@ jobs:
 
           for file in "${GG_FILES[@]}"; do
             echo "Betty strict lint: ${file}"
-            result=$("${GNOSIS_CMD[@]}" build "$file" --target bun --max-buley 0 --tla-out "${TLA_OUT}" --lean-out "${LEAN_OUT}" --json)
+            result=$("${GNOSIS_CMD[@]}" build "$file" --target node --max-buley 0 --tla-out "${TLA_OUT}" --lean-out "${LEAN_OUT}" --json)
             safe_name="${file//\//__}"
             echo "$result" > "${JSON_OUT}/${safe_name}.json"
-            "${GNOSIS_CMD[@]}" build "$file" --target bun --max-buley 0 --tla-out "${TLA_OUT}" --lean-out "${LEAN_OUT}" --sarif > "${JSON_OUT}/${safe_name}.sarif"
+            "${GNOSIS_CMD[@]}" build "$file" --target node --max-buley 0 --tla-out "${TLA_OUT}" --lean-out "${LEAN_OUT}" --sarif > "${JSON_OUT}/${safe_name}.sarif"
             echo "$result" | node -e '
               const fs = require("fs");
               const data = JSON.parse(fs.readFileSync(0, "utf8"));

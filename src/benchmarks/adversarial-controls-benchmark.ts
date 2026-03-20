@@ -6,9 +6,7 @@ import {
   DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES,
   type FoldTrainingStrategy,
 } from './fold-training-benchmark.js';
-import {
-  DEFAULT_MINI_MOE_ROUTING_TOPOLOGY_FILES,
-} from './moe-routing-benchmark.js';
+import { DEFAULT_MINI_MOE_ROUTING_TOPOLOGY_FILES } from './moe-routing-benchmark.js';
 import {
   bootstrapMeanConfidenceInterval,
   createDeterministicRandom,
@@ -161,7 +159,7 @@ interface AdversarialTaskConfig {
 }
 
 const adversarialStrategies = Object.keys(
-  DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES,
+  DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES
 ) as AdversarialStrategy[];
 
 const expertSpecs: readonly ExpertSpec[] = [
@@ -192,7 +190,7 @@ function countConnectedComponents(
   edges: readonly {
     readonly sourceIds: readonly string[];
     readonly targetIds: readonly string[];
-  }[],
+  }[]
 ): number {
   const neighbors = new Map<string, Set<string>>();
   for (const nodeId of nodeIds) {
@@ -242,22 +240,29 @@ function structuralBeta1(
   edges: readonly {
     readonly sourceIds: readonly string[];
     readonly targetIds: readonly string[];
-  }[],
+  }[]
 ): number {
   const expandedEdgeCount = edges.reduce(
     (sum, edge) => sum + edge.sourceIds.length * edge.targetIds.length,
-    0,
+    0
   );
   return Math.max(
     0,
-    expandedEdgeCount - nodeIds.length + countConnectedComponents(nodeIds, edges),
+    expandedEdgeCount -
+      nodeIds.length +
+      countConnectedComponents(nodeIds, edges)
   );
 }
 
 async function loadAffineTopologyMetrics(): Promise<AdversarialTopologyMetrics> {
-  const source = await readFile(DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES.linear, 'utf8');
+  const source = await readFile(
+    DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES.linear,
+    'utf8'
+  );
   const program = parseGgProgram(lowerUfcsSource(source));
-  const branchNodes = program.nodes.filter((node) => node.labels.includes('AffineBranch'));
+  const branchNodes = program.nodes.filter((node) =>
+    node.labels.includes('AffineBranch')
+  );
   return {
     nodeCount: program.nodes.length,
     edgeCount: program.edges.length,
@@ -266,7 +271,7 @@ async function loadAffineTopologyMetrics(): Promise<AdversarialTopologyMetrics> 
       program.edges.map((edge) => ({
         sourceIds: edge.sourceIds,
         targetIds: edge.targetIds,
-      })),
+      }))
     ),
     unitCount: branchNodes.length,
     parameterCount: branchNodes.length * 2,
@@ -274,9 +279,14 @@ async function loadAffineTopologyMetrics(): Promise<AdversarialTopologyMetrics> 
 }
 
 async function loadRoutedTopologyMetrics(): Promise<AdversarialTopologyMetrics> {
-  const source = await readFile(DEFAULT_MINI_MOE_ROUTING_TOPOLOGY_FILES.linear, 'utf8');
+  const source = await readFile(
+    DEFAULT_MINI_MOE_ROUTING_TOPOLOGY_FILES.linear,
+    'utf8'
+  );
   const program = parseGgProgram(lowerUfcsSource(source));
-  const expertNodes = program.nodes.filter((node) => node.labels.includes('MoEExpert'));
+  const expertNodes = program.nodes.filter((node) =>
+    node.labels.includes('MoEExpert')
+  );
   return {
     nodeCount: program.nodes.length,
     edgeCount: program.edges.length,
@@ -285,7 +295,7 @@ async function loadRoutedTopologyMetrics(): Promise<AdversarialTopologyMetrics> 
       program.edges.map((edge) => ({
         sourceIds: edge.sourceIds,
         targetIds: edge.targetIds,
-      })),
+      }))
     ),
     unitCount: expertNodes.length,
     parameterCount: expertNodes.reduce((sum, node) => {
@@ -320,38 +330,40 @@ function initializeRoutedParameters(seed: number): ExpertParameters[] {
 function buildAffineSamples(
   leftAxis: readonly number[],
   rightAxis: readonly number[],
-  target: (leftInput: number, rightInput: number) => number,
+  target: (leftInput: number, rightInput: number) => number
 ): AffineSample[] {
   return leftAxis.flatMap((leftInput) =>
     rightAxis.map((rightInput) => ({
       leftInput,
       rightInput,
       target: target(leftInput, rightInput),
-    })),
+    }))
   );
 }
 
 function buildRoutedSamples(
   leftAxis: readonly number[],
   rightAxis: readonly number[],
-  target: (leftInput: number, rightInput: number) => number,
+  target: (leftInput: number, rightInput: number) => number
 ): RoutedSample[] {
   return leftAxis.flatMap((leftInput) =>
     rightAxis.map((rightInput) => ({
       leftInput,
       rightInput,
       target: target(leftInput, rightInput),
-    })),
+    }))
   );
 }
 
 function predictAffine(
   strategy: AdversarialStrategy,
   parameters: AffineParameters,
-  sample: AffineSample,
+  sample: AffineSample
 ): AffinePrediction {
-  const leftValue = parameters.leftWeight * sample.leftInput + parameters.leftBias;
-  const rightValue = parameters.rightWeight * sample.rightInput + parameters.rightBias;
+  const leftValue =
+    parameters.leftWeight * sample.leftInput + parameters.leftBias;
+  const rightValue =
+    parameters.rightWeight * sample.rightInput + parameters.rightBias;
 
   if (strategy === 'linear') {
     return {
@@ -385,7 +397,7 @@ function updateAffineParameters(
   strategy: AdversarialStrategy,
   parameters: AffineParameters,
   sample: AffineSample,
-  learningRate: number,
+  learningRate: number
 ): void {
   const prediction = predictAffine(strategy, parameters, sample);
   const error = prediction.prediction - sample.target;
@@ -412,7 +424,7 @@ function evaluateAffineSamples(
   strategy: AdversarialStrategy,
   parameters: AffineParameters,
   samples: readonly AffineSample[],
-  tolerance: number,
+  tolerance: number
 ): {
   readonly meanSquaredError: number;
   readonly exactWithinToleranceFraction: number;
@@ -427,7 +439,8 @@ function evaluateAffineSamples(
   let squaredErrorSum = 0;
   let exactCount = 0;
   for (const sample of samples) {
-    const error = predictAffine(strategy, parameters, sample).prediction - sample.target;
+    const error =
+      predictAffine(strategy, parameters, sample).prediction - sample.target;
     squaredErrorSum += error * error;
     if (Math.abs(error) <= tolerance) {
       exactCount++;
@@ -443,7 +456,7 @@ function evaluateAffineSamples(
 function predictRouted(
   strategy: AdversarialStrategy,
   parameters: readonly ExpertParameters[],
-  sample: RoutedSample,
+  sample: RoutedSample
 ): RoutedPrediction {
   const expertActivations = expertSpecs.map((expert, index) => {
     const parameter = parameters[index];
@@ -453,7 +466,9 @@ function predictRouted(
 
     const signedInput = expert.signedProjection(sample);
     const axisInput = expert.axisProjection(sample);
-    const gate = sigmoid(parameter.gateWeight * signedInput + parameter.gateBias);
+    const gate = sigmoid(
+      parameter.gateWeight * signedInput + parameter.gateBias
+    );
     const value = parameter.valueWeight * axisInput + parameter.valueBias;
     return {
       gate,
@@ -479,7 +494,10 @@ function predictRouted(
 
   if (strategy === 'linear') {
     return {
-      prediction: expertActivations.reduce((sum, activation) => sum + activation.output, 0),
+      prediction: expertActivations.reduce(
+        (sum, activation) => sum + activation.output,
+        0
+      ),
       selectedExpertIndex,
       expertActivations,
     };
@@ -504,13 +522,16 @@ function updateRoutedParameters(
   strategy: AdversarialStrategy,
   parameters: ExpertParameters[],
   sample: RoutedSample,
-  learningRate: number,
+  learningRate: number
 ): void {
   const prediction = predictRouted(strategy, parameters, sample);
   const error = prediction.prediction - sample.target;
 
   for (let index = 0; index < parameters.length; index++) {
-    if (strategy === 'winner-take-all' && index !== prediction.selectedExpertIndex) {
+    if (
+      strategy === 'winner-take-all' &&
+      index !== prediction.selectedExpertIndex
+    ) {
       continue;
     }
     if (strategy === 'early-stop' && index !== 0) {
@@ -541,7 +562,7 @@ function evaluateRoutedSamples(
   strategy: AdversarialStrategy,
   parameters: readonly ExpertParameters[],
   samples: readonly RoutedSample[],
-  tolerance: number,
+  tolerance: number
 ): {
   readonly meanSquaredError: number;
   readonly exactWithinToleranceFraction: number;
@@ -556,7 +577,8 @@ function evaluateRoutedSamples(
   let squaredErrorSum = 0;
   let exactCount = 0;
   for (const sample of samples) {
-    const error = predictRouted(strategy, parameters, sample).prediction - sample.target;
+    const error =
+      predictRouted(strategy, parameters, sample).prediction - sample.target;
     squaredErrorSum += error * error;
     if (Math.abs(error) <= tolerance) {
       exactCount++;
@@ -570,14 +592,19 @@ function evaluateRoutedSamples(
 }
 
 function summarizeCheckpoints(
-  perSeedCheckpoints: readonly (readonly { readonly epoch: number; readonly evalMeanSquaredError: number; }[])[],
-  ciSeedBase: number,
+  perSeedCheckpoints: readonly (readonly {
+    readonly epoch: number;
+    readonly evalMeanSquaredError: number;
+  }[])[],
+  ciSeedBase: number
 ): AdversarialCheckpointMetric[] {
   const epochCount = perSeedCheckpoints[0]?.length ?? 0;
   return Array.from({ length: epochCount }, (_, checkpointIndex) => {
     const epoch = perSeedCheckpoints[0]?.[checkpointIndex]?.epoch ?? 0;
-    const values = perSeedCheckpoints
-      .map((seedCheckpoints) => seedCheckpoints[checkpointIndex]?.evalMeanSquaredError ?? 0);
+    const values = perSeedCheckpoints.map(
+      (seedCheckpoints) =>
+        seedCheckpoints[checkpointIndex]?.evalMeanSquaredError ?? 0
+    );
     return {
       epoch,
       meanEvalMeanSquaredError: mean(values),
@@ -590,30 +617,45 @@ function summarizeCheckpoints(
 
 function summarizeStrategyReport(
   metrics: readonly AdversarialSeedMetrics[],
-  checkpoints: readonly (readonly { readonly epoch: number; readonly evalMeanSquaredError: number; }[])[],
-  ciSeedBase: number,
+  checkpoints: readonly (readonly {
+    readonly epoch: number;
+    readonly evalMeanSquaredError: number;
+  }[])[],
+  ciSeedBase: number
 ): AdversarialStrategyReport {
-  const finalEvalValues = metrics.map((entry) => entry.finalEvalMeanSquaredError);
-  const exactValues = metrics.map((entry) => entry.exactWithinToleranceFraction);
+  const finalEvalValues = metrics.map(
+    (entry) => entry.finalEvalMeanSquaredError
+  );
+  const exactValues = metrics.map(
+    (entry) => entry.exactWithinToleranceFraction
+  );
   const learningCurveAreas = metrics.map((entry) => entry.learningCurveArea);
   const epochsToTolerance = metrics.map((entry) => entry.epochsToTolerance);
 
   return {
     seedMetrics: metrics,
     checkpoints: summarizeCheckpoints(checkpoints, ciSeedBase),
-    meanFinalTrainMeanSquaredError: mean(metrics.map((entry) => entry.finalTrainMeanSquaredError)),
+    meanFinalTrainMeanSquaredError: mean(
+      metrics.map((entry) => entry.finalTrainMeanSquaredError)
+    ),
     stdevFinalTrainMeanSquaredError: stdev(
-      metrics.map((entry) => entry.finalTrainMeanSquaredError),
+      metrics.map((entry) => entry.finalTrainMeanSquaredError)
     ),
     meanFinalEvalMeanSquaredError: mean(finalEvalValues),
-    finalEvalMeanSquaredErrorCi95: bootstrapMeanConfidenceInterval(finalEvalValues, {
-      seed: ciSeedBase,
-    }),
+    finalEvalMeanSquaredErrorCi95: bootstrapMeanConfidenceInterval(
+      finalEvalValues,
+      {
+        seed: ciSeedBase,
+      }
+    ),
     stdevFinalEvalMeanSquaredError: stdev(finalEvalValues),
     meanExactWithinToleranceFraction: mean(exactValues),
-    exactWithinToleranceFractionCi95: bootstrapMeanConfidenceInterval(exactValues, {
-      seed: ciSeedBase ^ 0x00123456,
-    }),
+    exactWithinToleranceFractionCi95: bootstrapMeanConfidenceInterval(
+      exactValues,
+      {
+        seed: ciSeedBase ^ 0x00123456,
+      }
+    ),
     stdevExactWithinToleranceFraction: stdev(exactValues),
     meanLearningCurveArea: mean(learningCurveAreas),
     learningCurveAreaCi95: bootstrapMeanConfidenceInterval(learningCurveAreas, {
@@ -630,10 +672,10 @@ function summarizeStrategyReport(
 
 function rankStrategies(
   strategies: Record<AdversarialStrategy, AdversarialStrategyReport>,
-  key: 'meanFinalEvalMeanSquaredError' | 'meanLearningCurveArea',
+  key: 'meanFinalEvalMeanSquaredError' | 'meanLearningCurveArea'
 ): AdversarialStrategy[] {
   return [...adversarialStrategies].sort(
-    (left, right) => strategies[left][key] - strategies[right][key],
+    (left, right) => strategies[left][key] - strategies[right][key]
   );
 }
 
@@ -641,7 +683,7 @@ function collectAffineStrategyReport(
   strategy: AdversarialStrategy,
   config: AdversarialTaskConfig,
   trainSamples: readonly AffineSample[],
-  evalSamples: readonly AffineSample[],
+  evalSamples: readonly AffineSample[]
 ): AdversarialStrategyReport {
   const metrics: AdversarialSeedMetrics[] = [];
   const checkpoints: Array<
@@ -655,13 +697,19 @@ function collectAffineStrategyReport(
     const random = createDeterministicRandom(0xb300 + seed * 17);
     const parameters = initializeAffineParameters(seed);
     const shuffledSamples = [...trainSamples];
-    const seedCheckpoints: { epoch: number; evalMeanSquaredError: number }[] = [];
+    const seedCheckpoints: { epoch: number; evalMeanSquaredError: number }[] =
+      [];
     let epochsToTolerance = config.epochs + 1;
 
     for (let epoch = 1; epoch <= config.epochs; epoch++) {
       shuffleInPlace(shuffledSamples, random);
       for (const sample of shuffledSamples) {
-        updateAffineParameters(strategy, parameters, sample, config.learningRate);
+        updateAffineParameters(
+          strategy,
+          parameters,
+          sample,
+          config.learningRate
+        );
       }
 
       if (epoch % config.checkpointInterval === 0 || epoch === config.epochs) {
@@ -669,7 +717,7 @@ function collectAffineStrategyReport(
           strategy,
           parameters,
           evalSamples,
-          config.exactPredictionTolerance,
+          config.exactPredictionTolerance
         );
         seedCheckpoints.push({
           epoch,
@@ -688,13 +736,13 @@ function collectAffineStrategyReport(
       strategy,
       parameters,
       trainSamples,
-      config.exactPredictionTolerance,
+      config.exactPredictionTolerance
     );
     const evalMetrics = evaluateAffineSamples(
       strategy,
       parameters,
       evalSamples,
-      config.exactPredictionTolerance,
+      config.exactPredictionTolerance
     );
 
     metrics.push({
@@ -702,20 +750,26 @@ function collectAffineStrategyReport(
       finalTrainMeanSquaredError: trainMetrics.meanSquaredError,
       finalEvalMeanSquaredError: evalMetrics.meanSquaredError,
       exactWithinToleranceFraction: evalMetrics.exactWithinToleranceFraction,
-      learningCurveArea: mean(seedCheckpoints.map((entry) => entry.evalMeanSquaredError)),
+      learningCurveArea: mean(
+        seedCheckpoints.map((entry) => entry.evalMeanSquaredError)
+      ),
       epochsToTolerance,
     });
     checkpoints.push(seedCheckpoints);
   }
 
-  return summarizeStrategyReport(metrics, checkpoints, 0x610000 + strategy.length * 137);
+  return summarizeStrategyReport(
+    metrics,
+    checkpoints,
+    0x610000 + strategy.length * 137
+  );
 }
 
 function collectRoutedStrategyReport(
   strategy: AdversarialStrategy,
   config: AdversarialTaskConfig,
   trainSamples: readonly RoutedSample[],
-  evalSamples: readonly RoutedSample[],
+  evalSamples: readonly RoutedSample[]
 ): AdversarialStrategyReport {
   const metrics: AdversarialSeedMetrics[] = [];
   const checkpoints: Array<
@@ -729,13 +783,19 @@ function collectRoutedStrategyReport(
     const random = createDeterministicRandom(0xc400 + seed * 19);
     const parameters = initializeRoutedParameters(seed);
     const shuffledSamples = [...trainSamples];
-    const seedCheckpoints: { epoch: number; evalMeanSquaredError: number }[] = [];
+    const seedCheckpoints: { epoch: number; evalMeanSquaredError: number }[] =
+      [];
     let epochsToTolerance = config.epochs + 1;
 
     for (let epoch = 1; epoch <= config.epochs; epoch++) {
       shuffleInPlace(shuffledSamples, random);
       for (const sample of shuffledSamples) {
-        updateRoutedParameters(strategy, parameters, sample, config.learningRate);
+        updateRoutedParameters(
+          strategy,
+          parameters,
+          sample,
+          config.learningRate
+        );
       }
 
       if (epoch % config.checkpointInterval === 0 || epoch === config.epochs) {
@@ -743,7 +803,7 @@ function collectRoutedStrategyReport(
           strategy,
           parameters,
           evalSamples,
-          config.exactPredictionTolerance,
+          config.exactPredictionTolerance
         );
         seedCheckpoints.push({
           epoch,
@@ -762,13 +822,13 @@ function collectRoutedStrategyReport(
       strategy,
       parameters,
       trainSamples,
-      config.exactPredictionTolerance,
+      config.exactPredictionTolerance
     );
     const evalMetrics = evaluateRoutedSamples(
       strategy,
       parameters,
       evalSamples,
-      config.exactPredictionTolerance,
+      config.exactPredictionTolerance
     );
 
     metrics.push({
@@ -776,13 +836,19 @@ function collectRoutedStrategyReport(
       finalTrainMeanSquaredError: trainMetrics.meanSquaredError,
       finalEvalMeanSquaredError: evalMetrics.meanSquaredError,
       exactWithinToleranceFraction: evalMetrics.exactWithinToleranceFraction,
-      learningCurveArea: mean(seedCheckpoints.map((entry) => entry.evalMeanSquaredError)),
+      learningCurveArea: mean(
+        seedCheckpoints.map((entry) => entry.evalMeanSquaredError)
+      ),
       epochsToTolerance,
     });
     checkpoints.push(seedCheckpoints);
   }
 
-  return summarizeStrategyReport(metrics, checkpoints, 0x710000 + strategy.length * 137);
+  return summarizeStrategyReport(
+    metrics,
+    checkpoints,
+    0x710000 + strategy.length * 137
+  );
 }
 
 function buildTaskReport(
@@ -794,15 +860,15 @@ function buildTaskReport(
   successCriterion: TaskSuccessCriterion,
   topology: AdversarialTopologyMetrics,
   trainingBudget: AdversarialTaskConfig,
-  strategies: Record<AdversarialStrategy, AdversarialStrategyReport>,
+  strategies: Record<AdversarialStrategy, AdversarialStrategyReport>
 ): AdversarialTaskReport {
   const rankingByFinalEvalMeanSquaredError = rankStrategies(
     strategies,
-    'meanFinalEvalMeanSquaredError',
+    'meanFinalEvalMeanSquaredError'
   );
   const rankingByLearningCurveArea = rankStrategies(
     strategies,
-    'meanLearningCurveArea',
+    'meanLearningCurveArea'
   );
   const favoredStrategyWinsFinal =
     rankingByFinalEvalMeanSquaredError[0] === favoredStrategy;
@@ -872,13 +938,13 @@ export async function runGnosisAdversarialControlsBenchmark(): Promise<GnosisAdv
     [-1.5, -1.0, -0.5, 0.5, 1.0, 1.5],
     [-1.5, -1.0, -0.5, 0.5, 1.0, 1.5],
     (leftInput, rightInput) =>
-      Math.abs(leftInput) >= Math.abs(rightInput) ? leftInput : rightInput,
+      Math.abs(leftInput) >= Math.abs(rightInput) ? leftInput : rightInput
   );
   const winnerAffineEval = buildAffineSamples(
     [-1.25, -0.75, -0.25, 0.25, 0.75, 1.25],
     [-1.25, -0.75, -0.25, 0.25, 0.75, 1.25],
     (leftInput, rightInput) =>
-      Math.abs(leftInput) >= Math.abs(rightInput) ? leftInput : rightInput,
+      Math.abs(leftInput) >= Math.abs(rightInput) ? leftInput : rightInput
   );
   const winnerAffineStrategies = Object.fromEntries(
     adversarialStrategies.map((strategy) => [
@@ -887,19 +953,21 @@ export async function runGnosisAdversarialControlsBenchmark(): Promise<GnosisAdv
         strategy,
         configs.winnerAffine,
         winnerAffineTrain,
-        winnerAffineEval,
+        winnerAffineEval
       ),
-    ]),
+    ])
   ) as Record<AdversarialStrategy, AdversarialStrategyReport>;
 
-  const winnerRoutedTrain = [0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4].flatMap((leftInput) => [
-    { leftInput, rightInput: leftInput, target: leftInput },
-    { leftInput, rightInput: leftInput * 2, target: leftInput },
-  ]);
+  const winnerRoutedTrain = [0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4].flatMap(
+    (leftInput) => [
+      { leftInput, rightInput: leftInput, target: leftInput },
+      { leftInput, rightInput: leftInput * 2, target: leftInput },
+    ]
+  );
   const winnerRoutedEval = buildRoutedSamples(
     [0.25, 0.45, 0.65, 0.85, 1.05, 1.25],
     [-1.0, -0.5, 0.0, 0.5, 1.0],
-    (leftInput) => leftInput,
+    (leftInput) => leftInput
   );
   const winnerRoutedStrategies = Object.fromEntries(
     adversarialStrategies.map((strategy) => [
@@ -908,19 +976,21 @@ export async function runGnosisAdversarialControlsBenchmark(): Promise<GnosisAdv
         strategy,
         configs.winnerRouted,
         winnerRoutedTrain,
-        winnerRoutedEval,
+        winnerRoutedEval
       ),
-    ]),
+    ])
   ) as Record<AdversarialStrategy, AdversarialStrategyReport>;
 
-  const earlyStopTrain = [-1.5, -1.0, -0.5, 0.5, 1.0, 1.5].flatMap((leftInput) => [
-    { leftInput, rightInput: leftInput, target: leftInput },
-    { leftInput, rightInput: leftInput * 2, target: leftInput },
-  ]);
+  const earlyStopTrain = [-1.5, -1.0, -0.5, 0.5, 1.0, 1.5].flatMap(
+    (leftInput) => [
+      { leftInput, rightInput: leftInput, target: leftInput },
+      { leftInput, rightInput: leftInput * 2, target: leftInput },
+    ]
+  );
   const earlyStopEval = buildAffineSamples(
     [-1.25, -0.75, -0.25, 0.25, 0.75, 1.25],
     [-2.0, -1.0, 0.0, 1.0, 2.0],
-    (leftInput) => leftInput,
+    (leftInput) => leftInput
   );
   const earlyStopStrategies = Object.fromEntries(
     adversarialStrategies.map((strategy) => [
@@ -929,9 +999,9 @@ export async function runGnosisAdversarialControlsBenchmark(): Promise<GnosisAdv
         strategy,
         configs.earlyStopShortBudget,
         earlyStopTrain,
-        earlyStopEval,
+        earlyStopEval
       ),
-    ]),
+    ])
   ) as Record<AdversarialStrategy, AdversarialStrategyReport>;
 
   const tasks: Record<AdversarialTaskId, AdversarialTaskReport> = {
@@ -944,7 +1014,7 @@ export async function runGnosisAdversarialControlsBenchmark(): Promise<GnosisAdv
       'final-and-sample-efficiency',
       affineTopology,
       configs.winnerAffine,
-      winnerAffineStrategies,
+      winnerAffineStrategies
     ),
     'early-stop-routing-first-expert-short-budget': buildTaskReport(
       'Early-stop aligned routed first-expert task',
@@ -955,7 +1025,7 @@ export async function runGnosisAdversarialControlsBenchmark(): Promise<GnosisAdv
       'sample-efficiency',
       routedTopology,
       configs.winnerRouted,
-      winnerRoutedStrategies,
+      winnerRoutedStrategies
     ),
     'early-stop-left-priority-short-budget': buildTaskReport(
       'Early-stop aligned left-priority task',
@@ -966,7 +1036,7 @@ export async function runGnosisAdversarialControlsBenchmark(): Promise<GnosisAdv
       'sample-efficiency',
       affineTopology,
       configs.earlyStopShortBudget,
-      earlyStopStrategies,
+      earlyStopStrategies
     ),
   };
 
@@ -974,12 +1044,15 @@ export async function runGnosisAdversarialControlsBenchmark(): Promise<GnosisAdv
     label: 'gnosis-adversarial-controls-benchmark-v1',
     tasks,
     allAdversarialPredictionsRecovered: Object.values(tasks).every(
-      (task) => task.predictionRecovered,
+      (task) => task.predictionRecovered
     ),
   };
 }
 
-function renderTaskMarkdown(taskId: string, task: AdversarialTaskReport): string {
+function renderTaskMarkdown(
+  taskId: string,
+  task: AdversarialTaskReport
+): string {
   const lines: string[] = [];
   lines.push(`## ${task.title}`);
   lines.push('');
@@ -990,17 +1063,33 @@ function renderTaskMarkdown(taskId: string, task: AdversarialTaskReport): string
   lines.push(`- Favored strategy: \`${task.favoredStrategy}\``);
   lines.push(`- Success criterion: \`${task.successCriterion}\``);
   lines.push(
-    `- Prediction recovered: \`${task.predictionRecovered ? 'yes' : 'no'}\``,
+    `- Prediction recovered: \`${task.predictionRecovered ? 'yes' : 'no'}\``
   );
   lines.push('');
   lines.push(
-    '| Strategy | Final eval MSE | Final eval 95% CI | Exact | Learning-curve area | Area 95% CI | Mean epochs-to-tolerance | Final rank | AUC rank |',
+    '| Strategy | Final eval MSE | Final eval 95% CI | Exact | Learning-curve area | Area 95% CI | Mean epochs-to-tolerance | Final rank | AUC rank |'
   );
   lines.push('| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
   for (const strategy of adversarialStrategies) {
     const report = task.strategies[strategy];
     lines.push(
-      `| \`${strategy}\` | ${report.meanFinalEvalMeanSquaredError.toFixed(3)} | [${report.finalEvalMeanSquaredErrorCi95.low.toFixed(3)}, ${report.finalEvalMeanSquaredErrorCi95.high.toFixed(3)}] | ${report.meanExactWithinToleranceFraction.toFixed(3)} | ${report.meanLearningCurveArea.toFixed(3)} | [${report.learningCurveAreaCi95.low.toFixed(3)}, ${report.learningCurveAreaCi95.high.toFixed(3)}] | ${report.meanEpochsToTolerance.toFixed(1)} | ${task.rankingByFinalEvalMeanSquaredError.indexOf(strategy) + 1} | ${task.rankingByLearningCurveArea.indexOf(strategy) + 1} |`,
+      `| \`${strategy}\` | ${report.meanFinalEvalMeanSquaredError.toFixed(
+        3
+      )} | [${report.finalEvalMeanSquaredErrorCi95.low.toFixed(
+        3
+      )}, ${report.finalEvalMeanSquaredErrorCi95.high.toFixed(
+        3
+      )}] | ${report.meanExactWithinToleranceFraction.toFixed(
+        3
+      )} | ${report.meanLearningCurveArea.toFixed(
+        3
+      )} | [${report.learningCurveAreaCi95.low.toFixed(
+        3
+      )}, ${report.learningCurveAreaCi95.high.toFixed(
+        3
+      )}] | ${report.meanEpochsToTolerance.toFixed(1)} | ${
+        task.rankingByFinalEvalMeanSquaredError.indexOf(strategy) + 1
+      } | ${task.rankingByLearningCurveArea.indexOf(strategy) + 1} |`
     );
   }
   lines.push('');
@@ -1008,14 +1097,16 @@ function renderTaskMarkdown(taskId: string, task: AdversarialTaskReport): string
 }
 
 export function renderGnosisAdversarialControlsBenchmarkMarkdown(
-  report: GnosisAdversarialControlsBenchmarkReport,
+  report: GnosisAdversarialControlsBenchmarkReport
 ): string {
   const lines: string[] = [];
   lines.push('# Gnosis Adversarial Controls Benchmark');
   lines.push('');
   lines.push(`- Label: \`${report.label}\``);
   lines.push(
-    `- All adversarial predictions recovered: \`${report.allAdversarialPredictionsRecovered ? 'yes' : 'no'}\``,
+    `- All adversarial predictions recovered: \`${
+      report.allAdversarialPredictionsRecovered ? 'yes' : 'no'
+    }\``
   );
   lines.push('');
   for (const [taskId, task] of Object.entries(report.tasks)) {
@@ -1023,7 +1114,7 @@ export function renderGnosisAdversarialControlsBenchmarkMarkdown(
     lines.push('');
   }
   lines.push(
-    'Interpretation: these controls flip the story around. They keep the parameter-matched Chapter 17 topologies fixed, but choose targets where sparse nonlinear selection is the right inductive bias or where early stopping should help under a tight budget. The point is to show a boundary, not a one-sided preference for linearity.',
+    'Interpretation: these controls flip the story around. They keep the parameter-matched Chapter 17 topologies fixed, but choose targets where sparse nonlinear selection is the right inductive bias or where early stopping should help under a tight budget. The point is to show a boundary, not a one-sided preference for linearity.'
   );
   lines.push('');
   return `${lines.join('\n')}\n`;

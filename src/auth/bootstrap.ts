@@ -41,7 +41,9 @@ function rootNodeIds(ast: GraphAST): string[] {
     }
   }
 
-  return [...ast.nodes.keys()].filter((nodeId) => !targetIds.has(nodeId.trim()));
+  return [...ast.nodes.keys()].filter(
+    (nodeId) => !targetIds.has(nodeId.trim())
+  );
 }
 
 function findBootstrapHandler(
@@ -131,7 +133,10 @@ export async function bootstrapExecutionAuthFromTopology(
           ? mergeExecutionAuthContexts(currentExecutionAuth, nextExecutionAuth)
           : nextExecutionAuth;
         mergedExecutionAuth = mergedExecutionAuth
-          ? mergeExecutionAuthContexts(mergedExecutionAuth, currentExecutionAuth)
+          ? mergeExecutionAuthContexts(
+              mergedExecutionAuth,
+              currentExecutionAuth
+            )
           : currentExecutionAuth;
       }
 

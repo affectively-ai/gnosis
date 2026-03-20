@@ -1,4 +1,9 @@
-import { ReynoldsTracker, frameRace, frameFold, type FrameRaceResult } from '@a0n/aeon-pipelines';
+import {
+  ReynoldsTracker,
+  frameRace,
+  frameFold,
+  type FrameRaceResult,
+} from '@a0n/aeon-pipelines';
 import { GraphAST, ASTEdge, ASTNode } from '../betty/compiler.js';
 import { GnosisRegistry } from './registry.js';
 import { QuantumWasmBridge } from '../betty/quantum/bridge.js';
@@ -19,7 +24,10 @@ import {
 } from './core-cache.js';
 import { injectSensitiveZkEnvelopes } from '../auth/auto-zk.js';
 import type { GnosisHandler, GnosisHandlerContext } from './registry.js';
-import { ExecutionBoundary, type ExecutionBoundarySnapshot } from './execution-boundary.js';
+import {
+  ExecutionBoundary,
+  type ExecutionBoundarySnapshot,
+} from './execution-boundary.js';
 import {
   cancelConcurrentBranches,
   collectConcurrentOutcomes,
@@ -399,7 +407,11 @@ export class GnosisEngine {
         );
 
         // FORK: initialize void boundary dimensions
-        if (edge.type === 'FORK' || edge.type === 'EVOLVE' || edge.type === 'SUPERPOSE') {
+        if (
+          edge.type === 'FORK' ||
+          edge.type === 'EVOLVE' ||
+          edge.type === 'SUPERPOSE'
+        ) {
           this.executionBoundary.fork(edge.targetIds.length);
         }
 
@@ -408,7 +420,7 @@ export class GnosisEngine {
         // 1. EVOLVE corollary: Dynamic Scaling based on Reynolds Number
         if (edge.type === 'EVOLVE') {
           const re = this.tracker.metrics().reynoldsNumber;
-          const maxRe = parseFloat(edge.properties.max_re || String(2/3));
+          const maxRe = parseFloat(edge.properties.max_re || String(2 / 3));
           if (re > maxRe) {
             const targetCount = Math.max(
               1,
@@ -552,7 +564,9 @@ export class GnosisEngine {
         const codecs = codecList.split(',').map((c: string) => c.trim());
         const voidWalking = edge.properties.voidWalking !== 'false'; // default on
         execLogs.push(
-          `  [LAMINAR] Hella-whipped pipeline: chunk=${chunkSize}, codecs=[${codecs.join(', ')}], voidWalking=${voidWalking}`
+          `  [LAMINAR] Hella-whipped pipeline: chunk=${chunkSize}, codecs=[${codecs.join(
+            ', '
+          )}], voidWalking=${voidWalking}`
         );
         // LAMINAR is β₁-neutral: internal fork/race/fold is self-contained.
         //
@@ -570,7 +584,8 @@ export class GnosisEngine {
         const inputSize = inputData.length;
 
         // FORK: race all codecs on the input
-        const codecResults: { codec: string; size: number; data: string }[] = [];
+        const codecResults: { codec: string; size: number; data: string }[] =
+          [];
         for (const codec of codecs) {
           // Each codec "compresses" -- in the engine abstraction layer,
           // we measure payload size. Real compression happens in the
@@ -594,7 +609,9 @@ export class GnosisEngine {
           .map((r) => r.codec);
 
         execLogs.push(
-          `  [LAMINAR] RACE winner: ${winner.codec} (${winner.size}B), vented: [${ventedCodecs.join(', ')}]`
+          `  [LAMINAR] RACE winner: ${winner.codec} (${
+            winner.size
+          }B), vented: [${ventedCodecs.join(', ')}]`
         );
 
         // Track codec selection in payload metadata for downstream learning
@@ -711,8 +728,7 @@ export class GnosisEngine {
     outcomes: readonly ConcurrentBranchOutcome[]
   ): number {
     return outcomes.filter(
-      (outcome) =>
-        outcome.status === 'error' || outcome.status === 'timeout'
+      (outcome) => outcome.status === 'error' || outcome.status === 'timeout'
     ).length;
   }
 
@@ -752,12 +768,9 @@ export class GnosisEngine {
       ?.trim()
       .toLowerCase();
     const mode =
-      rawMode === 'readonly' || rawMode === 'bypass'
-        ? rawMode
-        : 'readwrite';
+      rawMode === 'readonly' || rawMode === 'bypass' ? rawMode : 'readwrite';
     const rawReuseScope = (
-      collapseEdge.properties.reuseScope ??
-      collapseEdge.properties.reuse_scope
+      collapseEdge.properties.reuseScope ?? collapseEdge.properties.reuse_scope
     )
       ?.trim()
       .toLowerCase();
@@ -931,7 +944,11 @@ export class GnosisEngine {
     const policy = this.parseStructuredConcurrencyPolicy(collapseEdge);
     this.logStructuredPolicy(collapseEdge, policy, execLogs);
 
-    if (corridorSession && this.runtimeCoreCache && corridorSession.mode !== 'bypass') {
+    if (
+      corridorSession &&
+      this.runtimeCoreCache &&
+      corridorSession.mode !== 'bypass'
+    ) {
       const lookup = this.runtimeCoreCache.lookup<unknown>(corridorSession);
       if (lookup.kind === 'hit') {
         const cached = this.runtimeCoreCache.readPayload(lookup.entry);
@@ -1052,7 +1069,10 @@ export class GnosisEngine {
           payload: scheduled.payloads[index] ?? null,
           sharedState,
           sid,
-          timeoutMs: this.resolveConcurrentTimeout(policy.timeoutMs, deadlineAt),
+          timeoutMs: this.resolveConcurrentTimeout(
+            policy.timeoutMs,
+            deadlineAt
+          ),
           cacheSession: effectiveCacheSession,
         });
       });
@@ -1078,7 +1098,10 @@ export class GnosisEngine {
       if (corridorSession && this.runtimeCoreCache) {
         this.runtimeCoreCache.recordEvidence(
           corridorSession,
-          this.buildConcurrentCorridorObservations(collapseEdge, result.outcomes)
+          this.buildConcurrentCorridorObservations(
+            collapseEdge,
+            result.outcomes
+          )
         );
         execLogs.push(
           `   [CORRIDOR] Updated strength=${this.runtimeCoreCache
@@ -1098,7 +1121,11 @@ export class GnosisEngine {
       };
     };
 
-    if (corridorSession && this.runtimeCoreCache && corridorSession.mode === 'readwrite') {
+    if (
+      corridorSession &&
+      this.runtimeCoreCache &&
+      corridorSession.mode === 'readwrite'
+    ) {
       const freshExecution = executeFresh();
       this.runtimeCoreCache.registerInflight(
         corridorSession,
@@ -1144,7 +1171,7 @@ export class GnosisEngine {
     activeAst: GraphAST,
     activeTargets: string[],
     policy: StructuredConcurrencyPolicy,
-    sharedState: unknown,
+    sharedState: unknown
   ): boolean {
     // Timeout/deadline requires AbortController + setTimeout
     if (policy.timeoutMs !== null || policy.deadlineMs !== null) return false;
@@ -1200,12 +1227,14 @@ export class GnosisEngine {
           const handler = this.findHandler(node)!;
           const payload = payloads[index] ?? null;
           return () =>
-            Promise.resolve(handler(payload, node.properties, {
-              nodeId: targetId,
-              executionAuth: this.executionAuth ?? undefined,
-              coreCache: this.runtimeCoreCache ?? undefined,
-              cacheSession: cacheSession ?? undefined,
-            }));
+            Promise.resolve(
+              handler(payload, node.properties, {
+                nodeId: targetId,
+                executionAuth: this.executionAuth ?? undefined,
+                coreCache: this.runtimeCoreCache ?? undefined,
+                cacheSession: cacheSession ?? undefined,
+              })
+            );
         }
       );
 
@@ -1218,9 +1247,7 @@ export class GnosisEngine {
       const outcomes: ConcurrentBranchOutcome[] = [];
 
       if (collapseEdge.type === 'RACE') {
-        execLogs.push(
-          `   [FRAME-NATIVE] Racing ${activeTargets.length} paths`
-        );
+        execLogs.push(`   [FRAME-NATIVE] Racing ${activeTargets.length} paths`);
         const raceResult = await frameRace(workFns);
         payload = raceResult.result;
         const winnerTarget = activeTargets[raceResult.winnerIndex];
@@ -1235,8 +1262,7 @@ export class GnosisEngine {
         // Update tracker and void boundary
         for (let i = 0; i < activeTargets.length; i++) {
           const sid = streamCounter + i;
-          const status =
-            i === raceResult.winnerIndex ? 'success' : 'vented';
+          const status = i === raceResult.winnerIndex ? 'success' : 'vented';
           this.tracker.updateStream(
             sid,
             i === raceResult.winnerIndex ? 'completed' : 'vented'
@@ -1265,9 +1291,7 @@ export class GnosisEngine {
           const sid = streamCounter + i;
           if (results[i].status === 'fulfilled') {
             const value = (results[i] as PromiseFulfilledResult<unknown>).value;
-            successValues.push(
-              value
-            );
+            successValues.push(value);
             successTargets.push(activeTargets[i]);
             this.tracker.updateStream(sid, 'completed');
             outcomes.push({

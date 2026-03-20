@@ -108,7 +108,7 @@ export function createVoidTopology(ast: GraphAST): VoidTopology {
  */
 export function rankForkTargets(
   vt: VoidTopology,
-  targetIds: string[],
+  targetIds: string[]
 ): string[] {
   const dist = complementDistribution(vt.boundary, vt.walker.eta);
   const ranked = targetIds
@@ -145,7 +145,7 @@ export interface BranchSelection {
  */
 export function selectActiveBranches(
   vt: VoidTopology,
-  targetIds: string[],
+  targetIds: string[]
 ): BranchSelection {
   const ranked = rankForkTargets(vt, targetIds);
   const depth = GAIT_DEPTH[vt.walker.gait];
@@ -172,7 +172,7 @@ export function selectActiveBranches(
 export function sampleSuperposition(
   vt: VoidTopology,
   targetIds: string[],
-  rng: () => number,
+  rng: () => number
 ): string[] {
   const dist = complementDistribution(vt.boundary, vt.walker.eta);
   const selected: string[] = [];
@@ -202,7 +202,7 @@ export function recordExecution(
   vt: VoidTopology,
   nodeId: string,
   succeeded: boolean,
-  durationMs?: number,
+  durationMs?: number
 ): void {
   const idx = vt.nodeIndex.get(nodeId);
   if (idx === undefined) return;
@@ -235,10 +235,7 @@ export function recordExecution(
  * Choose the next node to visit when the topology has multiple
  * possible starting points or when exploring freely.
  */
-export function chooseNext(
-  vt: VoidTopology,
-  rng: () => number,
-): string {
+export function chooseNext(vt: VoidTopology, rng: () => number): string {
   const idx = c0Choose(vt.walker, rng);
   return vt.indexToNode[idx];
 }
@@ -255,15 +252,17 @@ export function chooseNext(
  * root nodes = deepest timescale (they constrain everything downstream),
  * leaf nodes = shallowest timescale (most reactive to execution history).
  */
-export function topologyToBoundaryStack(
-  vt: VoidTopology,
-): BoundaryStack {
+export function topologyToBoundaryStack(vt: VoidTopology): BoundaryStack {
   const ast = vt.ast;
 
   // Compute topological depth for each node
   const allTargetIds = new Set<string>();
-  ast.edges.forEach((e) => e.targetIds.forEach((id) => allTargetIds.add(id.trim())));
-  const roots = Array.from(ast.nodes.keys()).filter((id) => !allTargetIds.has(id.trim()));
+  ast.edges.forEach((e) =>
+    e.targetIds.forEach((id) => allTargetIds.add(id.trim()))
+  );
+  const roots = Array.from(ast.nodes.keys()).filter(
+    (id) => !allTargetIds.has(id.trim())
+  );
 
   const depth = new Map<string, number>();
   const queue = roots.map((id) => ({ id, d: 0 }));
@@ -295,20 +294,15 @@ export function topologyToBoundaryStack(
   }
 
   // Timescale mapping: deeper layers = slower timescale
-  const timescales: Array<'instant' | 'seconds' | 'minutes' | 'hours' | 'days'> = [
-    'days', 'hours', 'minutes', 'seconds', 'instant',
-  ];
+  const timescales: Array<
+    'instant' | 'seconds' | 'minutes' | 'hours' | 'days'
+  > = ['days', 'hours', 'minutes', 'seconds', 'instant'];
 
   const layers: TimescaleBoundary[] = layerNodes
     .filter((nodes) => nodes.length > 0)
     .map((nodes, i) => {
       const ts = timescales[Math.min(i, timescales.length - 1)];
-      return createTimescaleBoundary(
-        `depth-${i}`,
-        ts,
-        nodes.length,
-        nodes,
-      );
+      return createTimescaleBoundary(`depth-${i}`, ts, nodes.length, nodes);
     });
 
   // Resonance: edges that skip depths create cross-layer coupling
@@ -328,8 +322,8 @@ export function topologyToBoundaryStack(
               Math.min(sourceDepth, targetDepth),
               Math.max(sourceDepth, targetDepth),
               0.05,
-              `${edge.type}: ${sourceId} -> ${targetId}`,
-            ),
+              `${edge.type}: ${sourceId} -> ${targetId}`
+            )
           );
         }
       }
@@ -339,7 +333,7 @@ export function topologyToBoundaryStack(
   return createBoundaryStack(
     `topology:${ast.nodes.size}n/${ast.edges.length}e`,
     layers,
-    resonances,
+    resonances
   );
 }
 
@@ -396,16 +390,19 @@ export function measureTopology(vt: VoidTopology): {
  * This is the semantic bridge: each .gg edge type has a precise
  * meaning in void walking terms.
  */
-export const EDGE_VOID_SEMANTICS: Record<string, {
-  /** How much void accumulates on traversal */
-  baseMagnitude: number;
-  /** Whether this edge creates new void dimensions */
-  spawns: boolean;
-  /** Whether this edge collapses void dimensions */
-  collapses: boolean;
-  /** Description in void walking terms */
-  voidMeaning: string;
-}> = {
+export const EDGE_VOID_SEMANTICS: Record<
+  string,
+  {
+    /** How much void accumulates on traversal */
+    baseMagnitude: number;
+    /** Whether this edge creates new void dimensions */
+    spawns: boolean;
+    /** Whether this edge collapses void dimensions */
+    collapses: boolean;
+    /** Description in void walking terms */
+    voidMeaning: string;
+  }
+> = {
   PROCESS: {
     baseMagnitude: 0.5,
     spawns: false,
@@ -498,9 +495,10 @@ export const EDGE_VOID_SEMANTICS: Record<string, {
 export function recordEdgeTraversal(
   vt: VoidTopology,
   edge: ASTEdge,
-  succeeded: boolean,
+  succeeded: boolean
 ): void {
-  const semantics = EDGE_VOID_SEMANTICS[edge.type] ?? EDGE_VOID_SEMANTICS.PROCESS;
+  const semantics =
+    EDGE_VOID_SEMANTICS[edge.type] ?? EDGE_VOID_SEMANTICS.PROCESS;
   const multiplier = succeeded ? 1.0 : 2.0;
 
   for (const targetId of edge.targetIds) {
@@ -509,7 +507,7 @@ export function recordEdgeTraversal(
       updateVoidBoundary(
         vt.boundary,
         idx,
-        semantics.baseMagnitude * multiplier,
+        semantics.baseMagnitude * multiplier
       );
     }
   }

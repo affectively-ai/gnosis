@@ -86,9 +86,7 @@ function captureStream<T>(
 
   stream.write = ((chunk: string | Uint8Array) => {
     output +=
-      typeof chunk === 'string'
-        ? chunk
-        : Buffer.from(chunk).toString('utf8');
+      typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8');
     return true;
   }) as typeof stream.write;
 
@@ -165,7 +163,10 @@ describe('gnode bridge-driver cache persistence', () => {
 
   beforeEach(() => {
     previousEnv = new Map(
-      ['GNODE_CACHE_DIR', ...RELAY_ENV_KEYS].map((key) => [key, process.env[key]])
+      ['GNODE_CACHE_DIR', ...RELAY_ENV_KEYS].map((key) => [
+        key,
+        process.env[key],
+      ])
     );
     previousWebSocket = globalThis.WebSocket;
     FakeRelayWebSocket.instances = [];
@@ -183,43 +184,39 @@ describe('gnode bridge-driver cache persistence', () => {
     globalThis.WebSocket = previousWebSocket;
   });
 
-  it(
-    'stores artifact and head records as qdoc updates instead of json files',
-    async () => {
-      const workspace = createTempBridgeWorkspace();
-      process.env.GNODE_CACHE_DIR = workspace.cacheDir;
+  it('stores artifact and head records as qdoc updates instead of json files', async () => {
+    const workspace = createTempBridgeWorkspace();
+    process.env.GNODE_CACHE_DIR = workspace.cacheDir;
 
-      try {
-        const firstRun = await captureStream(process.stderr, async () =>
-          captureStream(process.stdout, async () =>
-            runCli(['compile', workspace.appPath, '--export', 'app'])
-          )
-        );
-        expect(firstRun.result.result).toBe(0);
+    try {
+      const firstRun = await captureStream(process.stderr, async () =>
+        captureStream(process.stdout, async () =>
+          runCli(['compile', workspace.appPath, '--export', 'app'])
+        )
+      );
+      expect(firstRun.result.result).toBe(0);
 
-        const files = collectRelativeFiles(workspace.cacheDir);
-        expect(files.some((file) => file.endsWith('artifact.qdoc'))).toBe(true);
-        expect(files.some((file) => file.endsWith('.json'))).toBe(false);
+      const files = collectRelativeFiles(workspace.cacheDir);
+      expect(files.some((file) => file.endsWith('artifact.qdoc'))).toBe(true);
+      expect(files.some((file) => file.endsWith('.json'))).toBe(false);
 
-        const secondRun = await captureStream(process.stderr, async () =>
-          captureStream(process.stdout, async () =>
-            runCli([
-              'compile',
-              workspace.appPath,
-              '--export',
-              'app',
-              '--trace-timings',
-            ])
-          )
-        );
-        expect(secondRun.result.result).toBe(0);
-        expect(secondRun.output).toContain('"cacheStatus": "hit"');
-      } finally {
-        fs.rmSync(workspace.root, { recursive: true, force: true });
-      }
-    },
-    15000
-  );
+      const secondRun = await captureStream(process.stderr, async () =>
+        captureStream(process.stdout, async () =>
+          runCli([
+            'compile',
+            workspace.appPath,
+            '--export',
+            'app',
+            '--trace-timings',
+          ])
+        )
+      );
+      expect(secondRun.result.result).toBe(0);
+      expect(secondRun.output).toContain('"cacheStatus": "hit"');
+    } finally {
+      fs.rmSync(workspace.root, { recursive: true, force: true });
+    }
+  }, 15000);
 
   it('connects cache records to DashRelay-compatible sync only when relay env is present', async () => {
     const workspace = createTempBridgeWorkspace();
@@ -248,9 +245,9 @@ describe('gnode bridge-driver cache persistence', () => {
           payload.includes('"room":"gnode-test-cache/artifact/')
         )
       ).toBe(true);
-      expect(
-        sentFrames.some((payload) => payload instanceof Uint8Array)
-      ).toBe(true);
+      expect(sentFrames.some((payload) => payload instanceof Uint8Array)).toBe(
+        true
+      );
     } finally {
       fs.rmSync(workspace.root, { recursive: true, force: true });
     }

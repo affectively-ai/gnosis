@@ -281,10 +281,12 @@ export async function runGnosisMoaTransformerEvidenceBenchmark(
     scales.push(summarizeScale(scale, report));
   }
 
-  const baselineAblationReport = await runGnosisMoaTransformerShootoutBenchmark({
-    ...config.base,
-    samplePoints: [],
-  });
+  const baselineAblationReport = await runGnosisMoaTransformerShootoutBenchmark(
+    {
+      ...config.base,
+      samplePoints: [],
+    }
+  );
   const baselineRegular = baselineAblationReport.families.regular;
 
   const ablations: MoaTransformerEvidenceAblationReport[] = [];
@@ -297,9 +299,7 @@ export async function runGnosisMoaTransformerEvidenceBenchmark(
           activeHeadCount: ablation.activeHeadCount,
           samplePoints: [],
         });
-    ablations.push(
-      summarizeAblation(ablation, baselineRegular, moaFamily)
-    );
+    ablations.push(summarizeAblation(ablation, baselineRegular, moaFamily));
   }
 
   const fullMoa = ablations.find((entry) => entry.id === 'full-moa');

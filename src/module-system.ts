@@ -32,7 +32,9 @@ export function parseSemVer(version: string): SemVer | null {
 }
 
 export function formatSemVer(v: SemVer): string {
-  return `${v.major}.${v.minor}.${v.patch}${v.prerelease ? `-${v.prerelease}` : ''}`;
+  return `${v.major}.${v.minor}.${v.patch}${
+    v.prerelease ? `-${v.prerelease}` : ''
+  }`;
 }
 
 export function compareSemVer(a: SemVer, b: SemVer): number {
@@ -46,8 +48,8 @@ export function compareSemVer(a: SemVer, b: SemVer): number {
 
 export type VersionConstraint =
   | { type: 'exact'; version: SemVer }
-  | { type: 'caret'; version: SemVer }  // ^1.2.3 (compatible)
-  | { type: 'tilde'; version: SemVer }  // ~1.2.3 (patch-level)
+  | { type: 'caret'; version: SemVer } // ^1.2.3 (compatible)
+  | { type: 'tilde'; version: SemVer } // ~1.2.3 (patch-level)
   | { type: 'range'; min: SemVer; max: SemVer }
   | { type: 'any' };
 
@@ -68,7 +70,10 @@ export function parseConstraint(raw: string): VersionConstraint | null {
   return v ? { type: 'exact', version: v } : null;
 }
 
-export function satisfiesConstraint(version: SemVer, constraint: VersionConstraint): boolean {
+export function satisfiesConstraint(
+  version: SemVer,
+  constraint: VersionConstraint
+): boolean {
   switch (constraint.type) {
     case 'any':
       return true;
@@ -82,7 +87,8 @@ export function satisfiesConstraint(version: SemVer, constraint: VersionConstrai
       const cv = constraint.version;
       if (compareSemVer(version, cv) < 0) return false;
       if (cv.major > 0) return version.major === cv.major;
-      if (cv.minor > 0) return version.major === cv.major && version.minor === cv.minor;
+      if (cv.minor > 0)
+        return version.major === cv.major && version.minor === cv.minor;
       return compareSemVer(version, cv) === 0;
     }
 
@@ -94,8 +100,10 @@ export function satisfiesConstraint(version: SemVer, constraint: VersionConstrai
     }
 
     case 'range':
-      return compareSemVer(version, constraint.min) >= 0 &&
-             compareSemVer(version, constraint.max) <= 0;
+      return (
+        compareSemVer(version, constraint.min) >= 0 &&
+        compareSemVer(version, constraint.max) <= 0
+      );
   }
 }
 
@@ -125,10 +133,7 @@ export interface ModuleManifest {
   gnosisVersion?: VersionConstraint;
 }
 
-export function createManifest(
-  name: string,
-  version: string,
-): ModuleManifest {
+export function createManifest(name: string, version: string): ModuleManifest {
   const v = parseSemVer(version);
   if (!v) throw new Error(`Invalid version: ${version}`);
   return {
@@ -168,7 +173,7 @@ export function createLockfile(): Lockfile {
 
 export function addLockfileEntry(
   lockfile: Lockfile,
-  entry: LockfileEntry,
+  entry: LockfileEntry
 ): void {
   const key = `${entry.name}@${formatSemVer(entry.version)}`;
   lockfile.entries.set(key, entry);
@@ -177,7 +182,7 @@ export function addLockfileEntry(
 export function lockfileHas(
   lockfile: Lockfile,
   name: string,
-  version: SemVer,
+  version: SemVer
 ): boolean {
   return lockfile.entries.has(`${name}@${formatSemVer(version)}`);
 }
@@ -185,7 +190,7 @@ export function lockfileHas(
 export function lockfileGet(
   lockfile: Lockfile,
   name: string,
-  version: SemVer,
+  version: SemVer
 ): LockfileEntry | undefined {
   return lockfile.entries.get(`${name}@${formatSemVer(version)}`);
 }
@@ -212,7 +217,7 @@ export interface ResolutionResult {
  */
 export function resolveDependencies(
   root: ModuleManifest,
-  available: Map<string, SemVer[]>,
+  available: Map<string, SemVer[]>
 ): ResolutionResult {
   const resolved: LockfileEntry[] = [];
   const unresolved: ResolutionResult['unresolved'] = [];
@@ -233,7 +238,7 @@ export function resolveDependencies(
     if (!versions || versions.length === 0) {
       unresolved.push({
         name,
-        constraint: depConstraints.map(c => constraintToString(c)).join(', '),
+        constraint: depConstraints.map((c) => constraintToString(c)).join(', '),
         reason: 'No versions available',
       });
       continue;
@@ -243,14 +248,14 @@ export function resolveDependencies(
     const sorted = [...versions].sort((a, b) => -compareSemVer(a, b));
 
     // Find highest version satisfying all constraints
-    const match = sorted.find(v =>
-      depConstraints.every(c => satisfiesConstraint(v, c)),
+    const match = sorted.find((v) =>
+      depConstraints.every((c) => satisfiesConstraint(v, c))
     );
 
     if (!match) {
       unresolved.push({
         name,
-        constraint: depConstraints.map(c => constraintToString(c)).join(', '),
+        constraint: depConstraints.map((c) => constraintToString(c)).join(', '),
         reason: 'No version satisfies all constraints',
       });
       continue;
@@ -275,11 +280,16 @@ export function resolveDependencies(
 
 function constraintToString(c: VersionConstraint): string {
   switch (c.type) {
-    case 'any': return '*';
-    case 'exact': return formatSemVer(c.version);
-    case 'caret': return `^${formatSemVer(c.version)}`;
-    case 'tilde': return `~${formatSemVer(c.version)}`;
-    case 'range': return `${formatSemVer(c.min)}-${formatSemVer(c.max)}`;
+    case 'any':
+      return '*';
+    case 'exact':
+      return formatSemVer(c.version);
+    case 'caret':
+      return `^${formatSemVer(c.version)}`;
+    case 'tilde':
+      return `~${formatSemVer(c.version)}`;
+    case 'range':
+      return `${formatSemVer(c.min)}-${formatSemVer(c.max)}`;
   }
 }
 
@@ -305,7 +315,7 @@ export interface CompatibilityReport {
 
 export function checkModuleCompatibility(
   consumer: ModuleManifest,
-  provider: ModuleManifest,
+  provider: ModuleManifest
 ): CompatibilityReport {
   const missingEffects: EffectKind[] = [];
   const versionConflicts: CompatibilityReport['versionConflicts'] = [];

@@ -14,7 +14,8 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
-      "gnosis_runtime": ["./runtime/pkg/gnosis_runtime.d.ts"]
+      "gnosis_runtime": ["./runtime/pkg/gnosis_runtime.d.ts"],
+      "bun:test": ["./src/test-compat.ts"]
     }
   },
   "include": ["src/**/*"],

@@ -125,7 +125,10 @@ export class GnosisProbeCollector {
       .map((s) => s.completedAt! - s.startedAt)
       .sort((a, b) => a - b);
 
-    const nodeTimings = new Map<string, { total: number; count: number; errors: number }>();
+    const nodeTimings = new Map<
+      string,
+      { total: number; count: number; errors: number }
+    >();
     const branchSelections = new Map<string, Map<string, number>>();
 
     for (const session of sessions) {
@@ -138,18 +141,27 @@ export class GnosisProbeCollector {
           const enterTime = enterTimes.get(event.nodeId);
           if (enterTime !== undefined) {
             const duration = event.timestamp - enterTime;
-            const existing = nodeTimings.get(event.nodeId) ?? { total: 0, count: 0, errors: 0 };
+            const existing = nodeTimings.get(event.nodeId) ?? {
+              total: 0,
+              count: 0,
+              errors: 0,
+            };
             existing.total += duration;
             existing.count += 1;
             nodeTimings.set(event.nodeId, existing);
           }
         } else if (event.kind === 'error') {
-          const existing = nodeTimings.get(event.nodeId) ?? { total: 0, count: 0, errors: 0 };
+          const existing = nodeTimings.get(event.nodeId) ?? {
+            total: 0,
+            count: 0,
+            errors: 0,
+          };
           existing.errors += 1;
           nodeTimings.set(event.nodeId, existing);
         } else if (event.kind === 'fork-branch') {
           const forkId = (event.metadata?.forkNodeId as string) ?? 'unknown';
-          const branches = branchSelections.get(forkId) ?? new Map<string, number>();
+          const branches =
+            branchSelections.get(forkId) ?? new Map<string, number>();
           branches.set(event.nodeId, (branches.get(event.nodeId) ?? 0) + 1);
           branchSelections.set(forkId, branches);
         }
@@ -160,16 +172,23 @@ export class GnosisProbeCollector {
     const hotspots: NodeHotspot[] = [...nodeTimings.entries()]
       .map(([nodeId, timing]) => ({
         nodeId,
-        avgDurationMs: timing.count > 0 ? Math.round(timing.total / timing.count) : 0,
+        avgDurationMs:
+          timing.count > 0 ? Math.round(timing.total / timing.count) : 0,
         invocationCount: timing.count,
         errorCount: timing.errors,
-        percentOfTotal: totalDuration > 0 ? Math.round((timing.total / totalDuration) * 100) : 0,
+        percentOfTotal:
+          totalDuration > 0
+            ? Math.round((timing.total / totalDuration) * 100)
+            : 0,
       }))
       .sort((a, b) => b.percentOfTotal - a.percentOfTotal);
 
     const frequencies: BranchFrequency[] = [];
     for (const [forkId, branches] of branchSelections) {
-      const totalSelections = [...branches.values()].reduce((sum, c) => sum + c, 0);
+      const totalSelections = [...branches.values()].reduce(
+        (sum, c) => sum + c,
+        0
+      );
       for (const [branchId, count] of branches) {
         frequencies.push({
           forkNodeId: forkId,
@@ -182,13 +201,17 @@ export class GnosisProbeCollector {
 
     // Empirical wallace: based on actual frontier fill during execution
     const maxConcurrency = computeMaxConcurrency(sessions);
-    const empiricalWallace = Math.max(0, 1 - maxConcurrency / Math.max(1, hotspots.length));
+    const empiricalWallace = Math.max(
+      0,
+      1 - maxConcurrency / Math.max(1, hotspots.length)
+    );
 
     return {
       functionName,
       filePath,
       invocationCount: sessions.length,
-      avgDurationMs: durations.length > 0 ? Math.round(totalDuration / durations.length) : 0,
+      avgDurationMs:
+        durations.length > 0 ? Math.round(totalDuration / durations.length) : 0,
       p50DurationMs: percentile(durations, 0.5),
       p95DurationMs: percentile(durations, 0.95),
       p99DurationMs: percentile(durations, 0.99),
@@ -199,8 +222,8 @@ export class GnosisProbeCollector {
         empiricalWallace < 0.3
           ? 'laminar'
           : empiricalWallace < 0.6
-            ? 'transitional'
-            : 'turbulent',
+          ? 'transitional'
+          : 'turbulent',
     };
   }
 
@@ -321,7 +344,10 @@ interface MutableSession {
   completedAt: number | null;
 }
 
-function emptyMetrics(functionName: string, filePath: string): RuntimeTopologyMetrics {
+function emptyMetrics(
+  functionName: string,
+  filePath: string
+): RuntimeTopologyMetrics {
   return {
     functionName,
     filePath,

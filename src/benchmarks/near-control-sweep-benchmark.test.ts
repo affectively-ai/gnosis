@@ -15,24 +15,30 @@ describe('gnosis near-control sweep', () => {
     expect(report.routed.lastParityRegimeValue).not.toBeNull();
     expect(report.affine.firstSeparatedRegimeValue).not.toBeNull();
     expect(report.routed.firstSeparatedRegimeValue).not.toBeNull();
-    expect((report.affine.lastParityRegimeValue ?? 1)).toBeLessThan(
-      report.affine.firstSeparatedRegimeValue ?? 0,
+    expect(report.affine.lastParityRegimeValue ?? 1).toBeLessThan(
+      report.affine.firstSeparatedRegimeValue ?? 0
     );
-    expect((report.routed.lastParityRegimeValue ?? 1)).toBeLessThan(
-      report.routed.firstSeparatedRegimeValue ?? 0,
+    expect(report.routed.lastParityRegimeValue ?? 1).toBeLessThan(
+      report.routed.firstSeparatedRegimeValue ?? 0
     );
-    expect(report.affine.points[0]?.linearAdvantageEvalMeanSquaredError ?? 1).toBeLessThan(0.05);
-    expect(report.routed.points[0]?.linearAdvantageEvalMeanSquaredError ?? 1).toBeLessThan(0.05);
-    expect(report.affine.points.at(-1)?.linearAdvantageEvalMeanSquaredError ?? 0).toBeGreaterThan(
-      0.1,
-    );
-    expect(report.routed.points.at(-1)?.linearAdvantageEvalMeanSquaredError ?? 0).toBeGreaterThan(
-      0.05,
-    );
+    expect(
+      report.affine.points[0]?.linearAdvantageEvalMeanSquaredError ?? 1
+    ).toBeLessThan(0.05);
+    expect(
+      report.routed.points[0]?.linearAdvantageEvalMeanSquaredError ?? 1
+    ).toBeLessThan(0.05);
+    expect(
+      report.affine.points.at(-1)?.linearAdvantageEvalMeanSquaredError ?? 0
+    ).toBeGreaterThan(0.1);
+    expect(
+      report.routed.points.at(-1)?.linearAdvantageEvalMeanSquaredError ?? 0
+    ).toBeGreaterThan(0.05);
   });
 
   test('renders a markdown report for the near-control zoom', async () => {
-    const markdown = renderGnosisNearControlSweepMarkdown(await runGnosisNearControlSweep());
+    const markdown = renderGnosisNearControlSweepMarkdown(
+      await runGnosisNearControlSweep()
+    );
 
     expect(markdown).toContain('# Gnosis Near-Control Sweep');
     expect(markdown).toContain('Last parity regime value');

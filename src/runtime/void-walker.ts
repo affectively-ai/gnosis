@@ -146,10 +146,11 @@ export function c0Update(
   state: MetaCogState,
   choiceIdx: number,
   myPayoff: number,
-  theirPayoff: number,
+  theirPayoff: number
 ): void {
   if (myPayoff < theirPayoff) updateVoidBoundary(state.boundary, choiceIdx);
-  if (myPayoff < 0) updateVoidBoundary(state.boundary, choiceIdx, Math.abs(myPayoff));
+  if (myPayoff < 0)
+    updateVoidBoundary(state.boundary, choiceIdx, Math.abs(myPayoff));
   state.totalPayoff += myPayoff;
   state.totalRounds++;
 }
@@ -169,7 +170,11 @@ export function c1Measure(state: MetaCogState): {
 }
 
 /** c2: Select gait based on kurtosis */
-export function c2SelectGait(kurtosis: number, currentGait: Gait, rounds: number): Gait {
+export function c2SelectGait(
+  kurtosis: number,
+  currentGait: Gait,
+  rounds: number
+): Gait {
   return selectGait(kurtosis, currentGait, rounds);
 }
 
@@ -181,7 +186,8 @@ export function c3Adapt(state: MetaCogState, kurtosis: number): void {
   if (newGait !== state.gait) state.gait = newGait;
 
   switch (state.gait) {
-    case 'stand': break;
+    case 'stand':
+      break;
     case 'trot':
       state.exploration = Math.min(0.4, state.exploration + 0.01);
       state.eta = Math.max(1.0, state.eta - 0.05);

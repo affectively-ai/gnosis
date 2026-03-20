@@ -2,7 +2,11 @@ import { describe, it, expect } from 'bun:test';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { checkTopologySlo, loadSloConfig, type TopologySloConfig } from './ts-topology-slo';
+import {
+  checkTopologySlo,
+  loadSloConfig,
+  type TopologySloConfig,
+} from './ts-topology-slo';
 
 const SIMPLE_TS = `
 export async function orchestrate(input: unknown) {
@@ -43,7 +47,9 @@ describe('checkTopologySlo', () => {
 
     try {
       // laminar is the least restrictive -- should pass
-      const violations = await checkTopologySlo(tmpFile, { maxRegime: 'laminar' });
+      const violations = await checkTopologySlo(tmpFile, {
+        maxRegime: 'laminar',
+      });
       // Simple function is laminar, so should pass
       expect(violations.filter((v) => v.metric === 'regime')).toEqual([]);
     } finally {
@@ -55,7 +61,10 @@ describe('checkTopologySlo', () => {
 describe('loadSloConfig', () => {
   it('loads JSON config', () => {
     const tmpFile = path.join(os.tmpdir(), 'gnosis-slo.json');
-    fs.writeFileSync(tmpFile, JSON.stringify({ maxBuley: 30, maxRegime: 'transitional' }));
+    fs.writeFileSync(
+      tmpFile,
+      JSON.stringify({ maxBuley: 30, maxRegime: 'transitional' })
+    );
 
     try {
       const config = loadSloConfig(tmpFile);

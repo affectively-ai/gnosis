@@ -158,7 +158,8 @@ describe('tee-attestation', () => {
   });
 
   it('verifies a full ZK execution envelope with attestation and proof callback', async () => {
-    const { envelope, trustedPublicKey, nowMs } = await buildExecutionEnvelope();
+    const { envelope, trustedPublicKey, nowMs } =
+      await buildExecutionEnvelope();
 
     const result = await verifyZkExecutionEnvelope(envelope, {
       nowMs,
@@ -176,7 +177,8 @@ describe('tee-attestation', () => {
   });
 
   it('rejects execution envelope when public signal hash is tampered', async () => {
-    const { envelope, trustedPublicKey, nowMs } = await buildExecutionEnvelope();
+    const { envelope, trustedPublicKey, nowMs } =
+      await buildExecutionEnvelope();
 
     const tampered: HaltExecutionEnvelope = {
       ...envelope,

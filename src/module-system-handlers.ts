@@ -28,7 +28,9 @@ export function registerModuleSystemHandlers(registry: GnosisRegistry): void {
   registry.register('SemVerParser', async (_payload, props) => {
     const version = props.version ?? '';
     const parsed = parseSemVer(version);
-    return parsed ? { ...parsed, formatted: formatSemVer(parsed) } : { error: `Invalid version: ${version}` };
+    return parsed
+      ? { ...parsed, formatted: formatSemVer(parsed) }
+      : { error: `Invalid version: ${version}` };
   });
 
   // Check version constraint satisfaction
@@ -56,11 +58,15 @@ export function registerModuleSystemHandlers(registry: GnosisRegistry): void {
       const depsRaw = props.dependencies ?? '';
       if (depsRaw) {
         for (const dep of depsRaw.split(';')) {
-          const [depName, constraintStr] = dep.split('@').map(s => s.trim());
+          const [depName, constraintStr] = dep.split('@').map((s) => s.trim());
           if (depName && constraintStr) {
             const constraint = parseConstraint(constraintStr);
             if (constraint) {
-              manifest.dependencies.push({ name: depName, constraint, dev: false });
+              manifest.dependencies.push({
+                name: depName,
+                constraint,
+                dev: false,
+              });
             }
           }
         }
@@ -69,7 +75,10 @@ export function registerModuleSystemHandlers(registry: GnosisRegistry): void {
       // Parse exports
       const exportsRaw = props.exports ?? '';
       if (exportsRaw) {
-        manifest.exports = exportsRaw.split(',').map(s => s.trim()).filter(Boolean);
+        manifest.exports = exportsRaw
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
       }
 
       return manifest;
@@ -89,10 +98,11 @@ export function registerModuleSystemHandlers(registry: GnosisRegistry): void {
     const available = new Map<string, SemVer[]>();
     const availableRaw = props.available ?? '';
     for (const entry of availableRaw.split(';')) {
-      const [name, versions] = entry.split('=').map(s => s.trim());
+      const [name, versions] = entry.split('=').map((s) => s.trim());
       if (name && versions) {
-        const parsed = versions.split(',')
-          .map(v => parseSemVer(v.trim()))
+        const parsed = versions
+          .split(',')
+          .map((v) => parseSemVer(v.trim()))
           .filter((v): v is SemVer => v !== null);
         available.set(name, parsed);
       }

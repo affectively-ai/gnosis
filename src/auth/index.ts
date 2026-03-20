@@ -30,7 +30,10 @@ export type {
   TopologyEdgeAuthorizationResult,
 } from './core.js';
 export { injectSensitiveZkEnvelopes } from './auto-zk.js';
-export type { ZkAutoInjectionRecord, ZkAutoInjectionResult } from './auto-zk.js';
+export type {
+  ZkAutoInjectionRecord,
+  ZkAutoInjectionResult,
+} from './auto-zk.js';
 
 export {
   GNOSIS_CORE_AUTH_LABELS,
@@ -63,9 +66,7 @@ export type {
   ZkProofVerifier,
   ZkProofVerifierInput,
 } from './tee-attestation.js';
-export {
-  bootstrapExecutionAuthFromTopology,
-} from './bootstrap.js';
+export { bootstrapExecutionAuthFromTopology } from './bootstrap.js';
 export type {
   GnosisExecutionAuthBootstrapOptions,
   GnosisExecutionAuthBootstrapResult,

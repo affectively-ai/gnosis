@@ -39,7 +39,7 @@ describe('Expressiveness ratios', () => {
   });
 
   test('average expressiveness ratio is at least 3x', () => {
-    const ratios = tasks.map(t => t.async / t.gnosis);
+    const ratios = tasks.map((t) => t.async / t.gnosis);
     const avgRatio = mean(ratios);
     expect(avgRatio).toBeGreaterThanOrEqual(3);
   });
@@ -60,7 +60,7 @@ describe('Concurrency patterns map to gnosis primitives', () => {
       'Promise.race': 'RACE',
       'Promise.all': 'FOLD { strategy: "merge-all" }',
       'Promise.allSettled': 'FOLD { strategy: "merge-all", errors: "collect" }',
-      'AbortController': 'automatic via RACE (losers are vented)',
+      AbortController: 'automatic via RACE (losers are vented)',
     };
 
     expect(Object.keys(mapping)).toHaveLength(4);
@@ -68,13 +68,13 @@ describe('Concurrency patterns map to gnosis primitives', () => {
 
   test('fork/race/fold covers all async patterns', () => {
     const patterns = [
-      'parallel-fetch',     // FORK → RACE + FOLD
-      'pipeline',           // FORK → PROCESS chain → FOLD
-      'fan-out-fan-in',     // FORK → PROCESS → FOLD
-      'timeout-race',       // FORK → RACE (with VENT on timeout)
-      'circuit-breaker',    // RACE with failure counting → VENT
-      'saga',               // FORK → PROCESS chain → FOLD (with compensating VENT)
-      'leader-election',    // RACE (first to claim wins)
+      'parallel-fetch', // FORK → RACE + FOLD
+      'pipeline', // FORK → PROCESS chain → FOLD
+      'fan-out-fan-in', // FORK → PROCESS → FOLD
+      'timeout-race', // FORK → RACE (with VENT on timeout)
+      'circuit-breaker', // RACE with failure counting → VENT
+      'saga', // FORK → PROCESS chain → FOLD (with compensating VENT)
+      'leader-election', // RACE (first to claim wins)
     ];
 
     // Every pattern can be expressed with fork/race/fold/vent

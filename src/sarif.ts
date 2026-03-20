@@ -13,7 +13,9 @@ function normalizeAbsolutePath(filePath: string): string {
   if (normalized.startsWith('/')) {
     return normalized;
   }
-  const cwd = safeCurrentWorkingDirectory().replace(/\\/g, '/').replace(/\/+$/, '');
+  const cwd = safeCurrentWorkingDirectory()
+    .replace(/\\/g, '/')
+    .replace(/\/+$/, '');
   return `${cwd}/${normalized.replace(/^\.\/+/, '')}`;
 }
 

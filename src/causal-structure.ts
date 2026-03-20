@@ -46,7 +46,7 @@ export interface CausalStructure {
  */
 export function buildCausalStructure(
   nodeIds: string[],
-  edgeList: [string, string][],
+  edgeList: [string, string][]
 ): CausalStructure {
   const nodeIndex = new Map<string, number>();
   nodeIds.forEach((id, i) => nodeIndex.set(id, i));
@@ -86,7 +86,9 @@ export function buildCausalStructure(
   const future: Set<number>[] = Array.from({ length: n }, () => new Set());
 
   // Process in topological order (by depth)
-  const sorted = Array.from({ length: n }, (_, i) => i).sort((a, b) => depth[a] - depth[b]);
+  const sorted = Array.from({ length: n }, (_, i) => i).sort(
+    (a, b) => depth[a] - depth[b]
+  );
   for (const u of sorted) {
     for (const v of edges[u]) {
       future[u].add(v);
@@ -123,7 +125,11 @@ export type CausalRelation = 'past' | 'future' | 'spacelike' | 'identical';
 /**
  * Determine the causal relation between two nodes.
  */
-export function causalRelation(cs: CausalStructure, a: number, b: number): CausalRelation {
+export function causalRelation(
+  cs: CausalStructure,
+  a: number,
+  b: number
+): CausalRelation {
   if (a === b) return 'identical';
   if (cs.nodes[a].future.has(b)) return 'future';
   if (cs.nodes[a].past.has(b)) return 'past';
@@ -133,7 +139,10 @@ export function causalRelation(cs: CausalStructure, a: number, b: number): Causa
 /**
  * Light cone of a node: all causally connected nodes.
  */
-export function lightCone(cs: CausalStructure, nodeIdx: number): {
+export function lightCone(
+  cs: CausalStructure,
+  nodeIdx: number
+): {
   past: number[];
   future: number[];
   spacelike: number[];
@@ -154,18 +163,24 @@ export function lightCone(cs: CausalStructure, nodeIdx: number): {
  * Causal diamond: intersection of A's future cone and B's past cone.
  */
 export function causalDiamond(
-  cs: CausalStructure, a: number, b: number,
+  cs: CausalStructure,
+  a: number,
+  b: number
 ): number[] {
   const aFuture = cs.nodes[a].future;
   const bPast = cs.nodes[b].past;
-  return [...aFuture].filter(i => bPast.has(i));
+  return [...aFuture].filter((i) => bPast.has(i));
 }
 
 /**
  * Proper time between two causally connected nodes.
  * This is the depth difference (longest path length).
  */
-export function properTime(cs: CausalStructure, a: number, b: number): number | null {
+export function properTime(
+  cs: CausalStructure,
+  a: number,
+  b: number
+): number | null {
   if (!cs.nodes[a].future.has(b) && a !== b) return null;
   return cs.nodes[b].depth - cs.nodes[a].depth;
 }
@@ -193,7 +208,10 @@ export function causalToVoidBoundary(cs: CausalStructure): VoidBoundary {
  * Causal horizon: the complement distribution over a causal VoidBoundary
  * peaks at nodes with the smallest causal past -- the "freshest" events.
  */
-export function causalHorizon(cs: CausalStructure, eta: number = 3.0): number[] {
+export function causalHorizon(
+  cs: CausalStructure,
+  eta: number = 3.0
+): number[] {
   const boundary = causalToVoidBoundary(cs);
   return complementDistribution(boundary, eta);
 }

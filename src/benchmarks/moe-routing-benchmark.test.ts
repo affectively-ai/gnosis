@@ -15,23 +15,37 @@ describe('gnosis mini-moe routing benchmark', () => {
     expect(report.predictedRankingMatches).toBe(true);
     expect(report.topology.parameterCount).toBe(16);
     expect(report.topology.expertCount).toBe(4);
-    expect(report.strategies.linear.meanEvalMeanSquaredError).toBeLessThan(0.01);
-    expect(report.strategies.linear.meanExactWithinToleranceFraction).toBeGreaterThan(0.9);
-    expect(report.strategies.linear.evalMeanSquaredErrorCi95.high).toBeLessThan(0.02);
-    expect(report.strategies['winner-take-all'].meanEvalMeanSquaredError).toBeGreaterThan(0.2);
-    expect(report.strategies['early-stop'].meanEvalMeanSquaredError).toBeGreaterThan(
-      report.strategies['winner-take-all'].meanEvalMeanSquaredError,
+    expect(report.strategies.linear.meanEvalMeanSquaredError).toBeLessThan(
+      0.01
     );
-    expect(report.strategies['winner-take-all'].meanDualActiveRegionMeanAbsoluteError).toBeGreaterThan(
-      0.3,
+    expect(
+      report.strategies.linear.meanExactWithinToleranceFraction
+    ).toBeGreaterThan(0.9);
+    expect(report.strategies.linear.evalMeanSquaredErrorCi95.high).toBeLessThan(
+      0.02
     );
-    expect(report.strategies['early-stop'].meanDualActiveRegionMeanAbsoluteError).toBeGreaterThan(
-      report.strategies['winner-take-all'].meanDualActiveRegionMeanAbsoluteError,
+    expect(
+      report.strategies['winner-take-all'].meanEvalMeanSquaredError
+    ).toBeGreaterThan(0.2);
+    expect(
+      report.strategies['early-stop'].meanEvalMeanSquaredError
+    ).toBeGreaterThan(
+      report.strategies['winner-take-all'].meanEvalMeanSquaredError
+    );
+    expect(
+      report.strategies['winner-take-all'].meanDualActiveRegionMeanAbsoluteError
+    ).toBeGreaterThan(0.3);
+    expect(
+      report.strategies['early-stop'].meanDualActiveRegionMeanAbsoluteError
+    ).toBeGreaterThan(
+      report.strategies['winner-take-all'].meanDualActiveRegionMeanAbsoluteError
     );
   });
 
   test('ships a .test.gg suite for the routed expert modules', async () => {
-    const result = await runGGTestFile(resolve(__dirname, '../../examples/benchmarks/moe-routing.test.gg'));
+    const result = await runGGTestFile(
+      resolve(__dirname, '../../examples/benchmarks/moe-routing.test.gg')
+    );
 
     expect(result.ok).toBe(true);
     expect(result.modules).toHaveLength(3);
@@ -40,24 +54,26 @@ describe('gnosis mini-moe routing benchmark', () => {
   });
 
   test('points at the checked-in routed expert topology modules', () => {
-    expect(DEFAULT_MINI_MOE_ROUTING_TOPOLOGY_FILES.linear.endsWith('moe-routing-linear.gg')).toBe(
-      true,
-    );
+    expect(
+      DEFAULT_MINI_MOE_ROUTING_TOPOLOGY_FILES.linear.endsWith(
+        'moe-routing-linear.gg'
+      )
+    ).toBe(true);
     expect(
       DEFAULT_MINI_MOE_ROUTING_TOPOLOGY_FILES['winner-take-all'].endsWith(
-        'moe-routing-winner-take-all.gg',
-      ),
+        'moe-routing-winner-take-all.gg'
+      )
     ).toBe(true);
     expect(
       DEFAULT_MINI_MOE_ROUTING_TOPOLOGY_FILES['early-stop'].endsWith(
-        'moe-routing-early-stop.gg',
-      ),
+        'moe-routing-early-stop.gg'
+      )
     ).toBe(true);
   });
 
   test('renders a markdown report with uncertainty intervals and routed metrics', async () => {
     const markdown = renderGnosisMiniMoeRoutingBenchmarkMarkdown(
-      await runGnosisMiniMoeRoutingBenchmark(),
+      await runGnosisMiniMoeRoutingBenchmark()
     );
 
     expect(markdown).toContain('# Gnosis Mini-MoE Routing Benchmark');

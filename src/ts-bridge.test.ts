@@ -49,7 +49,8 @@ describe('TypeScript to Gnosis bridge', () => {
           id: userId,
           name: `user-${userId}`,
         }),
-        summarize: (user: { id: string; name: string }) => user.name.toUpperCase(),
+        summarize: (user: { id: string; name: string }) =>
+          user.name.toUpperCase(),
       },
     });
 
@@ -108,7 +109,7 @@ describe('TypeScript to Gnosis bridge', () => {
         loadProfile: async (userId: string) => ({ id: userId, role: 'admin' }),
         merge: (
           user: { id: string; kind: string },
-          profile: { id: string; role: string },
+          profile: { id: string; role: string }
         ) => `${user.id}:${user.kind}:${profile.role}`,
       },
     });
@@ -221,7 +222,7 @@ describe('TypeScript to Gnosis bridge', () => {
     );
     const modulePath = path.join(sourceDirectory, 'app.ts');
     const helperPath = path.join(sourceDirectory, 'helper.ts');
-      const runtimeModulePath = path.join(runtimeDirectory, 'runtime-bridge.ts');
+    const runtimeModulePath = path.join(runtimeDirectory, 'runtime-bridge.ts');
 
     fs.writeFileSync(
       helperPath,
@@ -323,7 +324,11 @@ describe('TypeScript to Gnosis bridge', () => {
         pathToFileURL(helperPath).href
       );
 
-      fs.writeFileSync(runtimeModulePath, runtimeModule.javascriptSource, 'utf8');
+      fs.writeFileSync(
+        runtimeModulePath,
+        runtimeModule.javascriptSource,
+        'utf8'
+      );
 
       const result = await executeTypeScriptWithGnosis({
         compiled,
@@ -388,7 +393,11 @@ describe('TypeScript to Gnosis bridge', () => {
         pathToFileURL(helperPath).href
       );
 
-      fs.writeFileSync(runtimeModulePath, runtimeModule.javascriptSource, 'utf8');
+      fs.writeFileSync(
+        runtimeModulePath,
+        runtimeModule.javascriptSource,
+        'utf8'
+      );
 
       const result = await executeTypeScriptWithGnosis({
         compiled,

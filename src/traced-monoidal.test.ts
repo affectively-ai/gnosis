@@ -1,15 +1,33 @@
 import { describe, it, expect } from 'bun:test';
 import {
-  catObject, UNIT,
-  identity, process, fork, fold, race, vent, symmetry,
-  compose, tensor, trace,
-  checkAssociativity, checkLeftUnit, checkRightUnit,
-  checkSymmetryInvolution, checkVanishing, checkYanking,
+  catObject,
+  UNIT,
+  identity,
+  process,
+  fork,
+  fold,
+  race,
+  vent,
+  symmetry,
+  compose,
+  tensor,
+  trace,
+  checkAssociativity,
+  checkLeftUnit,
+  checkRightUnit,
+  checkSymmetryInvolution,
+  checkVanishing,
+  checkYanking,
   verifyCoherence,
-  buildStringDiagram, diagramBeta1, isDiagramClosed,
+  buildStringDiagram,
+  diagramBeta1,
+  isDiagramClosed,
   edgeToMorphism,
 } from './traced-monoidal.js';
-import { registerTracedMonoidalHandlers, COHERENCE_CONDITIONS } from './traced-monoidal-handlers.js';
+import {
+  registerTracedMonoidalHandlers,
+  COHERENCE_CONDITIONS,
+} from './traced-monoidal-handlers.js';
 import { GnosisRegistry } from './runtime/registry.js';
 
 describe('Categorical objects', () => {
@@ -65,7 +83,7 @@ describe('Composition', () => {
     const b = catObject(5);
     const c = catObject(2);
     const f = fork(a, catObject(2)); // 3 → 5
-    const g = fold(b, 3);            // 5 → 2
+    const g = fold(b, 3); // 5 → 2
     const h = compose(f, g);
     expect(h).not.toBeNull();
     expect(h!.source.dimensions).toBe(3);
@@ -74,7 +92,7 @@ describe('Composition', () => {
 
   it('rejects mismatched composition', () => {
     const f = fork(catObject(3), catObject(2)); // 3 → 5
-    const g = fold(catObject(4), 2);            // 4 → 2
+    const g = fold(catObject(4), 2); // 4 → 2
     expect(compose(f, g)).toBeNull();
   });
 
@@ -156,8 +174,8 @@ describe('String diagrams', () => {
 
   it('fork then fold is closed', () => {
     const a = catObject(2);
-    const f = fork(a, catObject(3));       // 2 → 5
-    const g = fold(catObject(5), 3);       // 5 → 2
+    const f = fork(a, catObject(3)); // 2 → 5
+    const g = fold(catObject(5), 3); // 5 → 2
     const d = buildStringDiagram([f, g]);
     expect(d.wellTyped).toBe(true);
     expect(diagramBeta1(d)).toBe(0);
@@ -173,7 +191,7 @@ describe('String diagrams', () => {
 
   it('fork + vent has negative beta1 (information destroyed)', () => {
     const f = fork(catObject(1), catObject(2)); // 1 → 3 (β₁ += 2)
-    const v = vent(catObject(3));               // 3 → 0 (β₁ -= 3)
+    const v = vent(catObject(3)); // 3 → 0 (β₁ -= 3)
     const d = buildStringDiagram([f, v]);
     // Net: fork creates 2 holes, vent destroys 3 (including original)
     expect(diagramBeta1(d)).toBe(-1);
@@ -181,7 +199,7 @@ describe('String diagrams', () => {
 
   it('detects type mismatch', () => {
     const f = fork(catObject(2), catObject(1)); // 2 → 3
-    const g = fold(catObject(5), 2);            // 5 → 3 (mismatch: 3 ≠ 5)
+    const g = fold(catObject(5), 2); // 5 → 3 (mismatch: 3 ≠ 5)
     const d = buildStringDiagram([f, g]);
     expect(d.wellTyped).toBe(false);
   });
@@ -189,29 +207,49 @@ describe('String diagrams', () => {
 
 describe('Edge to morphism', () => {
   it('FORK maps to fork morphism', () => {
-    const m = edgeToMorphism({ edgeType: 'FORK', sourceCount: 1, targetCount: 3 });
+    const m = edgeToMorphism({
+      edgeType: 'FORK',
+      sourceCount: 1,
+      targetCount: 3,
+    });
     expect(m.kind).toBe('fork');
     expect(m.target.dimensions).toBe(3);
   });
 
   it('FOLD maps to fold morphism', () => {
-    const m = edgeToMorphism({ edgeType: 'FOLD', sourceCount: 3, targetCount: 1 });
+    const m = edgeToMorphism({
+      edgeType: 'FOLD',
+      sourceCount: 3,
+      targetCount: 1,
+    });
     expect(m.kind).toBe('fold');
   });
 
   it('VENT maps to vent morphism', () => {
-    const m = edgeToMorphism({ edgeType: 'VENT', sourceCount: 2, targetCount: 0 });
+    const m = edgeToMorphism({
+      edgeType: 'VENT',
+      sourceCount: 2,
+      targetCount: 0,
+    });
     expect(m.kind).toBe('vent');
     expect(m.target.dimensions).toBe(0);
   });
 
   it('RACE maps to race morphism', () => {
-    const m = edgeToMorphism({ edgeType: 'RACE', sourceCount: 4, targetCount: 1 });
+    const m = edgeToMorphism({
+      edgeType: 'RACE',
+      sourceCount: 4,
+      targetCount: 1,
+    });
     expect(m.kind).toBe('race');
   });
 
   it('PROCESS maps to process morphism', () => {
-    const m = edgeToMorphism({ edgeType: 'PROCESS', sourceCount: 2, targetCount: 2 });
+    const m = edgeToMorphism({
+      edgeType: 'PROCESS',
+      sourceCount: 2,
+      targetCount: 2,
+    });
     expect(m.kind).toBe('process');
   });
 });

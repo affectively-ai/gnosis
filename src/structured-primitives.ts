@@ -40,8 +40,7 @@ function collectStructuredPrimitiveUnits(source: string): string[] {
       continue;
     }
 
-    let balance =
-      countOccurrences(line, '(') - countOccurrences(line, ')');
+    let balance = countOccurrences(line, '(') - countOccurrences(line, ')');
     let endIndex = index;
     const buffer = [trimmed];
 
@@ -435,9 +434,7 @@ function expandStructuredMoaPrimitive(
     );
     lines.push(`(${headRouter})-[:FORK]->(${headNames.join(' | ')})`);
     lines.push(
-      `(${headNames.join(
-        ' | '
-      )})-[:FOLD${renderEdgeProperties({
+      `(${headNames.join(' | ')})-[:FOLD${renderEdgeProperties({
         strategy: innerFoldStrategy,
         boundary: 'head-whip',
         corridor: innerCorridor,
@@ -459,9 +456,7 @@ function expandStructuredMoaPrimitive(
   }
 
   lines.push(
-    `(${blockOutputs.join(
-      ' | '
-    )})-[:FOLD${renderEdgeProperties({
+    `(${blockOutputs.join(' | ')})-[:FOLD${renderEdgeProperties({
       strategy: outerFoldStrategy,
       boundary: 'outer-whip',
       corridor: outerCorridor,
@@ -571,18 +566,18 @@ function expandWallingtonRotationPrimitive(
     `(${primitive.id}__ingress)-[:PROCESS]->(${primitive.id}__scheduler)`
   );
   lines.push(
-    `(${primitive.id}__scheduler)-[:FORK { schedule: '${schedule}' }]->(${chunkNames.join(
+    `(${
+      primitive.id
+    }__scheduler)-[:FORK { schedule: '${schedule}' }]->(${chunkNames.join(
       ' | '
     )})`
   );
   lines.push(
-    `(${chunkNames.join(
-      ' | '
-    )})-[:FOLD { strategy: '${foldStrategy}' }]->(${primitive.id}__stage_aligned)`
+    `(${chunkNames.join(' | ')})-[:FOLD { strategy: '${foldStrategy}' }]->(${
+      primitive.id
+    }__stage_aligned)`
   );
-  lines.push(
-    `(${primitive.id}__stage_aligned)-[:PROCESS]->(${stageNames[0]})`
-  );
+  lines.push(`(${primitive.id}__stage_aligned)-[:PROCESS]->(${stageNames[0]})`);
   for (let stageIndex = 0; stageIndex < stageNames.length - 1; stageIndex++) {
     lines.push(
       `(${stageNames[stageIndex]})-[:PROCESS]->(${stageNames[stageIndex + 1]})`
@@ -628,10 +623,8 @@ function expandWorthingtonWhipPrimitive(
     primitive.properties.ingressRole ?? 'worthington-whip-ingress';
   const routerRole =
     primitive.properties.routerRole ?? 'worthington-whip-router';
-  const collapseRole =
-    primitive.properties.collapseRole ?? 'worthington-whip';
-  const collapseBoundary =
-    primitive.properties.collapseBoundary ?? 'shards';
+  const collapseRole = primitive.properties.collapseRole ?? 'worthington-whip';
+  const collapseBoundary = primitive.properties.collapseBoundary ?? 'shards';
   const collapseStrategy =
     primitive.properties.collapseStrategy ?? 'worthington_whip';
   const stageParameters = String(
@@ -676,9 +669,7 @@ function expandWorthingtonWhipPrimitive(
   lines.push(
     `(${primitive.id}__ingress)-[:PROCESS]->(${primitive.id}__router)`
   );
-  lines.push(
-    `(${primitive.id}__router)-[:FORK]->(${shardNames.join(' | ')})`
-  );
+  lines.push(`(${primitive.id}__router)-[:FORK]->(${shardNames.join(' | ')})`);
 
   const shardRotationNames: string[] = [];
   for (const [shardIndex, shardName] of shardNames.entries()) {
@@ -709,7 +700,9 @@ function expandWorthingtonWhipPrimitive(
   lines.push(
     `(${shardRotationNames.join(
       ' | '
-    )})-[:FOLD { strategy: '${collapseStrategy}', boundary: '${collapseBoundary}' }]->(${primitive.id}__collapse)`
+    )})-[:FOLD { strategy: '${collapseStrategy}', boundary: '${collapseBoundary}' }]->(${
+      primitive.id
+    }__collapse)`
   );
   lines.push(`(${primitive.id}__collapse)-[:PROCESS]->(${primitive.id})`);
 
@@ -877,7 +870,9 @@ function expandHeteroMoAFabricPrimitive(
     `(${primitive.id}__launch_gate: RoutingGate { role: 'paired-launch-gate', gate: '${launchGate}', schedule: '${scheduleStrategy}', frame_protocol: '${frameProtocol}' })`
   );
   lines.push(
-    `(${primitive.id}__meta_scheduler: RotationScheduler { schedule: '${scheduleStrategy}', stages: '${Math.max(
+    `(${
+      primitive.id
+    }__meta_scheduler: RotationScheduler { schedule: '${scheduleStrategy}', stages: '${Math.max(
       1,
       backends.length
     )}', chunks: '${Math.max(1, backends.length)}', role: 'meta-helix-race' })`
@@ -902,12 +897,16 @@ function expandHeteroMoAFabricPrimitive(
     })
   );
   lines.push(`(${primitive.id}: FlowFrame${outputProperties})`);
-  lines.push(`(${primitive.id}__ingress)-[:PROCESS]->(${primitive.id}__launch_gate)`);
+  lines.push(
+    `(${primitive.id}__ingress)-[:PROCESS]->(${primitive.id}__launch_gate)`
+  );
   lines.push(
     `(${primitive.id}__launch_gate)-[:PROCESS]->(${primitive.id}__meta_scheduler)`
   );
   lines.push(
-    `(${primitive.id}__meta_scheduler)-[:FORK { schedule: '${scheduleStrategy}', gate: '${launchGate}', helix: 'meta' }]->(${backends
+    `(${
+      primitive.id
+    }__meta_scheduler)-[:FORK { schedule: '${scheduleStrategy}', gate: '${launchGate}', helix: 'meta' }]->(${backends
       .map((backend) => `${primitive.id}__${backend.name}__scheduler`)
       .join(' | ')})`
   );
@@ -1014,9 +1013,7 @@ function expandHeteroMoAFabricPrimitive(
     }
 
     lines.push(
-      `(${pairOutputs.join(
-        ' | '
-      )})-[:FOLD${renderEdgeProperties({
+      `(${pairOutputs.join(' | ')})-[:FOLD${renderEdgeProperties({
         strategy: scheduleStrategy,
         boundary: `${backend.name}-layer`,
         corridor: layerCorridor,
@@ -1039,9 +1036,7 @@ function expandHeteroMoAFabricPrimitive(
   }
 
   lines.push(
-    `(${layerOutputs.join(
-      ' | '
-    )})-[:FOLD${renderEdgeProperties({
+    `(${layerOutputs.join(' | ')})-[:FOLD${renderEdgeProperties({
       strategy: scheduleStrategy,
       boundary: 'meta-race',
       corridor: `${corridorBase}/meta`,
@@ -1051,7 +1046,9 @@ function expandHeteroMoAFabricPrimitive(
       frame_protocol: frameProtocol,
     })}]->(${primitive.id}__global_collapse)`
   );
-  lines.push(`(${primitive.id}__global_collapse)-[:PROCESS]->(${primitive.id}__global_trace)`);
+  lines.push(
+    `(${primitive.id}__global_collapse)-[:PROCESS]->(${primitive.id}__global_trace)`
+  );
   lines.push(
     `(${primitive.id}__global_collapse)-[:VENT${renderEdgeProperties({
       condition: ventCondition,

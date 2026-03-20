@@ -1357,7 +1357,13 @@ export async function runGnosisMoaTransformerFamilyBenchmark(
   assertComparableCapacity(topologies);
   const trainSamples = buildSamples(config.trainAxis);
   const evalSamples = buildSamples(config.evalAxis);
-  return buildFamilyReport(family, topologies, config, trainSamples, evalSamples);
+  return buildFamilyReport(
+    family,
+    topologies,
+    config,
+    trainSamples,
+    evalSamples
+  );
 }
 
 export async function runGnosisMoaTransformerShootoutBenchmark(

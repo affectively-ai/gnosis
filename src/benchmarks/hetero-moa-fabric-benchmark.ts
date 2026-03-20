@@ -182,7 +182,10 @@ function clampLaneCounts(
     cpu: Math.max(0, Math.min(requested?.cpu ?? available.cpu, available.cpu)),
     gpu: Math.max(0, Math.min(requested?.gpu ?? available.gpu, available.gpu)),
     npu: Math.max(0, Math.min(requested?.npu ?? available.npu, available.npu)),
-    wasm: Math.max(0, Math.min(requested?.wasm ?? available.wasm, available.wasm)),
+    wasm: Math.max(
+      0,
+      Math.min(requested?.wasm ?? available.wasm, available.wasm)
+    ),
   };
 }
 
@@ -389,10 +392,12 @@ export async function runLiveHeteroMoAFabricBenchmark(
   env: Record<string, string | undefined> = process.env
 ): Promise<HeteroMoAFabricBenchmarkReport> {
   const engine = await (overrides.engineFactory ?? init)();
-  const backends = (await engine.getHeteroFabricBackends({
-    includeEnvCommandBackends: overrides.includeEnvCommandBackends,
-    backends: overrides.backends,
-  })).filter((backend) => backend.available !== false);
+  const backends = (
+    await engine.getHeteroFabricBackends({
+      includeEnvCommandBackends: overrides.includeEnvCommandBackends,
+      backends: overrides.backends,
+    })
+  ).filter((backend) => backend.available !== false);
   const availableLaneCounts = countLaneBackends(backends);
   const activeLaneCounts = clampLaneCounts(
     overrides.laneCounts,
@@ -401,12 +406,18 @@ export async function runLiveHeteroMoAFabricBenchmark(
 
   return runBenchmarkReport({
     mode: 'live',
-    iterations: Math.max(1, Math.floor(overrides.iterations ?? DEFAULT_CONFIG.iterations)),
+    iterations: Math.max(
+      1,
+      Math.floor(overrides.iterations ?? DEFAULT_CONFIG.iterations)
+    ),
     inputLength: Math.max(
       1,
       Math.floor(overrides.inputLength ?? DEFAULT_LIVE_INPUT_LENGTH)
     ),
-    hedgeDelayMs: Math.max(0, overrides.hedgeDelayMs ?? DEFAULT_CONFIG.hedgeDelayMs),
+    hedgeDelayMs: Math.max(
+      0,
+      overrides.hedgeDelayMs ?? DEFAULT_CONFIG.hedgeDelayMs
+    ),
     fabricKey: overrides.fabricKey?.trim() || 'live-benchmark-fabric',
     backends,
     availableLaneCounts,
@@ -416,10 +427,7 @@ export async function runLiveHeteroMoAFabricBenchmark(
 }
 
 if (import.meta.main) {
-  const argv =
-    typeof Bun !== 'undefined' && Array.isArray(Bun.argv)
-      ? Bun.argv.slice(2)
-      : [];
+  const argv = process.argv.slice(2);
   const report = argv.includes('--live')
     ? await runLiveHeteroMoAFabricBenchmark()
     : await runHeteroMoAFabricBenchmark();

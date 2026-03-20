@@ -12,7 +12,7 @@ import {
 
 function makeTraceRecord(
   index: number,
-  overrides: Partial<GnosisSteeringTraceRecord> = {},
+  overrides: Partial<GnosisSteeringTraceRecord> = {}
 ): GnosisSteeringTraceRecord {
   return {
     version: 2,
@@ -121,13 +121,19 @@ describe('Gnosis steering trace', () => {
 
   test('derives a stable default room name from the workspace', () => {
     expect(defaultSteeringTraceRoomName('/tmp/a')).not.toBe(
-      defaultSteeringTraceRoomName('/tmp/b'),
+      defaultSteeringTraceRoomName('/tmp/b')
     );
-    expect(defaultSteeringTraceRoomName('/tmp/a')).toContain('gnosis:steering:');
+    expect(defaultSteeringTraceRoomName('/tmp/a')).toContain(
+      'gnosis:steering:'
+    );
   });
 
   test('summarizes failures loudly and preserves cohort boundaries', () => {
-    const records = [makeTraceRecord(0), makeTraceRecord(1), makeTraceRecord(2)];
+    const records = [
+      makeTraceRecord(0),
+      makeTraceRecord(1),
+      makeTraceRecord(2),
+    ];
     const summary = summarizeSteeringTraceRecords(records, {
       cohortKey: 'mixed',
       invalidLineCount: 2,

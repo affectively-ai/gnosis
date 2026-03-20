@@ -1,4 +1,7 @@
-import type { ZkProofVerifier, ZkProofVerifierInput } from './tee-attestation.js';
+import type {
+  ZkProofVerifier,
+  ZkProofVerifierInput,
+} from './tee-attestation.js';
 import { decodeBase64, decodeHex, encodeHex } from './encoding.js';
 
 export type ZkProofEncoding = 'auto' | 'hex' | 'base64' | 'utf8';
@@ -106,7 +109,11 @@ function bytesToHex(bytes: Uint8Array): string {
 async function toBytes32Word(value: string): Promise<string> {
   const normalized = normalizeHex(value);
 
-  if (isHexString(normalized) && normalized.length > 0 && normalized.length <= 64) {
+  if (
+    isHexString(normalized) &&
+    normalized.length > 0 &&
+    normalized.length <= 64
+  ) {
     return encodeWord(normalized);
   }
 
@@ -152,7 +159,9 @@ export async function buildVerifyExecutionCalldata(
   const dynamicOffsetWord = encodeWord(uintToHex(4 * 32));
   const proofLengthWord = encodeWord(proofLengthHex);
 
-  return `0x${normalizeHex(methodSelector)}${dynamicOffsetWord}${publicSignalsHashWord}${programHashWord}${vkHashWord}${proofLengthWord}${proofPaddedHex}`;
+  return `0x${normalizeHex(
+    methodSelector
+  )}${dynamicOffsetWord}${publicSignalsHashWord}${programHashWord}${vkHashWord}${proofLengthWord}${proofPaddedHex}`;
 }
 
 interface JsonRpcSuccess {

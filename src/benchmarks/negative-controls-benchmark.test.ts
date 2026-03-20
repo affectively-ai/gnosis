@@ -13,19 +13,23 @@ describe('gnosis negative controls benchmark', () => {
     expect(report.allControlsPass).toBe(true);
     expect(report.tasks['affine-left-only'].parityRecovered).toBe(true);
     expect(report.tasks['routing-positive-x-only'].parityRecovered).toBe(true);
-    expect(report.tasks['affine-left-only'].maxEvalMeanSquaredErrorGap).toBeLessThanOrEqual(0.02);
-    expect(report.tasks['routing-positive-x-only'].maxEvalMeanSquaredErrorGap).toBeLessThanOrEqual(
-      0.04,
-    );
-    expect(report.tasks['affine-left-only'].minExactWithinToleranceFraction).toBeGreaterThan(0.95);
-    expect(report.tasks['routing-positive-x-only'].minExactWithinToleranceFraction).toBeGreaterThan(
-      0.9,
-    );
+    expect(
+      report.tasks['affine-left-only'].maxEvalMeanSquaredErrorGap
+    ).toBeLessThanOrEqual(0.02);
+    expect(
+      report.tasks['routing-positive-x-only'].maxEvalMeanSquaredErrorGap
+    ).toBeLessThanOrEqual(0.04);
+    expect(
+      report.tasks['affine-left-only'].minExactWithinToleranceFraction
+    ).toBeGreaterThan(0.95);
+    expect(
+      report.tasks['routing-positive-x-only'].minExactWithinToleranceFraction
+    ).toBeGreaterThan(0.9);
   });
 
   it('renders a markdown report with both control tasks', async () => {
     const markdown = renderGnosisNegativeControlsBenchmarkMarkdown(
-      await runGnosisNegativeControlsBenchmark(),
+      await runGnosisNegativeControlsBenchmark()
     );
 
     expect(markdown).toContain('# Gnosis Negative Controls Benchmark');

@@ -54,7 +54,11 @@ export class GnosisIncrementalChecker {
     this.stats.totalChecks += 1;
     const startMs = Date.now();
 
-    const result = await checkTypeScriptWithGnosis(sourceText, filePath, options);
+    const result = await checkTypeScriptWithGnosis(
+      sourceText,
+      filePath,
+      options
+    );
 
     const elapsedMs = Date.now() - startMs;
     this.stats.totalTimeMs += elapsedMs;
@@ -94,7 +98,10 @@ export class GnosisIncrementalChecker {
     };
   }
 
-  private hashContent(sourceText: string, options: GnosisTypeScriptCheckOptions): string {
+  private hashContent(
+    sourceText: string,
+    options: GnosisTypeScriptCheckOptions
+  ): string {
     return crypto
       .createHash('sha256')
       .update(sourceText)

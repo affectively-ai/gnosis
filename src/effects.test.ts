@@ -10,7 +10,10 @@ import {
   ALL_EFFECT_KINDS,
   type NodeDescriptor,
 } from './effects.js';
-import { registerEffectHandlers, EFFECT_SYSTEM_FEATURES } from './effects-handlers.js';
+import {
+  registerEffectHandlers,
+  EFFECT_SYSTEM_FEATURES,
+} from './effects-handlers.js';
 import { GnosisRegistry } from './runtime/registry.js';
 
 describe('Effect System', () => {
@@ -37,32 +40,52 @@ describe('Effect System', () => {
 
   describe('Effect inference from labels', () => {
     it('infers fs.local from FileReader label', () => {
-      const node: NodeDescriptor = { id: 'n1', labels: ['FileReader'], properties: {} };
+      const node: NodeDescriptor = {
+        id: 'n1',
+        labels: ['FileReader'],
+        properties: {},
+      };
       const effects = inferNodeEffects(node);
-      expect(effects.some(e => e.kind === 'fs.local')).toBe(true);
+      expect(effects.some((e) => e.kind === 'fs.local')).toBe(true);
     });
 
     it('infers net.tcp.client from HttpClient label', () => {
-      const node: NodeDescriptor = { id: 'n1', labels: ['HttpClient'], properties: {} };
+      const node: NodeDescriptor = {
+        id: 'n1',
+        labels: ['HttpClient'],
+        properties: {},
+      };
       const effects = inferNodeEffects(node);
-      expect(effects.some(e => e.kind === 'net.tcp.client')).toBe(true);
+      expect(effects.some((e) => e.kind === 'net.tcp.client')).toBe(true);
     });
 
     it('infers quantum.sim from QuantumCircuit label', () => {
-      const node: NodeDescriptor = { id: 'n1', labels: ['QuantumCircuit'], properties: {} };
+      const node: NodeDescriptor = {
+        id: 'n1',
+        labels: ['QuantumCircuit'],
+        properties: {},
+      };
       const effects = inferNodeEffects(node);
-      expect(effects.some(e => e.kind === 'quantum.sim')).toBe(true);
+      expect(effects.some((e) => e.kind === 'quantum.sim')).toBe(true);
     });
 
     it('infers diff effects from DifferentiableNode label', () => {
-      const node: NodeDescriptor = { id: 'n1', labels: ['DifferentiableNode'], properties: {} };
+      const node: NodeDescriptor = {
+        id: 'n1',
+        labels: ['DifferentiableNode'],
+        properties: {},
+      };
       const effects = inferNodeEffects(node);
-      expect(effects.some(e => e.kind === 'diff.forward')).toBe(true);
-      expect(effects.some(e => e.kind === 'diff.backward')).toBe(true);
+      expect(effects.some((e) => e.kind === 'diff.forward')).toBe(true);
+      expect(effects.some((e) => e.kind === 'diff.backward')).toBe(true);
     });
 
     it('returns no effects for unlabeled node', () => {
-      const node: NodeDescriptor = { id: 'n1', labels: ['Custom'], properties: {} };
+      const node: NodeDescriptor = {
+        id: 'n1',
+        labels: ['Custom'],
+        properties: {},
+      };
       const effects = inferNodeEffects(node);
       expect(effects.length).toBe(0);
     });
@@ -70,21 +93,33 @@ describe('Effect System', () => {
 
   describe('Effect inference from properties', () => {
     it('infers time.timeout from timeout property', () => {
-      const node: NodeDescriptor = { id: 'n1', labels: [], properties: { timeout: '5000' } };
+      const node: NodeDescriptor = {
+        id: 'n1',
+        labels: [],
+        properties: { timeout: '5000' },
+      };
       const effects = inferNodeEffects(node);
-      expect(effects.some(e => e.kind === 'time.timeout')).toBe(true);
+      expect(effects.some((e) => e.kind === 'time.timeout')).toBe(true);
     });
 
     it('infers diff effects from learning_rate property', () => {
-      const node: NodeDescriptor = { id: 'n1', labels: [], properties: { learning_rate: '0.01' } };
+      const node: NodeDescriptor = {
+        id: 'n1',
+        labels: [],
+        properties: { learning_rate: '0.01' },
+      };
       const effects = inferNodeEffects(node);
-      expect(effects.some(e => e.kind === 'diff.forward')).toBe(true);
+      expect(effects.some((e) => e.kind === 'diff.forward')).toBe(true);
     });
   });
 
   describe('Declared effects parsing', () => {
     it('parses comma-separated effects', () => {
-      const node: NodeDescriptor = { id: 'n1', labels: [], properties: { effects: 'fs.local,net.tcp.client' } };
+      const node: NodeDescriptor = {
+        id: 'n1',
+        labels: [],
+        properties: { effects: 'fs.local,net.tcp.client' },
+      };
       const declared = parseDeclaredEffects(node);
       expect(declared.length).toBe(2);
       expect(declared[0].kind).toBe('fs.local');
@@ -99,38 +134,48 @@ describe('Effect System', () => {
 
   describe('Effect validation', () => {
     it('passes when declared matches inferred', () => {
-      const nodes: NodeDescriptor[] = [{
-        id: 'n1',
-        labels: ['FileReader'],
-        properties: { effects: 'fs.local' },
-      }];
+      const nodes: NodeDescriptor[] = [
+        {
+          id: 'n1',
+          labels: ['FileReader'],
+          properties: { effects: 'fs.local' },
+        },
+      ];
       const result = validateEffects(nodes, 'node');
       expect(result.ok).toBe(true);
     });
 
     it('fails when inferred effect is not declared', () => {
-      const nodes: NodeDescriptor[] = [{
-        id: 'n1',
-        labels: ['FileReader'],
-        properties: {},
-      }];
+      const nodes: NodeDescriptor[] = [
+        {
+          id: 'n1',
+          labels: ['FileReader'],
+          properties: {},
+        },
+      ];
       const result = validateEffects(nodes, 'node');
       expect(result.ok).toBe(false);
-      expect(result.diagnostics.some(d => d.message.includes('not declared'))).toBe(true);
+      expect(
+        result.diagnostics.some((d) => d.message.includes('not declared'))
+      ).toBe(true);
     });
 
     it('fails when effect is unsupported on target', () => {
-      const nodes: NodeDescriptor[] = [{
-        id: 'n1',
-        labels: ['FileReader'],
-        properties: { effects: 'fs.local' },
-      }];
+      const nodes: NodeDescriptor[] = [
+        {
+          id: 'n1',
+          labels: ['FileReader'],
+          properties: { effects: 'fs.local' },
+        },
+      ];
       const result = validateEffects(nodes, 'workers');
       expect(result.unsupported.length).toBeGreaterThan(0);
     });
 
     it('pure signature for nodes with no effects', () => {
-      const nodes: NodeDescriptor[] = [{ id: 'n1', labels: ['Pure'], properties: {} }];
+      const nodes: NodeDescriptor[] = [
+        { id: 'n1', labels: ['Pure'], properties: {} },
+      ];
       const result = validateEffects(nodes, 'agnostic');
       expect(result.signature.pure).toBe(true);
     });
@@ -140,7 +185,12 @@ describe('Effect System', () => {
     it('builds contract from signature', () => {
       const sig = createEffectSignature([
         { kind: 'fs.local', source: 'declared', nodeId: 'n1', reason: 'test' },
-        { kind: 'net.tcp.client', source: 'declared', nodeId: 'n2', reason: 'test' },
+        {
+          kind: 'net.tcp.client',
+          source: 'declared',
+          nodeId: 'n2',
+          reason: 'test',
+        },
       ]);
       const contract = buildEffectContract('myModule', sig);
       expect(contract.module).toBe('myModule');
@@ -149,10 +199,21 @@ describe('Effect System', () => {
     });
 
     it('checks contract compatibility', () => {
-      const consumer = buildEffectContract('consumer', createEffectSignature([
-        { kind: 'fs.local', source: 'declared', nodeId: 'n1', reason: 'test' },
-      ]));
-      const provider = buildEffectContract('provider', createEffectSignature([]));
+      const consumer = buildEffectContract(
+        'consumer',
+        createEffectSignature([
+          {
+            kind: 'fs.local',
+            source: 'declared',
+            nodeId: 'n1',
+            reason: 'test',
+          },
+        ])
+      );
+      const provider = buildEffectContract(
+        'provider',
+        createEffectSignature([])
+      );
       provider.provides = ['fs.local'];
 
       const result = contractsCompatible(consumer, provider, 'agnostic');

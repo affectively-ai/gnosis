@@ -89,9 +89,7 @@ export const GetStartedSection = memo(function GetStartedSection() {
               <code>npm install @a0n/aeon</code>
               <button
                 className="copy-btn"
-                onClick={() =>
-                  copyToClipboard('npm install @a0n/aeon', 'aeon')
-                }
+                onClick={() => copyToClipboard('npm install @a0n/aeon', 'aeon')}
                 aria-label="Copy command"
               >
                 {copied === 'aeon' ? <Check size={16} /> : <Copy size={16} />}

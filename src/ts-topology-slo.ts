@@ -215,7 +215,16 @@ function findTypeScriptFiles(
       const relative = path.relative(absDir, full);
 
       if (entry.isDirectory()) {
-        if (['node_modules', 'dist', '.next', '.bun', 'build', 'coverage'].includes(entry.name)) {
+        if (
+          [
+            'node_modules',
+            'dist',
+            '.next',
+            '.bun',
+            'build',
+            'coverage',
+          ].includes(entry.name)
+        ) {
           continue;
         }
         if (excludePaths?.some((p) => relative.startsWith(p))) continue;
@@ -223,9 +232,19 @@ function findTypeScriptFiles(
       } else if (entry.isFile()) {
         if (!full.endsWith('.ts') && !full.endsWith('.tsx')) continue;
         if (full.endsWith('.d.ts')) continue;
-        if (full.includes('.test.') || full.includes('.spec.') || full.includes('__tests__')) continue;
+        if (
+          full.includes('.test.') ||
+          full.includes('.spec.') ||
+          full.includes('__tests__')
+        )
+          continue;
         if (excludePaths?.some((p) => relative.startsWith(p))) continue;
-        if (includePaths && includePaths.length > 0 && !includePaths.some((p) => relative.startsWith(p))) continue;
+        if (
+          includePaths &&
+          includePaths.length > 0 &&
+          !includePaths.some((p) => relative.startsWith(p))
+        )
+          continue;
         files.push(full);
       }
     }

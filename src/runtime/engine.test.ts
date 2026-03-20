@@ -82,7 +82,9 @@ describe('GnosisEngine', () => {
     });
     registry.register('Step', handler);
 
-    const cache = new GnosisCoreCache(new QDoc({ guid: 'engine-cache-tunnel' }));
+    const cache = new GnosisCoreCache(
+      new QDoc({ guid: 'engine-cache-tunnel' })
+    );
     const engine = new GnosisEngine(registry, { coreCache: cache });
     const { ast } = compiler.parse('(a:Step)-[:PROCESS]->(b:Step)');
 
@@ -233,11 +235,13 @@ describe('GnosisEngine', () => {
 
     for (let attempt = 0; attempt < 20; attempt++) {
       if (
-        cache.getEvents().some(
-          (event) =>
-            event.type === 'tunnel' &&
-            event.corridorKey === 'branch-middle-tunnel'
-        )
+        cache
+          .getEvents()
+          .some(
+            (event) =>
+              event.type === 'tunnel' &&
+              event.corridorKey === 'branch-middle-tunnel'
+          )
       ) {
         break;
       }
@@ -318,7 +322,9 @@ describe('GnosisEngine', () => {
 
     expect(first.logs).toContain('[CORRIDOR] Ranked paths:');
     expect(second.logs).toContain('[CORRIDOR] Ranked paths:');
-    expect(second.logs).not.toContain('[CORRIDOR] HIT corridor=middle-out/bypass');
+    expect(second.logs).not.toContain(
+      '[CORRIDOR] HIT corridor=middle-out/bypass'
+    );
     expect(
       cache
         .getEvents()

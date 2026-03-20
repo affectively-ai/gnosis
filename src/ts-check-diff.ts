@@ -11,7 +11,10 @@ import type {
   GnosisTypeScriptCheckResult,
   GnosisTypeScriptCheckTopologyNode,
 } from './ts-check.js';
-import { checkTypeScriptWithGnosis, type GnosisTypeScriptCheckOptions } from './ts-check.js';
+import {
+  checkTypeScriptWithGnosis,
+  type GnosisTypeScriptCheckOptions,
+} from './ts-check.js';
 import type { GnosisSteeringRegime } from './analysis.js';
 
 export interface TopologyMetricsDelta {
@@ -115,7 +118,9 @@ export async function computeTopologyDiff(
       baseMetrics: baseResult.metrics,
       headMetrics: null,
     });
-    improvements.push(`Removed function (was buley=${baseResult.metrics.buleyNumber})`);
+    improvements.push(
+      `Removed function (was buley=${baseResult.metrics.buleyNumber})`
+    );
   } else if (baseResult && headResult) {
     const delta = computeDelta(baseResult.metrics, headResult.metrics);
     const transition = computeRegimeTransition(
@@ -154,7 +159,9 @@ export async function computeTopologyDiff(
     }
     if (delta.buleyNumber < -threshold) {
       improvements.push(
-        `Buley decreased by ${Math.abs(delta.buleyNumber)} (${baseResult.metrics.buleyNumber} -> ${headResult.metrics.buleyNumber})`
+        `Buley decreased by ${Math.abs(delta.buleyNumber)} (${
+          baseResult.metrics.buleyNumber
+        } -> ${headResult.metrics.buleyNumber})`
       );
     }
     if (transition.improved) {
@@ -165,14 +172,15 @@ export async function computeTopologyDiff(
   }
 
   const aggregateDelta = functions[0]?.delta ?? zeroDelta();
-  const worstTransition = functions
-    .map((f) => f.regimeTransition)
-    .filter((t): t is TopologyRegimeTransition => t !== null)
-    .sort((a, b) => {
-      if (a.degraded && !b.degraded) return -1;
-      if (!a.degraded && b.degraded) return 1;
-      return 0;
-    })[0] ?? null;
+  const worstTransition =
+    functions
+      .map((f) => f.regimeTransition)
+      .filter((t): t is TopologyRegimeTransition => t !== null)
+      .sort((a, b) => {
+        if (a.degraded && !b.degraded) return -1;
+        if (!a.degraded && b.degraded) return 1;
+        return 0;
+      })[0] ?? null;
 
   const summary = buildSummary(functions, regressions, improvements);
 
@@ -237,16 +245,18 @@ function buildSummary(
 
   for (const func of functions) {
     const arrow = func.delta
-      ? `${func.baseBuley} -> ${func.headBuley} (${func.delta.buleyNumber >= 0 ? '+' : ''}${func.delta.buleyNumber})`
+      ? `${func.baseBuley} -> ${func.headBuley} (${
+          func.delta.buleyNumber >= 0 ? '+' : ''
+        }${func.delta.buleyNumber})`
       : func.status === 'added'
-        ? `new (buley=${func.headBuley})`
-        : `removed (was buley=${func.baseBuley})`;
+      ? `new (buley=${func.headBuley})`
+      : `removed (was buley=${func.baseBuley})`;
 
     const regime = func.regimeTransition
       ? ` [${func.regimeTransition.from} -> ${func.regimeTransition.to}]`
       : func.headMetrics
-        ? ` [${func.headMetrics.regime}]`
-        : '';
+      ? ` [${func.headMetrics.regime}]`
+      : '';
 
     lines.push(`${func.status}: ${func.filePath} buley: ${arrow}${regime}`);
   }
@@ -274,13 +284,8 @@ function buildSummary(
 // PR comment formatting
 // ---------------------------------------------------------------------------
 
-export function formatPrComment(
-  diffs: readonly TopologyDiffResult[]
-): string {
-  const lines: string[] = [
-    '## Gnosis Topology Diff',
-    '',
-  ];
+export function formatPrComment(diffs: readonly TopologyDiffResult[]): string {
+  const lines: string[] = ['## Gnosis Topology Diff', ''];
 
   const totalRegressions = diffs.flatMap((d) => d.regressions);
   const totalImprovements = diffs.flatMap((d) => d.improvements);
@@ -299,10 +304,12 @@ export function formatPrComment(
       if (func.status === 'unchanged') continue;
 
       const buleyStr = func.delta
-        ? `${func.baseBuley} -> ${func.headBuley} (${func.delta.buleyNumber >= 0 ? '+' : ''}${func.delta.buleyNumber})`
+        ? `${func.baseBuley} -> ${func.headBuley} (${
+            func.delta.buleyNumber >= 0 ? '+' : ''
+          }${func.delta.buleyNumber})`
         : func.status === 'added'
-          ? `${func.headBuley} (new)`
-          : `${func.baseBuley} (removed)`;
+        ? `${func.headBuley} (new)`
+        : `${func.baseBuley} (removed)`;
 
       const regimeStr = func.regimeTransition
         ? `${func.regimeTransition.from} -> ${func.regimeTransition.to}`
@@ -312,13 +319,15 @@ export function formatPrComment(
         func.status === 'added'
           ? 'added'
           : func.status === 'removed'
-            ? 'removed'
-            : (func.delta?.buleyNumber ?? 0) > 0
-              ? 'regressed'
-              : 'improved';
+          ? 'removed'
+          : (func.delta?.buleyNumber ?? 0) > 0
+          ? 'regressed'
+          : 'improved';
 
       lines.push(
-        `| \`${path.basename(func.filePath)}\` | ${statusEmoji} | ${buleyStr} | ${regimeStr} |`
+        `| \`${path.basename(
+          func.filePath
+        )}\` | ${statusEmoji} | ${buleyStr} | ${regimeStr} |`
       );
     }
   }
@@ -345,4 +354,3 @@ export function formatPrComment(
 
   return lines.join('\n');
 }
-

@@ -124,7 +124,8 @@ function buildTopologyGraph(
     const indexInLayer = layerCounters.get(layer) ?? 0;
     layerCounters.set(layer, indexInLayer + 1);
     const totalInLayer = nodesPerLayer.get(layer) ?? 1;
-    const xSpread = totalInLayer > 1 ? (indexInLayer / (totalInLayer - 1)) * 10 - 5 : 0;
+    const xSpread =
+      totalInLayer > 1 ? (indexInLayer / (totalInLayer - 1)) * 10 - 5 : 0;
 
     nodes.push({
       id: plan.nodeId,

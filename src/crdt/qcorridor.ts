@@ -1,7 +1,11 @@
 'use aeon';
 
 import { QDoc, QMap, QArray } from './qdoc.js';
-import { QDocRelay, type QDocRelayConfig, type QDocRelayStatus } from './aeon-relay.js';
+import {
+  QDocRelay,
+  type QDocRelayConfig,
+  type QDocRelayStatus,
+} from './aeon-relay.js';
 
 export type QCorridorMode = 'readwrite' | 'readonly' | 'bypass';
 export type QCorridorReuseScope = 'exact' | 'corridor';
@@ -205,9 +209,17 @@ function safePayloadJson(payload: unknown): string | undefined {
   }
 }
 
-function corridorStrength(record: Pick<QCorridorRecord,
-  'signalScore' | 'sharedMiddleCoverage' | 'tunnelHits' | 'garbleRisk' | 'correctionBurden' | 'ventDebt'
->): number {
+function corridorStrength(
+  record: Pick<
+    QCorridorRecord,
+    | 'signalScore'
+    | 'sharedMiddleCoverage'
+    | 'tunnelHits'
+    | 'garbleRisk'
+    | 'correctionBurden'
+    | 'ventDebt'
+  >
+): number {
   return (
     record.signalScore +
     record.sharedMiddleCoverage +
@@ -529,10 +541,10 @@ export class QCorridor {
           metrics.firstSufficientCount +
           (metrics.lastWinnerPath ? 1 : 0),
         garbleRisk: currentCorridor.garbleRisk + metrics.repairDebt,
-        correctionBurden:
-          currentCorridor.correctionBurden + metrics.repairDebt,
+        correctionBurden: currentCorridor.correctionBurden + metrics.repairDebt,
         ventDebt: currentCorridor.ventDebt + metrics.ventCount,
-        lastWinnerPath: metrics.lastWinnerPath ?? currentCorridor.lastWinnerPath,
+        lastWinnerPath:
+          metrics.lastWinnerPath ?? currentCorridor.lastWinnerPath,
         lastAcceptedRequestKey: session.requestKey,
         updatedAt: now,
       })

@@ -26,7 +26,7 @@ export function registerDestructuringHandlers(registry: GnosisRegistry): void {
     const fieldsRaw = props.fields ?? '';
     const fields: Record<string, string> = {};
     for (const pair of fieldsRaw.split(',')) {
-      const [key, binding] = pair.split(':').map(s => s.trim());
+      const [key, binding] = pair.split(':').map((s) => s.trim());
       if (key && binding) fields[key] = binding;
       else if (key) fields[key] = key; // shorthand: {x} → {x: x}
     }
@@ -39,7 +39,7 @@ export function registerDestructuringHandlers(registry: GnosisRegistry): void {
   registry.register('DestructureTuple', async (payload, props) => {
     const elements = (props.elements ?? '')
       .split(',')
-      .map(s => s.trim())
+      .map((s) => s.trim())
       .filter(Boolean);
     const pattern = tuplePattern(elements);
     return extractBindings(pattern, payload);
@@ -73,7 +73,7 @@ export function registerDestructuringHandlers(registry: GnosisRegistry): void {
       (arm: { pattern: DestructurePattern; result: unknown }) => ({
         pattern: arm.pattern,
         handler: () => arm.result,
-      }),
+      })
     );
     return matchPatterns(payload, arms);
   });
@@ -83,7 +83,7 @@ export function registerDestructuringHandlers(registry: GnosisRegistry): void {
     const typeName = props.type ?? '';
     const tags = (props.tags ?? '')
       .split(',')
-      .map(s => s.trim())
+      .map((s) => s.trim())
       .filter(Boolean);
 
     const typeDef = BUILTIN_SUM_TYPES[typeName];
@@ -91,11 +91,16 @@ export function registerDestructuringHandlers(registry: GnosisRegistry): void {
       return { error: `Unknown type '${typeName}'` };
     }
 
-    const patterns = tags.map(tag => variantPattern(tag, 'value'));
+    const patterns = tags.map((tag) => variantPattern(tag, 'value'));
     return checkPatternExhaustiveness(patterns, typeDef);
   });
 }
 
 export const DESTRUCTURING_PATTERNS = [
-  'record', 'tuple', 'variant', 'wildcard', 'literal', 'nested',
+  'record',
+  'tuple',
+  'variant',
+  'wildcard',
+  'literal',
+  'nested',
 ] as const;

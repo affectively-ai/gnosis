@@ -1,12 +1,6 @@
 'use aeon';
 
-export {
-  QDoc,
-  QMap,
-  QArray,
-  QText,
-  QCounter,
-} from './qdoc.js';
+export { QDoc, QMap, QArray, QText, QCounter } from './qdoc.js';
 export { QCorridor } from './qcorridor.js';
 export type {
   QDocOptions,

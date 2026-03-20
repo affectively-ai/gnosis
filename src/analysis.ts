@@ -630,10 +630,9 @@ function buildFailureTrilemmaMetrics(
   const contagiousRepairPressure =
     nontrivialFork && ventCostEdges === 0 && repairCostEdges > 0;
   const maxFrontier = Math.max(1, ...frontierByLayer);
-  const collapseCostFloor =
-    deterministicCollapseCandidate
-      ? Math.max(0, maxFrontier - 1)
-      : 0;
+  const collapseCostFloor = deterministicCollapseCandidate
+    ? Math.max(0, maxFrontier - 1)
+    : 0;
   let cumulativePaidCost = 0;
   let peakFrontier = Math.max(1, frontierByLayer[0] ?? 1);
   let prefixCostDeficit = 0;

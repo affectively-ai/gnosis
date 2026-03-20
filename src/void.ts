@@ -35,13 +35,16 @@ export function createVoidBoundary(dimensions: number): VoidBoundary {
 export function updateVoidBoundary(
   boundary: VoidBoundary,
   dimensionIdx: number,
-  magnitude: number = 1,
+  magnitude: number = 1
 ): void {
   boundary.counts[dimensionIdx] += magnitude;
   boundary.totalEntries += magnitude;
 }
 
-export function decayVoidBoundary(boundary: VoidBoundary, factor: number): void {
+export function decayVoidBoundary(
+  boundary: VoidBoundary,
+  factor: number
+): void {
   for (let i = 0; i < boundary.counts.length; i++) {
     boundary.counts[i] *= 1 - factor;
   }
@@ -57,7 +60,10 @@ export function boundaryDimensions(boundary: VoidBoundary): number {
  * Merge two VoidBoundaries by summing their rejection counts.
  * Used by FOLD to merge boundaries from all inputs.
  */
-export function mergeVoidBoundaries(a: VoidBoundary, b: VoidBoundary): VoidBoundary {
+export function mergeVoidBoundaries(
+  a: VoidBoundary,
+  b: VoidBoundary
+): VoidBoundary {
   const maxDims = Math.max(a.counts.length, b.counts.length);
   const counts = new Array(maxDims).fill(0);
   for (let i = 0; i < a.counts.length; i++) counts[i] += a.counts[i];
@@ -80,7 +86,10 @@ export function buleyeanWeight(rounds: number, voidCount: number): number {
  * Check Buleyean positivity: all weights >= 1.
  * This is guaranteed by construction (the +1 sliver) but verifiable.
  */
-export function buleyeanPositivity(boundary: VoidBoundary, rounds: number = 0): boolean {
+export function buleyeanPositivity(
+  boundary: VoidBoundary,
+  rounds: number = 0
+): boolean {
   const T = rounds > 0 ? rounds : boundary.totalEntries;
   return boundary.counts.every((v) => buleyeanWeight(T, v) >= 1);
 }
@@ -92,9 +101,14 @@ export function buleyeanPositivity(boundary: VoidBoundary, rounds: number = 0): 
 export function entangleBoundaries(
   sourceIdx: number,
   targetIdx: number,
-  strength: number = 0.1,
+  strength: number = 0.1
 ): Resonance {
-  return createResonance(sourceIdx, targetIdx, strength, 'entangled void boundaries');
+  return createResonance(
+    sourceIdx,
+    targetIdx,
+    strength,
+    'entangled void boundaries'
+  );
 }
 
 /**
@@ -155,15 +169,14 @@ export function computeAleph(stack: BoundaryStack): number {
  */
 export function complementDistribution(
   boundary: VoidBoundary,
-  eta: number = 3.0,
+  eta: number = 3.0
 ): number[] {
   const counts = boundary.counts;
   const max = Math.max(...counts);
   const min = Math.min(...counts);
   const range = max - min;
-  const norm = range > 0
-    ? counts.map((v) => (v - min) / range)
-    : counts.map(() => 0);
+  const norm =
+    range > 0 ? counts.map((v) => (v - min) / range) : counts.map(() => 0);
   const weights = norm.map((v) => Math.exp(-eta * v));
   const sum = weights.reduce((a, b) => a + b, 0);
   return weights.map((w) => w / sum);
@@ -177,14 +190,14 @@ export function complementDistribution(
 export function iterateComplement(
   boundary: VoidBoundary,
   eta: number,
-  iterations: number,
+  iterations: number
 ): number[] {
   let counts = [...boundary.counts];
   let total = boundary.totalEntries || 1;
   for (let i = 0; i < iterations; i++) {
     const b: VoidBoundary = { counts, totalEntries: total };
     const dist = complementDistribution(b, eta);
-    counts = dist.map(p => p * total);
+    counts = dist.map((p) => p * total);
   }
   return complementDistribution({ counts, totalEntries: total }, eta);
 }
@@ -195,24 +208,26 @@ export function iterateComplement(
  */
 export function complementOscillation(
   boundary: VoidBoundary,
-  eta: number,
+  eta: number
 ): { amplitude: number; isFixedPoint: boolean; period2: boolean } {
   const total = boundary.totalEntries || 1;
   const dist0 = complementDistribution(boundary, eta);
-  const counts1 = dist0.map(p => p * total);
+  const counts1 = dist0.map((p) => p * total);
   const b1: VoidBoundary = { counts: counts1, totalEntries: total };
   const dist1 = complementDistribution(b1, eta);
-  const counts2 = dist1.map(p => p * total);
+  const counts2 = dist1.map((p) => p * total);
   const b2: VoidBoundary = { counts: counts2, totalEntries: total };
   const dist2 = complementDistribution(b2, eta);
 
   // Distance between Φ(p) and p (fixed point test)
   let fpDist = 0;
-  for (let i = 0; i < dist0.length; i++) fpDist += Math.abs(dist0[i] - dist1[i]);
+  for (let i = 0; i < dist0.length; i++)
+    fpDist += Math.abs(dist0[i] - dist1[i]);
 
   // Distance between Φ²(p) and p (period-2 test)
   let p2Dist = 0;
-  for (let i = 0; i < dist0.length; i++) p2Dist += Math.abs(dist0[i] - dist2[i]);
+  for (let i = 0; i < dist0.length; i++)
+    p2Dist += Math.abs(dist0[i] - dist2[i]);
 
   return {
     amplitude: fpDist,
@@ -280,7 +295,7 @@ export function giniCoefficient(values: number[]): number {
 export function inverseBule(
   boundary: VoidBoundary,
   eta: number,
-  rounds: number,
+  rounds: number
 ): number {
   if (rounds <= 0) return 0;
   const maxH = Math.log(boundary.counts.length);
@@ -292,7 +307,7 @@ export function inverseBule(
 export function measure(
   boundary: VoidBoundary,
   eta: number = 3.0,
-  rounds: number = 0,
+  rounds: number = 0
 ): Measurement {
   const dist = complementDistribution(boundary, eta);
   return {
@@ -323,12 +338,13 @@ export const GAIT_DEPTH: Record<Gait, number> = {
 export function selectGait(
   kurtosis: number,
   currentGait: Gait,
-  rounds: number,
+  rounds: number
 ): Gait {
   if (rounds === 0) return 'stand';
   if (currentGait === 'stand') return 'trot';
   if (kurtosis >= 0.5 && currentGait === 'trot' && rounds > 10) return 'canter';
-  if (kurtosis >= 2.0 && currentGait === 'canter' && rounds > 50) return 'gallop';
+  if (kurtosis >= 2.0 && currentGait === 'canter' && rounds > 50)
+    return 'gallop';
   if (kurtosis < 0.0 && currentGait === 'gallop') return 'canter';
   if (kurtosis < -1.5 && currentGait === 'canter') return 'trot';
   return currentGait;
@@ -343,16 +359,16 @@ export function selectGait(
  * Ordered from fastest to slowest accumulation rate.
  */
 export type Timescale =
-  | 'instant'        // sub-second (inference token selection)
-  | 'seconds'        // negotiation rounds
-  | 'minutes'        // conversation turns
-  | 'hours'          // session-level patterns
-  | 'days'           // daily behavioral cycles
-  | 'weeks'          // mental health fluctuations
-  | 'months'         // habit formation/dissolution
-  | 'years'          // trait crystallization
-  | 'lifetime'       // temperament, attachment
-  | 'generational';  // cultural inheritance
+  | 'instant' // sub-second (inference token selection)
+  | 'seconds' // negotiation rounds
+  | 'minutes' // conversation turns
+  | 'hours' // session-level patterns
+  | 'days' // daily behavioral cycles
+  | 'weeks' // mental health fluctuations
+  | 'months' // habit formation/dissolution
+  | 'years' // trait crystallization
+  | 'lifetime' // temperament, attachment
+  | 'generational'; // cultural inheritance
 
 /** Approximate decay rate per unit time for each timescale */
 export const TIMESCALE_DECAY: Record<Timescale, number> = {
@@ -383,7 +399,7 @@ export function createTimescaleBoundary(
   name: string,
   timescale: Timescale,
   dimensions: number,
-  dimensionLabels?: readonly string[],
+  dimensionLabels?: readonly string[]
 ): TimescaleBoundary {
   return {
     boundary: createVoidBoundary(dimensions),
@@ -424,7 +440,7 @@ export interface BoundaryStack {
 export function createBoundaryStack(
   name: string,
   layers: TimescaleBoundary[],
-  resonances: Resonance[] = [],
+  resonances: Resonance[] = []
 ): BoundaryStack {
   return { name, layers, resonances };
 }
@@ -440,7 +456,7 @@ export function createBoundaryStack(
 export function upwardConstraint(
   deeper: TimescaleBoundary,
   shallower: TimescaleBoundary,
-  strength: number = 0.1,
+  strength: number = 0.1
 ): number[] {
   const deepDist = complementDistribution(deeper.boundary);
   const shallowDims = boundaryDimensions(shallower.boundary);
@@ -472,7 +488,7 @@ export function upwardConstraint(
 export function downwardContext(
   shallower: TimescaleBoundary,
   deeper: TimescaleBoundary,
-  strength: number = 0.05,
+  strength: number = 0.05
 ): number[] {
   const shallowDist = complementDistribution(shallower.boundary);
   const deepDims = boundaryDimensions(deeper.boundary);
@@ -513,7 +529,7 @@ export function tickBoundaryStack(stack: BoundaryStack): void {
     }
     shallower.boundary.totalEntries = shallower.boundary.counts.reduce(
       (a, b) => a + b,
-      0,
+      0
     );
   }
 
@@ -526,7 +542,7 @@ export function tickBoundaryStack(stack: BoundaryStack): void {
     }
     deeper.boundary.totalEntries = deeper.boundary.counts.reduce(
       (a, b) => a + b,
-      0,
+      0
     );
   }
 
@@ -561,7 +577,7 @@ export function createResonance(
   sourceIdx: number,
   targetIdx: number,
   strength: number = 0.05,
-  description?: string,
+  description?: string
 ): Resonance {
   return { sourceIdx, targetIdx, strength, description };
 }
@@ -589,7 +605,7 @@ function applyResonance(stack: BoundaryStack, res: Resonance): void {
   }
   target.boundary.totalEntries = target.boundary.counts.reduce(
     (a, b) => a + b,
-    0,
+    0
   );
 }
 
@@ -604,7 +620,7 @@ function applyResonance(stack: BoundaryStack, res: Resonance): void {
  */
 export function projectBoundary(
   boundary: VoidBoundary,
-  projectionMatrix: number[][],
+  projectionMatrix: number[][]
 ): VoidBoundary {
   const targetDims = projectionMatrix.length;
   const projected = createVoidBoundary(targetDims);
@@ -643,7 +659,7 @@ export function flattenStack(stack: BoundaryStack): VoidBoundary {
 export function measureStack(
   stack: BoundaryStack,
   eta: number = 3.0,
-  rounds: number = 0,
+  rounds: number = 0
 ): Measurement {
   return measure(flattenStack(stack), eta, rounds);
 }
@@ -688,7 +704,7 @@ export interface Walker {
 export function createWalker(
   boundary: VoidBoundary,
   eta: number = 2.0,
-  exploration: number = 0.3,
+  exploration: number = 0.3
 ): Walker {
   return {
     boundary,
@@ -721,7 +737,7 @@ export function c0Update(
   walker: Walker,
   dimensionIdx: number,
   rejection: number,
-  reward: number = 0,
+  reward: number = 0
 ): void {
   if (rejection > 0) {
     updateVoidBoundary(walker.boundary, dimensionIdx, rejection);
@@ -781,9 +797,7 @@ export interface StackWalker {
 export function createStackWalker(stack: BoundaryStack): StackWalker {
   return {
     stack,
-    walkers: stack.layers.map((layer) =>
-      createWalker(layer.boundary),
-    ),
+    walkers: stack.layers.map((layer) => createWalker(layer.boundary)),
   };
 }
 
@@ -796,7 +810,12 @@ export function createStackWalker(stack: BoundaryStack): StackWalker {
 export function stepStackWalker(
   sw: StackWalker,
   /** Per-layer rejection magnitudes (from domain-specific observation) */
-  rejections: { layerIdx: number; dimensionIdx: number; magnitude: number; reward?: number }[],
+  rejections: {
+    layerIdx: number;
+    dimensionIdx: number;
+    magnitude: number;
+    reward?: number;
+  }[]
 ): void {
   // Apply domain-specific rejections
   for (const r of rejections) {

@@ -80,7 +80,10 @@ function buildVickreyTable(): void {
   // ∀ N > 0, C ≥ N → 3 * idleStages(N, C) < N
   // Witness: N=1, C=1 → idle=0, 3*0 = 0 < 1
   VICKREY_TABLE.set('3*idle(N,C)<N|N>0,C>=N', {
-    assignments: new Map([['N', 1], ['C', 1]]),
+    assignments: new Map([
+      ['N', 1],
+      ['C', 1],
+    ]),
     margin: 1, // 1 - 0 = 1
   });
 
@@ -88,7 +91,10 @@ function buildVickreyTable(): void {
   // ∀ N, C, 2*C > N → 2 * idleStages(N, C) < N
   // Witness: N=1, C=1 → 2*1=2 > 1, idle=0, 2*0=0 < 1
   VICKREY_TABLE.set('2*idle(N,C)<N|2*C>N', {
-    assignments: new Map([['N', 1], ['C', 1]]),
+    assignments: new Map([
+      ['N', 1],
+      ['C', 1],
+    ]),
     margin: 1,
   });
 
@@ -116,7 +122,10 @@ function buildVickreyTable(): void {
   // DaisyChainPrecomputation.lean: topk_strict_deficit
   // ∀ V, K, K < V → V - K > 0
   VICKREY_TABLE.set('V-K>0|K<V', {
-    assignments: new Map([['V', 2], ['K', 1]]),
+    assignments: new Map([
+      ['V', 2],
+      ['K', 1],
+    ]),
     margin: 1,
   });
 
@@ -164,12 +173,18 @@ function hashObligation(statement: string, variables: string): string {
   return `${statement.replace(/\s+/g, '')}|${variables.replace(/\s+/g, '')}`;
 }
 
-function parseObligation(statement: string, variables: string): NormalizedObligation {
+function parseObligation(
+  statement: string,
+  variables: string
+): NormalizedObligation {
   return {
     raw: statement,
-    variables: variables.split(',').map(v => {
+    variables: variables.split(',').map((v) => {
       const [name, bound] = v.trim().split('>=');
-      return { name: name.trim(), lowerBound: parseInt(bound?.trim() ?? '0', 10) };
+      return {
+        name: name.trim(),
+        lowerBound: parseInt(bound?.trim() ?? '0', 10),
+      };
     }),
     coefficients: new Map(),
     constant: 0,
@@ -273,7 +288,11 @@ export function registerOmegaCheckerHandlers(registry: GnosisRegistry): void {
 
     if (!winner) {
       // Fallback: omega search
-      const witness = omegaCheck(obligation.coefficients, obligation.constant, obligation.variables);
+      const witness = omegaCheck(
+        obligation.coefficients,
+        obligation.constant,
+        obligation.variables
+      );
       if (witness) {
         winner = {
           agentId: 0,
@@ -289,7 +308,9 @@ export function registerOmegaCheckerHandlers(registry: GnosisRegistry): void {
     return {
       obligation: obligation.raw,
       verified: winner?.valid ?? false,
-      witness: winner?.witness ? Object.fromEntries(winner.witness.assignments) : null,
+      witness: winner?.witness
+        ? Object.fromEntries(winner.witness.assignments)
+        : null,
       margin: winner?.witness?.margin ?? -1,
       source: winner?.source ?? 'none',
       agentId: winner?.agentId ?? -1,
@@ -304,14 +325,50 @@ export function registerOmegaCheckerHandlers(registry: GnosisRegistry): void {
 
 /** The theorem statements from ReynoldsBFT.lean and SemioticDeficit.lean */
 export const REYNOLDS_BFT_THEOREMS = [
-  { name: 'diversity_forces_deterministic_fold', statement: '3*(k-1)>=k', variables: 'k>=2' },
-  { name: 'diversity_exceeds_majority', statement: '2*(k-1)>=k', variables: 'k>=2' },
-  { name: 'codec_race_vent_exceeds_bft_threshold', statement: '3*(k-1)>=k', variables: 'k>=2' },
-  { name: 'codec_race_vent_exceeds_majority', statement: '2*(k-1)>=k', variables: 'k>=2' },
-  { name: 'semiotic_fold_exceeds_bft_threshold', statement: '3*(sp-1)>=sp', variables: 'sp>=2' },
-  { name: 'semiotic_fold_exceeds_majority', statement: '2*(sp-1)>=sp', variables: 'sp>=2' },
-  { name: 'semiotic_determinism_chain_part1', statement: 'sp-1>=1', variables: 'sp>=2' },
-  { name: 'daisy_chain_moa_determinism_part1', statement: 'k-1>=1', variables: 'k>=2' },
+  {
+    name: 'diversity_forces_deterministic_fold',
+    statement: '3*(k-1)>=k',
+    variables: 'k>=2',
+  },
+  {
+    name: 'diversity_exceeds_majority',
+    statement: '2*(k-1)>=k',
+    variables: 'k>=2',
+  },
+  {
+    name: 'codec_race_vent_exceeds_bft_threshold',
+    statement: '3*(k-1)>=k',
+    variables: 'k>=2',
+  },
+  {
+    name: 'codec_race_vent_exceeds_majority',
+    statement: '2*(k-1)>=k',
+    variables: 'k>=2',
+  },
+  {
+    name: 'semiotic_fold_exceeds_bft_threshold',
+    statement: '3*(sp-1)>=sp',
+    variables: 'sp>=2',
+  },
+  {
+    name: 'semiotic_fold_exceeds_majority',
+    statement: '2*(sp-1)>=sp',
+    variables: 'sp>=2',
+  },
+  {
+    name: 'semiotic_determinism_chain_part1',
+    statement: 'sp-1>=1',
+    variables: 'sp>=2',
+  },
+  {
+    name: 'daisy_chain_moa_determinism_part1',
+    statement: 'k-1>=1',
+    variables: 'k>=2',
+  },
   { name: 'topk_strict_deficit', statement: 'V-K>0', variables: 'K<V' },
-  { name: 'identical_ensemble_wasted_agents', statement: 'k-1>=1', variables: 'k>=2' },
+  {
+    name: 'identical_ensemble_wasted_agents',
+    statement: 'k-1>=1',
+    variables: 'k>=2',
+  },
 ] as const;

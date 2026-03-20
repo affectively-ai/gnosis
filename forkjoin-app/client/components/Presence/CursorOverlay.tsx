@@ -52,10 +52,8 @@ function resolveCursorPosition(
     typeof cursor.viewportHeight === 'number' && cursor.viewportHeight > 0
       ? cursor.viewportHeight
       : viewport.height;
-  const remoteScrollX =
-    typeof cursor.scrollX === 'number' ? cursor.scrollX : 0;
-  const remoteScrollY =
-    typeof cursor.scrollY === 'number' ? cursor.scrollY : 0;
+  const remoteScrollX = typeof cursor.scrollX === 'number' ? cursor.scrollX : 0;
+  const remoteScrollY = typeof cursor.scrollY === 'number' ? cursor.scrollY : 0;
 
   const absoluteX = remoteScrollX + cursor.x * remoteViewportWidth;
   const absoluteY = remoteScrollY + cursor.y * remoteViewportHeight;
@@ -69,7 +67,9 @@ function resolveCursorPosition(
 export const CursorOverlay = memo(function CursorOverlay({
   visitors,
 }: CursorOverlayProps) {
-  const [viewport, setViewport] = useState<ViewportState>(() => readViewportState());
+  const [viewport, setViewport] = useState<ViewportState>(() =>
+    readViewportState()
+  );
 
   useEffect(() => {
     if (typeof window === 'undefined') {

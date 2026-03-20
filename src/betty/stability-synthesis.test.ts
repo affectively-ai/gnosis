@@ -8,7 +8,11 @@ import {
 } from './stability.js';
 import type { ASTNode, ASTEdge, GraphAST } from './compiler.js';
 
-function makeNode(id: string, labels: string[], properties: Record<string, string>): ASTNode {
+function makeNode(
+  id: string,
+  labels: string[],
+  properties: Record<string, string>
+): ASTNode {
   return { id, labels, properties };
 }
 
@@ -21,10 +25,7 @@ function makeEdge(
   return { sourceIds, targetIds, type, properties };
 }
 
-function makeAST(
-  nodes: ASTNode[],
-  edges: ASTEdge[]
-): GraphAST {
+function makeAST(nodes: ASTNode[], edges: ASTEdge[]): GraphAST {
   const nodeMap = new Map<string, ASTNode>();
   for (const node of nodes) {
     nodeMap.set(node.id, node);
@@ -36,7 +37,11 @@ describe('synthesizeLyapunov', () => {
   const defaultDriftData = { scale: 1, offset: 0, driftGap: 1 };
 
   it('produces affine template V(x) = scale * x + offset', () => {
-    const result = synthesizeLyapunov(undefined, 'queue-depth', 'affine', { scale: 2, offset: 0.5, driftGap: 1 });
+    const result = synthesizeLyapunov(undefined, 'queue-depth', 'affine', {
+      scale: 2,
+      offset: 0.5,
+      driftGap: 1,
+    });
     expect(result.template).toBe('affine');
     expect(result.degree).toBe(1);
     expect(result.coefficients).toEqual([2, 0.5]);
@@ -45,7 +50,11 @@ describe('synthesizeLyapunov', () => {
   });
 
   it('produces quadratic template V(x) = c * x^2 + offset', () => {
-    const result = synthesizeLyapunov(undefined, 'fluid-backlog', 'quadratic', { scale: 0.5, offset: 0.1, driftGap: 1 });
+    const result = synthesizeLyapunov(undefined, 'fluid-backlog', 'quadratic', {
+      scale: 0.5,
+      offset: 0.1,
+      driftGap: 1,
+    });
     expect(result.template).toBe('quadratic');
     expect(result.degree).toBe(2);
     expect(result.coefficients).toEqual([0.5, 0.1]);
@@ -54,15 +63,27 @@ describe('synthesizeLyapunov', () => {
   });
 
   it('produces polynomial template with explicit coefficients', () => {
-    const node = makeNode('s', ['State'], { lyapunov_coefficients: '0.1,0.5,0.2' });
-    const result = synthesizeLyapunov(node, 'custom-potential', 'polynomial', defaultDriftData);
+    const node = makeNode('s', ['State'], {
+      lyapunov_coefficients: '0.1,0.5,0.2',
+    });
+    const result = synthesizeLyapunov(
+      node,
+      'custom-potential',
+      'polynomial',
+      defaultDriftData
+    );
     expect(result.template).toBe('polynomial');
     expect(result.degree).toBe(2);
     expect(result.coefficients).toEqual([0.1, 0.5, 0.2, 0]);
   });
 
   it('produces log-barrier template V(x) = c * log(1 + x)', () => {
-    const result = synthesizeLyapunov(undefined, 'fractional-retry', 'log-barrier', { scale: 2, offset: 0, driftGap: 0.5 });
+    const result = synthesizeLyapunov(
+      undefined,
+      'fractional-retry',
+      'log-barrier',
+      { scale: 2, offset: 0, driftGap: 0.5 }
+    );
     expect(result.template).toBe('log-barrier');
     expect(result.coefficients).toEqual([2]);
     expect(result.expression).toContain('log(1 + x)');
@@ -71,7 +92,12 @@ describe('synthesizeLyapunov', () => {
 
   it('produces piecewise-linear template V(x) = max(pieces)', () => {
     const node = makeNode('s', ['State'], { lyapunov_coefficients: '1,0,2,1' });
-    const result = synthesizeLyapunov(node, 'thermal-load', 'piecewise-linear', { scale: 1, offset: 0, driftGap: 1 });
+    const result = synthesizeLyapunov(
+      node,
+      'thermal-load',
+      'piecewise-linear',
+      { scale: 1, offset: 0, driftGap: 1 }
+    );
     expect(result.template).toBe('piecewise-linear');
     expect(result.coefficients).toEqual([1, 0, 2, 1]);
     expect(result.expression).toContain('max');
@@ -82,8 +108,12 @@ describe('discoverSmallSet', () => {
   it('uses explicit small_set_boundary when provided', () => {
     const node = makeNode('s', ['State'], { small_set_boundary: '5' });
     const lyap: LyapunovSynthesis = {
-      template: 'affine', degree: 1, coefficients: [1, 0],
-      expression: 'x', leanExpression: 'fun x => x', driftBound: '-1',
+      template: 'affine',
+      degree: 1,
+      coefficients: [1, 0],
+      expression: 'x',
+      leanExpression: 'fun x => x',
+      driftBound: '-1',
     };
     const ast = makeAST([node], []);
     const result = discoverSmallSet(ast, lyap, node, []);
@@ -94,10 +124,16 @@ describe('discoverSmallSet', () => {
 
   it('discovers VENT boundary from edge condition', () => {
     const node = makeNode('s', ['State'], {});
-    const ventEdge = makeEdge(['s'], ['sink'], 'VENT', { condition: 'x > 100' });
+    const ventEdge = makeEdge(['s'], ['sink'], 'VENT', {
+      condition: 'x > 100',
+    });
     const lyap: LyapunovSynthesis = {
-      template: 'affine', degree: 1, coefficients: [1, 0],
-      expression: 'x', leanExpression: 'fun x => x', driftBound: '-1',
+      template: 'affine',
+      degree: 1,
+      coefficients: [1, 0],
+      expression: 'x',
+      leanExpression: 'fun x => x',
+      driftBound: '-1',
     };
     const ast = makeAST([node], [ventEdge]);
     const result = discoverSmallSet(ast, lyap, node, [ventEdge]);
@@ -110,8 +146,12 @@ describe('discoverSmallSet', () => {
     const stateNode = makeNode('s', ['State'], {});
     const sinkNode = makeNode('sink', ['Sink'], { capacity: '64' });
     const lyap: LyapunovSynthesis = {
-      template: 'affine', degree: 1, coefficients: [1, 0],
-      expression: 'x', leanExpression: 'fun x => x', driftBound: '-1',
+      template: 'affine',
+      degree: 1,
+      coefficients: [1, 0],
+      expression: 'x',
+      leanExpression: 'fun x => x',
+      driftBound: '-1',
     };
     const ast = makeAST([stateNode, sinkNode], []);
     const result = discoverSmallSet(ast, lyap, stateNode, []);
@@ -122,8 +162,12 @@ describe('discoverSmallSet', () => {
   it('falls back to Lyapunov level set when no other source', () => {
     const node = makeNode('s', ['State'], { drift_gap: '2' });
     const lyap: LyapunovSynthesis = {
-      template: 'quadratic', degree: 2, coefficients: [1, 0],
-      expression: 'x^2', leanExpression: 'fun x => x ^ 2', driftBound: '-2',
+      template: 'quadratic',
+      degree: 2,
+      coefficients: [1, 0],
+      expression: 'x^2',
+      leanExpression: 'fun x => x ^ 2',
+      driftBound: '-2',
     };
     const ast = makeAST([node], []);
     const result = discoverSmallSet(ast, lyap, node, []);
@@ -134,42 +178,73 @@ describe('discoverSmallSet', () => {
 
 describe('synthesizeMinorization', () => {
   const defaultLyap: LyapunovSynthesis = {
-    template: 'affine', degree: 1, coefficients: [1, 0],
-    expression: 'x', leanExpression: 'fun x => x', driftBound: '-1',
+    template: 'affine',
+    degree: 1,
+    coefficients: [1, 0],
+    expression: 'x',
+    leanExpression: 'fun x => x',
+    driftBound: '-1',
   };
   const defaultSmallSet: SmallSetDiscovery = {
-    kind: 'capacity-sublevel', boundary: 10,
-    expression: '{x | x <= 10}', leanSetExpression: 'Set.Iic 10',
+    kind: 'capacity-sublevel',
+    boundary: 10,
+    expression: '{x | x <= 10}',
+    leanSetExpression: 'Set.Iic 10',
     derivedFrom: 'test',
   };
 
   it('produces dirac for countable state space', () => {
-    const result = synthesizeMinorization('countable', defaultSmallSet, defaultLyap, { driftGap: 1, explicitEpsilon: null });
+    const result = synthesizeMinorization(
+      'countable',
+      defaultSmallSet,
+      defaultLyap,
+      { driftGap: 1, explicitEpsilon: null }
+    );
     expect(result.epsilon).toBe(1);
     expect(result.measureKind).toBe('dirac');
     expect(result.leanMeasureExpression).toContain('dirac');
   });
 
   it('produces uniform-on-small-set for continuous-positive', () => {
-    const result = synthesizeMinorization('continuous-positive', defaultSmallSet, defaultLyap, { driftGap: 1, explicitEpsilon: null });
+    const result = synthesizeMinorization(
+      'continuous-positive',
+      defaultSmallSet,
+      defaultLyap,
+      { driftGap: 1, explicitEpsilon: null }
+    );
     expect(result.measureKind).toBe('uniform-on-small-set');
     expect(result.epsilon).toBeGreaterThan(0);
   });
 
   it('produces lebesgue-restricted for continuous-bounded', () => {
-    const result = synthesizeMinorization('continuous-bounded', defaultSmallSet, defaultLyap, { driftGap: 1, explicitEpsilon: null });
+    const result = synthesizeMinorization(
+      'continuous-bounded',
+      defaultSmallSet,
+      defaultLyap,
+      { driftGap: 1, explicitEpsilon: null }
+    );
     expect(result.measureKind).toBe('lebesgue-restricted');
     expect(result.epsilon).toBeGreaterThan(0);
   });
 
   it('produces uniform-on-small-set for continuous-unbounded', () => {
-    const result = synthesizeMinorization('continuous-unbounded', defaultSmallSet, defaultLyap, { driftGap: 1, explicitEpsilon: null });
+    const result = synthesizeMinorization(
+      'continuous-unbounded',
+      defaultSmallSet,
+      defaultLyap,
+      { driftGap: 1, explicitEpsilon: null }
+    );
     expect(result.measureKind).toBe('uniform-on-small-set');
     expect(result.epsilon).toBeGreaterThan(0);
   });
 
   it('uses explicit epsilon when provided', () => {
-    const result = synthesizeMinorization('continuous-positive', defaultSmallSet, defaultLyap, { driftGap: 1, explicitEpsilon: 0.25 });
+    const result = synthesizeMinorization(
+      'continuous-positive',
+      defaultSmallSet,
+      defaultLyap,
+      { driftGap: 1, explicitEpsilon: 0.25 }
+    );
     expect(result.epsilon).toBe(0.25);
     expect(result.derivedFrom).toContain('explicit');
   });

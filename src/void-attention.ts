@@ -88,7 +88,7 @@ export function createAttentionHead(
   dimensions: number,
   eta = 2.0,
   neighborhoodRadius = 1,
-  decayRate = 0,
+  decayRate = 0
 ): VoidAttentionHead {
   return {
     walker: createWalker(createVoidBoundary(dimensions), eta),
@@ -100,7 +100,7 @@ export function createAttentionHead(
 /** Forward pass = attend = compute complement distribution */
 export function attend(
   head: VoidAttentionHead,
-  rng?: () => number,
+  rng?: () => number
 ): AttentionOutput {
   const weights = complementDistribution(head.walker.boundary, head.walker.eta);
   const measurement = c1Measure(head.walker);
@@ -114,7 +114,7 @@ export function attend(
 export function reject(
   head: VoidAttentionHead,
   choiceIdx: number,
-  magnitude = 1,
+  magnitude = 1
 ): void {
   c0Update(head.walker, choiceIdx, magnitude);
   const r = head.neighborhoodRadius;
@@ -130,7 +130,8 @@ export function reject(
 
 /** Layer norm = void decay */
 export function layerNorm(head: VoidAttentionHead): void {
-  if (head.decayRate > 0) decayVoidBoundary(head.walker.boundary, head.decayRate);
+  if (head.decayRate > 0)
+    decayVoidBoundary(head.walker.boundary, head.decayRate);
 }
 
 /** Feed-forward = c2c3 adapt */
@@ -155,7 +156,7 @@ export function createCrossAttentionHead(
   dimB: number,
   eta = 2.0,
   neighborhoodRadius = 1,
-  decayRate = 0,
+  decayRate = 0
 ): VoidCrossAttentionHead {
   return {
     walker: createWalker(createVoidBoundary(dimA * dimB), eta),
@@ -180,7 +181,7 @@ export function crossAttend(
   boundaryB: VoidBoundary,
   etaA: number,
   etaB: number,
-  rng?: () => number,
+  rng?: () => number
 ): CrossAttentionOutput {
   const distA = complementDistribution(boundaryA, etaA);
   const distB = complementDistribution(boundaryB, etaB);
@@ -199,7 +200,11 @@ export function crossAttend(
   }
   if (sum > 0) for (let k = 0; k < N; k++) weights[k] /= sum;
 
-  const measurement = measure(cross.walker.boundary, cross.walker.eta, cross.walker.steps);
+  const measurement = measure(
+    cross.walker.boundary,
+    cross.walker.eta,
+    cross.walker.steps
+  );
 
   let selectedFlat: number;
   if (rng) {
@@ -221,7 +226,7 @@ export function crossReject(
   cross: VoidCrossAttentionHead,
   offerA: number,
   offerB: number,
-  magnitude = 1,
+  magnitude = 1
 ): void {
   const flat = offerA * cross.dimB + offerB;
   c0Update(cross.walker, flat, magnitude);
@@ -236,7 +241,11 @@ export function crossReject(
         if (nA >= 0 && nA < cross.dimA && nB >= 0 && nB < cross.dimB) {
           const neighborFlat = nA * cross.dimB + nB;
           const dist = Math.abs(da) + Math.abs(db);
-          c0Update(cross.walker, neighborFlat, Math.max(1, Math.round(magnitude / dist)));
+          c0Update(
+            cross.walker,
+            neighborFlat,
+            Math.max(1, Math.round(magnitude / dist))
+          );
         }
       }
     }
@@ -244,7 +253,8 @@ export function crossReject(
 }
 
 export function crossLayerNorm(cross: VoidCrossAttentionHead): void {
-  if (cross.decayRate > 0) decayVoidBoundary(cross.walker.boundary, cross.decayRate);
+  if (cross.decayRate > 0)
+    decayVoidBoundary(cross.walker.boundary, cross.decayRate);
 }
 
 export function crossFeedForward(cross: VoidCrossAttentionHead): void {
@@ -268,14 +278,22 @@ export function createTransformerBlock(
   numHeads = 1,
   eta = 2.0,
   neighborhoodRadius = 1,
-  decayRate = 0,
+  decayRate = 0
 ): VoidTransformerBlock {
   return {
     headsA: Array.from({ length: numHeads }, () =>
-      createAttentionHead(dimA, eta, neighborhoodRadius, decayRate)),
+      createAttentionHead(dimA, eta, neighborhoodRadius, decayRate)
+    ),
     headsB: Array.from({ length: numHeads }, () =>
-      createAttentionHead(dimB, eta, neighborhoodRadius, decayRate)),
-    cross: createCrossAttentionHead(dimA, dimB, eta, neighborhoodRadius, decayRate),
+      createAttentionHead(dimB, eta, neighborhoodRadius, decayRate)
+    ),
+    cross: createCrossAttentionHead(
+      dimA,
+      dimB,
+      eta,
+      neighborhoodRadius,
+      decayRate
+    ),
     rounds: 0,
   };
 }
@@ -283,7 +301,11 @@ export function createTransformerBlock(
 export interface TransformerOutput {
   selfA: { weights: number[]; selected: number; measurement: Measurement }[];
   selfB: { weights: number[]; selected: number; measurement: Measurement }[];
-  crossOut: { weights: number[]; selected: [number, number]; measurement: Measurement };
+  crossOut: {
+    weights: number[];
+    selected: [number, number];
+    measurement: Measurement;
+  };
   offerA: number;
   offerB: number;
   proposalAccepted: boolean;
@@ -305,7 +327,7 @@ export type TransformerRoundOutput = TransformerOutput;
 export function forward(
   block: VoidTransformerBlock,
   payoff: (a: number, b: number) => [number, number],
-  rng: () => number,
+  rng: () => number
 ): TransformerOutput {
   block.rounds++;
 
@@ -323,13 +345,19 @@ export function forward(
     block.headsB[0].walker.boundary,
     block.headsA[0].walker.eta,
     block.headsB[0].walker.eta,
-    rng,
+    rng
   );
   const [proposalA, proposalB] = crossOut.selected;
 
   // 3. Decision
-  const distA = complementDistribution(block.headsA[0].walker.boundary, block.headsA[0].walker.eta);
-  const distB = complementDistribution(block.headsB[0].walker.boundary, block.headsB[0].walker.eta);
+  const distA = complementDistribution(
+    block.headsA[0].walker.boundary,
+    block.headsA[0].walker.eta
+  );
+  const distB = complementDistribution(
+    block.headsB[0].walker.boundary,
+    block.headsB[0].walker.eta
+  );
   const offerA = distA[proposalA] >= distA[ownChoiceA] ? proposalA : ownChoiceA;
   const offerB = distB[proposalB] >= distB[ownChoiceB] ? proposalB : ownChoiceB;
   const proposalAccepted = offerA === proposalA && offerB === proposalB;
@@ -338,14 +366,18 @@ export function forward(
   const [payA, payB] = payoff(offerA, offerB);
 
   if (payA < payB || payA < 0) {
-    for (const h of block.headsA) reject(h, offerA, payA < 0 ? Math.abs(payA) : 1);
+    for (const h of block.headsA)
+      reject(h, offerA, payA < 0 ? Math.abs(payA) : 1);
   }
   if (payB < payA || payB < 0) {
-    for (const h of block.headsB) reject(h, offerB, payB < 0 ? Math.abs(payB) : 1);
+    for (const h of block.headsB)
+      reject(h, offerB, payB < 0 ? Math.abs(payB) : 1);
   }
   if (offerA !== offerB) {
-    for (const h of block.headsA) reject(h, Math.min(offerB, block.cross.dimA - 1), 1);
-    for (const h of block.headsB) reject(h, Math.min(offerA, block.cross.dimB - 1), 1);
+    for (const h of block.headsA)
+      reject(h, Math.min(offerB, block.cross.dimA - 1), 1);
+    for (const h of block.headsB)
+      reject(h, Math.min(offerA, block.cross.dimB - 1), 1);
   }
   if (!proposalAccepted || offerA !== offerB) {
     crossReject(block.cross, proposalA, proposalB, proposalAccepted ? 1 : 2);

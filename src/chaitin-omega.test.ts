@@ -239,7 +239,7 @@ describe('Complexity estimation', () => {
 describe('Self-verification', () => {
   it('CHAITIN_OMEGA_THEOREMS has all expected theorems', () => {
     expect(CHAITIN_OMEGA_THEOREMS.length).toBe(7);
-    const names = CHAITIN_OMEGA_THEOREMS.map(t => t.name);
+    const names = CHAITIN_OMEGA_THEOREMS.map((t) => t.name);
     expect(names).toContain('omega_positivity');
     expect(names).toContain('omega_subuniversality');
     expect(names).toContain('omega_monotone_convergence');
@@ -290,7 +290,11 @@ describe('Handler composition', () => {
     const enumerator = registry.getHandler('ProgramSpaceEnumerator')!;
     const approximator = registry.getHandler('OmegaApproximator')!;
 
-    const ps = await enumerator(null, { alphabetSize: '2', maxLength: '6', classifier: 'trivial' });
+    const ps = await enumerator(null, {
+      alphabetSize: '2',
+      maxLength: '6',
+      classifier: 'trivial',
+    });
     expect(ps.totalPrograms).toBeGreaterThan(0);
 
     const omega = await approximator(ps, {});
@@ -309,7 +313,7 @@ describe('Handler composition', () => {
     expect(result.complementDistribution.length).toBe(3);
     // Simplest choice gets highest complement probability
     const maxIdx = result.complementDistribution.indexOf(
-      Math.max(...result.complementDistribution),
+      Math.max(...result.complementDistribution)
     );
     expect(maxIdx).toBe(0);
   });
@@ -326,12 +330,15 @@ describe('Handler composition', () => {
 
   it('SolomonoffAxiomChecker from reconstructed payload', async () => {
     const checker = registry.getHandler('SolomonoffAxiomChecker')!;
-    const result = await checker({
-      choices: ['a', 'ab', 'abc'],
-      complexity: [1, 2, 3],
-      ceiling: 3,
-      rounds: 0,
-    }, {});
+    const result = await checker(
+      {
+        choices: ['a', 'ab', 'abc'],
+        complexity: [1, 2, 3],
+        ceiling: 3,
+        rounds: 0,
+      },
+      {}
+    );
 
     expect(result.allHold).toBe(true);
     expect(result.positivity).toBe(true);

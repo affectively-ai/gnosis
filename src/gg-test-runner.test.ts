@@ -26,7 +26,9 @@ describe('gg test runner — auto-discovery', () => {
   test('discovers all .test.gg files', () => {
     const files = discoverTestFiles(EXAMPLES_DIR);
     expect(files.length).toBeGreaterThanOrEqual(4); // synth, transformer, crdt, impossible systems
-    expect(files).toContain(resolve(EXAMPLES_DIR, 'impossible-systems.test.gg'));
+    expect(files).toContain(
+      resolve(EXAMPLES_DIR, 'impossible-systems.test.gg')
+    );
     for (const f of files) {
       expect(f).toMatch(/\.test\.gg$/);
     }

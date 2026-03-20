@@ -1,11 +1,15 @@
 import { describe, it, expect } from 'bun:test';
-import { createVoidBoundary, updateVoidBoundary, complementDistribution } from './void.js';
+import {
+  createVoidBoundary,
+  updateVoidBoundary,
+  complementDistribution,
+} from './void.js';
 
 function applyComplementMap(counts: number[], eta: number): number[] {
   const total = counts.reduce((a, b) => a + b, 0) || 1;
   const boundary = { counts: [...counts], totalEntries: total };
   const dist = complementDistribution(boundary, eta);
-  return dist.map(x => x * total);
+  return dist.map((x) => x * total);
 }
 
 function distanceBetween(a: number[], b: number[]): number {
@@ -123,7 +127,7 @@ describe('Void Oscillation', () => {
 
       const amplitudes: number[] = [];
       for (let iter = 0; iter < 40; iter++) {
-        const dev = counts.map(c => c - uniform);
+        const dev = counts.map((c) => c - uniform);
         const amp = Math.sqrt(dev.reduce((s, d) => s + d * d, 0));
         amplitudes.push(amp);
         counts = applyComplementMap(counts, eta);
@@ -148,15 +152,24 @@ describe('Void Oscillation', () => {
       for (let i = 0; i < 200; i++) {
         counts = applyComplementMap(counts, eta);
       }
-      const b1 = { counts: [...counts], totalEntries: counts.reduce((a, b) => a + b, 0) };
+      const b1 = {
+        counts: [...counts],
+        totalEntries: counts.reduce((a, b) => a + b, 0),
+      };
       const d1 = complementDistribution(b1, eta);
 
       const once = applyComplementMap(counts, eta);
-      const b2 = { counts: [...once], totalEntries: once.reduce((a, b) => a + b, 0) };
+      const b2 = {
+        counts: [...once],
+        totalEntries: once.reduce((a, b) => a + b, 0),
+      };
       const d2 = complementDistribution(b2, eta);
 
       const twice = applyComplementMap(once, eta);
-      const b3 = { counts: [...twice], totalEntries: twice.reduce((a, b) => a + b, 0) };
+      const b3 = {
+        counts: [...twice],
+        totalEntries: twice.reduce((a, b) => a + b, 0),
+      };
       const d3 = complementDistribution(b3, eta);
 
       // H(step 0) ≈ H(step 2) (period 2 in entropy)
@@ -166,9 +179,7 @@ describe('Void Oscillation', () => {
       expect(Math.abs(H1 - H3)).toBeLessThan(1e-6);
       // H1 and H2 may be equal (symmetric 2-cycles have same entropy)
       // but the DISTRIBUTIONS are different (ordering is swapped)
-      expect(distanceBetween(
-        [...d1], [...d2]
-      )).toBeGreaterThan(0.001);
+      expect(distanceBetween([...d1], [...d2])).toBeGreaterThan(0.001);
     });
   });
 });

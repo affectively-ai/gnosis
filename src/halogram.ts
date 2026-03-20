@@ -95,17 +95,20 @@ export function createHologram(
   name: string,
   personality: BoundaryStack,
   actionDimensions: number,
-  rng: () => number = Math.random,
+  rng: () => number = Math.random
 ): Hologram {
-  const agent = createVoidAgent({
-    name: `${name}:hologram`,
-    actionDimensions,
-    personality,
-    eta: 2.0,
-    numHeads: 1,  // System 1 is fast -- single head
-    neighborhoodRadius: 0,  // No spread -- sharp attention
-    decayRate: 0.005,
-  }, rng);
+  const agent = createVoidAgent(
+    {
+      name: `${name}:hologram`,
+      actionDimensions,
+      personality,
+      eta: 2.0,
+      numHeads: 1, // System 1 is fast -- single head
+      neighborhoodRadius: 0, // No spread -- sharp attention
+      decayRate: 0.005,
+    },
+    rng
+  );
 
   return { agent, name };
 }
@@ -160,17 +163,20 @@ export function createHalogram(
   personality: BoundaryStack,
   actionDimensions: number,
   overrideThreshold: number = 0.3,
-  rng: () => number = Math.random,
+  rng: () => number = Math.random
 ): Halogram {
-  const agent = createVoidAgent({
-    name: `${name}:halogram`,
-    actionDimensions,
-    personality,
-    eta: 2.5,  // System 2 starts slightly sharper (more deliberate)
-    numHeads: 2,  // Multi-head for deeper perception
-    neighborhoodRadius: 1,
-    decayRate: 0.005,
-  }, rng);
+  const agent = createVoidAgent(
+    {
+      name: `${name}:halogram`,
+      actionDimensions,
+      personality,
+      eta: 2.5, // System 2 starts slightly sharper (more deliberate)
+      numHeads: 2, // Multi-head for deeper perception
+      neighborhoodRadius: 1,
+      decayRate: 0.005,
+    },
+    rng
+  );
 
   // Per-layer metacog chains
   const layerChains: MetacogChain[] = personality.layers.map((layer, idx) => ({
@@ -178,7 +184,7 @@ export function createHalogram(
     walker: createWalker(
       createVoidBoundary(layer.boundary.counts.length),
       2.0,
-      0.2,
+      0.2
     ),
     eta: 2.0,
     exploration: 0.2,
@@ -187,10 +193,11 @@ export function createHalogram(
 
   // META chain: walks the flattened stack
   const flatDims = personality.layers.reduce(
-    (sum, l) => sum + l.boundary.counts.length, 0,
+    (sum, l) => sum + l.boundary.counts.length,
+    0
   );
   const metaChain: MetacogChain = {
-    layerIdx: -1,  // -1 = META (all layers)
+    layerIdx: -1, // -1 = META (all layers)
     walker: createWalker(createVoidBoundary(flatDims), 2.0, 0.15),
     eta: 2.0,
     exploration: 0.15,
@@ -254,7 +261,11 @@ export function attenuate(halogram: Halogram): void {
 
   // META chain: measure the whole stack
   const flat = flattenStack(halogram.agent.personality.stack);
-  const metaM = measure(flat, halogram.metaChain.eta, halogram.metaChain.walker.steps);
+  const metaM = measure(
+    flat,
+    halogram.metaChain.eta,
+    halogram.metaChain.walker.steps
+  );
   halogram.metaChain.lastMeasurement = metaM;
   halogram.metaChain.walker.steps++;
   c2c3Adapt(halogram.metaChain.walker);
@@ -300,7 +311,7 @@ export interface DualProcessResult {
 export function dualProcess(
   hologram: Hologram,
   halogram: Halogram,
-  other?: VoidAgent | null,
+  other?: VoidAgent | null
 ): DualProcessResult {
   // System 1: fast, automatic
   const s1 = tick(hologram.agent, other);
@@ -312,11 +323,11 @@ export function dualProcess(
   // Measure divergence: how much does System 2 disagree with System 1's choice?
   const s2Dist = complementDistribution(
     halogram.agent.perception[0].walker.boundary,
-    halogram.agent.perception[0].walker.eta,
+    halogram.agent.perception[0].walker.eta
   );
   const s1Dist = complementDistribution(
     hologram.agent.perception[0].walker.boundary,
-    hologram.agent.perception[0].walker.eta,
+    hologram.agent.perception[0].walker.eta
   );
 
   // Divergence: how poorly System 2 rates System 1's choice
@@ -357,11 +368,25 @@ export function completeDualProcess(
   result: DualProcessResult,
   rejected: boolean,
   rejectionMagnitude: number = 1,
-  reward: number = 0,
+  reward: number = 0
 ): void {
   // Update both systems with the actual outcome
-  completeTick(hologram.agent, result.action, result.system1Perception, rejected, rejectionMagnitude, reward);
-  completeTick(halogram.agent, result.action, result.system2Perception, rejected, rejectionMagnitude, reward);
+  completeTick(
+    hologram.agent,
+    result.action,
+    result.system1Perception,
+    rejected,
+    rejectionMagnitude,
+    reward
+  );
+  completeTick(
+    halogram.agent,
+    result.action,
+    result.system2Perception,
+    rejected,
+    rejectionMagnitude,
+    reward
+  );
 
   // If System 2 overrode and the outcome was good, reinforce the META chain
   if (result.taken === 'system2' && !rejected) {
@@ -370,7 +395,11 @@ export function completeDualProcess(
   }
   // If System 2 overrode and the outcome was bad, META chain accumulates void
   if (result.taken === 'system2' && rejected) {
-    c0Update(halogram.metaChain.walker, result.system2Action, rejectionMagnitude);
+    c0Update(
+      halogram.metaChain.walker,
+      result.system2Action,
+      rejectionMagnitude
+    );
   }
 }
 
@@ -391,7 +420,7 @@ export interface DualProcessState {
 
 export function inspectDualProcess(
   hologram: Hologram,
-  halogram: Halogram,
+  halogram: Halogram
 ): DualProcessState {
   const total = halogram.overrideCount + halogram.passthroughCount;
   return {
@@ -399,8 +428,12 @@ export function inspectDualProcess(
     system2Gait: halogram.agent.perception[0].walker.gait,
     metaGait: halogram.metaChain.walker.gait,
     overrideRate: total > 0 ? halogram.overrideCount / total : 0,
-    layerKurtoses: halogram.layerChains.map((c) => c.lastMeasurement?.kurtosis ?? 0),
-    layerEntropies: halogram.layerChains.map((c) => c.lastMeasurement?.entropy ?? 0),
+    layerKurtoses: halogram.layerChains.map(
+      (c) => c.lastMeasurement?.kurtosis ?? 0
+    ),
+    layerEntropies: halogram.layerChains.map(
+      (c) => c.lastMeasurement?.entropy ?? 0
+    ),
     metaEntropy: halogram.metaChain.lastMeasurement?.entropy ?? 0,
     metaKurtosis: halogram.metaChain.lastMeasurement?.kurtosis ?? 0,
   };

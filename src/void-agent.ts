@@ -109,7 +109,17 @@ export interface VoidAgentConfig {
  */
 export interface PersonalityLayerConfig {
   name: string;
-  timescale: 'instant' | 'seconds' | 'minutes' | 'hours' | 'days' | 'weeks' | 'months' | 'years' | 'lifetime' | 'generational';
+  timescale:
+    | 'instant'
+    | 'seconds'
+    | 'minutes'
+    | 'hours'
+    | 'days'
+    | 'weeks'
+    | 'months'
+    | 'years'
+    | 'lifetime'
+    | 'generational';
   dimensions: number;
   /** Optional dimension labels for introspection */
   labels?: readonly string[];
@@ -177,7 +187,7 @@ export interface AgentTick {
 
 export function createVoidAgent(
   config: VoidAgentConfig,
-  rng: () => number = Math.random,
+  rng: () => number = Math.random
 ): VoidAgent {
   const eta = config.eta ?? 2.0;
   const numHeads = config.numHeads ?? 1;
@@ -190,7 +200,12 @@ export function createVoidAgent(
     personality = createStackWalker(config.personality);
   } else if (config.personalityLayers && config.personalityLayers.length > 0) {
     const layers = config.personalityLayers.map((lc) => {
-      const tb = createTimescaleBoundary(lc.name, lc.timescale, lc.dimensions, lc.labels);
+      const tb = createTimescaleBoundary(
+        lc.name,
+        lc.timescale,
+        lc.dimensions,
+        lc.labels
+      );
       if (lc.initialCounts) {
         for (let i = 0; i < lc.initialCounts.length && i < lc.dimensions; i++) {
           if (lc.initialCounts[i] > 0) {
@@ -203,23 +218,38 @@ export function createVoidAgent(
     // Default resonance: temperament <-> mental health, culture <-> attachment
     const resonances: Resonance[] = [];
     if (layers.length >= 5) {
-      resonances.push(createResonance(0, 4, 0.05, 'temperament <-> mental health'));
+      resonances.push(
+        createResonance(0, 4, 0.05, 'temperament <-> mental health')
+      );
     }
     if (layers.length >= 7) {
       resonances.push(createResonance(6, 1, 0.05, 'culture <-> attachment'));
     }
-    const stack = createBoundaryStack(`${config.name}:personality`, layers, resonances);
+    const stack = createBoundaryStack(
+      `${config.name}:personality`,
+      layers,
+      resonances
+    );
     personality = createStackWalker(stack);
   } else {
     // Minimal: single-layer personality at the action space dimensionality
-    const layer = createTimescaleBoundary('flat', 'days', config.actionDimensions);
+    const layer = createTimescaleBoundary(
+      'flat',
+      'days',
+      config.actionDimensions
+    );
     const stack = createBoundaryStack(`${config.name}:flat`, [layer]);
     personality = createStackWalker(stack);
   }
 
   // Build perception heads
   const perception = Array.from({ length: numHeads }, () =>
-    createAttentionHead(config.actionDimensions, eta, neighborhoodRadius, decayRate),
+    createAttentionHead(
+      config.actionDimensions,
+      eta,
+      neighborhoodRadius,
+      decayRate
+    )
   );
 
   return {
@@ -246,21 +276,21 @@ export function bond(
   agentA: VoidAgent,
   agentB: VoidAgent,
   eta?: number,
-  neighborhoodRadius?: number,
+  neighborhoodRadius?: number
 ): void {
   agentA.social = createCrossAttentionHead(
     agentA.actionDimensions,
     agentB.actionDimensions,
     eta ?? agentA.perception[0].walker.eta,
     neighborhoodRadius ?? agentA.perception[0].neighborhoodRadius,
-    agentA.perception[0].decayRate,
+    agentA.perception[0].decayRate
   );
   agentB.social = createCrossAttentionHead(
     agentB.actionDimensions,
     agentA.actionDimensions,
     eta ?? agentB.perception[0].walker.eta,
     neighborhoodRadius ?? agentB.perception[0].neighborhoodRadius,
-    agentB.perception[0].decayRate,
+    agentB.perception[0].decayRate
   );
 }
 
@@ -302,8 +332,12 @@ export function perceive(agent: VoidAgent): {
  */
 export function perceiveOther(
   agent: VoidAgent,
-  other: VoidAgent,
-): { weights: number[]; selected: [number, number]; measurement: Measurement } | null {
+  other: VoidAgent
+): {
+  weights: number[];
+  selected: [number, number];
+  measurement: Measurement;
+} | null {
   if (!agent.social) return null;
   return crossAttend(
     agent.social,
@@ -311,7 +345,7 @@ export function perceiveOther(
     other.perception[0].walker.boundary,
     agent.perception[0].walker.eta,
     other.perception[0].walker.eta,
-    agent.rng,
+    agent.rng
   );
 }
 
@@ -328,7 +362,7 @@ export function perceiveOther(
 export function decide(
   agent: VoidAgent,
   perceptionWeights: number[],
-  socialInfluence?: { selected: [number, number] } | null,
+  socialInfluence?: { selected: [number, number] } | null
 ): number {
   // Primary: sample from perception-weighted complement
   const ownChoice = sampleComplement(perceptionWeights, agent.rng);
@@ -359,7 +393,7 @@ export function observe(
   action: number,
   rejected: boolean,
   rejectionMagnitude = 1,
-  reward = 0,
+  reward = 0
 ): void {
   // Update perception heads
   if (rejected) {
@@ -378,7 +412,12 @@ export function observe(
     // We don't know the other agent's action here, so we reject
     // at our own action dimension across all of theirs
     for (let j = 0; j < agent.social.dimB; j++) {
-      crossReject(agent.social, action, j, Math.max(1, Math.round(rejectionMagnitude / (j + 1))));
+      crossReject(
+        agent.social,
+        action,
+        j,
+        Math.max(1, Math.round(rejectionMagnitude / (j + 1)))
+      );
     }
   }
 
@@ -398,7 +437,9 @@ export function reflect(agent: VoidAgent): {
 } {
   const perceptionMeasurement = c1Measure(agent.perception[0].walker);
   const personalityMeasurement = measureStackWalker(agent.personality);
-  const socialMeasurement = agent.social ? c1Measure(agent.social.walker) : null;
+  const socialMeasurement = agent.social
+    ? c1Measure(agent.social.walker)
+    : null;
 
   return {
     perception: perceptionMeasurement,
@@ -442,7 +483,7 @@ export function adapt(agent: VoidAgent): void {
  */
 export function tick(
   agent: VoidAgent,
-  other?: VoidAgent | null,
+  other?: VoidAgent | null
 ): { action: number; perception: number[] } {
   // Perceive
   const p = perceive(agent);
@@ -468,7 +509,7 @@ export function completeTick(
   perception: number[],
   rejected: boolean,
   rejectionMagnitude = 1,
-  reward = 0,
+  reward = 0
 ): AgentTick {
   // Observe
   observe(agent, action, rejected, rejectionMagnitude, reward);
@@ -502,8 +543,12 @@ export function completeTick(
 export function step(
   agent: VoidAgent,
   /** Environment: given agent's action, returns [rejected, magnitude, reward] */
-  environment: (action: number) => { rejected: boolean; magnitude?: number; reward?: number },
-  other?: VoidAgent | null,
+  environment: (action: number) => {
+    rejected: boolean;
+    magnitude?: number;
+    reward?: number;
+  },
+  other?: VoidAgent | null
 ): AgentTick {
   const { action, perception } = tick(agent, other);
   const outcome = environment(action);
@@ -513,7 +558,7 @@ export function step(
     perception,
     outcome.rejected,
     outcome.magnitude ?? 1,
-    outcome.reward ?? 0,
+    outcome.reward ?? 0
   );
 }
 
@@ -533,20 +578,28 @@ function applyPersonalityConstraint(agent: VoidAgent): void {
 
   // Use the deepest layer (temperament/inherited) as the primary constraint
   const deepest = layers[0];
-  const constraint = upwardConstraint(deepest, {
-    boundary: agent.perception[0].walker.boundary,
-    timescale: 'instant',
-    name: 'perception',
-  }, 0.05);
+  const constraint = upwardConstraint(
+    deepest,
+    {
+      boundary: agent.perception[0].walker.boundary,
+      timescale: 'instant',
+      name: 'perception',
+    },
+    0.05
+  );
 
   // Apply constraint to all perception heads
   for (const head of agent.perception) {
-    const dims = Math.min(constraint.length, head.walker.boundary.counts.length);
+    const dims = Math.min(
+      constraint.length,
+      head.walker.boundary.counts.length
+    );
     for (let i = 0; i < dims; i++) {
       head.walker.boundary.counts[i] += constraint[i];
     }
     head.walker.boundary.totalEntries = head.walker.boundary.counts.reduce(
-      (a: number, b: number) => a + b, 0,
+      (a: number, b: number) => a + b,
+      0
     );
   }
 }
@@ -564,10 +617,15 @@ function propagateToPersonality(
   action: number,
   rejected: boolean,
   magnitude: number,
-  reward: number,
+  reward: number
 ): void {
   const layers = agent.personality.stack.layers;
-  const rejections: { layerIdx: number; dimensionIdx: number; magnitude: number; reward?: number }[] = [];
+  const rejections: {
+    layerIdx: number;
+    dimensionIdx: number;
+    magnitude: number;
+    reward?: number;
+  }[] = [];
 
   for (let i = 0; i < layers.length; i++) {
     const layer = layers[i];
@@ -608,11 +666,25 @@ function propagateToPersonality(
     }
 
     if (rejected && layerMag > 0) {
-      rejections.push({ layerIdx: i, dimensionIdx: dimIdx, magnitude: layerMag, reward });
+      rejections.push({
+        layerIdx: i,
+        dimensionIdx: dimIdx,
+        magnitude: layerMag,
+        reward,
+      });
     } else if (!rejected) {
       // Success still leaves a trace (mild habituation) at fast layers
-      if (layer.timescale === 'instant' || layer.timescale === 'seconds' || layer.timescale === 'minutes') {
-        rejections.push({ layerIdx: i, dimensionIdx: dimIdx, magnitude: 0.05, reward });
+      if (
+        layer.timescale === 'instant' ||
+        layer.timescale === 'seconds' ||
+        layer.timescale === 'minutes'
+      ) {
+        rejections.push({
+          layerIdx: i,
+          dimensionIdx: dimIdx,
+          magnitude: 0.05,
+          reward,
+        });
       }
     }
   }
@@ -637,18 +709,20 @@ export function personalityVector(agent: VoidAgent, eta?: number): number[] {
  * Which actions is the agent most likely to take right now?
  * Returns actions ranked by complement weight (freshest first).
  */
-export function actionPreferences(agent: VoidAgent): { action: number; weight: number }[] {
+export function actionPreferences(
+  agent: VoidAgent
+): { action: number; weight: number }[] {
   const dist = complementDistribution(
     agent.perception[0].walker.boundary,
-    agent.perception[0].walker.eta,
+    agent.perception[0].walker.eta
   );
   return dist
     .map((weight: number, action: number) => ({ action, weight }))
     .sort(
       (
         a: { action: number; weight: number },
-        b: { action: number; weight: number },
-      ) => b.weight - a.weight,
+        b: { action: number; weight: number }
+      ) => b.weight - a.weight
     );
 }
 
@@ -656,15 +730,17 @@ export function actionPreferences(agent: VoidAgent): { action: number; weight: n
  * What has the agent rejected most?
  * Returns actions ranked by void accumulation (most rejected first).
  */
-export function rejectionProfile(agent: VoidAgent): { action: number; voidCount: number }[] {
+export function rejectionProfile(
+  agent: VoidAgent
+): { action: number; voidCount: number }[] {
   const counts = agent.perception[0].walker.boundary.counts;
   return counts
     .map((voidCount: number, action: number) => ({ action, voidCount }))
     .sort(
       (
         a: { action: number; voidCount: number },
-        b: { action: number; voidCount: number },
-      ) => b.voidCount - a.voidCount,
+        b: { action: number; voidCount: number }
+      ) => b.voidCount - a.voidCount
     );
 }
 

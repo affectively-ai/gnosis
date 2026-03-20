@@ -18,7 +18,9 @@ import {
   type ObservableKind,
 } from './continuous-harris.js';
 
-export function registerContinuousHarrisHandlers(registry: GnosisRegistry): void {
+export function registerContinuousHarrisHandlers(
+  registry: GnosisRegistry
+): void {
   // Infer observable from node properties
   registry.register('ObservableInference', async (_payload, props) => {
     return inferObservable(props);
@@ -27,7 +29,8 @@ export function registerContinuousHarrisHandlers(registry: GnosisRegistry): void
   // Synthesize small set from node properties
   registry.register('SmallSetSynthesizer', async (_payload, props) => {
     const nodeId = props.nodeId ?? 'state';
-    const observableKind = (props.observable_kind ?? 'queue-length') as ObservableKind;
+    const observableKind = (props.observable_kind ??
+      'queue-length') as ObservableKind;
     return synthesizeSmallSet(nodeId, observableKind, props);
   });
 
@@ -40,7 +43,8 @@ export function registerContinuousHarrisHandlers(registry: GnosisRegistry): void
   // Synthesize minorization data
   registry.register('MinorizationSynthesizer', async (_payload, props) => {
     const nodeId = props.nodeId ?? 'state';
-    const observableKind = (props.observable_kind ?? 'queue-length') as ObservableKind;
+    const observableKind = (props.observable_kind ??
+      'queue-length') as ObservableKind;
     const smallSet = synthesizeSmallSet(nodeId, observableKind, props);
     return synthesizeMinorization(smallSet, props);
   });

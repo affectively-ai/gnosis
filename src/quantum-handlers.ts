@@ -7,22 +7,37 @@
 
 import type { GnosisRegistry } from './runtime/registry.js';
 import {
-  ket0, ket1, ketPlus, ketMinus,
-  hadamard, pauliX, pauliZ,
+  ket0,
+  ket1,
+  ketPlus,
+  ketMinus,
+  hadamard,
+  pauliX,
+  pauliZ,
   measure,
   isNormalized,
-  prob0, prob1,
+  prob0,
+  prob1,
   createRegister,
   registerFromQubit,
-  applyCNOT, applyCZ,
+  applyCNOT,
+  applyCZ,
   applyGateToRegister,
   measureRegister,
   bellState,
   isEntangled,
   registerNormalized,
-  createCircuit, addGate, addCNOT, addMeasure, addBarrier,
+  createCircuit,
+  addGate,
+  addCNOT,
+  addMeasure,
+  addBarrier,
   executeCircuit,
-  H_GATE, X_GATE, Z_GATE, S_GATE, T_GATE,
+  H_GATE,
+  X_GATE,
+  Z_GATE,
+  S_GATE,
+  T_GATE,
   phaseGate,
   type Qubit,
   type QuantumRegister,
@@ -39,11 +54,16 @@ export function registerQuantumHandlers(registry: GnosisRegistry): void {
   registry.register('QubitInit', async (_payload, props) => {
     const state = props.state ?? '0';
     switch (state) {
-      case '0': return ket0();
-      case '1': return ket1();
-      case '+': return ketPlus();
-      case '-': return ketMinus();
-      default: return ket0();
+      case '0':
+        return ket0();
+      case '1':
+        return ket1();
+      case '+':
+        return ketPlus();
+      case '-':
+        return ketMinus();
+      default:
+        return ket0();
     }
   });
 
@@ -52,10 +72,14 @@ export function registerQuantumHandlers(registry: GnosisRegistry): void {
     const qubit = payload as Qubit;
     const gate = props.gate ?? 'H';
     switch (gate) {
-      case 'H': return hadamard(qubit);
-      case 'X': return pauliX(qubit);
-      case 'Z': return pauliZ(qubit);
-      default: return hadamard(qubit);
+      case 'H':
+        return hadamard(qubit);
+      case 'X':
+        return pauliX(qubit);
+      case 'Z':
+        return pauliZ(qubit);
+      default:
+        return hadamard(qubit);
     }
   });
 
@@ -76,11 +100,16 @@ export function registerQuantumHandlers(registry: GnosisRegistry): void {
     const reg = payload as QuantumRegister;
     const qubitIdx = parseInt(props.qubit ?? '0', 10);
     const gate = props.gate ?? 'H';
-    const gateMatrix = gate === 'X' ? X_GATE
-      : gate === 'Z' ? Z_GATE
-      : gate === 'S' ? S_GATE
-      : gate === 'T' ? T_GATE
-      : H_GATE;
+    const gateMatrix =
+      gate === 'X'
+        ? X_GATE
+        : gate === 'Z'
+        ? Z_GATE
+        : gate === 'S'
+        ? S_GATE
+        : gate === 'T'
+        ? T_GATE
+        : H_GATE;
     return applyGateToRegister(reg, qubitIdx, gateMatrix);
   });
 
@@ -157,4 +186,13 @@ export function registerQuantumHandlers(registry: GnosisRegistry): void {
   });
 }
 
-export const QUANTUM_GATE_NAMES = ['H', 'X', 'Y', 'Z', 'S', 'T', 'CNOT', 'CZ'] as const;
+export const QUANTUM_GATE_NAMES = [
+  'H',
+  'X',
+  'Y',
+  'Z',
+  'S',
+  'T',
+  'CNOT',
+  'CZ',
+] as const;

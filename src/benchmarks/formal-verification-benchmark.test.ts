@@ -18,12 +18,12 @@ const PROBLEMS = [
 
 describe('Formal verification LOC ratios', () => {
   test('gnosis is at least 5x more concise than TLA+ on average', () => {
-    const ratio = mean(PROBLEMS.map(p => p.tla / p.gg));
+    const ratio = mean(PROBLEMS.map((p) => p.tla / p.gg));
     expect(ratio).toBeGreaterThanOrEqual(5);
   });
 
   test('gnosis is at least 8x more concise than Lean on average', () => {
-    const ratio = mean(PROBLEMS.map(p => p.lean / p.gg));
+    const ratio = mean(PROBLEMS.map((p) => p.lean / p.gg));
     expect(ratio).toBeGreaterThanOrEqual(8);
   });
 

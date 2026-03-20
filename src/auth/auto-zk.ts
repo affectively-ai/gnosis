@@ -25,7 +25,10 @@ function parseBoolean(value: string | undefined): boolean {
 }
 
 function hasCrossBoundarySync(properties: Record<string, string>): boolean {
-  if (parseBoolean(properties.crossDevice) || parseBoolean(properties.crossTenant)) {
+  if (
+    parseBoolean(properties.crossDevice) ||
+    parseBoolean(properties.crossTenant)
+  ) {
     return true;
   }
 
@@ -196,7 +199,9 @@ function shouldSkipEdgeForInjection(edge: ASTEdge): boolean {
   return false;
 }
 
-export function injectSensitiveZkEnvelopes(ast: GraphAST): ZkAutoInjectionResult {
+export function injectSensitiveZkEnvelopes(
+  ast: GraphAST
+): ZkAutoInjectionResult {
   const nodes = new Map<string, ASTNode>();
   for (const [id, node] of ast.nodes.entries()) {
     nodes.set(id, cloneNode(node));
@@ -244,7 +249,9 @@ export function injectSensitiveZkEnvelopes(ast: GraphAST): ZkAutoInjectionResult
       wrapperSeed += 1;
       const wrapperNode = createWrapperNode(wrapperNodeId, 'sync', combined);
       nodes.set(wrapperNodeId, wrapperNode);
-      rewrittenEdges.push(createInjectedEdge(currentSourceId, wrapperNodeId, edge));
+      rewrittenEdges.push(
+        createInjectedEdge(currentSourceId, wrapperNodeId, edge)
+      );
       injected.push({
         domain: 'sync',
         sourceId,
@@ -270,7 +277,9 @@ export function injectSensitiveZkEnvelopes(ast: GraphAST): ZkAutoInjectionResult
         combined
       );
       nodes.set(wrapperNodeId, wrapperNode);
-      rewrittenEdges.push(createInjectedEdge(currentSourceId, wrapperNodeId, edge));
+      rewrittenEdges.push(
+        createInjectedEdge(currentSourceId, wrapperNodeId, edge)
+      );
       injected.push({
         domain: 'materialization',
         sourceId,

@@ -49,7 +49,7 @@ export type Phase = 'disordered' | 'critical' | 'ordered' | 'frozen';
  */
 export function computeOrderParameter(
   boundary: VoidBoundary,
-  eta: number,
+  eta: number
 ): OrderParameter {
   const dist = complementDistribution(boundary, eta);
   const n = dist.length;
@@ -61,9 +61,7 @@ export function computeOrderParameter(
   const maxEntropy = Math.log(n);
 
   // Magnetization: deviation from uniform (0 = uniform, 1 = delta)
-  const magnetization = maxEntropy > 0
-    ? 1 - entropy / maxEntropy
-    : 0;
+  const magnetization = maxEntropy > 0 ? 1 - entropy / maxEntropy : 0;
 
   // Phase classification
   let phase: Phase;
@@ -96,7 +94,7 @@ export interface PhaseTransition {
  * Detect phase transitions in a sequence of order parameters.
  */
 export function detectPhaseTransitions(
-  history: { step: number; order: OrderParameter; gait: Gait }[],
+  history: { step: number; order: OrderParameter; gait: Gait }[]
 ): PhaseTransition[] {
   const transitions: PhaseTransition[] = [];
   for (let i = 1; i < history.length; i++) {
@@ -125,7 +123,7 @@ export function detectPhaseTransitions(
 export function susceptibility(
   boundary: VoidBoundary,
   eta: number,
-  delta: number = 0.01,
+  delta: number = 0.01
 ): number {
   const m1 = computeOrderParameter(boundary, eta - delta).magnetization;
   const m2 = computeOrderParameter(boundary, eta + delta).magnetization;
@@ -141,7 +139,7 @@ export function correlationLength(boundary: VoidBoundary, eta: number): number {
   const dist = complementDistribution(boundary, eta);
   const mean = 1 / dist.length;
   const threshold = mean * 1.5; // 50% above mean
-  return dist.filter(p => p > threshold).length;
+  return dist.filter((p) => p > threshold).length;
 }
 
 /**
@@ -151,7 +149,7 @@ export function correlationLength(boundary: VoidBoundary, eta: number): number {
 export function isCritical(
   boundary: VoidBoundary,
   eta: number,
-  threshold: number = 0.5,
+  threshold: number = 0.5
 ): boolean {
   const chi = susceptibility(boundary, eta);
   const xi = correlationLength(boundary, eta);
@@ -170,17 +168,14 @@ export function isCritical(
  */
 export function detectSymmetryBreaking(
   boundary: VoidBoundary,
-  eta: number,
+  eta: number
 ): { broken: boolean; dominantIdx: number; dominance: number } {
   const dist = complementDistribution(boundary, eta);
   let maxIdx = 0;
   for (let i = 1; i < dist.length; i++) {
     if (dist[i] > dist[maxIdx]) maxIdx = i;
   }
-  const secondMax = Math.max(
-    ...dist.filter((_, i) => i !== maxIdx),
-    0,
-  );
+  const secondMax = Math.max(...dist.filter((_, i) => i !== maxIdx), 0);
   const dominance = secondMax > 0 ? dist[maxIdx] / secondMax : Infinity;
   return {
     broken: dominance > 2, // 2x dominance threshold
@@ -213,7 +208,7 @@ export interface EmergenceReport {
 export function analyzeEmergence(
   boundary: VoidBoundary,
   eta: number,
-  previousPhase?: Phase,
+  previousPhase?: Phase
 ): EmergenceReport {
   const order = computeOrderParameter(boundary, eta);
   const chi = susceptibility(boundary, eta);

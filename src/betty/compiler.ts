@@ -2,14 +2,8 @@ import { Pipeline } from '@a0n/aeon-pipelines';
 import { QuantumWasmBridge } from './quantum/bridge.js';
 import { injectSensitiveZkEnvelopes } from '../auth/auto-zk.js';
 import { lowerUfcsSource } from '../ufcs.js';
-import {
-  analyzeTopologyStability,
-  type StabilityReport,
-} from './stability.js';
-import {
-  createDefaultOptimizer,
-  type OptimizerResult,
-} from './optimizer.js';
+import { analyzeTopologyStability, type StabilityReport } from './stability.js';
+import { createDefaultOptimizer, type OptimizerResult } from './optimizer.js';
 import {
   extractFiberPartition,
   validatePartition,
@@ -499,13 +493,17 @@ export class BettyCompiler {
         : '';
     const optimizerSummary =
       this.optimizerResult && this.optimizerResult.passesApplied.length > 0
-        ? `\nOptimizer: ${this.optimizerResult.passesApplied.join(', ')} (${this.optimizerResult.certificates.length} certificate(s))`
+        ? `\nOptimizer: ${this.optimizerResult.passesApplied.join(', ')} (${
+            this.optimizerResult.certificates.length
+          } certificate(s))`
         : '';
     const summary = `[Betty Professional Compiler]\nNodes: ${
       this.ast.nodes.size
     }, Edges: ${this.ast.edges.length}\nBetti: ${
       this.b1
-    }, Buley Measure: ${buleyMeasure.toFixed(2)}${spectralSummary}${optimizerSummary}`;
+    }, Buley Measure: ${buleyMeasure.toFixed(
+      2
+    )}${spectralSummary}${optimizerSummary}`;
 
     return {
       ast: this.ast,
@@ -826,7 +824,11 @@ export class BettyCompiler {
       if (raw === undefined) continue;
 
       const exploration = Number(raw);
-      if (!Number.isFinite(exploration) || exploration < 0.01 || exploration > 0.5) {
+      if (
+        !Number.isFinite(exploration) ||
+        exploration < 0.01 ||
+        exploration > 0.5
+      ) {
         this.diagnostics.push({
           line: 1,
           column: 1,
@@ -843,7 +845,11 @@ export class BettyCompiler {
       if (raw === undefined) continue;
 
       const exploration = Number(raw);
-      if (!Number.isFinite(exploration) || exploration < 0.01 || exploration > 0.5) {
+      if (
+        !Number.isFinite(exploration) ||
+        exploration < 0.01 ||
+        exploration > 0.5
+      ) {
         this.diagnostics.push({
           line: 1,
           column: 1,
@@ -856,7 +862,9 @@ export class BettyCompiler {
   }
 
   /** 3. complement_distribution_valid: any edge with a distribution must sum to 1.0 */
-  private checkComplementDistributionValid(severity: 'error' | 'warning'): void {
+  private checkComplementDistributionValid(
+    severity: 'error' | 'warning'
+  ): void {
     for (const edge of this.ast.edges) {
       const raw = edge.properties.distribution;
       if (raw === undefined) continue;
@@ -875,7 +883,9 @@ export class BettyCompiler {
           line: 1,
           column: 1,
           code: 'VOID_COMPLEMENT_DISTRIBUTION_INVALID',
-          message: `${edge.type} edge from [${edge.sourceIds.join(', ')}] has distribution summing to ${sum.toFixed(6)}, expected 1.0.`,
+          message: `${edge.type} edge from [${edge.sourceIds.join(
+            ', '
+          )}] has distribution summing to ${sum.toFixed(6)}, expected 1.0.`,
           severity,
         });
       }
@@ -898,7 +908,11 @@ export class BettyCompiler {
           const sourceBound = Number(sourceNode.properties.void_boundary);
           const targetBound = Number(targetNode.properties.void_boundary);
 
-          if (Number.isFinite(sourceBound) && Number.isFinite(targetBound) && targetBound < sourceBound) {
+          if (
+            Number.isFinite(sourceBound) &&
+            Number.isFinite(targetBound) &&
+            targetBound < sourceBound
+          ) {
             this.diagnostics.push({
               line: 1,
               column: 1,
@@ -995,7 +1009,11 @@ export class BettyCompiler {
           line: 1,
           column: 1,
           code: 'VOID_METACOG_MISSING_CONVERGENCE',
-          message: `PROCESS edge from [${edge.sourceIds.join(', ')}] to [${edge.targetIds.join(', ')}] creates a cycle but has no convergence predicate. Use a METACOG edge for implicit convergence certification.`,
+          message: `PROCESS edge from [${edge.sourceIds.join(
+            ', '
+          )}] to [${edge.targetIds.join(
+            ', '
+          )}] creates a cycle but has no convergence predicate. Use a METACOG edge for implicit convergence certification.`,
           severity,
         });
       }
@@ -1015,7 +1033,9 @@ export class BettyCompiler {
           return false;
         }
 
-        const forkTargets = candidate.targetIds.map((targetId) => targetId.trim());
+        const forkTargets = candidate.targetIds.map((targetId) =>
+          targetId.trim()
+        );
         return foldSources.every((sourceId) => forkTargets.includes(sourceId));
       });
 
@@ -1069,7 +1089,9 @@ export class BettyCompiler {
           line: 1,
           column: 1,
           code: 'VOID_TRACED_MONOIDAL_VIOLATED',
-          message: `Feedback loop on [${edge.sourceIds.join(', ')}] is missing traced monoidal axiom annotations: ${missing}. Use a METACOG edge for implicit axiom satisfaction.`,
+          message: `Feedback loop on [${edge.sourceIds.join(
+            ', '
+          )}] is missing traced monoidal axiom annotations: ${missing}. Use a METACOG edge for implicit axiom satisfaction.`,
           severity,
         });
       }
@@ -1121,7 +1143,7 @@ export class BettyCompiler {
    */
   private checkFoldWithoutEvidence(severity: 'error' | 'warning'): void {
     const foldEdges = this.ast.edges.filter(
-      (e) => e.type === 'FOLD' || e.type === 'COLLAPSE',
+      (e) => e.type === 'FOLD' || e.type === 'COLLAPSE'
     );
 
     for (const edge of foldEdges) {
@@ -1135,7 +1157,9 @@ export class BettyCompiler {
           line: 1,
           column: 1,
           code: 'ETHICS_FOLD_WITHOUT_EVIDENCE',
-          message: `FOLD from [${edge.sourceIds.join(', ')}] has no upstream void evidence. Folding without evidence is a blind commitment -- the grid cell [Fold, Sparse void] is Courage, but [Fold, Empty void] has no ethical name. Add void_density or an upstream RACE/FORK.`,
+          message: `FOLD from [${edge.sourceIds.join(
+            ', '
+          )}] has no upstream void evidence. Folding without evidence is a blind commitment -- the grid cell [Fold, Sparse void] is Courage, but [Fold, Empty void] has no ethical name. Add void_density or an upstream RACE/FORK.`,
           severity,
         });
       }
@@ -1160,7 +1184,9 @@ export class BettyCompiler {
           line: 1,
           column: 1,
           code: 'ETHICS_FOLD_DESTROYS_ALL',
-          message: `FOLD from [${edge.sourceIds.join(', ')}] consumes ${edge.sourceIds.length} of ${totalNodes} nodes. A fold that destroys all alternatives is not Judgment -- it is annihilation. Preserve at least one alternative path.`,
+          message: `FOLD from [${edge.sourceIds.join(', ')}] consumes ${
+            edge.sourceIds.length
+          } of ${totalNodes} nodes. A fold that destroys all alternatives is not Judgment -- it is annihilation. Preserve at least one alternative path.`,
           severity,
         });
       }
@@ -1185,7 +1211,9 @@ export class BettyCompiler {
           line: 1,
           column: 1,
           code: 'ETHICS_VENT_WITHOUT_BOUNDARY',
-          message: `VENT from [${edge.sourceIds.join(', ')}] has no condition or reason. Rejection without stated boundary is not Honesty -- it is arbitrary exclusion. Add condition or reason to define what the vent protects.`,
+          message: `VENT from [${edge.sourceIds.join(
+            ', '
+          )}] has no condition or reason. Rejection without stated boundary is not Honesty -- it is arbitrary exclusion. Add condition or reason to define what the vent protects.`,
           severity,
         });
       }
@@ -1207,7 +1235,9 @@ export class BettyCompiler {
           line: 1,
           column: 1,
           code: 'ETHICS_RACE_PREMATURE_COLLAPSE',
-          message: `RACE from [${edge.sourceIds.join(', ')}] has ${edge.sourceIds.length} source(s). Racing fewer than two paths is not Listening -- it is premature collapse. A race requires at least two paths to be fair.`,
+          message: `RACE from [${edge.sourceIds.join(', ')}] has ${
+            edge.sourceIds.length
+          } source(s). Racing fewer than two paths is not Listening -- it is premature collapse. A race requires at least two paths to be fair.`,
           severity,
         });
       }
@@ -1228,7 +1258,9 @@ export class BettyCompiler {
           line: 1,
           column: 1,
           code: 'ETHICS_FORK_ZERO_OPTIONS',
-          message: `FORK from [${edge.sourceIds.join(', ')}] creates ${edge.targetIds.length} path(s). A fork that creates fewer than two paths is not Generosity -- it is a disguised PROCESS. Use PROCESS if only one path is intended.`,
+          message: `FORK from [${edge.sourceIds.join(', ')}] creates ${
+            edge.targetIds.length
+          } path(s). A fork that creates fewer than two paths is not Generosity -- it is a disguised PROCESS. Use PROCESS if only one path is intended.`,
           severity,
         });
       }
@@ -1244,7 +1276,7 @@ export class BettyCompiler {
   private checkMissingVentPath(severity: 'error' | 'warning'): void {
     const hasFork = this.ast.edges.some((e) => e.type === 'FORK');
     const hasFold = this.ast.edges.some(
-      (e) => e.type === 'FOLD' || e.type === 'RACE' || e.type === 'COLLAPSE',
+      (e) => e.type === 'FOLD' || e.type === 'RACE' || e.type === 'COLLAPSE'
     );
     const hasVent = this.ast.edges.some((e) => e.type === 'VENT');
     const hasTunnel = this.ast.edges.some((e) => e.type === 'TUNNEL');
@@ -1284,7 +1316,12 @@ export class BettyCompiler {
    */
   private checkIrreversibleOnOthersVoid(severity: 'error' | 'warning'): void {
     for (const edge of this.ast.edges) {
-      if (edge.type !== 'FOLD' && edge.type !== 'VENT' && edge.type !== 'COLLAPSE') continue;
+      if (
+        edge.type !== 'FOLD' &&
+        edge.type !== 'VENT' &&
+        edge.type !== 'COLLAPSE'
+      )
+        continue;
       if (edge.properties.void_source !== 'other') continue;
 
       const isSacrifice = edge.properties.sacrifice === 'true';
@@ -1296,7 +1333,11 @@ export class BettyCompiler {
           line: 1,
           column: 1,
           code: 'ETHICS_IRREVERSIBLE_ON_OTHERS_VOID',
-          message: `${edge.type} from [${edge.sourceIds.join(', ')}] operates on void_source: "other" without explicit acknowledgment. This is ${op} -- it requires ${edge.type === 'VENT' ? 'tough_love' : 'sacrifice'}: "true" to confirm intent.`,
+          message: `${edge.type} from [${edge.sourceIds.join(
+            ', '
+          )}] operates on void_source: "other" without explicit acknowledgment. This is ${op} -- it requires ${
+            edge.type === 'VENT' ? 'tough_love' : 'sacrifice'
+          }: "true" to confirm intent.`,
           severity,
         });
       }
@@ -1311,7 +1352,11 @@ export class BettyCompiler {
    */
   private checkNoTrace(severity: 'error' | 'warning'): void {
     const hasIrreversible = this.ast.edges.some(
-      (e) => e.type === 'FOLD' || e.type === 'VENT' || e.type === 'RACE' || e.type === 'COLLAPSE',
+      (e) =>
+        e.type === 'FOLD' ||
+        e.type === 'VENT' ||
+        e.type === 'RACE' ||
+        e.type === 'COLLAPSE'
     );
     if (!hasIrreversible) return;
 
@@ -1321,12 +1366,17 @@ export class BettyCompiler {
 
     // Check for any feedback cycle (PROCESS edge back to an earlier node)
     const hasCycle = this.ast.edges.some((edge) =>
-      edge.sourceIds.some((s) => edge.targetIds.includes(s)),
+      edge.sourceIds.some((s) => edge.targetIds.includes(s))
     );
 
     // Check for trace-like labels on any node
-    const hasTraceNode = Array.from(this.ast.nodes.values()).some(
-      (n) => n.labels.some((l) => l.toLowerCase().includes('trace') || l.toLowerCase().includes('measure') || l.toLowerCase().includes('reflect')),
+    const hasTraceNode = Array.from(this.ast.nodes.values()).some((n) =>
+      n.labels.some(
+        (l) =>
+          l.toLowerCase().includes('trace') ||
+          l.toLowerCase().includes('measure') ||
+          l.toLowerCase().includes('reflect')
+      )
     );
 
     if (!hasTraceSupportingEdge && !hasCycle && !hasTraceNode) {
@@ -1390,7 +1440,11 @@ export class BettyCompiler {
   private computeVoidDimensions(): number {
     let dims = 0;
     for (const edge of this.ast.edges) {
-      if (edge.type === 'FORK' || edge.type === 'EVOLVE' || edge.type === 'SUPERPOSE') {
+      if (
+        edge.type === 'FORK' ||
+        edge.type === 'EVOLVE' ||
+        edge.type === 'SUPERPOSE'
+      ) {
         dims += edge.targetIds.length;
       }
     }
@@ -1417,7 +1471,11 @@ export class BettyCompiler {
     // Fork entropy = sum of log2(targets) for each FORK
     let forkEntropy = 0;
     for (const edge of this.ast.edges) {
-      if (edge.type === 'FORK' || edge.type === 'EVOLVE' || edge.type === 'SUPERPOSE') {
+      if (
+        edge.type === 'FORK' ||
+        edge.type === 'EVOLVE' ||
+        edge.type === 'SUPERPOSE'
+      ) {
         forkEntropy += Math.log2(Math.max(1, edge.targetIds.length));
       }
     }
@@ -1431,7 +1489,11 @@ export class BettyCompiler {
         line: 1,
         column: 1,
         code: 'THERMO_FIRST_LAW_VIOLATED',
-        message: `First law violated: fork entropy (${forkEntropy.toFixed(3)}) < erasure cost (${erasure.toFixed(3)}). More information is being erased than was created. Add FORK paths or remove FOLD/VENT edges.`,
+        message: `First law violated: fork entropy (${forkEntropy.toFixed(
+          3
+        )}) < erasure cost (${erasure.toFixed(
+          3
+        )}). More information is being erased than was created. Add FORK paths or remove FOLD/VENT edges.`,
         severity: 'warning',
       });
     }
@@ -1477,7 +1539,8 @@ export class BettyCompiler {
       for (const e of outgoingEdges) {
         const cases = this.extractTaggedCases(e);
         if (e.type === 'VENT') cases.forEach((c) => ventedCases.add(c));
-        if (e.type === 'FOLD' || e.type === 'COLLAPSE') cases.forEach((c) => foldedCases.add(c));
+        if (e.type === 'FOLD' || e.type === 'COLLAPSE')
+          cases.forEach((c) => foldedCases.add(c));
       }
 
       // Unvented variants that also aren't folded means the sliver is broken
@@ -1486,13 +1549,19 @@ export class BettyCompiler {
       );
       if (unhandled.length > 0 && outgoingEdges.length > 0) {
         // Only warn if there are case-aware edges (otherwise exhaustiveness checker handles it)
-        const hasCaseEdges = outgoingEdges.some((e) => this.extractTaggedCases(e).length > 0);
+        const hasCaseEdges = outgoingEdges.some(
+          (e) => this.extractTaggedCases(e).length > 0
+        );
         if (hasCaseEdges) {
           this.diagnostics.push({
             line: 1,
             column: 1,
             code: 'BULE_EXHAUSTIVENESS_INCOMPLETE',
-            message: `${taggedDef.label} node '${node.id}' has unhandled variants: ${unhandled.join(', ')}. Unvented variants violate the Buleyean sliver guarantee.`,
+            message: `${taggedDef.label} node '${
+              node.id
+            }' has unhandled variants: ${unhandled.join(
+              ', '
+            )}. Unvented variants violate the Buleyean sliver guarantee.`,
             severity: 'warning',
           });
         }
@@ -1518,20 +1587,33 @@ export class BettyCompiler {
 
     // Process edges in order to accumulate beta1 per node
     for (const edge of this.ast.edges) {
-      const sourceB1 = Math.max(...edge.sourceIds.map((s) => nodeB1.get(s.trim()) ?? 0));
+      const sourceB1 = Math.max(
+        ...edge.sourceIds.map((s) => nodeB1.get(s.trim()) ?? 0)
+      );
 
-      if (edge.type === 'FORK' || edge.type === 'EVOLVE' || edge.type === 'SUPERPOSE') {
+      if (
+        edge.type === 'FORK' ||
+        edge.type === 'EVOLVE' ||
+        edge.type === 'SUPERPOSE'
+      ) {
         const newB1 = sourceB1 + edge.targetIds.length - 1;
         for (const t of edge.targetIds) {
           nodeB1.set(t.trim(), newB1);
         }
-      } else if (edge.type === 'FOLD' || edge.type === 'COLLAPSE' || edge.type === 'OBSERVE') {
+      } else if (
+        edge.type === 'FOLD' ||
+        edge.type === 'COLLAPSE' ||
+        edge.type === 'OBSERVE'
+      ) {
         const newB1 = Math.max(0, sourceB1 - (edge.sourceIds.length - 1));
         for (const t of edge.targetIds) {
           nodeB1.set(t.trim(), newB1);
         }
       } else if (edge.type === 'RACE' || edge.type === 'INTERFERE') {
-        const newB1 = Math.max(0, sourceB1 - Math.max(0, edge.sourceIds.length - edge.targetIds.length));
+        const newB1 = Math.max(
+          0,
+          sourceB1 - Math.max(0, edge.sourceIds.length - edge.targetIds.length)
+        );
         for (const t of edge.targetIds) {
           nodeB1.set(t.trim(), newB1);
         }
@@ -1610,7 +1692,13 @@ export class BettyCompiler {
             line: 1,
             column: 1,
             code: 'ENTANGLE_DIM_MISMATCH',
-            message: `ENTANGLE from [${edge.sourceIds.join(', ')}] to [${edge.targetIds.join(', ')}] links nodes with different void dimensionalities: ${[...allDims].join(', ')}. Entangled boundaries must have the same dimensions.`,
+            message: `ENTANGLE from [${edge.sourceIds.join(
+              ', '
+            )}] to [${edge.targetIds.join(
+              ', '
+            )}] links nodes with different void dimensionalities: ${[
+              ...allDims,
+            ].join(', ')}. Entangled boundaries must have the same dimensions.`,
             severity: 'error',
           });
         }
@@ -1624,7 +1712,11 @@ export class BettyCompiler {
 
   private checkSelfVerificationAnnotations(): void {
     const validVerify = new Set([
-      'positivity', 'convergence', 'conservation', 'deficit_zero', 'first_law',
+      'positivity',
+      'convergence',
+      'conservation',
+      'deficit_zero',
+      'first_law',
     ]);
 
     for (const edge of this.ast.edges) {
@@ -1635,7 +1727,9 @@ export class BettyCompiler {
         this.diagnostics.push({
           line: 1,
           column: 1,
-          message: `Unknown verify annotation '${verify}' on ${edge.type} edge. Expected one of: ${[...validVerify].join(', ')}.`,
+          message: `Unknown verify annotation '${verify}' on ${
+            edge.type
+          } edge. Expected one of: ${[...validVerify].join(', ')}.`,
           severity: 'error',
         });
         continue;
@@ -1666,7 +1760,9 @@ export class BettyCompiler {
             line: 1,
             column: 1,
             code: 'ERR_DEFICIT_NONZERO',
-            message: `verify: 'deficit_zero' failed: beta1=${this.b1} at ${edge.type} edge from [${edge.sourceIds.join(', ')}].`,
+            message: `verify: 'deficit_zero' failed: beta1=${this.b1} at ${
+              edge.type
+            } edge from [${edge.sourceIds.join(', ')}].`,
             severity: 'error',
           });
         }
@@ -1674,7 +1770,8 @@ export class BettyCompiler {
         // Already checked globally, make it an error here
         let forkEntropy = 0;
         for (const e of this.ast.edges) {
-          if (e.type === 'FORK') forkEntropy += Math.log2(Math.max(1, e.targetIds.length));
+          if (e.type === 'FORK')
+            forkEntropy += Math.log2(Math.max(1, e.targetIds.length));
         }
         const erasure = this.computeLandauerHeat();
         if (forkEntropy > 0 && forkEntropy < erasure - 1e-9) {
@@ -1682,7 +1779,9 @@ export class BettyCompiler {
             line: 1,
             column: 1,
             code: 'THERMO_FIRST_LAW_VIOLATED',
-            message: `verify: 'first_law' failed: fork entropy (${forkEntropy.toFixed(3)}) < erasure (${erasure.toFixed(3)}).`,
+            message: `verify: 'first_law' failed: fork entropy (${forkEntropy.toFixed(
+              3
+            )}) < erasure (${erasure.toFixed(3)}).`,
             severity: 'error',
           });
         }
@@ -1725,7 +1824,10 @@ export class BettyCompiler {
 
       if (forkTargets.size > 0) {
         const alephSources = new Set<string>();
-        const collectUpstream = (nodeId: string, visited: Set<string>): void => {
+        const collectUpstream = (
+          nodeId: string,
+          visited: Set<string>
+        ): void => {
           if (visited.has(nodeId)) return;
           visited.add(nodeId);
           alephSources.add(nodeId);
@@ -1740,13 +1842,19 @@ export class BettyCompiler {
         };
         collectUpstream(node.id, new Set());
 
-        const unreachedForks = [...forkTargets].filter((t) => !alephSources.has(t));
+        const unreachedForks = [...forkTargets].filter(
+          (t) => !alephSources.has(t)
+        );
         if (unreachedForks.length > 0) {
           this.diagnostics.push({
             line: 1,
             column: 1,
             code: 'ALEPH_INCOMPLETE',
-            message: `Aleph node '${node.id}' does not receive void data from fork branches: ${unreachedForks.join(', ')}. The sufficient statistic requires all upstream void data.`,
+            message: `Aleph node '${
+              node.id
+            }' does not receive void data from fork branches: ${unreachedForks.join(
+              ', '
+            )}. The sufficient statistic requires all upstream void data.`,
             severity: 'warning',
           });
         }
@@ -1761,8 +1869,10 @@ export class BettyCompiler {
       // A METACOG edge that targets a node which also sources a FORK
       // could cause entropy reversal (information creation in a feedback loop)
       for (const targetId of edge.targetIds) {
-        const downstream = this.ast.edges.filter((e) =>
-          e.sourceIds.some((s) => s.trim() === targetId.trim()) && e.type === 'FORK'
+        const downstream = this.ast.edges.filter(
+          (e) =>
+            e.sourceIds.some((s) => s.trim() === targetId.trim()) &&
+            e.type === 'FORK'
         );
         if (downstream.length > 0) {
           this.diagnostics.push({
@@ -1777,10 +1887,7 @@ export class BettyCompiler {
     }
   }
 
-  private hasUpstreamVoidEvidence(
-    nodeId: string,
-    seen: Set<string>
-  ): boolean {
+  private hasUpstreamVoidEvidence(nodeId: string, seen: Set<string>): boolean {
     if (seen.has(nodeId)) {
       return false;
     }

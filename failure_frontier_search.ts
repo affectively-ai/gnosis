@@ -45,13 +45,14 @@ function processTargetId(nodeId: string, stageIndex: number): string {
   return `${nodeId}_p${stageIndex}`;
 }
 
-function buildFailureFrontierCandidate(
-  spec: FailureSearchCandidateSpec,
-): { name: string; source: string; spec: FailureSearchCandidateSpec } {
+function buildFailureFrontierCandidate(spec: FailureSearchCandidateSpec): {
+  name: string;
+  source: string;
+  spec: FailureSearchCandidateSpec;
+} {
   const lines: string[] = [];
-  const branchIds = Array.from(
-    { length: spec.branchCount },
-    (_, branchIndex) => branchId(branchIndex, 0),
+  const branchIds = Array.from({ length: spec.branchCount }, (_, branchIndex) =>
+    branchId(branchIndex, 0)
   );
   const finalFoldSources: string[] = [];
   const carryByBranchIndex = new Map<number, string>();
@@ -65,7 +66,7 @@ function buildFailureFrontierCandidate(
 
   lines.push(
     `// ${name}.gg — generated frontier-search candidate`,
-    `(origin: ForkedFrontier { branches: '${spec.branchCount}', depth: '${spec.depth}', pay_stage: '${spec.payStage}', mode: '${spec.mode}' })`,
+    `(origin: ForkedFrontier { branches: '${spec.branchCount}', depth: '${spec.depth}', pay_stage: '${spec.payStage}', mode: '${spec.mode}' })`
   );
 
   for (const branchNodeId of branchIds) {
@@ -75,11 +76,16 @@ function buildFailureFrontierCandidate(
   lines.push(`(origin)-[:FORK]->(${branchIds.join(' | ')})`);
 
   for (let stageIndex = 0; stageIndex < spec.depth; stageIndex += 1) {
-    for (let branchIndex = 0; branchIndex < spec.branchCount; branchIndex += 1) {
+    for (
+      let branchIndex = 0;
+      branchIndex < spec.branchCount;
+      branchIndex += 1
+    ) {
       const incomingNodeId =
         stageIndex === 0
           ? branchId(branchIndex, 0)
-          : carryByBranchIndex.get(branchIndex) ?? branchId(branchIndex, stageIndex);
+          : carryByBranchIndex.get(branchIndex) ??
+            branchId(branchIndex, stageIndex);
 
       if (stageIndex < spec.payStage) {
         const nextNodeId = branchId(branchIndex, stageIndex + 1);
@@ -91,7 +97,9 @@ function buildFailureFrontierCandidate(
 
       if (stageIndex > spec.payStage) {
         const nextNodeId = processTargetId(incomingNodeId, stageIndex);
-        const nodeLabel = incomingNodeId.startsWith('repair_') ? 'RepairDebt' : 'Branch';
+        const nodeLabel = incomingNodeId.startsWith('repair_')
+          ? 'RepairDebt'
+          : 'Branch';
         lines.push(`(${nextNodeId}: ${nodeLabel})`);
         lines.push(`(${incomingNodeId})-[:PROCESS]->(${nextNodeId})`);
         carryByBranchIndex.set(branchIndex, nextNodeId);
@@ -122,14 +130,20 @@ function buildFailureFrontierCandidate(
       ) {
         const spillNodeId = spillId(branchIndex, stageIndex);
         lines.push(`(${spillNodeId}: VentedLoss)`);
-        lines.push(`(${incomingNodeId})-[:VENT { stage: '${stageIndex + 1}' }]->(${spillNodeId})`);
+        lines.push(
+          `(${incomingNodeId})-[:VENT { stage: '${
+            stageIndex + 1
+          }' }]->(${spillNodeId})`
+        );
         continue;
       }
 
       const repairNodeId = repairId(branchIndex, stageIndex);
       lines.push(`(${repairNodeId}: RepairDebt)`);
       lines.push(
-        `(${incomingNodeId})-[:INTERFERE { stage: '${stageIndex + 1}', debt: '1' }]->(${repairNodeId})`,
+        `(${incomingNodeId})-[:INTERFERE { stage: '${
+          stageIndex + 1
+        }', debt: '1' }]->(${repairNodeId})`
       );
       carryByBranchIndex.set(branchIndex, repairNodeId);
       finalFoldSources.push(repairNodeId);
@@ -144,7 +158,9 @@ function buildFailureFrontierCandidate(
   lines.push(`(finish: Survivor { mode: '${spec.mode}' })`);
   lines.push(`(result: Result { candidate: '${name}' })`);
   lines.push(
-    `(${distinctFoldSources.join(' | ')})-[:FOLD { strategy: 'single-survivor' }]->(finish)`,
+    `(${distinctFoldSources.join(
+      ' | '
+    )})-[:FOLD { strategy: 'single-survivor' }]->(finish)`
   );
   lines.push(`(finish)-[:PROCESS]->(result)`);
 
@@ -157,7 +173,7 @@ function buildFailureFrontierCandidate(
 
 function dominates(
   left: FailureSearchCandidateResult,
-  right: FailureSearchCandidateResult,
+  right: FailureSearchCandidateResult
 ): boolean {
   const componentwiseNoWorse =
     left.wallaceNumber <= right.wallaceNumber &&
@@ -184,7 +200,10 @@ function enumerateFailureFrontierSpecs(): FailureSearchCandidateSpec[] {
 
   for (const branchCount of [2, 3, 4]) {
     for (const depth of [1, 2, 3]) {
-      for (const payStage of Array.from({ length: depth }, (_, index) => index)) {
+      for (const payStage of Array.from(
+        { length: depth },
+        (_, index) => index
+      )) {
         for (const mode of modes) {
           specs.push({ branchCount, depth, payStage, mode });
         }
@@ -198,7 +217,7 @@ function enumerateFailureFrontierSpecs(): FailureSearchCandidateSpec[] {
 async function main(): Promise<void> {
   const jsonOutput = process.argv.includes('--json');
   const candidateSources = enumerateFailureFrontierSpecs().map(
-    buildFailureFrontierCandidate,
+    buildFailureFrontierCandidate
   );
   const evaluated: FailureSearchCandidateResult[] = [];
 
@@ -229,8 +248,8 @@ async function main(): Promise<void> {
   const frontier = evaluated.filter(
     (candidate) =>
       !evaluated.some(
-        (other) => other.name !== candidate.name && dominates(other, candidate),
-      ),
+        (other) => other.name !== candidate.name && dominates(other, candidate)
+      )
   );
   const sortedFrontier = [...frontier].sort((left, right) => {
     const byWallace = left.wallaceNumber - right.wallaceNumber;
@@ -255,14 +274,14 @@ async function main(): Promise<void> {
           frontier: sortedFrontier,
         },
         null,
-        2,
-      ),
+        2
+      )
     );
     return;
   }
 
   console.log(
-    `[failure-frontier] evaluated=${evaluated.length} survivors=${sortedFrontier.length}`,
+    `[failure-frontier] evaluated=${evaluated.length} survivors=${sortedFrontier.length}`
   );
   for (const candidate of sortedFrontier) {
     console.log(
@@ -277,7 +296,7 @@ async function main(): Promise<void> {
         `floor=${candidate.collapseCostFloor}`,
         `margin=${candidate.collapseCostMargin}`,
         `action=${candidate.collapseCostAction}`,
-      ].join(' '),
+      ].join(' ')
     );
   }
 }

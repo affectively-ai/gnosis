@@ -142,11 +142,16 @@ function aggregateKernelEdges(
     }
 
     const key = `${sourceIndex}:${targetIndex}`;
-    weightsByPair.set(key, round3((weightsByPair.get(key) ?? 0) + edge.effectiveWeight));
+    weightsByPair.set(
+      key,
+      round3((weightsByPair.get(key) ?? 0) + edge.effectiveWeight)
+    );
   }
 
   return [...weightsByPair.entries()].map(([key, weight]) => {
-    const [sourceIndex, targetIndex] = key.split(':').map((value) => Number(value));
+    const [sourceIndex, targetIndex] = key
+      .split(':')
+      .map((value) => Number(value));
     return {
       sourceIndex,
       targetIndex,
@@ -161,7 +166,9 @@ function buildTransitionDefinitions(
   const clauses = indexedKernelEdges
     .map(
       (edge) =>
-        `    | ${edge.sourceIndex}, ${edge.targetIndex} => ${formatLeanReal(edge.weight)}`
+        `    | ${edge.sourceIndex}, ${edge.targetIndex} => ${formatLeanReal(
+          edge.weight
+        )}`
     )
     .join('\n');
 
@@ -174,12 +181,12 @@ noncomputable def transition : Matrix (Fin topologyNodeCount) (Fin topologyNodeC
   (Rat.castHom Real).mapMatrix transitionRat`;
 }
 
-function buildRealMatchDefinition(name: string, values: readonly number[]): string {
+function buildRealMatchDefinition(
+  name: string,
+  values: readonly number[]
+): string {
   const clauses = values
-    .map(
-      (value, index) =>
-        `    | ${index} => ${formatLeanReal(value)}`
-    )
+    .map((value, index) => `    | ${index} => ${formatLeanReal(value)}`)
     .join('\n');
 
   return `def ${name} : Fin topologyNodeCount -> Real :=
@@ -189,12 +196,12 @@ ${clauses}
     | _ => 0`;
 }
 
-function buildRatMatchDefinition(name: string, values: readonly number[]): string {
+function buildRatMatchDefinition(
+  name: string,
+  values: readonly number[]
+): string {
   const clauses = values
-    .map(
-      (value, index) =>
-        `    | ${index} => ${formatLeanReal(value)}`
-    )
+    .map((value, index) => `    | ${index} => ${formatLeanReal(value)}`)
     .join('\n');
 
   return `def ${name} : Fin topologyNodeCount -> Rat :=
@@ -204,7 +211,10 @@ ${clauses}
     | _ => 0`;
 }
 
-function buildNatMatchDefinition(name: string, values: readonly number[]): string {
+function buildNatMatchDefinition(
+  name: string,
+  values: readonly number[]
+): string {
   const clauses = values
     .map((value, index) => `    | ${index} => ${value}`)
     .join('\n');
@@ -221,10 +231,7 @@ function buildFinMatchDefinition(
   values: readonly number[]
 ): string {
   const clauses = values
-    .map(
-      (value, index) =>
-        `    | ${index} => ⟨${value}, by native_decide⟩`
-    )
+    .map((value, index) => `    | ${index} => ⟨${value}, by native_decide⟩`)
     .join('\n');
 
   return `def ${name} : Fin topologyNodeCount -> Fin topologyNodeCount :=
@@ -241,14 +248,21 @@ function buildRowBounds(
   const rowBounds = Array.from({ length: nodeCount }, () => 0);
 
   for (const edge of indexedKernelEdges) {
-    rowBounds[edge.sourceIndex] = round3(rowBounds[edge.sourceIndex] + edge.weight);
+    rowBounds[edge.sourceIndex] = round3(
+      rowBounds[edge.sourceIndex] + edge.weight
+    );
   }
 
   return rowBounds;
 }
 
-function buildAstAdjacency(ast: GraphAST, nodeIds: readonly string[]): Map<string, string[]> {
-  const adjacency = new Map<string, string[]>(nodeIds.map((nodeId) => [nodeId, []]));
+function buildAstAdjacency(
+  ast: GraphAST,
+  nodeIds: readonly string[]
+): Map<string, string[]> {
+  const adjacency = new Map<string, string[]>(
+    nodeIds.map((nodeId) => [nodeId, []])
+  );
 
   for (const edge of ast.edges) {
     for (const sourceId of edge.sourceIds) {
@@ -269,7 +283,9 @@ function computeTopologicalRanks(
   nodeIds: readonly string[]
 ): number[] | null {
   const adjacency = buildAstAdjacency(ast, nodeIds);
-  const indegreeByNodeId = new Map<string, number>(nodeIds.map((nodeId) => [nodeId, 0]));
+  const indegreeByNodeId = new Map<string, number>(
+    nodeIds.map((nodeId) => [nodeId, 0])
+  );
 
   for (const [, targets] of adjacency) {
     for (const targetId of targets) {
@@ -277,8 +293,12 @@ function computeTopologicalRanks(
     }
   }
 
-  const ranksByNodeId = new Map<string, number>(nodeIds.map((nodeId) => [nodeId, 0]));
-  const frontier = nodeIds.filter((nodeId) => (indegreeByNodeId.get(nodeId) ?? 0) === 0);
+  const ranksByNodeId = new Map<string, number>(
+    nodeIds.map((nodeId) => [nodeId, 0])
+  );
+  const frontier = nodeIds.filter(
+    (nodeId) => (indegreeByNodeId.get(nodeId) ?? 0) === 0
+  );
   let processedCount = 0;
 
   while (frontier.length > 0) {
@@ -382,12 +402,18 @@ def rowBound : Fin topologyNodeCount -> Real :=
   };
 }
 
-function findAssessmentGamma(assessment: StabilityStateAssessment): number | null {
+function findAssessmentGamma(
+  assessment: StabilityStateAssessment
+): number | null {
   const arrival = Number(assessment.arrival);
   const service = Number(assessment.service);
   const vent = Number(assessment.vent);
 
-  if (!Number.isFinite(arrival) || !Number.isFinite(service) || !Number.isFinite(vent)) {
+  if (
+    !Number.isFinite(arrival) ||
+    !Number.isFinite(service) ||
+    !Number.isFinite(vent)
+  ) {
     return null;
   }
 
@@ -433,7 +459,10 @@ function buildCountableQueueRecurrenceTheorem(
   theorem: string;
 } | null {
   const countableQueue = stability.countableQueue;
-  if (!countableQueue || countableQueue.predecessorStepMode !== 'margin-predecessor') {
+  if (
+    !countableQueue ||
+    countableQueue.predecessorStepMode !== 'margin-predecessor'
+  ) {
     return null;
   }
 
@@ -1079,7 +1108,7 @@ theorem ${theoremName}_measurable_containing_atom_accessible
 
   return {
     definitions: sharedDefinitions,
-      theorem: `
+    theorem: `
 
 theorem ${theoremName}_small_set_minorized
   (lam mu : Real)
@@ -1670,7 +1699,9 @@ function buildRecurrenceDefinitions(
     .join('\n');
 
   return {
-    definitions: `def smallSetIndices : List Nat := ${toLeanNatList(smallSetIndices)}
+    definitions: `def smallSetIndices : List Nat := ${toLeanNatList(
+      smallSetIndices
+    )}
 
 def smallSet : Fin topologyNodeCount -> Prop :=
   fun state => state.1 ∈ smallSetIndices
@@ -1712,8 +1743,15 @@ function buildKernelDefinitions(
   theorem: string;
 } {
   const { nodeIds, indexByNodeId } = buildNodeIndex(ast);
-  const indexedKernelEdges = aggregateKernelEdges(stability.kernelEdges, indexByNodeId);
-  const spectralStrategy = buildSpectralProofStrategy(ast, nodeIds, indexedKernelEdges);
+  const indexedKernelEdges = aggregateKernelEdges(
+    stability.kernelEdges,
+    indexByNodeId
+  );
+  const spectralStrategy = buildSpectralProofStrategy(
+    ast,
+    nodeIds,
+    indexedKernelEdges
+  );
   const topologyNodes = toLeanStringList(nodeIds);
   const smallSetNodeIds = toLeanStringList(stability.smallSetNodeIds);
   const recurrenceWitness = buildRecurrenceDefinitions(
@@ -1726,9 +1764,13 @@ function buildKernelDefinitions(
     stability
   );
   const topologyNodeCount = nodeIds.length;
-  const spectralCeiling = formatLeanReal(stability.geometricCeiling ?? stability.spectralRadius ?? 0);
+  const spectralCeiling = formatLeanReal(
+    stability.geometricCeiling ?? stability.spectralRadius ?? 0
+  );
   const redline = formatLeanReal(stability.redline ?? 0);
-  const geometricCeiling = formatLeanReal(stability.geometricCeiling ?? stability.spectralRadius ?? 0);
+  const geometricCeiling = formatLeanReal(
+    stability.geometricCeiling ?? stability.spectralRadius ?? 0
+  );
   const gammaValue = buildGammaValue(stability);
   const transitionDefinitions = buildTransitionDefinitions(indexedKernelEdges);
 
@@ -1854,9 +1896,13 @@ ${spectralProof}
     (assumption) => assumption.name === 'h_drift_floor'
   )?.leanType;
   const driftFloorAssumption =
-    driftFloorType ?? `forall n : Nat, driftAt (driftCertificate lam mu alpha) n <= -${gammaValue}`;
+    driftFloorType ??
+    `forall n : Nat, driftAt (driftCertificate lam mu alpha) n <= -${gammaValue}`;
 
-  const spectralWitness = buildSpectralWitness(spectralStrategy, '(kernel lam mu alpha)');
+  const spectralWitness = buildSpectralWitness(
+    spectralStrategy,
+    '(kernel lam mu alpha)'
+  );
   const spectralProof = indentBlock(spectralWitness.proof, 2);
   const recurrenceProof = recurrenceWitness
     ? indentBlock(
@@ -1993,10 +2039,16 @@ function buildContinuousKernelDefinitions(
   observableScale: number,
   observableOffset: number
 ): { definitions: string; theorems: string } {
-  const stateType = stateSpaceToLeanType(stateSpaceKind, smallSetDiscovery.boundary);
-  const stateTypeAbbrev = stateSpaceKind === 'continuous-positive' ? 'NNReal'
-    : stateSpaceKind === 'continuous-bounded' ? 'BoundedReal'
-    : 'Real';
+  const stateType = stateSpaceToLeanType(
+    stateSpaceKind,
+    smallSetDiscovery.boundary
+  );
+  const stateTypeAbbrev =
+    stateSpaceKind === 'continuous-positive'
+      ? 'NNReal'
+      : stateSpaceKind === 'continuous-bounded'
+      ? 'BoundedReal'
+      : 'Real';
   const prefix = `continuous_${lyapunovSynthesis.template.replace(/-/g, '_')}`;
 
   const lyapunovDef = `noncomputable def ${prefix}Lyapunov : ${stateType} -> Real :=
@@ -2005,24 +2057,38 @@ function buildContinuousKernelDefinitions(
   const smallSetDef = `def ${prefix}SmallSet : Set ${stateType} :=
   ${smallSetDiscovery.leanSetExpression}`;
 
-  const epsilonDef = `def ${prefix}MinorizationEpsilon : ENNReal := ${formatLeanReal(minorizationSynthesis.epsilon)}`;
+  const epsilonDef = `def ${prefix}MinorizationEpsilon : ENNReal := ${formatLeanReal(
+    minorizationSynthesis.epsilon
+  )}`;
 
   const minorizationMeasureDef = `noncomputable def ${prefix}MinorizationMeasure : MeasureTheory.Measure ${stateType} :=
   ${minorizationSynthesis.leanMeasureExpression}`;
 
-  const driftGapDef = `def ${prefix}DriftGap : Real := ${formatLeanReal(driftGap)}`;
+  const driftGapDef = `def ${prefix}DriftGap : Real := ${formatLeanReal(
+    driftGap
+  )}`;
 
   const observableDef = `noncomputable def ${prefix}Observable : ${stateType} -> Real :=
-  fun x => ${formatLeanReal(observableScale)} * x + ${formatLeanReal(observableOffset)}`;
+  fun x => ${formatLeanReal(observableScale)} * x + ${formatLeanReal(
+    observableOffset
+  )}`;
 
-  const definitions = `/- Continuous ${lyapunovSynthesis.template} Lyapunov witness for ${stateSpaceKind} state space.
+  const definitions = `/- Continuous ${
+    lyapunovSynthesis.template
+  } Lyapunov witness for ${stateSpaceKind} state space.
    Template: ${lyapunovSynthesis.template} (degree ${lyapunovSynthesis.degree})
    V(x) = ${lyapunovSynthesis.expression}
    Small set: ${smallSetDiscovery.expression} (${smallSetDiscovery.derivedFrom})
-   Minorization: epsilon = ${minorizationSynthesis.epsilon} (${minorizationSynthesis.derivedFrom})
+   Minorization: epsilon = ${minorizationSynthesis.epsilon} (${
+    minorizationSynthesis.derivedFrom
+  })
    State type: ${stateType}
 -/
-${stateSpaceKind === 'continuous-bounded' ? `abbrev ${stateTypeAbbrev} := ${stateType}\n` : ''}
+${
+  stateSpaceKind === 'continuous-bounded'
+    ? `abbrev ${stateTypeAbbrev} := ${stateType}\n`
+    : ''
+}
 ${lyapunovDef}
 
 ${smallSetDef}
@@ -2037,11 +2103,14 @@ ${observableDef}
 `;
 
   // Build proof obligation theorems
-  const measurabilityStrategy = lyapunovSynthesis.template === 'affine' || lyapunovSynthesis.template === 'piecewise-linear'
-    ? 'measurable_of_continuous (by continuity)'
-    : lyapunovSynthesis.template === 'quadratic' || lyapunovSynthesis.template === 'polynomial'
-    ? 'measurable_of_continuous (by continuity)'
-    : 'measurable_of_continuous (Continuous.comp continuous_log (continuous_const.add continuous_id))';
+  const measurabilityStrategy =
+    lyapunovSynthesis.template === 'affine' ||
+    lyapunovSynthesis.template === 'piecewise-linear'
+      ? 'measurable_of_continuous (by continuity)'
+      : lyapunovSynthesis.template === 'quadratic' ||
+        lyapunovSynthesis.template === 'polynomial'
+      ? 'measurable_of_continuous (by continuity)'
+      : 'measurable_of_continuous (Continuous.comp continuous_log (continuous_const.add continuous_id))';
 
   const lyapMeasurableThm = `theorem ${theoremName}_${prefix}_lyapunov_measurable :
   Measurable ${prefix}Lyapunov := by
@@ -2081,7 +2150,11 @@ ${observableDef}
   · exact ${theoremName}_${prefix}_small_set_measurable`;
 
   // Template-specific drift discharge strategy
-  const driftDischarge = buildDriftDischargeStrategy(lyapunovSynthesis, prefix, smallSetDiscovery);
+  const driftDischarge = buildDriftDischargeStrategy(
+    lyapunovSynthesis,
+    prefix,
+    smallSetDiscovery
+  );
 
   const driftWitnessThm = `theorem ${theoremName}_measurable_observable_drift :
   MeasurableLyapunovDriftWitness
@@ -2164,9 +2237,10 @@ function buildProductLyapunovSection(
   const c2 = product.components[1];
   const prefix = 'product';
 
-  const componentDefs = product.components.map((c, i) => {
-    const idx = i + 1;
-    return `/- Component ${idx}: ${c.stateNodeId}
+  const componentDefs = product.components
+    .map((c, i) => {
+      const idx = i + 1;
+      return `/- Component ${idx}: ${c.stateNodeId}
    Template: ${c.lyapunovSynthesis.template}
    V_${idx}(x) = ${c.lyapunovSynthesis.expression}
    Small set: ${c.smallSetDiscovery.expression}
@@ -2182,7 +2256,8 @@ def ${prefix}C${idx} : Set Real :=
 def ${prefix}Gap${idx} : Real := ${formatLeanReal(c.driftGap)}
 
 def ${prefix}Weight${idx} : Real := ${formatLeanReal(c.weight)}`;
-  }).join('\n\n');
+    })
+    .join('\n\n');
 
   const productDef = `
 /- Product Lyapunov witness for coupled continuous state nodes.
@@ -2267,10 +2342,15 @@ function buildHeteroMoAFabricSection(
     (assumption) => assumption.name === 'h_drift_floor'
   )?.leanType;
   const driftFloorAssumption =
-    driftFloorType ?? `forall n : Nat, driftAt (driftCertificate lam mu alpha) n <= -${buildGammaValue(stability)}`;
+    driftFloorType ??
+    `forall n : Nat, driftAt (driftCertificate lam mu alpha) n <= -${buildGammaValue(
+      stability
+    )}`;
 
   const sections = fabrics.map((fabric) => {
-    const prefix = sanitizeLeanIdentifier(`${fabric.fabricNodeId}_hetero_fabric`);
+    const prefix = sanitizeLeanIdentifier(
+      `${fabric.fabricNodeId}_hetero_fabric`
+    );
     const layerSummary = fabric.layers
       .map(
         (layer) =>
@@ -2351,7 +2431,9 @@ function buildHeteroMoAFabricSection(
   · simpa using h_gamma
   · exact h_floor`;
 
-    return `/- Heterogeneous MoA fabric certificate family for '${fabric.fabricNodeId}'.
+    return `/- Heterogeneous MoA fabric certificate family for '${
+      fabric.fabricNodeId
+    }'.
    layers: ${layerSummary || 'none'}
    schedule: ${fabric.scheduleStrategy}
    launch-gate: ${fabric.launchGate}
@@ -2400,7 +2482,11 @@ export function generateLeanFromGnosisAst(
   const moduleName = buildModuleName(options);
   const theoremName =
     options.theoremName ?? sanitizeLeanIdentifier(stability.proof.theoremName);
-  const { definitions, theorem } = buildKernelDefinitions(ast, stability, theoremName);
+  const { definitions, theorem } = buildKernelDefinitions(
+    ast,
+    stability,
+    theoremName
+  );
   const countableQueueTheoremEnabled = stability.countableQueue !== null;
   const heteroMoAFabricSection = buildHeteroMoAFabricSection(
     stability,
@@ -2433,7 +2519,10 @@ export function generateLeanFromGnosisAst(
   }
 
   // Build product Lyapunov section if multi-node coupled
-  const productLyapunovSection = buildProductLyapunovSection(stability, theoremName);
+  const productLyapunovSection = buildProductLyapunovSection(
+    stability,
+    theoremName
+  );
 
   const lean = `import GnosisProofs
 import Mathlib.Tactic
@@ -2452,13 +2541,24 @@ ${definitions}
    countable-queue-theorem: ${countableQueueTheoremEnabled}
    vent-isolation-ok: ${stability.ventIsolationOk}
    state-space-kind: ${continuousHarris?.stateSpaceKind ?? 'countable'}
-   lyapunov-template: ${continuousHarris?.lyapunovSynthesis?.template ?? 'affine'}
-   product-lyapunov: ${stability.productLyapunov ? `${stability.productLyapunov.components.length} components` : 'none'}
-   hetero-moa-fabrics: ${
-     stability.metadata.heteroMoAFabrics?.map((fabric) => fabric.fabricNodeId).join(', ') ??
-     'none'
+   lyapunov-template: ${
+     continuousHarris?.lyapunovSynthesis?.template ?? 'affine'
    }
-   optimizer-passes: ${optimizerCertificates.length > 0 ? optimizerCertificates.map((c) => c.passName).join(', ') : 'none'}
+   product-lyapunov: ${
+     stability.productLyapunov
+       ? `${stability.productLyapunov.components.length} components`
+       : 'none'
+   }
+   hetero-moa-fabrics: ${
+     stability.metadata.heteroMoAFabrics
+       ?.map((fabric) => fabric.fabricNodeId)
+       .join(', ') ?? 'none'
+   }
+   optimizer-passes: ${
+     optimizerCertificates.length > 0
+       ? optimizerCertificates.map((c) => c.passName).join(', ')
+       : 'none'
+   }
 -/
 
 ${theorem}
@@ -2490,7 +2590,11 @@ function buildIrreversibilityLeanSection(
   let hasEntangle = false;
 
   for (const edge of ast.edges) {
-    if (edge.type === 'FORK' || edge.type === 'EVOLVE' || edge.type === 'SUPERPOSE') {
+    if (
+      edge.type === 'FORK' ||
+      edge.type === 'EVOLVE' ||
+      edge.type === 'SUPERPOSE'
+    ) {
       forkPaths += edge.targetIds.length - 1;
     } else if (edge.type === 'FOLD' || edge.type === 'COLLAPSE') {
       foldPaths += edge.sourceIds.length - 1;
@@ -2503,19 +2607,27 @@ function buildIrreversibilityLeanSection(
 
   const sections: string[] = [];
   sections.push('');
-  sections.push('/- ── Irreversibility framework certificates ─────────────────────── -/');
+  sections.push(
+    '/- ── Irreversibility framework certificates ─────────────────────── -/'
+  );
   sections.push('');
 
   // Buleyean positivity theorem
-  sections.push(`/-- Every void dimension has weight >= 1 (sliver guarantee). -/`);
+  sections.push(
+    `/-- Every void dimension has weight >= 1 (sliver guarantee). -/`
+  );
   sections.push(`theorem ${theoremName}_buleyean_positivity :`);
-  sections.push(`    forall (rounds voidCount : Nat), 1 ≤ GnosisProofs.buleyeanWeight rounds voidCount :=`);
+  sections.push(
+    `    forall (rounds voidCount : Nat), 1 ≤ GnosisProofs.buleyeanWeight rounds voidCount :=`
+  );
   sections.push(`  GnosisProofs.buleyean_positivity_gnosis`);
   sections.push('');
 
   // First law theorem (if topology has both forks and folds)
   if (forkPaths > 0 && (foldPaths > 0 || ventPaths > 0)) {
-    sections.push(`/-- First law: fork paths created = fold paths consumed + vent paths consumed. -/`);
+    sections.push(
+      `/-- First law: fork paths created = fold paths consumed + vent paths consumed. -/`
+    );
     sections.push(`theorem ${theoremName}_first_law :`);
     sections.push(`    ${forkPaths} = ${foldPaths} + ${ventPaths} :=`);
     if (forkPaths === foldPaths + ventPaths) {
@@ -2528,7 +2640,9 @@ function buildIrreversibilityLeanSection(
 
   // Entanglement theorem
   if (hasEntangle) {
-    sections.push(`/-- Shared boundary implies shared complement distribution. -/`);
+    sections.push(
+      `/-- Shared boundary implies shared complement distribution. -/`
+    );
     sections.push(`theorem ${theoremName}_causal_entanglement :`);
     sections.push(`    forall (counts : List Nat), counts = counts :=`);
     sections.push(`  fun _ => rfl`);
@@ -2550,7 +2664,9 @@ function buildOptimizerLeanSection(
   const sections: string[] = [];
 
   sections.push('');
-  sections.push('/- ── Theorem-backed optimization certificates ─────────────────────── -/');
+  sections.push(
+    '/- ── Theorem-backed optimization certificates ─────────────────────── -/'
+  );
   sections.push('');
 
   for (const cert of certificates) {
@@ -2566,12 +2682,20 @@ function buildOptimizerLeanSection(
 
       sections.push(`/-- ${cert.theoremId}: ${cert.summary} -/`);
       sections.push(`-- Lean reference: ${cert.leanTheoremName}`);
-      sections.push(`-- Fine nodes: ${data.fineNodeCount}, Coarse nodes: ${data.coarseNodeCount}`);
+      sections.push(
+        `-- Fine nodes: ${data.fineNodeCount}, Coarse nodes: ${data.coarseNodeCount}`
+      );
       sections.push(`-- Total fine drift: ${data.totalFineDrift}`);
       sections.push(`-- Total coarse drift: ${data.totalCoarseDrift}`);
-      sections.push(`-- Conservation residual: ${Math.abs(data.totalFineDrift - data.totalCoarseDrift)}`);
+      sections.push(
+        `-- Conservation residual: ${Math.abs(
+          data.totalFineDrift - data.totalCoarseDrift
+        )}`
+      );
       if (data.allStable) {
-        sections.push(`-- Certificate VALID: all coarse nodes have negative drift`);
+        sections.push(
+          `-- Certificate VALID: all coarse nodes have negative drift`
+        );
       }
       sections.push('');
     } else if (cert.passName === 'codec-racing') {
@@ -2584,8 +2708,12 @@ function buildOptimizerLeanSection(
 
       sections.push(`/-- ${cert.theoremId}: ${cert.summary} -/`);
       sections.push(`-- Lean reference: ${cert.leanTheoremName}`);
-      sections.push(`-- Codecs: ${data.codecCount}, Resources: ${data.resourceCount}`);
-      sections.push(`-- Internal beta1: ${data.internalBeta1}, External deficit: ${data.externalDeficit}`);
+      sections.push(
+        `-- Codecs: ${data.codecCount}, Resources: ${data.resourceCount}`
+      );
+      sections.push(
+        `-- Internal beta1: ${data.internalBeta1}, External deficit: ${data.externalDeficit}`
+      );
       sections.push('');
     } else if (cert.passName === 'warmup-efficiency') {
       const data = cert.data as {
@@ -2598,7 +2726,9 @@ function buildOptimizerLeanSection(
 
       sections.push(`/-- ${cert.theoremId}: ${cert.summary} -/`);
       sections.push(`-- Lean reference: ${cert.leanTheoremName}`);
-      sections.push(`-- Fork width: ${data.forkWidth}, Fold width: ${data.foldWidth}`);
+      sections.push(
+        `-- Fork width: ${data.forkWidth}, Fold width: ${data.foldWidth}`
+      );
       sections.push(`-- Wallace drop cross: ${data.wallaceDropCross}`);
       sections.push(`-- Warmup recommended: ${data.warmupWorth}`);
       sections.push('');
@@ -2616,14 +2746,21 @@ export function generateCoarseningLean(
   coarsening: CoarseningSynthesisResult | null,
   options: GnosisLeanOptions = {}
 ): GnosisLeanArtifact | null {
-  if (!ast || !stability || !coarsening || coarsening.kind !== 'success' || !coarsening.leanData) {
+  if (
+    !ast ||
+    !stability ||
+    !coarsening ||
+    coarsening.kind !== 'success' ||
+    !coarsening.leanData
+  ) {
     return null;
   }
 
   const leanData = coarsening.leanData;
   const moduleName = buildModuleName(options) + '_coarsening';
   const theoremName =
-    (options.theoremName ?? sanitizeLeanIdentifier(stability.proof.theoremName)) +
+    (options.theoremName ??
+      sanitizeLeanIdentifier(stability.proof.theoremName)) +
     '_coarsening_synthesis';
 
   const fineCount = leanData.fineNodeIds.length;

@@ -86,7 +86,10 @@ export class GnosisMcpSessionDurableObject implements DurableObject {
     }
 
     const updatedAtMs = Date.parse(this.session.updatedAt);
-    if (Number.isFinite(updatedAtMs) && Date.now() - updatedAtMs > SESSION_TTL_MS) {
+    if (
+      Number.isFinite(updatedAtMs) &&
+      Date.now() - updatedAtMs > SESSION_TTL_MS
+    ) {
       await this.state.storage.deleteAll();
       this.session = null;
       return;
@@ -108,7 +111,8 @@ export class GnosisMcpSessionDurableObject implements DurableObject {
       }
 
       this.session =
-        (await this.state.storage.get<SessionState>(SESSION_STORAGE_KEY)) ?? null;
+        (await this.state.storage.get<SessionState>(SESSION_STORAGE_KEY)) ??
+        null;
       await this.scheduleAlarm();
       this.initialized = true;
     })();
@@ -131,8 +135,10 @@ export class GnosisMcpSessionDurableObject implements DurableObject {
   private async handleInitialize(body: InitializeBody): Promise<Response> {
     const nowIso = new Date().toISOString();
     const nowMs = Date.now();
-    const sessionIdRaw = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
-    const sessionId = sessionIdRaw.length > 0 ? sessionIdRaw : this.state.id.toString();
+    const sessionIdRaw =
+      typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
+    const sessionId =
+      sessionIdRaw.length > 0 ? sessionIdRaw : this.state.id.toString();
 
     this.session = {
       sessionId,
@@ -176,7 +182,10 @@ export class GnosisMcpSessionDurableObject implements DurableObject {
     this.session.requestCount += 1;
 
     this.pushEvent({
-      type: typeof body.type === 'string' && body.type.length > 0 ? body.type : 'event',
+      type:
+        typeof body.type === 'string' && body.type.length > 0
+          ? body.type
+          : 'event',
       at: nowIso,
       detail: body.detail,
     });
@@ -219,7 +228,8 @@ export class GnosisMcpSessionDurableObject implements DurableObject {
 
     const nowMs = Date.now();
     const limitPerHour =
-      typeof body.limitPerHour === 'number' && Number.isFinite(body.limitPerHour)
+      typeof body.limitPerHour === 'number' &&
+      Number.isFinite(body.limitPerHour)
         ? Math.max(1, Math.trunc(body.limitPerHour))
         : 180;
 
@@ -265,7 +275,9 @@ export class GnosisMcpSessionDurableObject implements DurableObject {
 
     this.session.events.push(event);
     if (this.session.events.length > MAX_EVENTS) {
-      this.session.events = this.session.events.slice(this.session.events.length - MAX_EVENTS);
+      this.session.events = this.session.events.slice(
+        this.session.events.length - MAX_EVENTS
+      );
     }
   }
 }

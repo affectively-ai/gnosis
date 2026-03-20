@@ -1,9 +1,14 @@
 import { describe, it, expect } from 'bun:test';
 import {
-  findFixedPoint, selfReferentialBoundary,
-  isQuineBoundary, uniformQuine,
-  diagonalBoundary, verifyDiagonal,
-  godelEncode, godelDecode, selfApply,
+  findFixedPoint,
+  selfReferentialBoundary,
+  isQuineBoundary,
+  uniformQuine,
+  diagonalBoundary,
+  verifyDiagonal,
+  godelEncode,
+  godelDecode,
+  selfApply,
 } from './self-reference.js';
 import { createVoidBoundary, updateVoidBoundary } from './void.js';
 
@@ -21,8 +26,8 @@ describe('Fixed points', () => {
     b.counts = [10, 20, 30];
     b.totalEntries = 60;
     const fp = findFixedPoint(b, (x) => ({
-      counts: x.counts.map(c => c * 0.5 + 5),
-      totalEntries: x.counts.map(c => c * 0.5 + 5).reduce((a, b) => a + b, 0),
+      counts: x.counts.map((c) => c * 0.5 + 5),
+      totalEntries: x.counts.map((c) => c * 0.5 + 5).reduce((a, b) => a + b, 0),
     }));
     expect(fp.converged).toBe(true);
     // Fixed point of c → c/2 + 5 is c = 10
@@ -61,9 +66,12 @@ describe('Quine boundary', () => {
 
 describe('Diagonal construction', () => {
   it('diagonal differs from each input', () => {
-    const b1 = createVoidBoundary(3); b1.counts = [1, 2, 3];
-    const b2 = createVoidBoundary(3); b2.counts = [4, 5, 6];
-    const b3 = createVoidBoundary(3); b3.counts = [7, 8, 9];
+    const b1 = createVoidBoundary(3);
+    b1.counts = [1, 2, 3];
+    const b2 = createVoidBoundary(3);
+    b2.counts = [4, 5, 6];
+    const b3 = createVoidBoundary(3);
+    b3.counts = [7, 8, 9];
     const diag = diagonalBoundary([b1, b2, b3]);
     expect(verifyDiagonal([b1, b2, b3], diag)).toBe(true);
     expect(diag.counts[0]).toBe(2); // b1[0] + 1
@@ -74,7 +82,11 @@ describe('Diagonal construction', () => {
 
 describe('Gödel encoding', () => {
   it('encodes and decodes consistently', () => {
-    const edges: [number, number][] = [[0, 1], [1, 2], [0, 2]];
+    const edges: [number, number][] = [
+      [0, 1],
+      [1, 2],
+      [0, 2],
+    ];
     const encoded = godelEncode(3, edges);
     const decoded = godelDecode(encoded, 3);
     expect(decoded.length).toBe(edges.length);
@@ -91,7 +103,10 @@ describe('Gödel encoding', () => {
 
 describe('Self-application', () => {
   it('produces complement and decoded topology', () => {
-    const result = selfApply(3, [[0, 1], [1, 2]]);
+    const result = selfApply(3, [
+      [0, 1],
+      [1, 2],
+    ]);
     expect(result.complement.length).toBe(9);
     expect(result.decoded.length).toBeGreaterThan(0);
     // Complement peaks where there are NO edges (fresh territory)

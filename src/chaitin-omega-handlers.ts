@@ -38,9 +38,10 @@ export function registerChaitinOmegaHandlers(registry: GnosisRegistry): void {
     const classifierType = props.classifier ?? 'trivial';
     const stepLimit = parseInt(props.stepLimit ?? '100', 10);
 
-    const classifier = classifierType === 'step-bounded'
-      ? stepBoundedClassifier(stepLimit)
-      : trivialClassifier;
+    const classifier =
+      classifierType === 'step-bounded'
+        ? stepBoundedClassifier(stepLimit)
+        : trivialClassifier;
 
     const ps = createProgramSpace(alphabetSize, maxLength, classifier);
     return {
@@ -72,7 +73,10 @@ export function registerChaitinOmegaHandlers(registry: GnosisRegistry): void {
   // Stage 3: Build SolomonoffSpace → VoidBoundary
   registry.register('SolomonoffInitializer', async (_payload, props) => {
     const choicesRaw = props.choices ?? '';
-    const choices = choicesRaw.split(',').map(s => s.trim()).filter(Boolean);
+    const choices = choicesRaw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
     const rounds = parseInt(props.rounds ?? '0', 10);
 
     if (choices.length === 0) {
@@ -90,7 +94,10 @@ export function registerChaitinOmegaHandlers(registry: GnosisRegistry): void {
       complexity: assignment.complexity,
       ceiling: assignment.ceiling,
       rounds,
-      boundary: { counts: boundary.counts, totalEntries: boundary.totalEntries },
+      boundary: {
+        counts: boundary.counts,
+        totalEntries: boundary.totalEntries,
+      },
       complementDistribution: dist,
       axioms,
       _solomonoffSpace: ss, // internal
@@ -128,12 +135,16 @@ export function registerChaitinOmegaHandlers(registry: GnosisRegistry): void {
     const classifierType = props.classifier ?? 'trivial';
     const stepLimit = parseInt(props.stepLimit ?? '100', 10);
     const choicesRaw = props.choices ?? '';
-    const choices = choicesRaw.split(',').map(s => s.trim()).filter(Boolean);
+    const choices = choicesRaw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
     const rounds = parseInt(props.rounds ?? '0', 10);
 
-    const classifier = classifierType === 'step-bounded'
-      ? stepBoundedClassifier(stepLimit)
-      : trivialClassifier;
+    const classifier =
+      classifierType === 'step-bounded'
+        ? stepBoundedClassifier(stepLimit)
+        : trivialClassifier;
 
     // Build program space and omega
     const ps = createProgramSpace(alphabetSize, maxLength, classifier);
@@ -167,9 +178,15 @@ export function registerChaitinOmegaHandlers(registry: GnosisRegistry): void {
         nonHaltingPrograms: ps.nonHaltingPrograms,
       },
       omega,
-      psBoundary: { counts: psBoundary.counts, totalEntries: psBoundary.totalEntries },
+      psBoundary: {
+        counts: psBoundary.counts,
+        totalEntries: psBoundary.totalEntries,
+      },
       solomonoff: solomonoffResult,
-      verified: omega.ratio > 0 && omega.ratio < 1 && (solomonoffResult?.axioms.allHold ?? true),
+      verified:
+        omega.ratio > 0 &&
+        omega.ratio < 1 &&
+        (solomonoffResult?.axioms.allHold ?? true),
       timeMs: performance.now() - start,
       status: 'VERIFIED',
     };
@@ -203,11 +220,33 @@ export function registerChaitinOmegaHandlers(registry: GnosisRegistry): void {
 
 /** Theorem statements from ChaitinOmega.lean and SolomonoffBuleyean.lean */
 export const CHAITIN_OMEGA_THEOREMS = [
-  { name: 'omega_positivity', statement: '0 < Omega_L for all L >= 1 with halting programs' },
-  { name: 'omega_subuniversality', statement: 'Omega_L < 1 for all finite L with non-halting programs' },
-  { name: 'omega_monotone_convergence', statement: 'Omega_L <= Omega_{L+1} for all L' },
-  { name: 'solomonoff_positivity', statement: 'weight(i) > 0 for all choices i' },
-  { name: 'solomonoff_normalization', statement: 'sum(weight(i)) is finite and positive' },
-  { name: 'solomonoff_concentration', statement: 'K(i) < K(j) implies weight(i) > weight(j)' },
-  { name: 'solomonoff_buleyean_subsumption', statement: 'Solomonoff prior = complementDistribution over complexity-weighted VoidBoundary' },
+  {
+    name: 'omega_positivity',
+    statement: '0 < Omega_L for all L >= 1 with halting programs',
+  },
+  {
+    name: 'omega_subuniversality',
+    statement: 'Omega_L < 1 for all finite L with non-halting programs',
+  },
+  {
+    name: 'omega_monotone_convergence',
+    statement: 'Omega_L <= Omega_{L+1} for all L',
+  },
+  {
+    name: 'solomonoff_positivity',
+    statement: 'weight(i) > 0 for all choices i',
+  },
+  {
+    name: 'solomonoff_normalization',
+    statement: 'sum(weight(i)) is finite and positive',
+  },
+  {
+    name: 'solomonoff_concentration',
+    statement: 'K(i) < K(j) implies weight(i) > weight(j)',
+  },
+  {
+    name: 'solomonoff_buleyean_subsumption',
+    statement:
+      'Solomonoff prior = complementDistribution over complexity-weighted VoidBoundary',
+  },
 ] as const;

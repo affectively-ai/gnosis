@@ -12,7 +12,8 @@ describe('gnosis adversarial controls benchmark', () => {
     expect(report.allAdversarialPredictionsRecovered).toBe(true);
 
     const winnerAffine = report.tasks['winner-affine-maxabs'];
-    const earlyStopRouted = report.tasks['early-stop-routing-first-expert-short-budget'];
+    const earlyStopRouted =
+      report.tasks['early-stop-routing-first-expert-short-budget'];
     const earlyStop = report.tasks['early-stop-left-priority-short-budget'];
 
     expect(winnerAffine.favoredStrategy).toBe('winner-take-all');
@@ -22,22 +23,24 @@ describe('gnosis adversarial controls benchmark', () => {
     expect(earlyStopRouted.favoredStrategy).toBe('early-stop');
     expect(earlyStopRouted.favoredStrategyWinsSampleEfficiency).toBe(true);
     expect(
-      earlyStopRouted.strategies['early-stop'].meanLearningCurveArea,
+      earlyStopRouted.strategies['early-stop'].meanLearningCurveArea
     ).toBeLessThan(earlyStopRouted.strategies.linear.meanLearningCurveArea);
 
     expect(earlyStop.favoredStrategy).toBe('early-stop');
     expect(earlyStop.favoredStrategyWinsSampleEfficiency).toBe(true);
     expect(
-      earlyStop.strategies['early-stop'].meanLearningCurveArea,
+      earlyStop.strategies['early-stop'].meanLearningCurveArea
     ).toBeLessThan(earlyStop.strategies.linear.meanLearningCurveArea);
     expect(
-      earlyStop.strategies['early-stop'].meanEpochsToTolerance,
-    ).toBeLessThan(earlyStop.strategies['winner-take-all'].meanEpochsToTolerance);
+      earlyStop.strategies['early-stop'].meanEpochsToTolerance
+    ).toBeLessThan(
+      earlyStop.strategies['winner-take-all'].meanEpochsToTolerance
+    );
   });
 
   test('renders a markdown report with all adversarial tasks', async () => {
     const markdown = renderGnosisAdversarialControlsBenchmarkMarkdown(
-      await runGnosisAdversarialControlsBenchmark(),
+      await runGnosisAdversarialControlsBenchmark()
     );
 
     expect(markdown).toContain('# Gnosis Adversarial Controls Benchmark');

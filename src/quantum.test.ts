@@ -1,18 +1,41 @@
 import { describe, it, expect } from 'bun:test';
 import {
-  ket0, ket1, ketPlus, ketMinus,
-  hadamard, pauliX, pauliZ,
-  isNormalized, prob0, prob1,
+  ket0,
+  ket1,
+  ketPlus,
+  ketMinus,
+  hadamard,
+  pauliX,
+  pauliZ,
+  isNormalized,
+  prob0,
+  prob1,
   measure,
-  createRegister, registerFromQubit, registerNormalized,
-  applyCNOT, applyCZ, applyGateToRegister,
+  createRegister,
+  registerFromQubit,
+  registerNormalized,
+  applyCNOT,
+  applyCZ,
+  applyGateToRegister,
   measureRegister,
-  bellState, isEntangled,
-  createCircuit, addGate, addCNOT, addMeasure, executeCircuit,
-  H_GATE, X_GATE,
-  complex, complexMul, complexAdd, complexNorm,
+  bellState,
+  isEntangled,
+  createCircuit,
+  addGate,
+  addCNOT,
+  addMeasure,
+  executeCircuit,
+  H_GATE,
+  X_GATE,
+  complex,
+  complexMul,
+  complexAdd,
+  complexNorm,
 } from './quantum.js';
-import { registerQuantumHandlers, QUANTUM_GATE_NAMES } from './quantum-handlers.js';
+import {
+  registerQuantumHandlers,
+  QUANTUM_GATE_NAMES,
+} from './quantum-handlers.js';
 import { GnosisRegistry } from './runtime/registry.js';
 
 let rngSeed = 42;
@@ -80,7 +103,8 @@ describe('Measurement', () => {
   });
 
   it('measuring |+⟩ gives 0 or 1', () => {
-    let zeros = 0, ones = 0;
+    let zeros = 0,
+      ones = 0;
     for (let i = 0; i < 100; i++) {
       const outcome = measure(ketPlus(), testRng);
       if (outcome.result === 0) zeros++;

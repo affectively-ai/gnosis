@@ -52,7 +52,7 @@ export default defineConfig({
       '/mcp': {
         target: 'http://localhost:8798',
         changeOrigin: true,
-      }
+      },
     },
   },
   resolve: {
@@ -90,7 +90,10 @@ export default defineConfig({
       },
       {
         find: '@a0n/aeon-logic/browser',
-        replacement: resolve(__dirname, '../../../open-source/aeon-logic/src/browser.ts'),
+        replacement: resolve(
+          __dirname,
+          '../../../open-source/aeon-logic/src/browser.ts'
+        ),
       },
       {
         find: '@a0n/aeon-3d/fiber',

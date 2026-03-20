@@ -43,7 +43,7 @@ describe('gnosis hetero MoA fabric benchmark', () => {
               layer: 'cpu',
               predictedLatencyMs: 0,
               async execute(input) {
-                await Bun.sleep(10);
+                await new Promise(r => setTimeout(r, 10));
                 return {
                   value: input,
                   cpuTimeMs: 10,
@@ -57,7 +57,7 @@ describe('gnosis hetero MoA fabric benchmark', () => {
               layer: 'gpu',
               predictedLatencyMs: 0,
               async execute(input) {
-                await Bun.sleep(3);
+                await new Promise(r => setTimeout(r, 3));
                 return {
                   value: input,
                   cpuTimeMs: 3,

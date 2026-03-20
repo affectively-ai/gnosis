@@ -76,7 +76,10 @@ export interface NeuralHeteroFabricOptions
 
 interface WebGpuNavigatorLike {
   gpu?: {
-    requestAdapter?: () => Promise<WebGpuAdapterLike | null> | WebGpuAdapterLike | null;
+    requestAdapter?: () =>
+      | Promise<WebGpuAdapterLike | null>
+      | WebGpuAdapterLike
+      | null;
   };
 }
 
@@ -1452,7 +1455,10 @@ export class NeuralEngine {
     });
   }
 
-  private toFloat32Input(input: unknown, expectedLength?: number): Float32Array {
+  private toFloat32Input(
+    input: unknown,
+    expectedLength?: number
+  ): Float32Array {
     const resize = (candidate: Float32Array): Float32Array => {
       if (
         expectedLength === undefined ||
@@ -1473,16 +1479,16 @@ export class NeuralEngine {
       const view = input as ArrayBufferView;
       return resize(
         new Float32Array(
-        view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength)
+          view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength)
         )
       );
     }
     if (Array.isArray(input)) {
-      return resize(
-        new Float32Array(input.map((value) => Number(value) || 0))
-      );
+      return resize(new Float32Array(input.map((value) => Number(value) || 0)));
     }
-    throw new Error('Neural hetero fabric inputs must be Float32Array-compatible');
+    throw new Error(
+      'Neural hetero fabric inputs must be Float32Array-compatible'
+    );
   }
 
   async runTick(inputs: Float32Array): Promise<Float32Array> {

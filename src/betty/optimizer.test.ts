@@ -11,11 +11,20 @@ import type { StabilityReport } from './stability.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
-function makeNode(id: string, labels: string[] = ['STATE'], properties: Record<string, string> = {}): ASTNode {
+function makeNode(
+  id: string,
+  labels: string[] = ['STATE'],
+  properties: Record<string, string> = {}
+): ASTNode {
   return { id, labels, properties };
 }
 
-function makeEdge(sourceIds: string[], targetIds: string[], type: string, properties: Record<string, string> = {}): ASTEdge {
+function makeEdge(
+  sourceIds: string[],
+  targetIds: string[],
+  type: string,
+  properties: Record<string, string> = {}
+): ASTEdge {
   return { sourceIds, targetIds, type, properties };
 }
 
@@ -25,7 +34,9 @@ function makeAST(nodes: ASTNode[], edges: ASTEdge[]): GraphAST {
   return { nodes: nodeMap, edges };
 }
 
-function makeStabilityReport(overrides: Partial<StabilityReport> = {}): StabilityReport {
+function makeStabilityReport(
+  overrides: Partial<StabilityReport> = {}
+): StabilityReport {
   return {
     enabled: true,
     kernelEdges: [],
@@ -106,7 +117,16 @@ describe('CoarseningPass', () => {
     );
     const stability = makeStabilityReport({
       stateAssessments: [
-        { nodeId: 'a', potential: '1', arrival: '2', service: '1', vent: null, gamma: null, driftExpression: '1', status: 'unstable' },
+        {
+          nodeId: 'a',
+          potential: '1',
+          arrival: '2',
+          service: '1',
+          vent: null,
+          gamma: null,
+          driftExpression: '1',
+          status: 'unstable',
+        },
       ],
     });
     expect(pass.predicate(ast, stability)).toBe(false);
@@ -119,10 +139,46 @@ describe('CoarseningPass', () => {
     );
     const stability = makeStabilityReport({
       stateAssessments: [
-        { nodeId: 'a', potential: '1', arrival: '1', service: '3', vent: null, gamma: null, driftExpression: '-2', status: 'stable' },
-        { nodeId: 'b', potential: '1', arrival: '1', service: '3', vent: null, gamma: null, driftExpression: '-2', status: 'stable' },
-        { nodeId: 'c', potential: '1', arrival: '1', service: '3', vent: null, gamma: null, driftExpression: '-2', status: 'stable' },
-        { nodeId: 'd', potential: '1', arrival: '1', service: '3', vent: null, gamma: null, driftExpression: '-2', status: 'stable' },
+        {
+          nodeId: 'a',
+          potential: '1',
+          arrival: '1',
+          service: '3',
+          vent: null,
+          gamma: null,
+          driftExpression: '-2',
+          status: 'stable',
+        },
+        {
+          nodeId: 'b',
+          potential: '1',
+          arrival: '1',
+          service: '3',
+          vent: null,
+          gamma: null,
+          driftExpression: '-2',
+          status: 'stable',
+        },
+        {
+          nodeId: 'c',
+          potential: '1',
+          arrival: '1',
+          service: '3',
+          vent: null,
+          gamma: null,
+          driftExpression: '-2',
+          status: 'stable',
+        },
+        {
+          nodeId: 'd',
+          potential: '1',
+          arrival: '1',
+          service: '3',
+          vent: null,
+          gamma: null,
+          driftExpression: '-2',
+          status: 'stable',
+        },
       ],
     });
     expect(pass.predicate(ast, stability)).toBe(true);
@@ -139,10 +195,46 @@ describe('CoarseningPass', () => {
     );
     const stability = makeStabilityReport({
       stateAssessments: [
-        { nodeId: 'a', potential: '1', arrival: '2', service: '5', vent: null, gamma: null, driftExpression: '-3', status: 'stable' },
-        { nodeId: 'b', potential: '1', arrival: '3', service: '6', vent: null, gamma: null, driftExpression: '-3', status: 'stable' },
-        { nodeId: 'c', potential: '1', arrival: '1', service: '4', vent: null, gamma: null, driftExpression: '-3', status: 'stable' },
-        { nodeId: 'sink', potential: '0', arrival: null, service: null, vent: null, gamma: null, driftExpression: '0', status: 'stable' },
+        {
+          nodeId: 'a',
+          potential: '1',
+          arrival: '2',
+          service: '5',
+          vent: null,
+          gamma: null,
+          driftExpression: '-3',
+          status: 'stable',
+        },
+        {
+          nodeId: 'b',
+          potential: '1',
+          arrival: '3',
+          service: '6',
+          vent: null,
+          gamma: null,
+          driftExpression: '-3',
+          status: 'stable',
+        },
+        {
+          nodeId: 'c',
+          potential: '1',
+          arrival: '1',
+          service: '4',
+          vent: null,
+          gamma: null,
+          driftExpression: '-3',
+          status: 'stable',
+        },
+        {
+          nodeId: 'sink',
+          potential: '0',
+          arrival: null,
+          service: null,
+          vent: null,
+          gamma: null,
+          driftExpression: '0',
+          status: 'stable',
+        },
       ],
     });
 
@@ -153,9 +245,14 @@ describe('CoarseningPass', () => {
     // Drift conservation: THM synthesis_sound
     const cert = result.certificates[0];
     expect(cert.theoremId).toBe('THM-RECURSIVE-COARSENING-SYNTHESIS');
-    const data = cert.data as { totalFineDrift: number; totalCoarseDrift: number };
+    const data = cert.data as {
+      totalFineDrift: number;
+      totalCoarseDrift: number;
+    };
     // Conservation: fine drift should equal coarse drift
-    expect(Math.abs(data.totalFineDrift - data.totalCoarseDrift)).toBeLessThan(0.001);
+    expect(Math.abs(data.totalFineDrift - data.totalCoarseDrift)).toBeLessThan(
+      0.001
+    );
 
     // Coarsened graph should have fewer nodes
     expect(result.ast.nodes.size).toBeLessThan(ast.nodes.size);
@@ -168,15 +265,55 @@ describe('CoarseningPass', () => {
     );
     const stability = makeStabilityReport({
       stateAssessments: [
-        { nodeId: 'a', potential: '1', arrival: '10', service: '3', vent: null, gamma: null, driftExpression: '7', status: 'stable' },
-        { nodeId: 'b', potential: '1', arrival: '10', service: '3', vent: null, gamma: null, driftExpression: '7', status: 'stable' },
-        { nodeId: 'c', potential: '1', arrival: null, service: null, vent: null, gamma: null, driftExpression: '0', status: 'unknown' },
-        { nodeId: 'd', potential: '1', arrival: null, service: null, vent: null, gamma: null, driftExpression: '0', status: 'unknown' },
+        {
+          nodeId: 'a',
+          potential: '1',
+          arrival: '10',
+          service: '3',
+          vent: null,
+          gamma: null,
+          driftExpression: '7',
+          status: 'stable',
+        },
+        {
+          nodeId: 'b',
+          potential: '1',
+          arrival: '10',
+          service: '3',
+          vent: null,
+          gamma: null,
+          driftExpression: '7',
+          status: 'stable',
+        },
+        {
+          nodeId: 'c',
+          potential: '1',
+          arrival: null,
+          service: null,
+          vent: null,
+          gamma: null,
+          driftExpression: '0',
+          status: 'unknown',
+        },
+        {
+          nodeId: 'd',
+          potential: '1',
+          arrival: null,
+          service: null,
+          vent: null,
+          gamma: null,
+          driftExpression: '0',
+          status: 'unknown',
+        },
       ],
     });
 
     const result = pass.apply(ast, stability);
-    expect(result.diagnostics.some((d) => d.message.includes('non-negative aggregate drift'))).toBe(true);
+    expect(
+      result.diagnostics.some((d) =>
+        d.message.includes('non-negative aggregate drift')
+      )
+    ).toBe(true);
   });
 });
 
@@ -213,7 +350,11 @@ describe('CodecRacingPass', () => {
 
     const cert = result.certificates[0];
     expect(cert.theoremId).toBe('THM-TOPO-RACE-SUBSUMPTION');
-    const data = cert.data as { externalDeficit: number; codecCount: number; internalBeta1: number };
+    const data = cert.data as {
+      externalDeficit: number;
+      codecCount: number;
+      internalBeta1: number;
+    };
     expect(data.externalDeficit).toBe(0);
     expect(data.codecCount).toBe(3);
     expect(data.internalBeta1).toBe(4); // (3-1) * 2 resources
@@ -251,7 +392,13 @@ describe('WarmupEfficiencyPass', () => {
 
   it('fires on fork/fold pairs and computes Wallace drop cross', () => {
     const ast = makeAST(
-      [makeNode('src'), makeNode('a'), makeNode('b'), makeNode('c'), makeNode('sink')],
+      [
+        makeNode('src'),
+        makeNode('a'),
+        makeNode('b'),
+        makeNode('c'),
+        makeNode('sink'),
+      ],
       [
         makeEdge(['src'], ['a', 'b', 'c'], 'FORK'),
         makeEdge(['a', 'b', 'c'], ['sink'], 'FOLD'),
@@ -267,7 +414,11 @@ describe('WarmupEfficiencyPass', () => {
 
     const cert = result.certificates[0];
     expect(cert.theoremId).toBe('THM-WARMUP-CONTROLLER');
-    const data = cert.data as { forkWidth: number; wallaceDropCross: number; warmupWorth: boolean };
+    const data = cert.data as {
+      forkWidth: number;
+      wallaceDropCross: number;
+      warmupWorth: boolean;
+    };
     expect(data.forkWidth).toBe(3);
     // Wallace for 3-wide fork = 2*(3-1)/(3*3) = 4/9 ≈ 0.444
     expect(data.wallaceDropCross).toBeGreaterThan(0);
@@ -277,10 +428,7 @@ describe('WarmupEfficiencyPass', () => {
   it('does not recommend warmup for trivial forks', () => {
     const ast = makeAST(
       [makeNode('src'), makeNode('a'), makeNode('sink')],
-      [
-        makeEdge(['src'], ['a'], 'FORK'),
-        makeEdge(['a'], ['sink'], 'FOLD'),
-      ]
+      [makeEdge(['src'], ['a'], 'FORK'), makeEdge(['a'], ['sink'], 'FOLD')]
     );
     const stability = makeStabilityReport();
     const result = pass.apply(ast, stability);
@@ -382,7 +530,12 @@ describe('OptimizationPassManager', () => {
   it('accumulates certificates across passes', () => {
     const manager = createDefaultOptimizer();
     const ast = makeAST(
-      [makeNode('src'), makeNode('a'), makeNode('b'), makeNode('sink', ['SINK'])],
+      [
+        makeNode('src'),
+        makeNode('a'),
+        makeNode('b'),
+        makeNode('sink', ['SINK']),
+      ],
       [
         makeEdge(['src'], ['a', 'b'], 'FORK'),
         makeEdge(['a', 'b'], ['sink'], 'FOLD'),
@@ -391,10 +544,46 @@ describe('OptimizationPassManager', () => {
     );
     const stability = makeStabilityReport({
       stateAssessments: [
-        { nodeId: 'src', potential: '1', arrival: '1', service: '3', vent: null, gamma: null, driftExpression: '-2', status: 'stable' },
-        { nodeId: 'a', potential: '1', arrival: '1', service: '3', vent: null, gamma: null, driftExpression: '-2', status: 'stable' },
-        { nodeId: 'b', potential: '1', arrival: '1', service: '3', vent: null, gamma: null, driftExpression: '-2', status: 'stable' },
-        { nodeId: 'sink', potential: '0', arrival: null, service: null, vent: null, gamma: null, driftExpression: '0', status: 'stable' },
+        {
+          nodeId: 'src',
+          potential: '1',
+          arrival: '1',
+          service: '3',
+          vent: null,
+          gamma: null,
+          driftExpression: '-2',
+          status: 'stable',
+        },
+        {
+          nodeId: 'a',
+          potential: '1',
+          arrival: '1',
+          service: '3',
+          vent: null,
+          gamma: null,
+          driftExpression: '-2',
+          status: 'stable',
+        },
+        {
+          nodeId: 'b',
+          potential: '1',
+          arrival: '1',
+          service: '3',
+          vent: null,
+          gamma: null,
+          driftExpression: '-2',
+          status: 'stable',
+        },
+        {
+          nodeId: 'sink',
+          potential: '0',
+          arrival: null,
+          service: null,
+          vent: null,
+          gamma: null,
+          driftExpression: '0',
+          status: 'stable',
+        },
       ],
     });
 

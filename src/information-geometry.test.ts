@@ -1,11 +1,22 @@
 import { describe, it, expect } from 'bun:test';
 import {
-  fisherInformation, fisherDeterminant,
-  klDivergence, symmetricKL, jensenShannonDivergence,
-  voidDivergence, naturalGradient, isNaturalGradientSampling,
-  scalarCurvature, fisherRaoDistance, voidGeodesicDistance,
+  fisherInformation,
+  fisherDeterminant,
+  klDivergence,
+  symmetricKL,
+  jensenShannonDivergence,
+  voidDivergence,
+  naturalGradient,
+  isNaturalGradientSampling,
+  scalarCurvature,
+  fisherRaoDistance,
+  voidGeodesicDistance,
 } from './information-geometry.js';
-import { createVoidBoundary, updateVoidBoundary, complementDistribution } from './void.js';
+import {
+  createVoidBoundary,
+  updateVoidBoundary,
+  complementDistribution,
+} from './void.js';
 
 describe('Fisher information', () => {
   it('diagonal entries are 1/p_i', () => {

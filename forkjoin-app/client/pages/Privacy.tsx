@@ -2,13 +2,7 @@
  * Privacy Policy Page
  */
 
-import {
-  ArrowLeft,
-  Shield,
-  Eye,
-  Lock,
-  Database,
-} from '@a0n/aeon-icons';
+import { ArrowLeft, Shield, Eye, Lock, Database } from '@a0n/aeon-icons';
 
 export function Privacy() {
   return (

@@ -41,17 +41,21 @@ describe('HeteroMoAFabric runtime', () => {
       },
     ];
 
-    const result = await runHeteroMoAFabric(backends, new Float32Array([1, 2]), {
-      plan: {
-        hedgeDelayMs: 10,
-        laneCounts: {
-          cpu: 1,
-          gpu: 1,
-          npu: 0,
-          wasm: 0,
+    const result = await runHeteroMoAFabric(
+      backends,
+      new Float32Array([1, 2]),
+      {
+        plan: {
+          hedgeDelayMs: 10,
+          laneCounts: {
+            cpu: 1,
+            gpu: 1,
+            npu: 0,
+            wasm: 0,
+          },
         },
-      },
-    });
+      }
+    );
 
     expect(result.winner?.backendId).toBe('cpu-fast');
     expect(result.telemetry.skippedHedges).toBeGreaterThanOrEqual(1);
@@ -88,19 +92,23 @@ describe('HeteroMoAFabric runtime', () => {
       },
     ];
 
-    const result = await runHeteroMoAFabric(backends, new Float32Array([1, 2]), {
-      fabricKey: 'community-fabric',
-      communityMemory,
-      plan: {
-        hedgeDelayMs: 0,
-        laneCounts: {
-          cpu: 2,
-          gpu: 0,
-          npu: 0,
-          wasm: 0,
+    const result = await runHeteroMoAFabric(
+      backends,
+      new Float32Array([1, 2]),
+      {
+        fabricKey: 'community-fabric',
+        communityMemory,
+        plan: {
+          hedgeDelayMs: 0,
+          laneCounts: {
+            cpu: 2,
+            gpu: 0,
+            npu: 0,
+            wasm: 0,
+          },
         },
-      },
-    });
+      }
+    );
 
     expect(result.winner).toBeNull();
     expect(result.layerResults[0]?.pairs.every((pair) => pair.escalated)).toBe(
@@ -157,18 +165,22 @@ describe('HeteroMoAFabric runtime', () => {
       },
     ];
 
-    const result = await runHeteroMoAFabric(backends, new Float32Array([1, 2]), {
-      plan: {
-        scheduleStrategy: 'cannon',
-        hedgeDelayMs: 1,
-        laneCounts: {
-          cpu: 1,
-          gpu: 1,
-          npu: 1,
-          wasm: 0,
+    const result = await runHeteroMoAFabric(
+      backends,
+      new Float32Array([1, 2]),
+      {
+        plan: {
+          scheduleStrategy: 'cannon',
+          hedgeDelayMs: 1,
+          laneCounts: {
+            cpu: 1,
+            gpu: 1,
+            npu: 1,
+            wasm: 0,
+          },
         },
-      },
-    });
+      }
+    );
 
     expect(result.winner?.backendId).toBe('gpu-fast');
     expect(result.layerResults).toHaveLength(3);
@@ -229,8 +241,12 @@ describe('HeteroMoAFabric runtime', () => {
       'launch-learning',
       backends
     );
-    const cpuLaunch = schedule.find((entry) => entry.backendId === 'cpu-latency');
-    const gpuLaunch = schedule.find((entry) => entry.backendId === 'gpu-latency');
+    const cpuLaunch = schedule.find(
+      (entry) => entry.backendId === 'cpu-latency'
+    );
+    const gpuLaunch = schedule.find(
+      (entry) => entry.backendId === 'gpu-latency'
+    );
 
     expect(scores['cpu-latency']?.latencyMeanMs).toBeGreaterThan(
       scores['gpu-latency']?.latencyMeanMs ?? 0

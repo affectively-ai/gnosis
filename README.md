@@ -52,33 +52,33 @@ The formal corpus includes 600+ TLA+ model-checking configurations and sorry-fre
 
 ```bash
 cd open-source/gnosis
-bun run start
+pnpm start
 ```
 
 ### CLI Commands
 
 ```bash
 # Format
-bun ./bin/gnosis.js --fix example.gg
+node ./bin/gnosis.js --fix example.gg
 
 # Lint and analyze
-bun ./bin/gnosis.js lint example.gg --target bun
-bun ./bin/gnosis.js analyze betti.gg --json
+node ./bin/gnosis.js lint example.gg --target node
+node ./bin/gnosis.js analyze betti.gg --json
 
 # Formal artifacts
-bun ./bin/gnosis.js verify betti.gg --tla --tla-out tla/generated
-bun ./bin/gnosis.js build betti.gg --lean --lean-out lean/generated
+node ./bin/gnosis.js verify betti.gg --tla --tla-out tla/generated
+node ./bin/gnosis.js build betti.gg --lean --lean-out lean/generated
 
 # Execute
-bun ./bin/gnosis.js run example.gg
-bun ./bin/gnosis.js native example.gg
+node ./bin/gnosis.js run example.gg
+node ./bin/gnosis.js native example.gg
 
 # Test
-bun ./bin/gnosis.js test examples/benchmarks/fold-training.test.gg
+node ./bin/gnosis.js test examples/benchmarks/fold-training.test.gg
 
 # Module management
-bun ./bin/gnosis.js mod init demo
-bun ./bin/gnosis.js mod tidy
+node ./bin/gnosis.js mod init demo
+node ./bin/gnosis.js mod tidy
 ```
 
 All commands support `--json` and `--sarif` for CI integration.
@@ -101,7 +101,7 @@ The current single-request snapshot is also documented in [`gnode/README.md`](./
 | **Module system** | `.gg`/`.mgg` parsing, merged-source loading, cycle rejection, bare-specifier resolution, deterministic lockfiles |
 | **Formal path** | TLA+ module/config generation, Lean proof artifacts, bounded queue certificates, coupled-kernel handoff theorems, recursive coarsening synthesis with fiber-partitioned drift certificates |
 | **CRDT layer** | Topology-native CRDTs with `QDoc`, the corridor/superposition primitive `QCorridor`, relay adapters, typed change-event contracts, the substrate for MiddleOut request compression, and the decayed community-memory surface used by hetero-fabric backend racing |
-| **Capabilities** | Target inference and validation (`workers`, `node`, `bun`) -- fail before deployment |
+| **Capabilities** | Target inference and validation (`workers`, `node`, `gnode`) -- fail before deployment |
 | **Auth** | UCAN/ZK execution envelopes, fail-closed runtime authorization, and browser-safe binary auth helpers |
 | **REPL** | Interactive TUI for topology exploration |
 | **Bindings** | CLI-based bindings for Python, Go, Java, C#, Rust, Swift, Kotlin, Lua, Haskell, Erlang, C, C++, PHP, Ruby |

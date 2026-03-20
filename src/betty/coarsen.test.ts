@@ -44,8 +44,21 @@ function makeStability(
     redline: null,
     geometricCeiling: null,
     restorativeGamma: null,
-    proof: { theoremName: '', kind: 'none', assumptions: [], summary: '', requiresLean: false },
-    metadata: { totalNodes: 0, stateNodes: 0, sourceNodes: 0, sinkNodes: 0, edgeCount: 0, hasThermodynamicProperties: false },
+    proof: {
+      theoremName: '',
+      kind: 'none',
+      assumptions: [],
+      summary: '',
+      requiresLean: false,
+    },
+    metadata: {
+      totalNodes: 0,
+      stateNodes: 0,
+      sourceNodes: 0,
+      sinkNodes: 0,
+      edgeCount: 0,
+      hasThermodynamicProperties: false,
+    },
     diagnostics: [],
   };
 }
@@ -114,7 +127,9 @@ describe('validatePartition', () => {
     ]);
 
     const diags = validatePartition(partition, stability);
-    expect(diags.some((d) => d.code === 'ERR_COARSENING_UNCOVERED_NODE')).toBe(true);
+    expect(diags.some((d) => d.code === 'ERR_COARSENING_UNCOVERED_NODE')).toBe(
+      true
+    );
   });
 
   it('reports non-positive service rates', () => {
@@ -125,7 +140,9 @@ describe('validatePartition', () => {
     ]);
 
     const diags = validatePartition(partition, stability);
-    expect(diags.some((d) => d.code === 'ERR_COARSENING_SERVICE_NOT_POSITIVE')).toBe(true);
+    expect(
+      diags.some((d) => d.code === 'ERR_COARSENING_SERVICE_NOT_POSITIVE')
+    ).toBe(true);
   });
 });
 
@@ -187,7 +204,9 @@ describe('synthesizeCoarsening', () => {
     expect(result.kind).toBe('unstable');
     expect(result.unstableCoarseNodes).toContain('frontend');
     expect(result.leanData).toBeNull();
-    expect(result.diagnostics.some((d) => d.code === 'ERR_COARSENING_DRIFT_POSITIVE')).toBe(true);
+    expect(
+      result.diagnostics.some((d) => d.code === 'ERR_COARSENING_DRIFT_POSITIVE')
+    ).toBe(true);
   });
 
   it('returns invalid for symbolic rates', () => {
@@ -201,7 +220,9 @@ describe('synthesizeCoarsening', () => {
 
     const result = synthesizeCoarsening(ast, stability, partition);
     expect(result.kind).toBe('invalid');
-    expect(result.diagnostics.some((d) => d.code === 'ERR_COARSENING_SYMBOLIC_RATE')).toBe(true);
+    expect(
+      result.diagnostics.some((d) => d.code === 'ERR_COARSENING_SYMBOLIC_RATE')
+    ).toBe(true);
   });
 
   it('populates quotientMapIndices correctly', () => {

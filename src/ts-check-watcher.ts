@@ -8,8 +8,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { GnosisIncrementalChecker } from './ts-check-incremental.js';
-import type { GnosisTypeScriptCheckResult, GnosisTypeScriptCheckOptions } from './ts-check.js';
-import { generateAutofixSuggestions, type AutofixSuggestion } from './ts-check-autofix.js';
+import type {
+  GnosisTypeScriptCheckResult,
+  GnosisTypeScriptCheckOptions,
+} from './ts-check.js';
+import {
+  generateAutofixSuggestions,
+  type AutofixSuggestion,
+} from './ts-check-autofix.js';
 
 export interface WatcherEvent {
   readonly type: 'check-complete' | 'error' | 'file-change';
@@ -46,7 +52,10 @@ export class GnosisFileWatcher {
   private readonly checker: GnosisIncrementalChecker;
   private readonly listeners = new Set<WatcherListener>();
   private readonly watchers = new Map<string, fs.FSWatcher>();
-  private readonly debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly debounceTimers = new Map<
+    string,
+    ReturnType<typeof setTimeout>
+  >();
   private readonly options: Required<WatcherOptions>;
   private running = false;
 
@@ -90,30 +99,34 @@ export class GnosisFileWatcher {
 
     // Watch for changes using fs.watch (recursive)
     try {
-      const watcher = fs.watch(absDir, { recursive: true }, (eventType, filename) => {
-        if (!filename) return;
-        const fullPath = path.join(absDir, filename);
+      const watcher = fs.watch(
+        absDir,
+        { recursive: true },
+        (eventType, filename) => {
+          if (!filename) return;
+          const fullPath = path.join(absDir, filename);
 
-        if (!this.isTypeScriptFile(fullPath)) return;
-        if (this.isIgnored(fullPath)) return;
+          if (!this.isTypeScriptFile(fullPath)) return;
+          if (this.isIgnored(fullPath)) return;
 
-        // Debounce
-        const existing = this.debounceTimers.get(fullPath);
-        if (existing) clearTimeout(existing);
+          // Debounce
+          const existing = this.debounceTimers.get(fullPath);
+          if (existing) clearTimeout(existing);
 
-        this.debounceTimers.set(
-          fullPath,
-          setTimeout(() => {
-            this.debounceTimers.delete(fullPath);
-            this.emit({
-              type: 'file-change',
-              filePath: fullPath,
-              timestamp: Date.now(),
-            });
-            void this.checkFile(fullPath);
-          }, this.options.debounceMs)
-        );
-      });
+          this.debounceTimers.set(
+            fullPath,
+            setTimeout(() => {
+              this.debounceTimers.delete(fullPath);
+              this.emit({
+                type: 'file-change',
+                filePath: fullPath,
+                timestamp: Date.now(),
+              });
+              void this.checkFile(fullPath);
+            }, this.options.debounceMs)
+          );
+        }
+      );
 
       this.watchers.set(absDir, watcher);
     } catch {
@@ -187,7 +200,11 @@ export class GnosisFileWatcher {
           if (!this.isIgnoredDir(entry.name)) {
             walk(fullPath);
           }
-        } else if (entry.isFile() && this.isTypeScriptFile(fullPath) && !this.isIgnored(fullPath)) {
+        } else if (
+          entry.isFile() &&
+          this.isTypeScriptFile(fullPath) &&
+          !this.isIgnored(fullPath)
+        ) {
           files.push(fullPath);
         }
       }
@@ -202,8 +219,15 @@ export class GnosisFileWatcher {
   }
 
   private isIgnoredDir(name: string): boolean {
-    return name === 'node_modules' || name === 'dist' || name === '.next' ||
-      name === 'build' || name === '.bun' || name === '.nx' || name === 'coverage';
+    return (
+      name === 'node_modules' ||
+      name === 'dist' ||
+      name === '.next' ||
+      name === 'build' ||
+      name === '.bun' ||
+      name === '.nx' ||
+      name === 'coverage'
+    );
   }
 
   private isIgnored(filePath: string): boolean {

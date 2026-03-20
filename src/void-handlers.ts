@@ -55,7 +55,9 @@ export interface VoidWalkingPayload {
 // Handler implementations
 // ============================================================================
 
-const VoidBoundaryHandler: GnosisHandler = async (payload: VoidWalkingPayload) => {
+const VoidBoundaryHandler: GnosisHandler = async (
+  payload: VoidWalkingPayload
+) => {
   // Entry point: ensure the boundary exists
   return {
     ...payload,
@@ -63,7 +65,9 @@ const VoidBoundaryHandler: GnosisHandler = async (payload: VoidWalkingPayload) =
   };
 };
 
-const ComplementDistributionHandler: GnosisHandler = async (payload: VoidWalkingPayload) => {
+const ComplementDistributionHandler: GnosisHandler = async (
+  payload: VoidWalkingPayload
+) => {
   const dist = complementDistribution(payload.boundary, payload.walker.eta);
   return { ...payload, complement: dist };
 };
@@ -76,7 +80,9 @@ const DimensionHandler: GnosisHandler = async (payload: VoidWalkingPayload) => {
   return { ...payload, chosenIdx: idx };
 };
 
-const BoundaryUpdateHandler: GnosisHandler = async (payload: VoidWalkingPayload) => {
+const BoundaryUpdateHandler: GnosisHandler = async (
+  payload: VoidWalkingPayload
+) => {
   if (payload.chosenIdx === undefined) return payload;
   // The RACE winner accumulates void at the chosen dimension
   updateVoidBoundary(payload.boundary, payload.chosenIdx);
@@ -84,28 +90,42 @@ const BoundaryUpdateHandler: GnosisHandler = async (payload: VoidWalkingPayload)
   return payload;
 };
 
-const MeasurementHandler: GnosisHandler = async (payload: VoidWalkingPayload) => {
+const MeasurementHandler: GnosisHandler = async (
+  payload: VoidWalkingPayload
+) => {
   return payload; // Measurement node just passes through to FORK
 };
 
-const ShannonEntropyHandler: GnosisHandler = async (payload: VoidWalkingPayload) => {
+const ShannonEntropyHandler: GnosisHandler = async (
+  payload: VoidWalkingPayload
+) => {
   if (!payload.complement) return 0;
   return shannonEntropy(payload.complement);
 };
 
-const ExcessKurtosisHandler: GnosisHandler = async (payload: VoidWalkingPayload) => {
+const ExcessKurtosisHandler: GnosisHandler = async (
+  payload: VoidWalkingPayload
+) => {
   if (!payload.complement) return 0;
   return excessKurtosis(payload.complement);
 };
 
-const GiniCoefficientHandler: GnosisHandler = async (payload: VoidWalkingPayload) => {
+const GiniCoefficientHandler: GnosisHandler = async (
+  payload: VoidWalkingPayload
+) => {
   if (!payload.complement) return 0;
   return giniCoefficient(payload.complement);
 };
 
-const InverseBuleHandler: GnosisHandler = async (payload: VoidWalkingPayload) => {
+const InverseBuleHandler: GnosisHandler = async (
+  payload: VoidWalkingPayload
+) => {
   if (!payload.boundary) return 0;
-  return inverseBule(payload.boundary, payload.walker?.eta ?? 2.0, payload.walker?.steps ?? 0);
+  return inverseBule(
+    payload.boundary,
+    payload.walker?.eta ?? 2.0,
+    payload.walker?.steps ?? 0
+  );
 };
 
 const ObservationHandler: GnosisHandler = async (payload: unknown) => {
@@ -139,33 +159,64 @@ const ActiveGaitHandler: GnosisHandler = async (payload: unknown) => {
   return payload;
 };
 
-const ParameterAdaptationHandler: GnosisHandler = async (payload: VoidWalkingPayload) => {
+const ParameterAdaptationHandler: GnosisHandler = async (
+  payload: VoidWalkingPayload
+) => {
   return payload; // Pass through to FORK for eta/exploration adjustment
 };
 
-const EtaAdjustmentHandler: GnosisHandler = async (payload: VoidWalkingPayload) => {
+const EtaAdjustmentHandler: GnosisHandler = async (
+  payload: VoidWalkingPayload
+) => {
   const gait = payload.gait ?? payload.walker.gait;
   switch (gait) {
-    case 'stand': break;
-    case 'trot': payload.walker.eta = Math.max(1.0, payload.walker.eta - 0.05); break;
-    case 'canter': payload.walker.eta = Math.min(5.0, payload.walker.eta + 0.05); break;
-    case 'gallop': payload.walker.eta = Math.min(8.0, payload.walker.eta + 0.1); break;
+    case 'stand':
+      break;
+    case 'trot':
+      payload.walker.eta = Math.max(1.0, payload.walker.eta - 0.05);
+      break;
+    case 'canter':
+      payload.walker.eta = Math.min(5.0, payload.walker.eta + 0.05);
+      break;
+    case 'gallop':
+      payload.walker.eta = Math.min(8.0, payload.walker.eta + 0.1);
+      break;
   }
   return payload;
 };
 
-const ExplorationAdjustmentHandler: GnosisHandler = async (payload: VoidWalkingPayload) => {
+const ExplorationAdjustmentHandler: GnosisHandler = async (
+  payload: VoidWalkingPayload
+) => {
   const gait = payload.gait ?? payload.walker.gait;
   switch (gait) {
-    case 'stand': break;
-    case 'trot': payload.walker.exploration = Math.min(0.4, payload.walker.exploration + 0.01); break;
-    case 'canter': payload.walker.exploration = Math.max(0.05, payload.walker.exploration - 0.005); break;
-    case 'gallop': payload.walker.exploration = Math.max(0.01, payload.walker.exploration - 0.01); break;
+    case 'stand':
+      break;
+    case 'trot':
+      payload.walker.exploration = Math.min(
+        0.4,
+        payload.walker.exploration + 0.01
+      );
+      break;
+    case 'canter':
+      payload.walker.exploration = Math.max(
+        0.05,
+        payload.walker.exploration - 0.005
+      );
+      break;
+    case 'gallop':
+      payload.walker.exploration = Math.max(
+        0.01,
+        payload.walker.exploration - 0.01
+      );
+      break;
   }
   return payload;
 };
 
-const AdaptedStateHandler: GnosisHandler = async (payload: VoidWalkingPayload) => {
+const AdaptedStateHandler: GnosisHandler = async (
+  payload: VoidWalkingPayload
+) => {
   // FOLD merges eta and exploration adjustments
   // The adapted state feeds back into the boundary (the loop)
   payload.walker.adaptations++;
@@ -220,7 +271,7 @@ export function registerVoidWalkingHandlers(registry: GnosisRegistry): void {
  */
 export function createVoidWalkingPayload(
   dimensions: number,
-  rng: () => number = Math.random,
+  rng: () => number = Math.random
 ): VoidWalkingPayload {
   const boundary = createVoidBoundary(dimensions);
   return {

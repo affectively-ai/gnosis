@@ -116,6 +116,7 @@ export class ModManager {
         continue;
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       if (trimmed === 'require (') {
         inRequireBlock = true;
         continue;
@@ -339,6 +340,7 @@ export class ModManager {
       .map((dependency) => `  ${dependency.path} ${dependency.version}`)
       .join('\n');
 
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     return `module ${modFile.module}\n\ngnosis ${modFile.gnosisVersion}\n\nrequire (\n${requireBlock}\n)\n`;
   }
 

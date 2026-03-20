@@ -73,6 +73,7 @@ function bundleIsFresh() {
 }
 
 function buildBundle() {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { buildSync } = require('esbuild');
   mkdirSync(dirname(bundlePath), { recursive: true });
   const result = buildSync({
@@ -116,8 +117,11 @@ if (!bundleFresh) {
 
 const bundleBuildMs = performance.now() - bundleBuildStarted;
 const dependencyWarmStarted = performance.now();
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 require('typescript');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 require('esbuild');
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 require(bundlePath);
 const dependencyWarmMs = performance.now() - dependencyWarmStarted;
 

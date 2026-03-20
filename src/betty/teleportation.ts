@@ -17,7 +17,9 @@ export interface TeleportationEdge {
  * Analyze TUNNEL edges for teleportation optimization.
  * Returns edges that can be optimized to send only deficit.
  */
-export function analyzeTeleportationEdges(edges: ASTEdge[]): TeleportationEdge[] {
+export function analyzeTeleportationEdges(
+  edges: ASTEdge[]
+): TeleportationEdge[] {
   return edges
     .filter((e) => e.type === 'TUNNEL')
     .map((edge) => ({
@@ -38,7 +40,9 @@ export function validateTeleportation(edges: ASTEdge[]): Diagnostic[] {
       diagnostics.push({
         line: 1,
         column: 1,
-        message: `TUNNEL with teleport: 'true' from [${edge.sourceIds.join(', ')}] has multiple sources. Teleportation sends a single deficit integer -- use a FOLD first to merge sources.`,
+        message: `TUNNEL with teleport: 'true' from [${edge.sourceIds.join(
+          ', '
+        )}] has multiple sources. Teleportation sends a single deficit integer -- use a FOLD first to merge sources.`,
         severity: 'warning',
       });
     }

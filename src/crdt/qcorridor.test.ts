@@ -6,12 +6,16 @@ describe('QCorridor', () => {
   test('acts as a primitive for tunneling, settling, and path ranking', async () => {
     const doc = new QDoc({ guid: 'qcorridor-doc' });
     const corridor = new QCorridor(doc, { namespace: 'primitive' });
-    const session = await corridor.createSession('topology:shared-middle', {
-      payload: 'seed',
-    }, {
-      corridorKey: 'shared-middle',
-      reuseScope: 'corridor',
-    });
+    const session = await corridor.createSession(
+      'topology:shared-middle',
+      {
+        payload: 'seed',
+      },
+      {
+        corridorKey: 'shared-middle',
+        reuseScope: 'corridor',
+      }
+    );
 
     const firstLookup = corridor.lookup(session);
     expect(firstLookup.kind).toBe('miss');
@@ -26,13 +30,17 @@ describe('QCorridor', () => {
 
     await inflight;
     corridor.release(session);
-    corridor.settle(session, { ok: true, value: 'seed -> settled' }, {
-      collapseCount: 1,
-      firstSufficientCount: 1,
-      ventCount: 1,
-      repairDebt: 0,
-      lastWinnerPath: 'fast',
-    });
+    corridor.settle(
+      session,
+      { ok: true, value: 'seed -> settled' },
+      {
+        collapseCount: 1,
+        firstSufficientCount: 1,
+        ventCount: 1,
+        repairDebt: 0,
+        lastWinnerPath: 'fast',
+      }
+    );
     corridor.recordEvidence(session, [
       {
         path: 'fast',

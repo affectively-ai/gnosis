@@ -55,6 +55,7 @@ describe('ModManager', () => {
         '',
         'gnosis 0.1.0',
         '',
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         'require (',
         '  github.com/acme/beta v2.0.0',
         '  github.com/acme/alpha v1.2.3',

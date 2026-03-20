@@ -5,7 +5,7 @@ import {
   BettyCompiler,
   type ASTEdge,
   type Diagnostic,
-  type GraphAST
+  type GraphAST,
 } from './betty/compiler.js';
 import { GnosisEngine } from './runtime/engine.js';
 import { GnosisRegistry } from './runtime/registry.js';
@@ -13,7 +13,7 @@ import {
   buildVisualizationFromExecution,
   createInitialVisualization,
   type ReplVisualizationState,
-  type VisualNodeStatus
+  type VisualNodeStatus,
 } from './repl-visualization.js';
 import {
   analyzeGnosisSource,
@@ -25,7 +25,7 @@ import {
   surfaceSteeringMetrics,
   withSteeringTelemetry,
   type GnosisSteeringMode,
-  type GnosisSteeringMetrics
+  type GnosisSteeringMetrics,
 } from './analysis.js';
 import {
   authorizeBoundaryWalkRun,
@@ -61,13 +61,15 @@ const MAX_DISPLAYED_HISTORY = 12;
 const MAX_SOURCE_LINES = 8;
 const BREATH_INTERVAL_MS = 420;
 const ERROR_MOTTO = "Baby's Got Stack";
-const VERBOSE_MOTTO = "Look at the size of that topology... let's see what you've done here.";
-const STATUS_STYLE: Record<VisualNodeStatus, { glyph: string; color: string }> = {
-  pending: { glyph: '[ ]', color: 'gray' },
-  active: { glyph: '[*]', color: 'cyan' },
-  completed: { glyph: '[x]', color: 'green' },
-  cycled: { glyph: '[!]', color: 'red' }
-};
+const VERBOSE_MOTTO =
+  "Look at the size of that topology... let's see what you've done here.";
+const STATUS_STYLE: Record<VisualNodeStatus, { glyph: string; color: string }> =
+  {
+    pending: { glyph: '[ ]', color: 'gray' },
+    active: { glyph: '[*]', color: 'cyan' },
+    completed: { glyph: '[x]', color: 'green' },
+    cycled: { glyph: '[!]', color: 'red' },
+  };
 const COLOR_SPECTRUM = [
   'red',
   'yellow',
@@ -80,7 +82,7 @@ const COLOR_SPECTRUM = [
   'greenBright',
   'cyanBright',
   'blueBright',
-  'magentaBright'
+  'magentaBright',
 ] as const;
 const EDGE_TYPE_COLOR_INDEX: Record<string, number> = {
   PROCESS: 2,
@@ -95,7 +97,7 @@ const EDGE_TYPE_COLOR_INDEX: Record<string, number> = {
   MEASURE: 9,
   HALT: 8,
   VENT: 6,
-  TUNNEL: 11
+  TUNNEL: 11,
 };
 
 type SpectrumColor = (typeof COLOR_SPECTRUM)[number];
@@ -114,7 +116,7 @@ function formatMottoError(error: unknown): string {
 function assertBoundaryWalkAuthorized(
   source: string,
   steeringMode: GnosisSteeringMode,
-  executionAuth: GnosisExecutionAuthContext | null,
+  executionAuth: GnosisExecutionAuthContext | null
 ): void {
   if (!executionAuth || executionAuth.enforce !== true) {
     return;
@@ -126,7 +128,9 @@ function assertBoundaryWalkAuthorized(
   });
   if (!runAuthorization.allowed) {
     throw new Error(
-      `Boundary walk denied: ${runAuthorization.reason ?? 'missing gnosis/steering.run capability'}`
+      `Boundary walk denied: ${
+        runAuthorization.reason ?? 'missing gnosis/steering.run capability'
+      }`
     );
   }
 
@@ -140,14 +144,16 @@ function assertBoundaryWalkAuthorized(
   });
   if (!applyAuthorization.allowed) {
     throw new Error(
-      `Boundary walk apply denied: ${applyAuthorization.reason ?? 'missing gnosis/steering.apply capability'}`
+      `Boundary walk apply denied: ${
+        applyAuthorization.reason ?? 'missing gnosis/steering.apply capability'
+      }`
     );
   }
 }
 
 async function resolveBoundaryWalkExecutionAuth(
   ast: GraphAST,
-  explicitExecutionAuth: GnosisExecutionAuthContext | null,
+  explicitExecutionAuth: GnosisExecutionAuthContext | null
 ): Promise<GnosisExecutionAuthContext | null> {
   if (explicitExecutionAuth) {
     return explicitExecutionAuth;
@@ -161,7 +167,8 @@ async function resolveBoundaryWalkExecutionAuth(
 
 function formatDiagnostics(diagnostics: Diagnostic[]): string {
   const noteworthy = diagnostics.filter(
-    (diagnostic) => diagnostic.severity === 'error' || diagnostic.severity === 'warning'
+    (diagnostic) =>
+      diagnostic.severity === 'error' || diagnostic.severity === 'warning'
   );
   if (noteworthy.length === 0) {
     return '';
@@ -171,16 +178,23 @@ function formatDiagnostics(diagnostics: Diagnostic[]): string {
     .slice(0, 5)
     .map(
       (diagnostic) =>
-        `[${diagnostic.severity.toUpperCase()} L${diagnostic.line}:C${diagnostic.column}] ${diagnostic.message}`
+        `[${diagnostic.severity.toUpperCase()} L${diagnostic.line}:C${
+          diagnostic.column
+        }] ${diagnostic.message}`
     );
   if (noteworthy.length > rendered.length) {
-    rendered.push(`... ${noteworthy.length - rendered.length} more diagnostics`);
+    rendered.push(
+      `... ${noteworthy.length - rendered.length} more diagnostics`
+    );
   }
 
   return rendered.join('\n');
 }
 
-function formatCompilationMessage(output: string, diagnostics: Diagnostic[]): string {
+function formatCompilationMessage(
+  output: string,
+  diagnostics: Diagnostic[]
+): string {
   const diagnosticSummary = formatDiagnostics(diagnostics);
   if (diagnosticSummary.length === 0) {
     return output;
@@ -222,7 +236,7 @@ function edgeTouchesWave(edge: ASTEdge, activeWave: Set<string>): boolean {
 
 const SpectrumHeading = React.memo(function SpectrumHeading({
   phase,
-  verbose
+  verbose,
 }: {
   phase: number;
   verbose: boolean;
@@ -243,7 +257,10 @@ const SpectrumHeading = React.memo(function SpectrumHeading({
       </Text>
       <Text dimColor={isDimBreath(phase)}>
         {subtitle.split('').map((character, index) => (
-          <Text key={`subtitle-${index}`} color={spectrumColor(index + 2, phase)}>
+          <Text
+            key={`subtitle-${index}`}
+            color={spectrumColor(index + 2, phase)}
+          >
             {character}
           </Text>
         ))}
@@ -253,14 +270,21 @@ const SpectrumHeading = React.memo(function SpectrumHeading({
 });
 
 const SourcePanel = React.memo(function SourcePanel({
-  sourceLines
+  sourceLines,
 }: {
   sourceLines: string[];
 }) {
   if (sourceLines.length === 0) {
     return (
-      <Box borderStyle="single" borderColor={rainbowColor(2)} paddingX={1} marginY={1}>
-        <Text color={rainbowColor(3)}>Editor empty. Type GGL lines to build the topology.</Text>
+      <Box
+        borderStyle="single"
+        borderColor={rainbowColor(2)}
+        paddingX={1}
+        marginY={1}
+      >
+        <Text color={rainbowColor(3)}>
+          Editor empty. Type GGL lines to build the topology.
+        </Text>
       </Box>
     );
   }
@@ -269,7 +293,13 @@ const SourcePanel = React.memo(function SourcePanel({
   const visibleLines = sourceLines.slice(startLine);
 
   return (
-    <Box flexDirection="column" borderStyle="single" borderColor={rainbowColor(1)} paddingX={1} marginY={1}>
+    <Box
+      flexDirection="column"
+      borderStyle="single"
+      borderColor={rainbowColor(1)}
+      paddingX={1}
+      marginY={1}
+    >
       <Text bold color={rainbowColor(0)}>
         TOPOLOGY SOURCE
       </Text>
@@ -277,7 +307,9 @@ const SourcePanel = React.memo(function SourcePanel({
         const lineNumber = startLine + index + 1;
         return (
           <Box key={`source-${lineNumber}`} flexDirection="row">
-            <Text color={rainbowColor(index + 8)}>{String(lineNumber).padStart(2, '0')} | </Text>
+            <Text color={rainbowColor(index + 8)}>
+              {String(lineNumber).padStart(2, '0')} |{' '}
+            </Text>
             <Text color={rainbowColor(index + 4)}>{line}</Text>
           </Box>
         );
@@ -288,15 +320,22 @@ const SourcePanel = React.memo(function SourcePanel({
 
 const GraphCanvas = React.memo(function GraphCanvas({
   ast,
-  visualization
+  visualization,
 }: {
   ast: GraphAST | null;
   visualization: ReplVisualizationState;
 }) {
   if (!ast || ast.edges.length === 0) {
     return (
-      <Box borderStyle="round" paddingX={1} marginY={1} borderColor={rainbowColor(6)}>
-        <Text color={rainbowColor(7)}>No topology defined. Start drawing: (a)-[:FORK]-{'>'}(b|c)</Text>
+      <Box
+        borderStyle="round"
+        paddingX={1}
+        marginY={1}
+        borderColor={rainbowColor(6)}
+      >
+        <Text color={rainbowColor(7)}>
+          No topology defined. Start drawing: (a)-[:FORK]-{'>'}(b|c)
+        </Text>
       </Box>
     );
   }
@@ -305,7 +344,13 @@ const GraphCanvas = React.memo(function GraphCanvas({
   const activeWave = new Set(visualization.activeWaveFunction);
 
   return (
-    <Box flexDirection="column" borderStyle="double" borderColor={rainbowColor(5)} paddingX={1} marginY={1}>
+    <Box
+      flexDirection="column"
+      borderStyle="double"
+      borderColor={rainbowColor(5)}
+      paddingX={1}
+      marginY={1}
+    >
       <Text bold color={rainbowColor(4)}>
         GNOSIS VISUAL GRAPH EDITOR
       </Text>
@@ -315,13 +360,16 @@ const GraphCanvas = React.memo(function GraphCanvas({
           Nodes
         </Text>
         {nodeIds.map((nodeId, index) => {
-          const style = STATUS_STYLE[visualization.nodeStates[nodeId] ?? 'pending'];
+          const style =
+            STATUS_STYLE[visualization.nodeStates[nodeId] ?? 'pending'];
           const label = ast.nodes.get(nodeId)?.labels[0];
           return (
             <Box key={nodeId} flexDirection="row">
               <Text color={style.color}>{style.glyph} </Text>
               <Text color={rainbowColor(index)}>{nodeId}</Text>
-              {label ? <Text color={rainbowColor(index + 2)}>:{label}</Text> : null}
+              {label ? (
+                <Text color={rainbowColor(index + 2)}>:{label}</Text>
+              ) : null}
             </Box>
           );
         })}
@@ -336,7 +384,8 @@ const GraphCanvas = React.memo(function GraphCanvas({
           const isWaveEdge = edgeTouchesWave(edge, activeWave);
           return (
             <Text key={`edge-${index}`} color={lineColor} bold={isWaveEdge}>
-              ({edge.sourceIds.join('|')}) -[{edge.type}]-{'>'} ({edge.targetIds.join('|')})
+              ({edge.sourceIds.join('|')}) -[{edge.type}]-{'>'} (
+              {edge.targetIds.join('|')})
             </Text>
           );
         })}
@@ -350,7 +399,9 @@ const GraphCanvas = React.memo(function GraphCanvas({
             : '[collapsed]'}
         </Text>
         {visualization.quantumEvents.length === 0 ? (
-          <Text color={rainbowColor(8)}>No quantum events yet. Run EXECUTE to evolve the graph.</Text>
+          <Text color={rainbowColor(8)}>
+            No quantum events yet. Run EXECUTE to evolve the graph.
+          </Text>
         ) : (
           visualization.quantumEvents.map((event, index) => (
             <Text key={`event-${index}`} color={rainbowColor(index + 1)}>
@@ -367,7 +418,7 @@ const MetricsPanel = React.memo(function MetricsPanel({
   beta1,
   paths,
   activeWaveCount,
-  phase
+  phase,
 }: {
   beta1: number;
   paths: number;
@@ -375,7 +426,12 @@ const MetricsPanel = React.memo(function MetricsPanel({
   phase: number;
 }) {
   return (
-    <Box flexDirection="row" justifyContent="space-between" paddingX={1} marginBottom={1}>
+    <Box
+      flexDirection="row"
+      justifyContent="space-between"
+      paddingX={1}
+      marginBottom={1}
+    >
       <Box>
         <Text color={spectrumColor(3, phase)}>Betti Number (</Text>
         <Text color={spectrumColor(1, phase)} bold={!isDimBreath(phase)}>
@@ -400,7 +456,7 @@ const SteeringPanel = React.memo(function SteeringPanel({
   steering,
   steeringMode,
   traceAlert,
-  phase
+  phase,
 }: {
   steering: GnosisSteeringMetrics | null;
   steeringMode: GnosisSteeringMode;
@@ -409,7 +465,12 @@ const SteeringPanel = React.memo(function SteeringPanel({
 }) {
   if (!surfaceSteeringMetrics(steeringMode)) {
     return (
-      <Box borderStyle="single" borderColor={rainbowColor(8)} paddingX={1} marginBottom={1}>
+      <Box
+        borderStyle="single"
+        borderColor={rainbowColor(8)}
+        paddingX={1}
+        marginBottom={1}
+      >
         <Text color={spectrumColor(8, phase)}>
           Steering disabled. Mode: {steeringMode}.
         </Text>
@@ -419,21 +480,33 @@ const SteeringPanel = React.memo(function SteeringPanel({
 
   if (!steering) {
     return (
-      <Box borderStyle="single" borderColor={traceAlert ? 'redBright' : rainbowColor(8)} paddingX={1} marginBottom={1}>
+      <Box
+        borderStyle="single"
+        borderColor={traceAlert ? 'redBright' : rainbowColor(8)}
+        paddingX={1}
+        marginBottom={1}
+      >
         {traceAlert ? (
           <Text color="redBright" bold>
             {traceAlert}
           </Text>
         ) : null}
         <Text color={traceAlert ? 'redBright' : spectrumColor(8, phase)}>
-          Steering idle. Draw topology to measure Wallace; execute to observe time in microCharleys.
+          Steering idle. Draw topology to measure Wallace; execute to observe
+          time in microCharleys.
         </Text>
       </Box>
     );
   }
 
   return (
-    <Box flexDirection="column" borderStyle="single" borderColor={traceAlert ? 'redBright' : rainbowColor(9)} paddingX={1} marginBottom={1}>
+    <Box
+      flexDirection="column"
+      borderStyle="single"
+      borderColor={traceAlert ? 'redBright' : rainbowColor(9)}
+      paddingX={1}
+      marginBottom={1}
+    >
       <Text bold color={rainbowColor(10)}>
         STEERING
       </Text>
@@ -443,12 +516,14 @@ const SteeringPanel = React.memo(function SteeringPanel({
         </Text>
       ) : null}
       <Text color={spectrumColor(7, phase)}>
-        mode: {steering.mode} | Wallace metric: {steering.wallaceNumber} wallys | frontier-fill: {steering.frontierFill}
+        mode: {steering.mode} | Wallace metric: {steering.wallaceNumber} wallys
+        | frontier-fill: {steering.frontierFill}
       </Text>
       <Text color={spectrumColor(4, phase)}>
         topology-deficit: {steering.topologyDeficit} | regime: {steering.regime}
         {' | '}bias: {steering.leanInBias} ({steering.boundaryWalkBias})
-        {surfaceSteeringRecommendations(steering.mode) && steering.recommendedAction
+        {surfaceSteeringRecommendations(steering.mode) &&
+        steering.recommendedAction
           ? ` | action: ${steering.recommendedAction}`
           : ''}
       </Text>
@@ -474,11 +549,17 @@ const SteeringPanel = React.memo(function SteeringPanel({
         </Text>
       ) : null}
       <Text color={spectrumColor(6, phase)}>
-        frontier-median: {steering.eda.frontierWidths.summary.median.datum} | occupancy-median: {steering.eda.layerOccupancy.summary.median.datum} | graph-density: {steering.eda.graph.density} | outliers: {steering.eda.graphOutliers.length}
+        frontier-median: {steering.eda.frontierWidths.summary.median.datum} |
+        occupancy-median: {steering.eda.layerOccupancy.summary.median.datum} |
+        graph-density: {steering.eda.graph.density} | outliers:{' '}
+        {steering.eda.graphOutliers.length}
       </Text>
-      {steering.telemetry.wallMicroCharleys !== null || steering.telemetry.cpuMicroCharleys !== null ? (
+      {steering.telemetry.wallMicroCharleys !== null ||
+      steering.telemetry.cpuMicroCharleys !== null ? (
         <Text color={spectrumColor(2, phase)}>
-          wall time (uCharleys): {steering.telemetry.wallMicroCharleys ?? 'n/a'} | cpu time (uCharleys): {steering.telemetry.cpuMicroCharleys ?? 'n/a'} | wall/cpu: {steering.telemetry.wallToCpuRatio ?? 'n/a'}
+          wall time (uCharleys): {steering.telemetry.wallMicroCharleys ?? 'n/a'}{' '}
+          | cpu time (uCharleys): {steering.telemetry.cpuMicroCharleys ?? 'n/a'}{' '}
+          | wall/cpu: {steering.telemetry.wallToCpuRatio ?? 'n/a'}
         </Text>
       ) : null}
     </Box>
@@ -486,7 +567,7 @@ const SteeringPanel = React.memo(function SteeringPanel({
 });
 
 const HistoryPanel = React.memo(function HistoryPanel({
-  history
+  history,
 }: {
   history: HistoryEntry[];
 }) {
@@ -497,13 +578,16 @@ const HistoryPanel = React.memo(function HistoryPanel({
           entry.type === 'input'
             ? rainbowColor(index + 2)
             : entry.type === 'error'
-              ? 'redBright'
-              : rainbowColor(index + 6);
-        const textColor = entry.type === 'error' ? 'redBright' : rainbowColor(index + 1);
+            ? 'redBright'
+            : rainbowColor(index + 6);
+        const textColor =
+          entry.type === 'error' ? 'redBright' : rainbowColor(index + 1);
 
         return (
           <Box key={`history-${index}`} flexDirection="row">
-            <Text color={markerColor}>{entry.type === 'input' ? '>> ' : '   '}</Text>
+            <Text color={markerColor}>
+              {entry.type === 'input' ? '>> ' : '   '}
+            </Text>
             <Text color={textColor}>{entry.text}</Text>
           </Box>
         );
@@ -518,10 +602,9 @@ export function startRepl(options: ReplOptions = {}) {
     steeringMode = DEFAULT_GNOSIS_STEERING_MODE,
     steeringTraceWindow = DEFAULT_GNOSIS_STEERING_TRACE_WINDOW,
     executionAuth = null,
-    steeringRelayConfig =
-      process.env.GNOSIS_STEERING_AEON_RELAY_URL ||
-      process.env.GNOSIS_STEERING_RELAY_URL ||
-      process.env.DASH_RELAY_WS_URL
+    steeringRelayConfig = process.env.GNOSIS_STEERING_AEON_RELAY_URL ||
+    process.env.GNOSIS_STEERING_RELAY_URL ||
+    process.env.DASH_RELAY_WS_URL
       ? {
           url:
             process.env.GNOSIS_STEERING_AEON_RELAY_URL ??
@@ -548,7 +631,7 @@ export function startRepl(options: ReplOptions = {}) {
             process.env.GNOSIS_STEERING_AEON_RELAY_PRODUCT ??
             process.env.GNOSIS_STEERING_RELAY_PRODUCT,
         }
-      : null
+      : null,
   } = options;
   const betty = new BettyCompiler();
   const registry = new GnosisRegistry();
@@ -575,9 +658,14 @@ export function startRepl(options: ReplOptions = {}) {
     const [sourceLines, setSourceLines] = useState<string[]>([]);
     const [ast, setAst] = useState<GraphAST | null>(null);
     const [metrics, setMetrics] = useState({ b1: 0, paths: 1 });
-    const [steering, setSteering] = useState<GnosisSteeringMetrics | null>(null);
-    const [analysisReport, setAnalysisReport] = useState<GnosisComplexityReport | null>(null);
-    const [steeringTraceAlert, setSteeringTraceAlert] = useState<string | null>(null);
+    const [steering, setSteering] = useState<GnosisSteeringMetrics | null>(
+      null
+    );
+    const [analysisReport, setAnalysisReport] =
+      useState<GnosisComplexityReport | null>(null);
+    const [steeringTraceAlert, setSteeringTraceAlert] = useState<string | null>(
+      null
+    );
     const executionAuthRef = useRef<GnosisExecutionAuthContext | null>(
       executionAuth
     );
@@ -622,7 +710,7 @@ export function startRepl(options: ReplOptions = {}) {
       report: GnosisComplexityReport,
       nextSteering: GnosisSteeringMetrics,
       outcome: 'ok' | 'error',
-      errorMessage: string | null,
+      errorMessage: string | null
     ): Promise<void> => {
       if (!steeringTraceStore) {
         return;
@@ -648,12 +736,17 @@ export function startRepl(options: ReplOptions = {}) {
         cohortKey: traceRecord.cohortKey,
       });
       const traceStatus = steeringTraceStore.status;
-      const traceAlert = formatSteeringTraceAlert(steeringTraceSummary, traceStatus);
+      const traceAlert = formatSteeringTraceAlert(
+        steeringTraceSummary,
+        traceStatus
+      );
       setSteeringTraceAlert(traceAlert);
 
       appendHistory({
         type: outcome === 'error' ? 'error' : 'output',
-        text: `[Steering Trace] ${formatSteeringTraceStoreStatus(traceStatus)} ${formatSteeringTraceSummary(steeringTraceSummary)}`,
+        text: `[Steering Trace] ${formatSteeringTraceStoreStatus(
+          traceStatus
+        )} ${formatSteeringTraceSummary(steeringTraceSummary)}`,
       });
 
       if (traceAlert) {
@@ -664,7 +757,10 @@ export function startRepl(options: ReplOptions = {}) {
       }
     };
 
-    const applyCompiledSource = async (nextSourceLines: string[], inputLabel: string) => {
+    const applyCompiledSource = async (
+      nextSourceLines: string[],
+      inputLabel: string
+    ) => {
       if (nextSourceLines.length === 0) {
         bootstrapExecutionAuthRef.current = null;
         setSourceLines([]);
@@ -682,7 +778,12 @@ export function startRepl(options: ReplOptions = {}) {
 
       try {
         const source = nextSourceLines.join('\n');
-        const { ast: compiledAst, output, b1, diagnostics } = betty.parse(source);
+        const {
+          ast: compiledAst,
+          output,
+          b1,
+          diagnostics,
+        } = betty.parse(source);
         const parsedAst = compiledAst ?? null;
 
         setSourceLines(nextSourceLines);
@@ -692,7 +793,10 @@ export function startRepl(options: ReplOptions = {}) {
 
         appendHistory(
           { type: 'input', text: inputLabel },
-          { type: 'output', text: formatCompilationMessage(output, diagnostics) }
+          {
+            type: 'output',
+            text: formatCompilationMessage(output, diagnostics),
+          }
         );
 
         if (!surfaceSteeringMetrics(steeringMode)) {
@@ -709,10 +813,11 @@ export function startRepl(options: ReplOptions = {}) {
         }
 
         try {
-          const boundaryWalkExecutionAuth = await resolveBoundaryWalkExecutionAuth(
-            parsedAst,
-            executionAuthRef.current
-          );
+          const boundaryWalkExecutionAuth =
+            await resolveBoundaryWalkExecutionAuth(
+              parsedAst,
+              executionAuthRef.current
+            );
           bootstrapExecutionAuthRef.current = boundaryWalkExecutionAuth;
           assertBoundaryWalkAuthorized(
             source,
@@ -728,7 +833,7 @@ export function startRepl(options: ReplOptions = {}) {
           setAnalysisReport(null);
           appendHistory({
             type: 'error',
-            text: `[Analysis Crash] ${formatMottoError(error)}`
+            text: `[Analysis Crash] ${formatMottoError(error)}`,
           });
         }
       } catch (error: unknown) {
@@ -771,9 +876,14 @@ export function startRepl(options: ReplOptions = {}) {
       if (upperQuery === 'SOURCE') {
         const sourceDump =
           sourceLines.length > 0
-            ? sourceLines.map((line, index) => `${index + 1}. ${line}`).join('\n')
+            ? sourceLines
+                .map((line, index) => `${index + 1}. ${line}`)
+                .join('\n')
             : '[Editor] Topology source is empty.';
-        appendHistory({ type: 'input', text: 'SOURCE' }, { type: 'output', text: sourceDump });
+        appendHistory(
+          { type: 'input', text: 'SOURCE' },
+          { type: 'output', text: sourceDump }
+        );
         setQuery('');
         return;
       }
@@ -786,7 +896,10 @@ export function startRepl(options: ReplOptions = {}) {
           );
         } else {
           const nextSourceLines = sourceLines.slice(0, -1);
-          await applyCompiledSource(nextSourceLines, `UNDO (${sourceLines[sourceLines.length - 1]})`);
+          await applyCompiledSource(
+            nextSourceLines,
+            `UNDO (${sourceLines[sourceLines.length - 1]})`
+          );
         }
         setQuery('');
         return;
@@ -798,7 +911,7 @@ export function startRepl(options: ReplOptions = {}) {
             { type: 'input', text: 'EXECUTE' },
             {
               type: 'error',
-              text: `[Engine] ${ERROR_MOTTO}: No topology to execute. Add graph lines first.`
+              text: `[Engine] ${ERROR_MOTTO}: No topology to execute. Add graph lines first.`,
             }
           );
           setQuery('');
@@ -814,7 +927,10 @@ export function startRepl(options: ReplOptions = {}) {
             executionAuthRef.current =
               engine.executionAuth ?? executionAuthRef.current;
             const runtimeTelemetry = finishSteeringTelemetry(steeringStopwatch);
-            const waveState = buildVisualizationFromExecution(ast, executionOutput);
+            const waveState = buildVisualizationFromExecution(
+              ast,
+              executionOutput
+            );
             const executedSteering =
               steering && analysisReport
                 ? withSteeringTelemetry(steering, runtimeTelemetry)
@@ -834,12 +950,16 @@ export function startRepl(options: ReplOptions = {}) {
                   null
                 );
               } catch (traceError: unknown) {
-                const alert = `STEERING ALERT level=CRITICAL relay=disconnected room=${steeringRelayConfig?.roomName ?? 'unknown'} relay-error="${formatMottoError(traceError)}"`;
+                const alert = `STEERING ALERT level=CRITICAL relay=disconnected room=${
+                  steeringRelayConfig?.roomName ?? 'unknown'
+                } relay-error="${formatMottoError(traceError)}"`;
                 setSteeringTraceAlert(alert);
                 appendHistory(
                   {
                     type: 'error',
-                    text: `[STEERING TRACE RELAY FAILURE] ${formatMottoError(traceError)}`,
+                    text: `[STEERING TRACE RELAY FAILURE] ${formatMottoError(
+                      traceError
+                    )}`,
                   },
                   {
                     type: 'error',
@@ -858,7 +978,10 @@ export function startRepl(options: ReplOptions = {}) {
                 : null;
             appendHistory(
               { type: 'input', text: 'EXECUTE' },
-              { type: 'error', text: `[Engine Crash] ${formatMottoError(error)}` }
+              {
+                type: 'error',
+                text: `[Engine Crash] ${formatMottoError(error)}`,
+              }
             );
             if (failedSteering && analysisReport) {
               setSteering(failedSteering);
@@ -870,12 +993,16 @@ export function startRepl(options: ReplOptions = {}) {
                   formatError(error)
                 );
               } catch (traceError: unknown) {
-                const alert = `STEERING ALERT level=CRITICAL relay=disconnected room=${steeringRelayConfig?.roomName ?? 'unknown'} relay-error="${formatMottoError(traceError)}"`;
+                const alert = `STEERING ALERT level=CRITICAL relay=disconnected room=${
+                  steeringRelayConfig?.roomName ?? 'unknown'
+                } relay-error="${formatMottoError(traceError)}"`;
                 setSteeringTraceAlert(alert);
                 appendHistory(
                   {
                     type: 'error',
-                    text: `[STEERING TRACE RELAY FAILURE] ${formatMottoError(traceError)}`,
+                    text: `[STEERING TRACE RELAY FAILURE] ${formatMottoError(
+                      traceError
+                    )}`,
                   },
                   {
                     type: 'error',
@@ -888,7 +1015,10 @@ export function startRepl(options: ReplOptions = {}) {
         } catch (error: unknown) {
           appendHistory(
             { type: 'input', text: 'EXECUTE' },
-            { type: 'error', text: `[Steering Crash] ${formatMottoError(error)}` }
+            {
+              type: 'error',
+              text: `[Steering Crash] ${formatMottoError(error)}`,
+            }
           );
         }
 
@@ -926,7 +1056,11 @@ export function startRepl(options: ReplOptions = {}) {
           <Text color={spectrumColor(0, phase)} bold={!isDimBreath(phase)}>
             {'>'}{' '}
           </Text>
-          <TextInput value={query} onChange={setQuery} onSubmit={handleSubmit} />
+          <TextInput
+            value={query}
+            onChange={setQuery}
+            onSubmit={handleSubmit}
+          />
         </Box>
 
         <Box marginTop={1} flexDirection="row">

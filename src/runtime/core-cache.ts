@@ -93,12 +93,12 @@ function serializeAst(ast: GraphAST): string {
       properties: edge.properties,
     }))
     .sort((left, right) => {
-      const leftKey = `${left.type}:${left.sourceIds.join('|')}->${left.targetIds.join('|')}:${stableStringify(
-        left.properties
-      )}`;
-      const rightKey = `${right.type}:${right.sourceIds.join('|')}->${right.targetIds.join('|')}:${stableStringify(
-        right.properties
-      )}`;
+      const leftKey = `${left.type}:${left.sourceIds.join(
+        '|'
+      )}->${left.targetIds.join('|')}:${stableStringify(left.properties)}`;
+      const rightKey = `${right.type}:${right.sourceIds.join(
+        '|'
+      )}->${right.targetIds.join('|')}:${stableStringify(right.properties)}`;
       return leftKey.localeCompare(rightKey);
     });
 
@@ -116,9 +116,7 @@ export class GnosisCoreCache {
     return this.corridor.document;
   }
 
-  getCorridor(
-    corridorKey: string
-  ): GnosisCoreCacheCorridorRecord | undefined {
+  getCorridor(corridorKey: string): GnosisCoreCacheCorridorRecord | undefined {
     return this.corridor.getCorridor(corridorKey);
   }
 

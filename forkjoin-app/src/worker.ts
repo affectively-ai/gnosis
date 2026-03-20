@@ -143,7 +143,10 @@ app.get('/session', async (c) => {
 });
 
 app.get('/mcp', async (c) => {
-  const endpoints = buildDiscoveryEndpoints(c.req.raw, c.env.MCP_PUBLIC_BASE_URL);
+  const endpoints = buildDiscoveryEndpoints(
+    c.req.raw,
+    c.env.MCP_PUBLIC_BASE_URL
+  );
   return json(
     {
       name: MCP_SERVER_NAME,
@@ -219,21 +222,30 @@ app.post('/mcp', async (c) => {
 });
 
 app.get('/llms.txt', (c) => {
-  const endpoints = buildDiscoveryEndpoints(c.req.raw, c.env.MCP_PUBLIC_BASE_URL);
+  const endpoints = buildDiscoveryEndpoints(
+    c.req.raw,
+    c.env.MCP_PUBLIC_BASE_URL
+  );
   return text(buildLlmsTxt(endpoints), {
     cacheControl: DISCOVERY_CACHE_CONTROL,
   });
 });
 
 app.get('/llms-full.txt', (c) => {
-  const endpoints = buildDiscoveryEndpoints(c.req.raw, c.env.MCP_PUBLIC_BASE_URL);
+  const endpoints = buildDiscoveryEndpoints(
+    c.req.raw,
+    c.env.MCP_PUBLIC_BASE_URL
+  );
   return text(buildLlmsFullTxt(endpoints), {
     cacheControl: DISCOVERY_CACHE_CONTROL,
   });
 });
 
 app.get('/skills', (c) => {
-  const endpoints = buildDiscoveryEndpoints(c.req.raw, c.env.MCP_PUBLIC_BASE_URL);
+  const endpoints = buildDiscoveryEndpoints(
+    c.req.raw,
+    c.env.MCP_PUBLIC_BASE_URL
+  );
   return json(
     buildSkillsListPayload({
       server: {
@@ -256,7 +268,10 @@ app.get('/skills', (c) => {
 });
 
 app.get('/skills.json', (c) => {
-  const endpoints = buildDiscoveryEndpoints(c.req.raw, c.env.MCP_PUBLIC_BASE_URL);
+  const endpoints = buildDiscoveryEndpoints(
+    c.req.raw,
+    c.env.MCP_PUBLIC_BASE_URL
+  );
   return json(
     buildSkillsListPayload({
       server: {
@@ -279,7 +294,10 @@ app.get('/skills.json', (c) => {
 });
 
 app.get('/skills/index.json', (c) => {
-  const endpoints = buildDiscoveryEndpoints(c.req.raw, c.env.MCP_PUBLIC_BASE_URL);
+  const endpoints = buildDiscoveryEndpoints(
+    c.req.raw,
+    c.env.MCP_PUBLIC_BASE_URL
+  );
   return json(
     buildPublicSkillsIndex({
       server: {
@@ -340,56 +358,80 @@ app.get('/skills/:name.md', (c) => {
 });
 
 app.get('/agents.json', (c) => {
-  const endpoints = buildDiscoveryEndpoints(c.req.raw, c.env.MCP_PUBLIC_BASE_URL);
+  const endpoints = buildDiscoveryEndpoints(
+    c.req.raw,
+    c.env.MCP_PUBLIC_BASE_URL
+  );
   return json(buildAgentsManifest(endpoints), {
     cacheControl: DISCOVERY_CACHE_CONTROL,
   });
 });
 
 app.get('/.well-known/agents.json', (c) => {
-  const endpoints = buildDiscoveryEndpoints(c.req.raw, c.env.MCP_PUBLIC_BASE_URL);
+  const endpoints = buildDiscoveryEndpoints(
+    c.req.raw,
+    c.env.MCP_PUBLIC_BASE_URL
+  );
   return json(buildAgentsManifest(endpoints), {
     cacheControl: DISCOVERY_CACHE_CONTROL,
   });
 });
 
 app.get('/.well-known/ai-plugin.json', (c) => {
-  const endpoints = buildDiscoveryEndpoints(c.req.raw, c.env.MCP_PUBLIC_BASE_URL);
+  const endpoints = buildDiscoveryEndpoints(
+    c.req.raw,
+    c.env.MCP_PUBLIC_BASE_URL
+  );
   return json(buildAiPluginManifest(endpoints), {
     cacheControl: DISCOVERY_CACHE_CONTROL,
   });
 });
 
 app.get('/.well-known/mcp.json', (c) => {
-  const endpoints = buildDiscoveryEndpoints(c.req.raw, c.env.MCP_PUBLIC_BASE_URL);
+  const endpoints = buildDiscoveryEndpoints(
+    c.req.raw,
+    c.env.MCP_PUBLIC_BASE_URL
+  );
   return json(buildMcpWellKnownManifest(endpoints), {
     cacheControl: DISCOVERY_CACHE_CONTROL,
   });
 });
 
 app.get('/.well-known/mcp-manifest.json', (c) => {
-  const endpoints = buildDiscoveryEndpoints(c.req.raw, c.env.MCP_PUBLIC_BASE_URL);
+  const endpoints = buildDiscoveryEndpoints(
+    c.req.raw,
+    c.env.MCP_PUBLIC_BASE_URL
+  );
   return json(buildMcpMarketingManifest(endpoints), {
     cacheControl: DISCOVERY_CACHE_CONTROL,
   });
 });
 
 app.get('/.well-known/agent-card.json', (c) => {
-  const endpoints = buildDiscoveryEndpoints(c.req.raw, c.env.MCP_PUBLIC_BASE_URL);
+  const endpoints = buildDiscoveryEndpoints(
+    c.req.raw,
+    c.env.MCP_PUBLIC_BASE_URL
+  );
   return json(buildAgentCardManifest(endpoints), {
     cacheControl: DISCOVERY_CACHE_CONTROL,
   });
 });
 
 app.get('/.well-known/openapi.json', (c) => {
-  const endpoints = buildDiscoveryEndpoints(c.req.raw, c.env.MCP_PUBLIC_BASE_URL);
+  const endpoints = buildDiscoveryEndpoints(
+    c.req.raw,
+    c.env.MCP_PUBLIC_BASE_URL
+  );
   return json(buildOpenApiManifest(endpoints), {
     cacheControl: DISCOVERY_CACHE_CONTROL,
   });
 });
 
 app.get('/.well-known/security.txt', (c) => {
-  const endpoints = buildDiscoveryEndpoints(c.req.raw, c.env.MCP_PUBLIC_BASE_URL);
+  const endpoints = buildDiscoveryEndpoints(
+    c.req.raw,
+    c.env.MCP_PUBLIC_BASE_URL
+  );
   return text(buildSecurityTxt(endpoints), {
     cacheControl: 'public, max-age=86400, s-maxage=86400',
   });
@@ -501,11 +543,17 @@ export function parseMcpRequest(
   const id = body.id;
   const method = body.method;
 
-  if (jsonrpc !== '2.0' || typeof method !== 'string' || method.trim().length === 0) {
+  if (
+    jsonrpc !== '2.0' ||
+    typeof method !== 'string' ||
+    method.trim().length === 0
+  ) {
     return {
       ok: false,
       error: mcpError(
-        typeof id === 'string' || typeof id === 'number' || id === null ? id : null,
+        typeof id === 'string' || typeof id === 'number' || id === null
+          ? id
+          : null,
         -32600,
         'Invalid Request: jsonrpc must be "2.0" and method must be a non-empty string'
       ),
@@ -516,7 +564,10 @@ export function parseMcpRequest(
     ok: true,
     request: {
       jsonrpc: '2.0',
-      id: typeof id === 'string' || typeof id === 'number' || id === null ? id : null,
+      id:
+        typeof id === 'string' || typeof id === 'number' || id === null
+          ? id
+          : null,
       method: method.trim(),
       params: isRecord(body.params) ? body.params : undefined,
     },
@@ -619,7 +670,8 @@ export function resolveToolAuthorization(
 
   return {
     allowed: false,
-    reason: 'This tool requires bearer auth. Set MCP_AUTH_TOKEN in request headers.',
+    reason:
+      'This tool requires bearer auth. Set MCP_AUTH_TOKEN in request headers.',
     requiresAuth: true,
   };
 }
@@ -760,10 +812,15 @@ async function handleMcpRequest(
       if (!authDecision.allowed) {
         return {
           sessionId: existingSessionId,
-          payload: mcpError(id, -32001, authDecision.reason ?? 'Not authorized', {
-            toolName,
-            requiresAuth: authDecision.requiresAuth,
-          }),
+          payload: mcpError(
+            id,
+            -32001,
+            authDecision.reason ?? 'Not authorized',
+            {
+              toolName,
+              requiresAuth: authDecision.requiresAuth,
+            }
+          ),
         };
       }
 
@@ -771,8 +828,11 @@ async function handleMcpRequest(
         ? { ...params.arguments }
         : {};
 
-      let quota: { allowed: boolean; remaining: number; limitPerHour: number } | null =
-        null;
+      let quota: {
+        allowed: boolean;
+        remaining: number;
+        limitPerHour: number;
+      } | null = null;
       const sessionId = existingSessionId ?? crypto.randomUUID();
       await initializeSession(env, sessionId);
 
@@ -857,7 +917,9 @@ async function handleMcpRequest(
       const uri = uriRaw.trim();
       const skillResource = readSkillResource(GNOSIS_SKILLS, uri);
       if (skillResource) {
-        await recordSessionEvent(env, existingSessionId, 'resources/read', { uri });
+        await recordSessionEvent(env, existingSessionId, 'resources/read', {
+          uri,
+        });
         return {
           sessionId: existingSessionId,
           payload: {
@@ -882,7 +944,9 @@ async function handleMcpRequest(
           env.MCP_PUBLIC_BASE_URL
         );
         const resource = readGnosisResource(uri, env, publicBaseUrl);
-        await recordSessionEvent(env, existingSessionId, 'resources/read', { uri });
+        await recordSessionEvent(env, existingSessionId, 'resources/read', {
+          uri,
+        });
         return {
           sessionId: existingSessionId,
           payload: {
@@ -941,10 +1005,13 @@ async function fetchAssetRoute(
       return direct;
     }
 
-    const indexRequest = new Request(new URL('/index.html', request.url).toString(), {
-      method: 'GET',
-      headers: request.headers,
-    });
+    const indexRequest = new Request(
+      new URL('/index.html', request.url).toString(),
+      {
+        method: 'GET',
+        headers: request.headers,
+      }
+    );
     const indexResponse = await env.ASSETS.fetch(indexRequest);
     if (indexResponse.status === 404) {
       return null;
@@ -987,7 +1054,9 @@ function buildDevelopmentFallbackHtml(path: string): string {
   <body>
     <article class="card">
       <h1>ForkJoin Worker Running</h1>
-      <p>Route <code>${escapeHtml(path)}</code> is available, but static assets are not bound in this environment.</p>
+      <p>Route <code>${escapeHtml(
+        path
+      )}</code> is available, but static assets are not bound in this environment.</p>
       <p>Run <code>bun run build:client</code> and bind <code>ASSETS</code>, or use Vite dev server at <code>http://127.0.0.1:5196</code>.</p>
       <p>MCP endpoint is live at <a href="/mcp">/mcp</a>.</p>
     </article>
@@ -1006,7 +1075,11 @@ function escapeHtml(input: string): string {
 
 function json(
   payload: unknown,
-  options: { status?: number; sessionId?: string | null; cacheControl?: string } = {}
+  options: {
+    status?: number;
+    sessionId?: string | null;
+    cacheControl?: string;
+  } = {}
 ): Response {
   const headers = new Headers({
     'content-type': 'application/json; charset=utf-8',

@@ -14,7 +14,11 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { computeTopologyDiff, formatPrComment, type TopologyDiffResult } from './ts-check-diff.js';
+import {
+  computeTopologyDiff,
+  formatPrComment,
+  type TopologyDiffResult,
+} from './ts-check-diff.js';
 
 interface CiArgs {
   baseDir: string;
@@ -36,10 +40,14 @@ function parseArgs(argv: string[]): CiArgs {
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--base-dir' && i + 1 < argv.length) result.baseDir = argv[++i];
-    else if (arg === '--head-dir' && i + 1 < argv.length) result.headDir = argv[++i];
-    else if (arg === '--files' && i + 1 < argv.length) result.filesPath = argv[++i];
-    else if (arg === '--output' && i + 1 < argv.length) result.output = argv[++i];
-    else if (arg === '--json-output' && i + 1 < argv.length) result.jsonOutput = argv[++i];
+    else if (arg === '--head-dir' && i + 1 < argv.length)
+      result.headDir = argv[++i];
+    else if (arg === '--files' && i + 1 < argv.length)
+      result.filesPath = argv[++i];
+    else if (arg === '--output' && i + 1 < argv.length)
+      result.output = argv[++i];
+    else if (arg === '--json-output' && i + 1 < argv.length)
+      result.jsonOutput = argv[++i];
   }
 
   return result;
@@ -49,7 +57,9 @@ async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
 
   if (!args.baseDir || !args.headDir || !args.filesPath) {
-    console.error('Usage: ts-check-diff-ci.ts --base-dir <path> --head-dir <path> --files <changed-files.txt> [--output <md>] [--json-output <json>]');
+    console.error(
+      'Usage: ts-check-diff-ci.ts --base-dir <path> --head-dir <path> --files <changed-files.txt> [--output <md>] [--json-output <json>]'
+    );
     process.exit(1);
   }
 
@@ -58,7 +68,10 @@ async function main(): Promise<void> {
     .split('\n')
     .map((l) => l.trim())
     .filter((l) => l.length > 0 && (l.endsWith('.ts') || l.endsWith('.tsx')))
-    .filter((l) => !l.endsWith('.d.ts') && !l.includes('.test.') && !l.includes('.spec.'));
+    .filter(
+      (l) =>
+        !l.endsWith('.d.ts') && !l.includes('.test.') && !l.includes('.spec.')
+    );
 
   if (changedFiles.length === 0) {
     console.log('No TypeScript files changed.');
@@ -75,8 +88,12 @@ async function main(): Promise<void> {
     const basePath = path.join(args.baseDir, file);
     const headPath = path.join(args.headDir, file);
 
-    const baseSource = fs.existsSync(basePath) ? fs.readFileSync(basePath, 'utf-8') : '';
-    const headSource = fs.existsSync(headPath) ? fs.readFileSync(headPath, 'utf-8') : '';
+    const baseSource = fs.existsSync(basePath)
+      ? fs.readFileSync(basePath, 'utf-8')
+      : '';
+    const headSource = fs.existsSync(headPath)
+      ? fs.readFileSync(headPath, 'utf-8')
+      : '';
 
     if (!baseSource && !headSource) continue;
 
@@ -87,7 +104,9 @@ async function main(): Promise<void> {
         diffs.push(diff);
       }
     } catch (err) {
-      console.error(`Failed to diff ${file}: ${err instanceof Error ? err.message : err}`);
+      console.error(
+        `Failed to diff ${file}: ${err instanceof Error ? err.message : err}`
+      );
     }
   }
 

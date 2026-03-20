@@ -1,8 +1,5 @@
 import type { GnosisExecutionAuthContext } from '../auth/core.js';
-import type {
-  GnosisCoreCache,
-  GnosisCoreCacheSession,
-} from './core-cache.js';
+import type { GnosisCoreCache, GnosisCoreCacheSession } from './core-cache.js';
 
 export interface GnosisHandlerContext {
   nodeId?: string;

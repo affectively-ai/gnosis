@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'bun:test';
 import {
-  recordPattern, tuplePattern, variantPattern,
-  wildcardPattern, literalPattern,
+  recordPattern,
+  tuplePattern,
+  variantPattern,
+  wildcardPattern,
+  literalPattern,
   extractBindings,
   matchPatterns,
   checkPatternExhaustiveness,
@@ -9,7 +12,10 @@ import {
   validateRecordPattern,
 } from './destructuring.js';
 import { BUILTIN_SUM_TYPES, defineProductType, variant } from './adt.js';
-import { registerDestructuringHandlers, DESTRUCTURING_PATTERNS } from './destructuring-handlers.js';
+import {
+  registerDestructuringHandlers,
+  DESTRUCTURING_PATTERNS,
+} from './destructuring-handlers.js';
 import { GnosisRegistry } from './runtime/registry.js';
 
 describe('Record destructuring', () => {
@@ -95,7 +101,9 @@ describe('Wildcard and literal patterns', () => {
   it('literal matches exact value', () => {
     expect(extractBindings(literalPattern(42), 42).matched).toBe(true);
     expect(extractBindings(literalPattern(42), 43).matched).toBe(false);
-    expect(extractBindings(literalPattern('hello'), 'hello').matched).toBe(true);
+    expect(extractBindings(literalPattern('hello'), 'hello').matched).toBe(
+      true
+    );
   });
 });
 
@@ -138,7 +146,7 @@ describe('Pattern validation', () => {
   it('validates variant pattern against sum type', () => {
     const result = validateVariantPattern(
       variantPattern('ok', 'v'),
-      BUILTIN_SUM_TYPES['Result'],
+      BUILTIN_SUM_TYPES['Result']
     );
     expect(result.valid).toBe(true);
   });
@@ -146,7 +154,7 @@ describe('Pattern validation', () => {
   it('rejects invalid variant tag', () => {
     const result = validateVariantPattern(
       variantPattern('invalid', 'v'),
-      BUILTIN_SUM_TYPES['Result'],
+      BUILTIN_SUM_TYPES['Result']
     );
     expect(result.valid).toBe(false);
   });
@@ -158,23 +166,26 @@ describe('Pattern validation', () => {
     ]);
     const result = validateRecordPattern(
       recordPattern({ x: 'a', y: 'b' }),
-      type,
+      type
     );
     expect(result.valid).toBe(true);
   });
 
   it('checks pattern exhaustiveness', () => {
-    const patterns = [
-      variantPattern('ok', 'v'),
-      variantPattern('err', 'e'),
-    ];
-    const result = checkPatternExhaustiveness(patterns, BUILTIN_SUM_TYPES['Result']);
+    const patterns = [variantPattern('ok', 'v'), variantPattern('err', 'e')];
+    const result = checkPatternExhaustiveness(
+      patterns,
+      BUILTIN_SUM_TYPES['Result']
+    );
     expect(result.exhaustive).toBe(true);
   });
 
   it('reports missing patterns', () => {
     const patterns = [variantPattern('ok', 'v')];
-    const result = checkPatternExhaustiveness(patterns, BUILTIN_SUM_TYPES['Result']);
+    const result = checkPatternExhaustiveness(
+      patterns,
+      BUILTIN_SUM_TYPES['Result']
+    );
     expect(result.exhaustive).toBe(false);
     expect(result.missing).toEqual(['err']);
   });

@@ -387,7 +387,10 @@ function requiredString(args: Record<string, unknown>, key: string): string {
   return value;
 }
 
-function optionalString(args: Record<string, unknown>, key: string): string | null {
+function optionalString(
+  args: Record<string, unknown>,
+  key: string
+): string | null {
   const value = args[key];
   if (typeof value !== 'string') {
     return null;
@@ -396,7 +399,10 @@ function optionalString(args: Record<string, unknown>, key: string): string | nu
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function optionalNumber(args: Record<string, unknown>, key: string): number | null {
+function optionalNumber(
+  args: Record<string, unknown>,
+  key: string
+): number | null {
   const value = args[key];
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     return null;
@@ -404,7 +410,10 @@ function optionalNumber(args: Record<string, unknown>, key: string): number | nu
   return value;
 }
 
-function optionalBoolean(args: Record<string, unknown>, key: string): boolean | null {
+function optionalBoolean(
+  args: Record<string, unknown>,
+  key: string
+): boolean | null {
   const value = args[key];
   return typeof value === 'boolean' ? value : null;
 }
@@ -450,7 +459,10 @@ function buildToolPayload(value: unknown, isError = false): ToolCallResult {
   };
 }
 
-function parseLintLanguage(language: string | null, path: string): StreamedLintLanguage {
+function parseLintLanguage(
+  language: string | null,
+  path: string
+): StreamedLintLanguage {
   if (language) {
     const normalized = language.trim().toLowerCase();
     if (
@@ -602,10 +614,8 @@ async function invokePublicTool(
       const moduleName = optionalString(args, 'tlaModuleName');
       const sourcePath = optionalString(args, 'sourcePath');
 
-      const { report, violations, compileDiagnostics } = await buildVerifyReport(
-        source,
-        target
-      );
+      const { report, violations, compileDiagnostics } =
+        await buildVerifyReport(source, target);
       const capabilityErrors = report.capabilities.issues.filter(
         (issue) => issue.severity === 'error'
       );
@@ -623,7 +633,9 @@ async function invokePublicTool(
         violations.length === 0 &&
         capabilityErrors.length === 0 &&
         !buleyExceeded &&
-        compileDiagnostics.every((diagnostic) => diagnostic.severity !== 'error');
+        compileDiagnostics.every(
+          (diagnostic) => diagnostic.severity !== 'error'
+        );
 
       return buildToolPayload({
         ok,
@@ -655,7 +667,8 @@ async function invokePublicTool(
 
     case 'gnosis_emit_sarif': {
       const source = requiredString(args, 'source');
-      const sourcePath = optionalString(args, 'sourcePath') ?? '/virtual/main.gg';
+      const sourcePath =
+        optionalString(args, 'sourcePath') ?? '/virtual/main.gg';
       const target = parseRuntimeTarget(args.target);
       const maxBuley = optionalNumber(args, 'maxBuley');
       const { report, violations } = await buildVerifyReport(source, target);
@@ -720,17 +733,26 @@ async function invokePublicTool(
     case 'code_lint_document': {
       const source = requiredString(args, 'source');
       const path = optionalString(args, 'path') ?? '/virtual/document.gg';
-      const language = parseLintLanguage(optionalString(args, 'language'), path);
+      const language = parseLintLanguage(
+        optionalString(args, 'language'),
+        path
+      );
       const maxDiagnostics = optionalNumber(args, 'maxDiagnostics');
       const lint = lintDocumentCore({
         path,
         language,
         content: source,
         maxDiagnostics:
-          typeof maxDiagnostics === 'number' ? Math.max(1, maxDiagnostics) : 260,
+          typeof maxDiagnostics === 'number'
+            ? Math.max(1, maxDiagnostics)
+            : 260,
       });
-      const errors = lint.diagnostics.filter((item) => item.severity === 'error').length;
-      const warnings = lint.diagnostics.filter((item) => item.severity === 'warning').length;
+      const errors = lint.diagnostics.filter(
+        (item) => item.severity === 'error'
+      ).length;
+      const warnings = lint.diagnostics.filter(
+        (item) => item.severity === 'warning'
+      ).length;
 
       return buildToolPayload({
         ok: errors === 0,
@@ -763,7 +785,8 @@ async function invokePublicTool(
       );
 
       const results = documents.map((document, index) => {
-        const source = typeof document.source === 'string' ? document.source : '';
+        const source =
+          typeof document.source === 'string' ? document.source : '';
         const path =
           typeof document.path === 'string' && document.path.trim().length > 0
             ? document.path.trim()
@@ -1055,9 +1078,11 @@ async function invokeAuthTool(
           apiKey: optionalString(args, 'apiKey') ?? undefined,
           clientId: optionalString(args, 'clientId') ?? undefined,
           webtransportUrl:
-            optionalString(args, 'webtransportUrl') ?? context.env.DASH_RELAY_WT_URL,
+            optionalString(args, 'webtransportUrl') ??
+            context.env.DASH_RELAY_WT_URL,
           discoveryUrl:
-            optionalString(args, 'discoveryUrl') ?? context.env.DASH_RELAY_DISCOVERY_URL,
+            optionalString(args, 'discoveryUrl') ??
+            context.env.DASH_RELAY_DISCOVERY_URL,
           ephemeral: optionalBoolean(args, 'ephemeral') ?? true,
         }
       );
@@ -1093,7 +1118,9 @@ async function invokeAuthTool(
         tag: optionalString(args, 'tag') ?? null,
         notes: optionalString(args, 'notes') ?? null,
         metadata:
-          typeof args.metadata === 'object' && args.metadata !== null && !Array.isArray(args.metadata)
+          typeof args.metadata === 'object' &&
+          args.metadata !== null &&
+          !Array.isArray(args.metadata)
             ? args.metadata
             : {},
         requestedAt: new Date().toISOString(),
@@ -1137,11 +1164,14 @@ async function invokeAuthTool(
       const raw = await response.text();
       const parsedBody = parseJsonMaybe(raw);
 
-      return buildToolPayload({
-        ok: response.ok,
-        status: response.status,
-        body: parsedBody,
-      }, !response.ok);
+      return buildToolPayload(
+        {
+          ok: response.ok,
+          status: response.status,
+          body: parsedBody,
+        },
+        !response.ok
+      );
     }
 
     default:
@@ -1210,7 +1240,8 @@ export async function consumePublicToolQuota(
   return {
     allowed: payload.allowed === true,
     remaining:
-      typeof payload.remaining === 'number' && Number.isFinite(payload.remaining)
+      typeof payload.remaining === 'number' &&
+      Number.isFinite(payload.remaining)
         ? payload.remaining
         : 0,
     limitPerHour:

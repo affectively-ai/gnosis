@@ -1,20 +1,38 @@
 import { describe, it, expect } from 'bun:test';
 import {
-  some, none, ok, err,
-  isSome, isNone, isOk, isErr,
-  unwrapOption, unwrapOptionOr,
-  unwrapResult, unwrapResultOr, unwrapErr,
-  mapOption, mapResult, mapErr,
-  flatMapOption, flatMapResult,
+  some,
+  none,
+  ok,
+  err,
+  isSome,
+  isNone,
+  isOk,
+  isErr,
+  unwrapOption,
+  unwrapOptionOr,
+  unwrapResult,
+  unwrapResultOr,
+  unwrapErr,
+  mapOption,
+  mapResult,
+  mapErr,
+  flatMapOption,
+  flatMapResult,
   filterOption,
-  tryCatch, tryCatchAsync,
-  collectResults, partitionResults,
-  optionToResult, resultToOption,
+  tryCatch,
+  tryCatchAsync,
+  collectResults,
+  partitionResults,
+  optionToResult,
+  resultToOption,
   transposeOptionResult,
   routeResult,
   resultHandler,
 } from './option-result.js';
-import { registerOptionResultHandlers, OPTION_RESULT_HANDLERS } from './option-result-handlers.js';
+import {
+  registerOptionResultHandlers,
+  OPTION_RESULT_HANDLERS,
+} from './option-result-handlers.js';
 import { GnosisRegistry } from './runtime/registry.js';
 
 describe('Option', () => {
@@ -37,20 +55,20 @@ describe('Option', () => {
   });
 
   it('mapOption transforms Some', () => {
-    expect(unwrapOption(mapOption(some(2), x => x * 3))).toBe(6);
-    expect(isNone(mapOption(none<number>(), x => x * 3))).toBe(true);
+    expect(unwrapOption(mapOption(some(2), (x) => x * 3))).toBe(6);
+    expect(isNone(mapOption(none<number>(), (x) => x * 3))).toBe(true);
   });
 
   it('flatMapOption chains', () => {
-    const safeDivide = (n: number) => n === 0 ? none<number>() : some(10 / n);
+    const safeDivide = (n: number) => (n === 0 ? none<number>() : some(10 / n));
     expect(unwrapOption(flatMapOption(some(2), safeDivide))).toBe(5);
     expect(isNone(flatMapOption(some(0), safeDivide))).toBe(true);
     expect(isNone(flatMapOption(none<number>(), safeDivide))).toBe(true);
   });
 
   it('filterOption filters Some', () => {
-    expect(isSome(filterOption(some(5), x => x > 3))).toBe(true);
-    expect(isNone(filterOption(some(1), x => x > 3))).toBe(true);
+    expect(isSome(filterOption(some(5), (x) => x > 3))).toBe(true);
+    expect(isNone(filterOption(some(1), (x) => x > 3))).toBe(true);
   });
 });
 
@@ -77,12 +95,12 @@ describe('Result', () => {
   });
 
   it('mapResult transforms ok', () => {
-    expect(unwrapResult(mapResult(ok(2), x => x * 3))).toBe(6);
-    expect(isErr(mapResult(err('bad'), x => (x as number) * 3))).toBe(true);
+    expect(unwrapResult(mapResult(ok(2), (x) => x * 3))).toBe(6);
+    expect(isErr(mapResult(err('bad'), (x) => (x as number) * 3))).toBe(true);
   });
 
   it('mapErr transforms err', () => {
-    const r = mapErr(err('bad'), e => `wrapped: ${e}`);
+    const r = mapErr(err('bad'), (e) => `wrapped: ${e}`);
     expect(unwrapErr(r)).toBe('wrapped: bad');
   });
 
@@ -109,7 +127,9 @@ describe('Combinators', () => {
   });
 
   it('tryCatchAsync wraps async errors', async () => {
-    const r = await tryCatchAsync(() => Promise.reject(new Error('async fail')));
+    const r = await tryCatchAsync(() =>
+      Promise.reject(new Error('async fail'))
+    );
     expect(isErr(r)).toBe(true);
   });
 

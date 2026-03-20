@@ -44,12 +44,23 @@ export function analyzeDeficit(ast: GraphAST): DeficitReport {
     );
 
     let newB1 = sourceB1;
-    if (edge.type === 'FORK' || edge.type === 'EVOLVE' || edge.type === 'SUPERPOSE') {
+    if (
+      edge.type === 'FORK' ||
+      edge.type === 'EVOLVE' ||
+      edge.type === 'SUPERPOSE'
+    ) {
       newB1 = sourceB1 + edge.targetIds.length - 1;
-    } else if (edge.type === 'FOLD' || edge.type === 'COLLAPSE' || edge.type === 'OBSERVE') {
+    } else if (
+      edge.type === 'FOLD' ||
+      edge.type === 'COLLAPSE' ||
+      edge.type === 'OBSERVE'
+    ) {
       newB1 = Math.max(0, sourceB1 - (edge.sourceIds.length - 1));
     } else if (edge.type === 'RACE' || edge.type === 'INTERFERE') {
-      newB1 = Math.max(0, sourceB1 - Math.max(0, edge.sourceIds.length - edge.targetIds.length));
+      newB1 = Math.max(
+        0,
+        sourceB1 - Math.max(0, edge.sourceIds.length - edge.targetIds.length)
+      );
     } else if (edge.type === 'VENT') {
       newB1 = Math.max(0, sourceB1 - 1);
     }

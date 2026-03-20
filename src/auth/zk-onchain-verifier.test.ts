@@ -19,8 +19,7 @@ const TEST_INPUT = {
     '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
   programHash:
     '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-  vkHash:
-    '0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
+  vkHash: '0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
 };
 
 async function withMockedFetch(
@@ -38,7 +37,10 @@ async function withMockedFetch(
 
 describe('zk-onchain-verifier', () => {
   it('builds calldata for verifyExecution(bytes,bytes32,bytes32,bytes32)', async () => {
-    const calldata = await buildVerifyExecutionCalldata(TEST_INPUT, TEST_CONFIG);
+    const calldata = await buildVerifyExecutionCalldata(
+      TEST_INPUT,
+      TEST_CONFIG
+    );
 
     expect(calldata.startsWith('0x4d48f5fe')).toBe(true);
     expect(calldata.length).toBeGreaterThan(8 + 64 * 6);

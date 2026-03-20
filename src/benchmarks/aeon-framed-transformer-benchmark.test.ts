@@ -18,16 +18,26 @@ describe('gnosis aeon-framed transformer benchmark', () => {
     expect(report.topology.rotationStageCount).toBe(4);
     expect(report.strategies.linear.meanFrameCount).toBe(16);
 
-    expect(report.strategies.linear.meanEvalMeanSquaredError).toBeLessThan(0.02);
-    expect(report.strategies.linear.meanExactWithinToleranceFraction).toBeGreaterThan(0.9);
-    expect(report.strategies.linear.evalMeanSquaredErrorCi95.high).toBeLessThan(0.03);
-    expect(report.strategies['winner-take-all'].meanEvalMeanSquaredError).toBeGreaterThan(0.2);
-    expect(report.strategies['early-stop'].meanEvalMeanSquaredError).toBeGreaterThan(
-      report.strategies['winner-take-all'].meanEvalMeanSquaredError,
+    expect(report.strategies.linear.meanEvalMeanSquaredError).toBeLessThan(
+      0.02
     );
-    expect(report.strategies['winner-take-all'].meanDualActiveRegionMeanAbsoluteError).toBeGreaterThan(
-      0.3,
+    expect(
+      report.strategies.linear.meanExactWithinToleranceFraction
+    ).toBeGreaterThan(0.9);
+    expect(report.strategies.linear.evalMeanSquaredErrorCi95.high).toBeLessThan(
+      0.03
     );
+    expect(
+      report.strategies['winner-take-all'].meanEvalMeanSquaredError
+    ).toBeGreaterThan(0.2);
+    expect(
+      report.strategies['early-stop'].meanEvalMeanSquaredError
+    ).toBeGreaterThan(
+      report.strategies['winner-take-all'].meanEvalMeanSquaredError
+    );
+    expect(
+      report.strategies['winner-take-all'].meanDualActiveRegionMeanAbsoluteError
+    ).toBeGreaterThan(0.3);
     expect(report.strategies.linear.meanCodecRoundTripExactFraction).toBe(1);
     expect(report.strategies.linear.meanReassemblyExactFraction).toBe(1);
     expect(report.strategies.linear.meanFoldInvarianceExactFraction).toBe(1);
@@ -35,7 +45,10 @@ describe('gnosis aeon-framed transformer benchmark', () => {
 
   test('ships a .test.gg suite for the framed transformer benchmark modules', async () => {
     const result = await runGGTestFile(
-      resolve(__dirname, '../../examples/benchmarks/aeon-framed-transformer.test.gg'),
+      resolve(
+        __dirname,
+        '../../examples/benchmarks/aeon-framed-transformer.test.gg'
+      )
     );
 
     expect(result.ok).toBe(true);
@@ -46,7 +59,10 @@ describe('gnosis aeon-framed transformer benchmark', () => {
 
   test('ships a structural suite for rotation and whip composition', async () => {
     const result = await runGGTestFile(
-      resolve(__dirname, '../../examples/transformer/aeon-framed-structural.test.gg'),
+      resolve(
+        __dirname,
+        '../../examples/transformer/aeon-framed-structural.test.gg'
+      )
     );
 
     expect(result.ok).toBe(true);
@@ -58,24 +74,24 @@ describe('gnosis aeon-framed transformer benchmark', () => {
   test('points at the checked-in framed transformer topology modules', () => {
     expect(
       DEFAULT_AEON_FRAMED_TRANSFORMER_TOPOLOGY_FILES.linear.endsWith(
-        'aeon-framed-transformer-linear.gg',
-      ),
+        'aeon-framed-transformer-linear.gg'
+      )
     ).toBe(true);
     expect(
-      DEFAULT_AEON_FRAMED_TRANSFORMER_TOPOLOGY_FILES['winner-take-all'].endsWith(
-        'aeon-framed-transformer-winner-take-all.gg',
-      ),
+      DEFAULT_AEON_FRAMED_TRANSFORMER_TOPOLOGY_FILES[
+        'winner-take-all'
+      ].endsWith('aeon-framed-transformer-winner-take-all.gg')
     ).toBe(true);
     expect(
       DEFAULT_AEON_FRAMED_TRANSFORMER_TOPOLOGY_FILES['early-stop'].endsWith(
-        'aeon-framed-transformer-early-stop.gg',
-      ),
+        'aeon-framed-transformer-early-stop.gg'
+      )
     ).toBe(true);
   });
 
   test('renders a markdown report with semantic and frame metrics', async () => {
     const markdown = renderGnosisAeonFramedTransformerBenchmarkMarkdown(
-      await runGnosisAeonFramedTransformerBenchmark(),
+      await runGnosisAeonFramedTransformerBenchmark()
     );
 
     expect(markdown).toContain('# Gnosis Aeon-Framed Transformer Benchmark');

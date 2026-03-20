@@ -83,28 +83,62 @@ describe('generateLeanFromGnosisAst', () => {
     expect(artifact?.theoremName).toContain('complete_is_geometrically_stable');
     expect(artifact?.lean).toContain('import GnosisProofs');
     expect(artifact?.lean).toContain('CertifiedKernel');
-    expect(artifact?.lean).toContain('certifiedKernel_stable_of_drift_certificate');
+    expect(artifact?.lean).toContain(
+      'certifiedKernel_stable_of_drift_certificate'
+    );
     expect(artifact?.lean).toContain('spectrallyStable_of_nilpotent');
     expect(artifact?.lean).toContain('FiniteSmallSetRecurrent');
-    expect(artifact?.lean).toContain('theorem complete_is_geometrically_stable_finitely_recurrent');
+    expect(artifact?.lean).toContain(
+      'theorem complete_is_geometrically_stable_finitely_recurrent'
+    );
     expect(artifact?.lean).toContain('CountableSmallSetRecurrent');
     expect(artifact?.lean).toContain('CountableAtomicSmallSetMinorized');
     expect(artifact?.lean).toContain('CountableUniformPredecessorMinorized');
-    expect(artifact?.lean).toContain('theorem complete_is_geometrically_stable_countably_recurrent');
-    expect(artifact?.lean).toContain('theorem complete_is_geometrically_stable_small_set_minorized');
-    expect(artifact?.lean).toContain('theorem complete_is_geometrically_stable_uniformly_minorized');
-    expect(artifact?.lean).toContain('theorem complete_is_geometrically_stable_atom_accessible');
-    expect(artifact?.lean).toContain('theorem complete_is_geometrically_stable_psi_irreducible');
-    expect(artifact?.lean).toContain('theorem complete_is_geometrically_stable_harris_prelude');
-    expect(artifact?.lean).toContain('theorem complete_is_geometrically_stable_harris_recurrent_class');
-    expect(artifact?.lean).toContain('theorem complete_is_geometrically_stable_atom_hitting_bound');
-    expect(artifact?.lean).toContain('theorem complete_is_geometrically_stable_geometric_envelope');
-    expect(artifact?.lean).toContain('theorem complete_is_geometrically_stable_atom_hit_lower_bound');
-    expect(artifact?.lean).toContain('theorem complete_is_geometrically_stable_quantitative_geometric_envelope');
-    expect(artifact?.lean).toContain('theorem complete_is_geometrically_stable_laminar_geometric_stable');
-    expect(artifact?.lean).toContain('theorem complete_is_geometrically_stable_measurable_atom_accessible');
-    expect(artifact?.lean).toContain('theorem complete_is_geometrically_stable_measurable_harris_certified');
-    expect(artifact?.lean).toContain('theorem complete_is_geometrically_stable_measurable_laminar_certified');
+    expect(artifact?.lean).toContain(
+      'theorem complete_is_geometrically_stable_countably_recurrent'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem complete_is_geometrically_stable_small_set_minorized'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem complete_is_geometrically_stable_uniformly_minorized'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem complete_is_geometrically_stable_atom_accessible'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem complete_is_geometrically_stable_psi_irreducible'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem complete_is_geometrically_stable_harris_prelude'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem complete_is_geometrically_stable_harris_recurrent_class'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem complete_is_geometrically_stable_atom_hitting_bound'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem complete_is_geometrically_stable_geometric_envelope'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem complete_is_geometrically_stable_atom_hit_lower_bound'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem complete_is_geometrically_stable_quantitative_geometric_envelope'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem complete_is_geometrically_stable_laminar_geometric_stable'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem complete_is_geometrically_stable_measurable_atom_accessible'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem complete_is_geometrically_stable_measurable_harris_certified'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem complete_is_geometrically_stable_measurable_laminar_certified'
+    );
     expect(artifact?.lean).toContain(
       'theorem complete_is_geometrically_stable_measurable_atom_hitting_bound'
     );
@@ -162,17 +196,27 @@ describe('generateLeanFromGnosisAst', () => {
     expect(artifact?.lean).toContain(
       'theorem complete_is_geometrically_stable_measurable_continuous_harris_certified'
     );
-    expect(artifact?.lean).toContain('theorem complete_is_geometrically_stable_measurable_small_set_accessible');
-    expect(artifact?.lean).toContain('theorem complete_is_geometrically_stable_measurable_containing_atom_accessible');
+    expect(artifact?.lean).toContain(
+      'theorem complete_is_geometrically_stable_measurable_small_set_accessible'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem complete_is_geometrically_stable_measurable_containing_atom_accessible'
+    );
     expect(artifact?.lean).toContain('CountableAtomAccessible');
     expect(artifact?.lean).toContain('CountablePsiIrreducibleAtAtom');
     expect(artifact?.lean).toContain('CountableHarrisPreludeAtAtom');
     expect(artifact?.lean).toContain('CountableHarrisRecurrentClassAtAtom');
     expect(artifact?.lean).toContain('CountableAtomHittingBoundAtAtom');
     expect(artifact?.lean).toContain('CountableGeometricEnvelopeAtAtom');
-    expect(artifact?.lean).toContain('CountableAtomGeometricHitLowerBoundAtAtom');
-    expect(artifact?.lean).toContain('CountableQuantitativeGeometricEnvelopeAtAtom');
-    expect(artifact?.lean).toContain('CountableLaminarGeometricStabilityAtAtom');
+    expect(artifact?.lean).toContain(
+      'CountableAtomGeometricHitLowerBoundAtAtom'
+    );
+    expect(artifact?.lean).toContain(
+      'CountableQuantitativeGeometricEnvelopeAtAtom'
+    );
+    expect(artifact?.lean).toContain(
+      'CountableLaminarGeometricStabilityAtAtom'
+    );
     expect(artifact?.lean).toContain('MeasurableHarrisCertified');
     expect(artifact?.lean).toContain('MeasurableLaminarCertifiedAtAtom');
     expect(artifact?.lean).toContain('MeasurableSmallSetAccessible');
@@ -180,28 +224,46 @@ describe('generateLeanFromGnosisAst', () => {
     expect(artifact?.lean).toContain(
       'noncomputable def queueAtomMeasure : MeasureTheory.Measure Nat'
     );
-    expect(artifact?.lean).toContain('def queueMeasurableEpsilon : ENNReal := 1');
+    expect(artifact?.lean).toContain(
+      'def queueMeasurableEpsilon : ENNReal := 1'
+    );
     expect(artifact?.lean).toContain('def queueAtomHittingBound : Nat -> Nat');
-    expect(artifact?.lean).toContain('def queueWitnessHittingBound : Nat -> Nat');
+    expect(artifact?.lean).toContain(
+      'def queueWitnessHittingBound : Nat -> Nat'
+    );
     expect(artifact?.lean).toContain('def queueObservableScale : Real := 1');
     expect(artifact?.lean).toContain('def queueObservableOffset : Real := 0');
     expect(artifact?.lean).toContain('def queueObservable : Nat -> Real');
-    expect(artifact?.lean).toContain('def queueExpectedObservable : Nat -> Real');
+    expect(artifact?.lean).toContain(
+      'def queueExpectedObservable : Nat -> Real'
+    );
     expect(artifact?.lean).toContain('def queueLyapunov : Nat -> Real');
     expect(artifact?.lean).toContain('def queueContinuousDriftGap : Real := 1');
     expect(artifact?.lean).toContain('def queueSupportStep : Nat -> Nat');
     expect(artifact?.lean).toContain('noncomputable def queueSupportKernel');
     expect(artifact?.lean).toContain('noncomputable def queueWitnessKernel');
-    expect(artifact?.lean).toContain('MeasurableAtomAccessible queueSupportKernel queueAtom');
+    expect(artifact?.lean).toContain(
+      'MeasurableAtomAccessible queueSupportKernel queueAtom'
+    );
     expect(artifact?.lean).toContain('MeasurableAtomHittingBoundAtAtom');
-    expect(artifact?.lean).toContain('MeasurableQuantitativeLaminarCertifiedAtAtom');
+    expect(artifact?.lean).toContain(
+      'MeasurableQuantitativeLaminarCertifiedAtAtom'
+    );
     expect(artifact?.lean).toContain('MeasurableQuantitativeHarrisCertified');
-    expect(artifact?.lean).toContain('MeasurableEventuallyConvergesToReference');
+    expect(artifact?.lean).toContain(
+      'MeasurableEventuallyConvergesToReference'
+    );
     expect(artifact?.lean).toContain('MeasurableFiniteTimeHarrisRecurrent');
-    expect(artifact?.lean).toContain('MeasurableFiniteTimeLevyProkhorovGeometricErgodic');
-    expect(artifact?.lean).toContain('MeasurableLevyProkhorovGeometricDecayAfterBurnIn');
+    expect(artifact?.lean).toContain(
+      'MeasurableFiniteTimeLevyProkhorovGeometricErgodic'
+    );
+    expect(artifact?.lean).toContain(
+      'MeasurableLevyProkhorovGeometricDecayAfterBurnIn'
+    );
     expect(artifact?.lean).toContain('MeasurableLevyProkhorovGeometricErgodic');
-    expect(artifact?.lean).toContain('measurableSmallSetHittingBound_of_quantitativeLaminarCertifiedAtAtom');
+    expect(artifact?.lean).toContain(
+      'measurableSmallSetHittingBound_of_quantitativeLaminarCertifiedAtAtom'
+    );
     expect(artifact?.lean).toContain(
       'measurableContainingAtomHittingBound_of_quantitativeLaminarCertifiedAtAtom'
     );
@@ -232,20 +294,38 @@ describe('generateLeanFromGnosisAst', () => {
     expect(artifact?.lean).toContain('natQueueAffineObservable');
     expect(artifact?.lean).toContain('natQueueAffineExpectedObservable');
     expect(artifact?.lean).toContain('natQueueWitnessKernel');
-    expect(artifact?.lean).toContain('natMeasurableQuantitativeHarrisCertified_of_queueWitnessKernel');
-    expect(artifact?.lean).toContain('natMeasurableLaminarCertified_of_queueStep');
-    expect(artifact?.lean).toContain('natMeasurableQuantitativeLaminarCertified_of_queueStep');
-    expect(artifact?.lean).toContain('natMeasurableEventuallyConvergesToAtom_of_queueStep');
-    expect(artifact?.lean).toContain('natSmallSetRecurrent_of_uniformPredecessorMinorization');
+    expect(artifact?.lean).toContain(
+      'natMeasurableQuantitativeHarrisCertified_of_queueWitnessKernel'
+    );
+    expect(artifact?.lean).toContain(
+      'natMeasurableLaminarCertified_of_queueStep'
+    );
+    expect(artifact?.lean).toContain(
+      'natMeasurableQuantitativeLaminarCertified_of_queueStep'
+    );
+    expect(artifact?.lean).toContain(
+      'natMeasurableEventuallyConvergesToAtom_of_queueStep'
+    );
+    expect(artifact?.lean).toContain(
+      'natSmallSetRecurrent_of_uniformPredecessorMinorization'
+    );
     expect(artifact?.lean).toContain('def queueBoundary : Nat := 64');
     expect(artifact?.lean).toContain('def queueAtom : Nat := 0');
     expect(artifact?.lean).toContain('def queueMinorizationFloor : Real := 1');
-    expect(artifact?.lean).toContain('def queueKernel (lam mu : Real) (alpha : Nat -> Real)');
-    expect(artifact?.lean).toContain('CountableSmallSetRecurrent (queueKernel lam mu alpha)');
+    expect(artifact?.lean).toContain(
+      'def queueKernel (lam mu : Real) (alpha : Nat -> Real)'
+    );
+    expect(artifact?.lean).toContain(
+      'CountableSmallSetRecurrent (queueKernel lam mu alpha)'
+    );
     expect(artifact?.lean).toContain('mu + alpha current - lam');
     expect(artifact?.lean).not.toContain('stepMass : Nat -> Real');
-    expect(artifact?.lean).not.toContain('(queueKernel : CountableCertifiedKernel Nat)');
-    expect(artifact?.lean).not.toContain('(queueMeasurableKernel : ProbabilityTheory.Kernel Nat Nat)');
+    expect(artifact?.lean).not.toContain(
+      '(queueKernel : CountableCertifiedKernel Nat)'
+    );
+    expect(artifact?.lean).not.toContain(
+      '(queueMeasurableKernel : ProbabilityTheory.Kernel Nat Nat)'
+    );
     expect(artifact?.lean).not.toContain(
       '(h_invariant : ProbabilityTheory.Kernel.Invariant queueSupportKernel invariantMeasure)'
     );
@@ -281,7 +361,9 @@ describe('generateLeanFromGnosisAst', () => {
     expect(artifact?.lean).toContain('HasNonnegativeTransitions');
     expect(artifact?.lean).toContain('spectrallyStable_of_rowMass');
     expect(artifact?.lean).toContain('FiniteSmallSetRecurrent');
-    expect(artifact?.lean).toContain('theorem complete_is_geometrically_stable_finitely_recurrent');
+    expect(artifact?.lean).toContain(
+      'theorem complete_is_geometrically_stable_finitely_recurrent'
+    );
     expect(artifact?.lean).toContain('countable-queue-theorem: false');
     expect(artifact?.lean).toContain('rowBoundRat');
   });
@@ -289,7 +371,10 @@ describe('generateLeanFromGnosisAst', () => {
   it('emits a nilpotent bounded-supremum proof for the StructuredMoA primitive path', () => {
     const compiler = new BettyCompiler();
     const structuredMoaSource = readFileSync(
-      new URL('../../examples/benchmarks/moa-transformer-moa.gg', import.meta.url),
+      new URL(
+        '../../examples/benchmarks/moa-transformer-moa.gg',
+        import.meta.url
+      ),
       'utf8'
     );
     const source = `${structuredMoaSource}
@@ -311,8 +396,8 @@ describe('generateLeanFromGnosisAst', () => {
       'spectrally stable below one and carries no drift obligation'
     );
 
-    const transformerlets = Array.from(ast?.nodes.values() ?? []).filter((node) =>
-      node.labels.includes('MoATransformerlet')
+    const transformerlets = Array.from(ast?.nodes.values() ?? []).filter(
+      (node) => node.labels.includes('MoATransformerlet')
     );
     const headChains = Array.from(ast?.nodes.values() ?? []).filter((node) =>
       node.labels.includes('AttentionHeadChain')
@@ -371,7 +456,7 @@ describe('generateLeanFromGnosisAst', () => {
         },
       },
       {
-      sourceFilePath: '/tmp/hetero-moa-fabric.gg',
+        sourceFilePath: '/tmp/hetero-moa-fabric.gg',
       }
     );
     const parsed = {
@@ -419,21 +504,51 @@ describe('generateLeanFromGnosisAst', () => {
 
     expect(artifact).not.toBeNull();
     expect(artifact?.lean).toContain('proof-kind: numeric');
-    expect(artifact?.lean).toContain('theorem resolved_is_geometrically_stable_countably_recurrent');
-    expect(artifact?.lean).toContain('theorem resolved_is_geometrically_stable_small_set_minorized');
-    expect(artifact?.lean).toContain('theorem resolved_is_geometrically_stable_uniformly_minorized');
-    expect(artifact?.lean).toContain('theorem resolved_is_geometrically_stable_atom_accessible');
-    expect(artifact?.lean).toContain('theorem resolved_is_geometrically_stable_psi_irreducible');
-    expect(artifact?.lean).toContain('theorem resolved_is_geometrically_stable_harris_prelude');
-    expect(artifact?.lean).toContain('theorem resolved_is_geometrically_stable_harris_recurrent_class');
-    expect(artifact?.lean).toContain('theorem resolved_is_geometrically_stable_atom_hitting_bound');
-    expect(artifact?.lean).toContain('theorem resolved_is_geometrically_stable_geometric_envelope');
-    expect(artifact?.lean).toContain('theorem resolved_is_geometrically_stable_atom_hit_lower_bound');
-    expect(artifact?.lean).toContain('theorem resolved_is_geometrically_stable_quantitative_geometric_envelope');
-    expect(artifact?.lean).toContain('theorem resolved_is_geometrically_stable_laminar_geometric_stable');
-    expect(artifact?.lean).toContain('theorem resolved_is_geometrically_stable_measurable_atom_accessible');
-    expect(artifact?.lean).toContain('theorem resolved_is_geometrically_stable_measurable_harris_certified');
-    expect(artifact?.lean).toContain('theorem resolved_is_geometrically_stable_measurable_laminar_certified');
+    expect(artifact?.lean).toContain(
+      'theorem resolved_is_geometrically_stable_countably_recurrent'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem resolved_is_geometrically_stable_small_set_minorized'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem resolved_is_geometrically_stable_uniformly_minorized'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem resolved_is_geometrically_stable_atom_accessible'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem resolved_is_geometrically_stable_psi_irreducible'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem resolved_is_geometrically_stable_harris_prelude'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem resolved_is_geometrically_stable_harris_recurrent_class'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem resolved_is_geometrically_stable_atom_hitting_bound'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem resolved_is_geometrically_stable_geometric_envelope'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem resolved_is_geometrically_stable_atom_hit_lower_bound'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem resolved_is_geometrically_stable_quantitative_geometric_envelope'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem resolved_is_geometrically_stable_laminar_geometric_stable'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem resolved_is_geometrically_stable_measurable_atom_accessible'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem resolved_is_geometrically_stable_measurable_harris_certified'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem resolved_is_geometrically_stable_measurable_laminar_certified'
+    );
     expect(artifact?.lean).toContain(
       'theorem resolved_is_geometrically_stable_measurable_atom_hitting_bound'
     );
@@ -491,17 +606,27 @@ describe('generateLeanFromGnosisAst', () => {
     expect(artifact?.lean).toContain(
       'theorem resolved_is_geometrically_stable_measurable_continuous_harris_certified'
     );
-    expect(artifact?.lean).toContain('theorem resolved_is_geometrically_stable_measurable_small_set_accessible');
-    expect(artifact?.lean).toContain('theorem resolved_is_geometrically_stable_measurable_containing_atom_accessible');
+    expect(artifact?.lean).toContain(
+      'theorem resolved_is_geometrically_stable_measurable_small_set_accessible'
+    );
+    expect(artifact?.lean).toContain(
+      'theorem resolved_is_geometrically_stable_measurable_containing_atom_accessible'
+    );
     expect(artifact?.lean).toContain('CountableAtomAccessible');
     expect(artifact?.lean).toContain('CountablePsiIrreducibleAtAtom');
     expect(artifact?.lean).toContain('CountableHarrisPreludeAtAtom');
     expect(artifact?.lean).toContain('CountableHarrisRecurrentClassAtAtom');
     expect(artifact?.lean).toContain('CountableAtomHittingBoundAtAtom');
     expect(artifact?.lean).toContain('CountableGeometricEnvelopeAtAtom');
-    expect(artifact?.lean).toContain('CountableAtomGeometricHitLowerBoundAtAtom');
-    expect(artifact?.lean).toContain('CountableQuantitativeGeometricEnvelopeAtAtom');
-    expect(artifact?.lean).toContain('CountableLaminarGeometricStabilityAtAtom');
+    expect(artifact?.lean).toContain(
+      'CountableAtomGeometricHitLowerBoundAtAtom'
+    );
+    expect(artifact?.lean).toContain(
+      'CountableQuantitativeGeometricEnvelopeAtAtom'
+    );
+    expect(artifact?.lean).toContain(
+      'CountableLaminarGeometricStabilityAtAtom'
+    );
     expect(artifact?.lean).toContain('CountableAtomicSmallSetMinorized');
     expect(artifact?.lean).toContain('CountableUniformPredecessorMinorized');
     expect(artifact?.lean).toContain('MeasurableHarrisCertified');
@@ -511,28 +636,46 @@ describe('generateLeanFromGnosisAst', () => {
     expect(artifact?.lean).toContain(
       'noncomputable def queueAtomMeasure : MeasureTheory.Measure Nat'
     );
-    expect(artifact?.lean).toContain('def queueMeasurableEpsilon : ENNReal := 1');
+    expect(artifact?.lean).toContain(
+      'def queueMeasurableEpsilon : ENNReal := 1'
+    );
     expect(artifact?.lean).toContain('def queueAtomHittingBound : Nat -> Nat');
-    expect(artifact?.lean).toContain('def queueWitnessHittingBound : Nat -> Nat');
+    expect(artifact?.lean).toContain(
+      'def queueWitnessHittingBound : Nat -> Nat'
+    );
     expect(artifact?.lean).toContain('def queueObservableScale : Real := 1');
     expect(artifact?.lean).toContain('def queueObservableOffset : Real := 0');
     expect(artifact?.lean).toContain('def queueObservable : Nat -> Real');
-    expect(artifact?.lean).toContain('def queueExpectedObservable : Nat -> Real');
+    expect(artifact?.lean).toContain(
+      'def queueExpectedObservable : Nat -> Real'
+    );
     expect(artifact?.lean).toContain('def queueLyapunov : Nat -> Real');
     expect(artifact?.lean).toContain('def queueContinuousDriftGap : Real := 1');
     expect(artifact?.lean).toContain('def queueSupportStep : Nat -> Nat');
     expect(artifact?.lean).toContain('noncomputable def queueSupportKernel');
     expect(artifact?.lean).toContain('noncomputable def queueWitnessKernel');
-    expect(artifact?.lean).toContain('MeasurableAtomAccessible queueSupportKernel queueAtom');
+    expect(artifact?.lean).toContain(
+      'MeasurableAtomAccessible queueSupportKernel queueAtom'
+    );
     expect(artifact?.lean).toContain('MeasurableAtomHittingBoundAtAtom');
-    expect(artifact?.lean).toContain('MeasurableQuantitativeLaminarCertifiedAtAtom');
+    expect(artifact?.lean).toContain(
+      'MeasurableQuantitativeLaminarCertifiedAtAtom'
+    );
     expect(artifact?.lean).toContain('MeasurableQuantitativeHarrisCertified');
-    expect(artifact?.lean).toContain('MeasurableEventuallyConvergesToReference');
+    expect(artifact?.lean).toContain(
+      'MeasurableEventuallyConvergesToReference'
+    );
     expect(artifact?.lean).toContain('MeasurableFiniteTimeHarrisRecurrent');
-    expect(artifact?.lean).toContain('MeasurableFiniteTimeLevyProkhorovGeometricErgodic');
-    expect(artifact?.lean).toContain('MeasurableLevyProkhorovGeometricDecayAfterBurnIn');
+    expect(artifact?.lean).toContain(
+      'MeasurableFiniteTimeLevyProkhorovGeometricErgodic'
+    );
+    expect(artifact?.lean).toContain(
+      'MeasurableLevyProkhorovGeometricDecayAfterBurnIn'
+    );
     expect(artifact?.lean).toContain('MeasurableLevyProkhorovGeometricErgodic');
-    expect(artifact?.lean).toContain('measurableSmallSetHittingBound_of_quantitativeLaminarCertifiedAtAtom');
+    expect(artifact?.lean).toContain(
+      'measurableSmallSetHittingBound_of_quantitativeLaminarCertifiedAtAtom'
+    );
     expect(artifact?.lean).toContain(
       'measurableContainingAtomHittingBound_of_quantitativeLaminarCertifiedAtAtom'
     );
@@ -552,8 +695,12 @@ describe('generateLeanFromGnosisAst', () => {
       'measurableReferencePositivePersistent_of_eventualConvergence'
     );
     expect(artifact?.lean).toContain('natQueueWitnessKernel');
-    expect(artifact?.lean).toContain('natMeasurableQuantitativeHarrisCertified_of_queueWitnessKernel');
-    expect(artifact?.lean).toContain('natMeasurableLaminarCertified_of_queueStep');
+    expect(artifact?.lean).toContain(
+      'natMeasurableQuantitativeHarrisCertified_of_queueWitnessKernel'
+    );
+    expect(artifact?.lean).toContain(
+      'natMeasurableLaminarCertified_of_queueStep'
+    );
     expect(artifact?.lean).toContain(
       'natMeasurableRealObservableWitness_of_queueStep'
     );
@@ -565,16 +712,30 @@ describe('generateLeanFromGnosisAst', () => {
     );
     expect(artifact?.lean).toContain('natQueueAffineObservable');
     expect(artifact?.lean).toContain('natQueueAffineExpectedObservable');
-    expect(artifact?.lean).toContain('natMeasurableQuantitativeLaminarCertified_of_queueStep');
-    expect(artifact?.lean).toContain('natMeasurableEventuallyConvergesToAtom_of_queueStep');
-    expect(artifact?.lean).toContain('natSmallSetRecurrent_of_uniformPredecessorMinorization');
+    expect(artifact?.lean).toContain(
+      'natMeasurableQuantitativeLaminarCertified_of_queueStep'
+    );
+    expect(artifact?.lean).toContain(
+      'natMeasurableEventuallyConvergesToAtom_of_queueStep'
+    );
+    expect(artifact?.lean).toContain(
+      'natSmallSetRecurrent_of_uniformPredecessorMinorization'
+    );
     expect(artifact?.lean).toContain('def queueAtom : Nat := 0');
     expect(artifact?.lean).toContain('def queueMinorizationFloor : Real := 1');
-    expect(artifact?.lean).toContain('def queueKernel (lam mu : Real) (alpha : Nat -> Real)');
+    expect(artifact?.lean).toContain(
+      'def queueKernel (lam mu : Real) (alpha : Nat -> Real)'
+    );
     expect(artifact?.lean).toContain('norm_num [lam, mu, alpha]');
-    expect(artifact?.lean).toContain('simpa [queueMinorizationFloor] using h_margin_floor');
-    expect(artifact?.lean).toContain('CountableSmallSetRecurrent (queueKernel lam mu alpha)');
-    expect(artifact?.lean).not.toContain('(queueMeasurableKernel : ProbabilityTheory.Kernel Nat Nat)');
+    expect(artifact?.lean).toContain(
+      'simpa [queueMinorizationFloor] using h_margin_floor'
+    );
+    expect(artifact?.lean).toContain(
+      'CountableSmallSetRecurrent (queueKernel lam mu alpha)'
+    );
+    expect(artifact?.lean).not.toContain(
+      '(queueMeasurableKernel : ProbabilityTheory.Kernel Nat Nat)'
+    );
     expect(artifact?.lean).not.toContain('stepMass : Nat -> Real');
     expect(artifact?.lean).not.toContain(
       '(h_invariant : ProbabilityTheory.Kernel.Invariant queueSupportKernel invariantMeasure)'
@@ -602,14 +763,16 @@ describe('generateLeanFromGnosisAst', () => {
 
     expect(artifact).not.toBeNull();
     expect(artifact?.lean).toContain('def queueObservableScale : Real := 2.5');
-    expect(artifact?.lean).toContain('def queueObservableOffset : Real := 0.25');
-    expect(artifact?.lean).toContain('def queueContinuousDriftGap : Real := 2.5');
+    expect(artifact?.lean).toContain(
+      'def queueObservableOffset : Real := 0.25'
+    );
+    expect(artifact?.lean).toContain(
+      'def queueContinuousDriftGap : Real := 2.5'
+    );
     expect(artifact?.lean).toContain(
       'natQueueAffineObservable queueObservableScale queueObservableOffset'
     );
-    expect(artifact?.lean).toContain(
-      'natQueueAffineExpectedObservable'
-    );
+    expect(artifact?.lean).toContain('natQueueAffineExpectedObservable');
   });
 
   it('emits bounded affine drift gaps below the observable scale', () => {
@@ -651,15 +814,25 @@ describe('generateLeanFromGnosisAst', () => {
 
     expect(stability).not.toBeNull();
     expect(stability?.continuousHarris).not.toBeNull();
-    expect(stability?.continuousHarris?.stateSpaceKind).toBe('continuous-positive');
-    expect(stability?.continuousHarris?.lyapunovSynthesis?.template).toBe('quadratic');
+    expect(stability?.continuousHarris?.stateSpaceKind).toBe(
+      'continuous-positive'
+    );
+    expect(stability?.continuousHarris?.lyapunovSynthesis?.template).toBe(
+      'quadratic'
+    );
     expect(stability?.continuousHarris?.lyapunovSynthesis?.degree).toBe(2);
-    expect(stability?.continuousHarris?.lyapunovSynthesis?.coefficients).toEqual([0.5, 0.1]);
+    expect(
+      stability?.continuousHarris?.lyapunovSynthesis?.coefficients
+    ).toEqual([0.5, 0.1]);
     expect(stability?.continuousHarris?.smallSetDiscovery).not.toBeNull();
-    expect(stability?.continuousHarris?.smallSetDiscovery?.kind).toBe('vent-boundary');
+    expect(stability?.continuousHarris?.smallSetDiscovery?.kind).toBe(
+      'vent-boundary'
+    );
     expect(stability?.continuousHarris?.smallSetDiscovery?.boundary).toBe(80);
     expect(stability?.continuousHarris?.minorizationSynthesis).not.toBeNull();
-    expect(stability?.continuousHarris?.minorizationSynthesis?.measureKind).toBe('uniform-on-small-set');
+    expect(
+      stability?.continuousHarris?.minorizationSynthesis?.measureKind
+    ).toBe('uniform-on-small-set');
 
     const artifact = generateLeanFromGnosisAst(ast, stability, {
       sourceFilePath: '/tmp/fluid_backlog.gg',
@@ -697,11 +870,21 @@ describe('generateLeanFromGnosisAst', () => {
 
     expect(stability).not.toBeNull();
     expect(stability?.continuousHarris).not.toBeNull();
-    expect(stability?.continuousHarris?.stateSpaceKind).toBe('continuous-bounded');
-    expect(stability?.continuousHarris?.lyapunovSynthesis?.template).toBe('log-barrier');
-    expect(stability?.continuousHarris?.lyapunovSynthesis?.coefficients).toEqual([2]);
-    expect(stability?.continuousHarris?.lyapunovSynthesis?.expression).toContain('log(1 + x)');
-    expect(stability?.continuousHarris?.minorizationSynthesis?.measureKind).toBe('lebesgue-restricted');
+    expect(stability?.continuousHarris?.stateSpaceKind).toBe(
+      'continuous-bounded'
+    );
+    expect(stability?.continuousHarris?.lyapunovSynthesis?.template).toBe(
+      'log-barrier'
+    );
+    expect(
+      stability?.continuousHarris?.lyapunovSynthesis?.coefficients
+    ).toEqual([2]);
+    expect(
+      stability?.continuousHarris?.lyapunovSynthesis?.expression
+    ).toContain('log(1 + x)');
+    expect(
+      stability?.continuousHarris?.minorizationSynthesis?.measureKind
+    ).toBe('lebesgue-restricted');
 
     const artifact = generateLeanFromGnosisAst(ast, stability, {
       sourceFilePath: '/tmp/retry_mass.gg',
@@ -727,9 +910,15 @@ describe('generateLeanFromGnosisAst', () => {
 
     expect(stability).not.toBeNull();
     expect(stability?.continuousHarris).not.toBeNull();
-    expect(stability?.continuousHarris?.stateSpaceKind).toBe('continuous-unbounded');
-    expect(stability?.continuousHarris?.lyapunovSynthesis?.template).toBe('piecewise-linear');
-    expect(stability?.continuousHarris?.smallSetDiscovery?.kind).toBe('vent-boundary');
+    expect(stability?.continuousHarris?.stateSpaceKind).toBe(
+      'continuous-unbounded'
+    );
+    expect(stability?.continuousHarris?.lyapunovSynthesis?.template).toBe(
+      'piecewise-linear'
+    );
+    expect(stability?.continuousHarris?.smallSetDiscovery?.kind).toBe(
+      'vent-boundary'
+    );
     expect(stability?.continuousHarris?.smallSetDiscovery?.boundary).toBe(40);
 
     const artifact = generateLeanFromGnosisAst(ast, stability, {
@@ -755,11 +944,19 @@ describe('generateLeanFromGnosisAst', () => {
 
     expect(stability).not.toBeNull();
     expect(stability?.continuousHarris).not.toBeNull();
-    expect(stability?.continuousHarris?.stateSpaceKind).toBe('continuous-positive');
-    expect(stability?.continuousHarris?.lyapunovSynthesis?.template).toBe('polynomial');
+    expect(stability?.continuousHarris?.stateSpaceKind).toBe(
+      'continuous-positive'
+    );
+    expect(stability?.continuousHarris?.lyapunovSynthesis?.template).toBe(
+      'polynomial'
+    );
     expect(stability?.continuousHarris?.lyapunovSynthesis?.degree).toBe(3);
-    expect(stability?.continuousHarris?.lyapunovSynthesis?.coefficients).toEqual([0.1, 0.5, 0.2, 0.01]);
-    expect(stability?.continuousHarris?.smallSetDiscovery?.kind).toBe('level-set');
+    expect(
+      stability?.continuousHarris?.lyapunovSynthesis?.coefficients
+    ).toEqual([0.1, 0.5, 0.2, 0.01]);
+    expect(stability?.continuousHarris?.smallSetDiscovery?.kind).toBe(
+      'level-set'
+    );
     expect(stability?.continuousHarris?.smallSetDiscovery?.boundary).toBe(5);
 
     const artifact = generateLeanFromGnosisAst(ast, stability, {
@@ -815,10 +1012,12 @@ describe('generateLeanFromGnosisAst', () => {
     `);
 
     expect(stability).not.toBeNull();
-    expect(stability?.continuousHarris?.minorizationSynthesis?.epsilon).toBe(0.25);
-    expect(stability?.continuousHarris?.minorizationSynthesis?.derivedFrom).toBe(
-      'explicit minorization_epsilon property'
+    expect(stability?.continuousHarris?.minorizationSynthesis?.epsilon).toBe(
+      0.25
     );
+    expect(
+      stability?.continuousHarris?.minorizationSynthesis?.derivedFrom
+    ).toBe('explicit minorization_epsilon property');
   });
 
   it('emits product Lyapunov for two coupled continuous state nodes', () => {

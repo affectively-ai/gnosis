@@ -7,14 +7,26 @@
 
 import type { GnosisRegistry } from './runtime/registry.js';
 import {
-  some, none, ok, err,
-  isSome, isNone, isOk, isErr,
-  unwrapOption, unwrapOptionOr,
-  unwrapResult, unwrapResultOr,
-  mapOption, mapResult,
-  tryCatch, tryCatchAsync,
-  collectResults, partitionResults,
-  optionToResult, resultToOption,
+  some,
+  none,
+  ok,
+  err,
+  isSome,
+  isNone,
+  isOk,
+  isErr,
+  unwrapOption,
+  unwrapOptionOr,
+  unwrapResult,
+  unwrapResultOr,
+  mapOption,
+  mapResult,
+  tryCatch,
+  tryCatchAsync,
+  collectResults,
+  partitionResults,
+  optionToResult,
+  resultToOption,
   routeResult,
   type GnosisOption,
   type GnosisResult,
@@ -86,7 +98,7 @@ export function registerOptionResultHandlers(registry: GnosisRegistry): void {
     const errorMessage = props.error ?? 'None converted to Err';
     return optionToResult(
       payload as GnosisOption<unknown>,
-      new Error(errorMessage),
+      new Error(errorMessage)
     );
   });
 
@@ -111,9 +123,18 @@ export function registerOptionResultHandlers(registry: GnosisRegistry): void {
 }
 
 export const OPTION_RESULT_HANDLERS = [
-  'Some', 'None', 'Ok', 'Err',
-  'UnwrapOption', 'UnwrapOptionOr',
-  'UnwrapResult', 'UnwrapResultOr',
-  'RouteResult', 'CollectResults', 'PartitionResults',
-  'OptionToResult', 'ResultToOption', 'TryCatch',
+  'Some',
+  'None',
+  'Ok',
+  'Err',
+  'UnwrapOption',
+  'UnwrapOptionOr',
+  'UnwrapResult',
+  'UnwrapResultOr',
+  'RouteResult',
+  'CollectResults',
+  'PartitionResults',
+  'OptionToResult',
+  'ResultToOption',
+  'TryCatch',
 ] as const;

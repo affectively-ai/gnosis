@@ -254,9 +254,12 @@ export default function App({ onReady }: AppProps) {
     });
 
     if (typeof browserWindow.requestIdleCallback === 'function') {
-      idleHandle = browserWindow.requestIdleCallback(() => {
-        activateOverlays();
-      }, { timeout: 12000 });
+      idleHandle = browserWindow.requestIdleCallback(
+        () => {
+          activateOverlays();
+        },
+        { timeout: 12000 }
+      );
     } else {
       timeoutId = setTimeout(activateOverlays, 12000);
     }
@@ -368,9 +371,7 @@ export default function App({ onReady }: AppProps) {
             <h1 className="hero-title">
               <span className="hero-title-line">Distributed.</span>
               <span className="hero-title-line">Collaborative.</span>
-              <span className="hero-title-line accent">
-                ForkJoin.
-              </span>
+              <span className="hero-title-line accent">ForkJoin.</span>
             </h1>
 
             <p className="hero-subtitle">
@@ -380,7 +381,8 @@ export default function App({ onReady }: AppProps) {
               <strong>Transport</strong>. <strong>Auth</strong>.{' '}
               <strong>Intelligence</strong>.
               <br />
-              Similar Aeon-Flux approach with full presence. Aeon all the way down.
+              Similar Aeon-Flux approach with full presence. Aeon all the way
+              down.
             </p>
 
             <div className="hero-cta">

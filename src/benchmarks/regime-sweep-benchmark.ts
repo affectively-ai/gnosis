@@ -64,9 +64,7 @@ export interface RegimeSweepFamilyReport {
   readonly title: string;
   readonly description: string;
   readonly topologyFamily: 'fold-training' | 'moe-routing';
-  readonly targetFamily:
-    | 'weighted-cancellation'
-    | 'weighted-dual-activation';
+  readonly targetFamily: 'weighted-cancellation' | 'weighted-dual-activation';
   readonly sweepDimension: string;
   readonly topology: RegimeSweepTopologyMetrics;
   readonly regimeValues: readonly number[];
@@ -182,7 +180,7 @@ export interface RegimeSweepRunConfig {
 }
 
 const regimeSweepStrategies = Object.keys(
-  DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES,
+  DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES
 ) as RegimeSweepStrategy[];
 
 const expertSpecs: readonly ExpertSpec[] = [
@@ -213,7 +211,7 @@ function countConnectedComponents(
   edges: readonly {
     readonly sourceIds: readonly string[];
     readonly targetIds: readonly string[];
-  }[],
+  }[]
 ): number {
   const neighbors = new Map<string, Set<string>>();
   for (const nodeId of nodeIds) {
@@ -264,22 +262,29 @@ function structuralBeta1(
   edges: readonly {
     readonly sourceIds: readonly string[];
     readonly targetIds: readonly string[];
-  }[],
+  }[]
 ): number {
   const expandedEdgeCount = edges.reduce(
     (sum, edge) => sum + edge.sourceIds.length * edge.targetIds.length,
-    0,
+    0
   );
   return Math.max(
     0,
-    expandedEdgeCount - nodeIds.length + countConnectedComponents(nodeIds, edges),
+    expandedEdgeCount -
+      nodeIds.length +
+      countConnectedComponents(nodeIds, edges)
   );
 }
 
 async function loadAffineTopologyMetrics(): Promise<RegimeSweepTopologyMetrics> {
-  const source = await readFile(DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES.linear, 'utf8');
+  const source = await readFile(
+    DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES.linear,
+    'utf8'
+  );
   const program = parseGgProgram(lowerUfcsSource(source));
-  const branchNodes = program.nodes.filter((node) => node.labels.includes('AffineBranch'));
+  const branchNodes = program.nodes.filter((node) =>
+    node.labels.includes('AffineBranch')
+  );
   return {
     nodeCount: program.nodes.length,
     edgeCount: program.edges.length,
@@ -288,7 +293,7 @@ async function loadAffineTopologyMetrics(): Promise<RegimeSweepTopologyMetrics> 
       program.edges.map((edge) => ({
         sourceIds: edge.sourceIds,
         targetIds: edge.targetIds,
-      })),
+      }))
     ),
     unitCount: branchNodes.length,
     parameterCount: branchNodes.length * 2,
@@ -296,9 +301,14 @@ async function loadAffineTopologyMetrics(): Promise<RegimeSweepTopologyMetrics> 
 }
 
 async function loadRoutedTopologyMetrics(): Promise<RegimeSweepTopologyMetrics> {
-  const source = await readFile(DEFAULT_MINI_MOE_ROUTING_TOPOLOGY_FILES.linear, 'utf8');
+  const source = await readFile(
+    DEFAULT_MINI_MOE_ROUTING_TOPOLOGY_FILES.linear,
+    'utf8'
+  );
   const program = parseGgProgram(lowerUfcsSource(source));
-  const expertNodes = program.nodes.filter((node) => node.labels.includes('MoEExpert'));
+  const expertNodes = program.nodes.filter((node) =>
+    node.labels.includes('MoEExpert')
+  );
   return {
     nodeCount: program.nodes.length,
     edgeCount: program.edges.length,
@@ -307,7 +317,7 @@ async function loadRoutedTopologyMetrics(): Promise<RegimeSweepTopologyMetrics> 
       program.edges.map((edge) => ({
         sourceIds: edge.sourceIds,
         targetIds: edge.targetIds,
-      })),
+      }))
     ),
     unitCount: expertNodes.length,
     parameterCount: expertNodes.reduce((sum, node) => {
@@ -331,24 +341,26 @@ function initializeAffineParameters(seed: number): AffineParameters {
 
 function buildAffineSamples(
   axis: readonly number[],
-  regimeValue: number,
+  regimeValue: number
 ): AffineSample[] {
   return axis.flatMap((leftInput) =>
     axis.map((rightInput) => ({
       leftInput,
       rightInput,
       target: leftInput - regimeValue * rightInput,
-    })),
+    }))
   );
 }
 
 function predictAffine(
   strategy: RegimeSweepStrategy,
   parameters: AffineParameters,
-  sample: AffineSample,
+  sample: AffineSample
 ): AffinePrediction {
-  const leftValue = parameters.leftWeight * sample.leftInput + parameters.leftBias;
-  const rightValue = parameters.rightWeight * sample.rightInput + parameters.rightBias;
+  const leftValue =
+    parameters.leftWeight * sample.leftInput + parameters.leftBias;
+  const rightValue =
+    parameters.rightWeight * sample.rightInput + parameters.rightBias;
 
   if (strategy === 'linear') {
     return {
@@ -382,7 +394,7 @@ function updateAffineParameters(
   strategy: RegimeSweepStrategy,
   parameters: AffineParameters,
   sample: AffineSample,
-  learningRate: number,
+  learningRate: number
 ): void {
   const prediction = predictAffine(strategy, parameters, sample);
   const error = prediction.prediction - sample.target;
@@ -409,7 +421,7 @@ function evaluateAffineSamples(
   strategy: RegimeSweepStrategy,
   parameters: AffineParameters,
   samples: readonly AffineSample[],
-  tolerance: number,
+  tolerance: number
 ): {
   readonly meanSquaredError: number;
   readonly exactWithinToleranceFraction: number;
@@ -424,7 +436,8 @@ function evaluateAffineSamples(
   let squaredErrorSum = 0;
   let exactCount = 0;
   for (const sample of samples) {
-    const error = predictAffine(strategy, parameters, sample).prediction - sample.target;
+    const error =
+      predictAffine(strategy, parameters, sample).prediction - sample.target;
     squaredErrorSum += error * error;
     if (Math.abs(error) <= tolerance) {
       exactCount++;
@@ -449,21 +462,21 @@ function initializeRoutedParameters(seed: number): ExpertParameters[] {
 
 function buildRoutedSamples(
   axis: readonly number[],
-  regimeValue: number,
+  regimeValue: number
 ): RoutedSample[] {
   return axis.flatMap((leftInput) =>
     axis.map((rightInput) => ({
       leftInput,
       rightInput,
       target: Math.abs(leftInput) + regimeValue * Math.abs(rightInput),
-    })),
+    }))
   );
 }
 
 function predictRouted(
   strategy: RegimeSweepStrategy,
   parameters: readonly ExpertParameters[],
-  sample: RoutedSample,
+  sample: RoutedSample
 ): RoutedPrediction {
   const expertActivations = expertSpecs.map((expert, index) => {
     const parameter = parameters[index];
@@ -473,7 +486,9 @@ function predictRouted(
 
     const signedInput = expert.signedProjection(sample);
     const axisInput = expert.axisProjection(sample);
-    const gate = sigmoid(parameter.gateWeight * signedInput + parameter.gateBias);
+    const gate = sigmoid(
+      parameter.gateWeight * signedInput + parameter.gateBias
+    );
     const value = parameter.valueWeight * axisInput + parameter.valueBias;
     return {
       gate,
@@ -499,7 +514,10 @@ function predictRouted(
 
   if (strategy === 'linear') {
     return {
-      prediction: expertActivations.reduce((sum, activation) => sum + activation.output, 0),
+      prediction: expertActivations.reduce(
+        (sum, activation) => sum + activation.output,
+        0
+      ),
       selectedExpertIndex,
       expertActivations,
     };
@@ -524,13 +542,16 @@ function updateRoutedParameters(
   strategy: RegimeSweepStrategy,
   parameters: ExpertParameters[],
   sample: RoutedSample,
-  learningRate: number,
+  learningRate: number
 ): void {
   const prediction = predictRouted(strategy, parameters, sample);
   const error = prediction.prediction - sample.target;
 
   for (let index = 0; index < parameters.length; index++) {
-    if (strategy === 'winner-take-all' && index !== prediction.selectedExpertIndex) {
+    if (
+      strategy === 'winner-take-all' &&
+      index !== prediction.selectedExpertIndex
+    ) {
       continue;
     }
     if (strategy === 'early-stop' && index !== 0) {
@@ -561,7 +582,7 @@ function evaluateRoutedSamples(
   strategy: RegimeSweepStrategy,
   parameters: readonly ExpertParameters[],
   samples: readonly RoutedSample[],
-  tolerance: number,
+  tolerance: number
 ): {
   readonly meanSquaredError: number;
   readonly exactWithinToleranceFraction: number;
@@ -576,7 +597,8 @@ function evaluateRoutedSamples(
   let squaredErrorSum = 0;
   let exactCount = 0;
   for (const sample of samples) {
-    const error = predictRouted(strategy, parameters, sample).prediction - sample.target;
+    const error =
+      predictRouted(strategy, parameters, sample).prediction - sample.target;
     squaredErrorSum += error * error;
     if (Math.abs(error) <= tolerance) {
       exactCount++;
@@ -591,40 +613,54 @@ function evaluateRoutedSamples(
 
 function summarizeSeedMetrics(
   metrics: readonly RegimeSweepSeedMetrics[],
-  ciSeed: number,
+  ciSeed: number
 ): RegimeSweepStrategyReport {
-  const evalMeanSquaredErrors = metrics.map((entry) => entry.evalMeanSquaredError);
-  const exactFractions = metrics.map((entry) => entry.exactWithinToleranceFraction);
+  const evalMeanSquaredErrors = metrics.map(
+    (entry) => entry.evalMeanSquaredError
+  );
+  const exactFractions = metrics.map(
+    (entry) => entry.exactWithinToleranceFraction
+  );
 
   return {
     seedMetrics: metrics,
-    meanTrainMeanSquaredError: mean(metrics.map((entry) => entry.trainMeanSquaredError)),
-    stdevTrainMeanSquaredError: stdev(metrics.map((entry) => entry.trainMeanSquaredError)),
+    meanTrainMeanSquaredError: mean(
+      metrics.map((entry) => entry.trainMeanSquaredError)
+    ),
+    stdevTrainMeanSquaredError: stdev(
+      metrics.map((entry) => entry.trainMeanSquaredError)
+    ),
     meanEvalMeanSquaredError: mean(evalMeanSquaredErrors),
-    evalMeanSquaredErrorCi95: bootstrapMeanConfidenceInterval(evalMeanSquaredErrors, {
-      seed: ciSeed,
-    }),
+    evalMeanSquaredErrorCi95: bootstrapMeanConfidenceInterval(
+      evalMeanSquaredErrors,
+      {
+        seed: ciSeed,
+      }
+    ),
     stdevEvalMeanSquaredError: stdev(evalMeanSquaredErrors),
     meanExactWithinToleranceFraction: mean(exactFractions),
-    exactWithinToleranceFractionCi95: bootstrapMeanConfidenceInterval(exactFractions, {
-      seed: ciSeed ^ 0x00abcdef,
-    }),
+    exactWithinToleranceFractionCi95: bootstrapMeanConfidenceInterval(
+      exactFractions,
+      {
+        seed: ciSeed ^ 0x00abcdef,
+      }
+    ),
     stdevExactWithinToleranceFraction: stdev(exactFractions),
   };
 }
 
 function rankStrategiesByEvalMse(
-  strategies: Record<RegimeSweepStrategy, RegimeSweepStrategyReport>,
+  strategies: Record<RegimeSweepStrategy, RegimeSweepStrategyReport>
 ): RegimeSweepStrategy[] {
   return [...regimeSweepStrategies].sort(
     (left, right) =>
       strategies[left].meanEvalMeanSquaredError -
-      strategies[right].meanEvalMeanSquaredError,
+      strategies[right].meanEvalMeanSquaredError
   );
 }
 
 function bestNonlinearStrategy(
-  strategies: Record<RegimeSweepStrategy, RegimeSweepStrategyReport>,
+  strategies: Record<RegimeSweepStrategy, RegimeSweepStrategyReport>
 ): RegimeSweepPointStrategy {
   return strategies['winner-take-all'].meanEvalMeanSquaredError <=
     strategies['early-stop'].meanEvalMeanSquaredError
@@ -634,7 +670,7 @@ function bestNonlinearStrategy(
 
 async function runAffinePoint(
   config: AffineSweepConfig,
-  regimeValue: number,
+  regimeValue: number
 ): Promise<RegimeSweepPointReport> {
   const trainSamples = buildAffineSamples(config.trainAxis, regimeValue);
   const evalSamples = buildAffineSamples(config.evalAxis, regimeValue);
@@ -642,13 +678,22 @@ async function runAffinePoint(
     regimeSweepStrategies.map(async (strategy, strategyIndex) => {
       const trainedMetrics: RegimeSweepSeedMetrics[] = [];
       for (let seed = 1; seed <= config.seedCount; seed++) {
-        const random = createDeterministicRandom(0x9100 + strategyIndex * 101 + seed);
-        const parameters = initializeAffineParameters(seed + strategyIndex * 100);
+        const random = createDeterministicRandom(
+          0x9100 + strategyIndex * 101 + seed
+        );
+        const parameters = initializeAffineParameters(
+          seed + strategyIndex * 100
+        );
         const shuffledSamples = [...trainSamples];
         for (let epoch = 0; epoch < config.epochs; epoch++) {
           shuffleInPlace(shuffledSamples, random);
           for (const sample of shuffledSamples) {
-            updateAffineParameters(strategy, parameters, sample, config.learningRate);
+            updateAffineParameters(
+              strategy,
+              parameters,
+              sample,
+              config.learningRate
+            );
           }
         }
 
@@ -656,19 +701,20 @@ async function runAffinePoint(
           strategy,
           parameters,
           trainSamples,
-          config.exactPredictionTolerance,
+          config.exactPredictionTolerance
         );
         const evalMetrics = evaluateAffineSamples(
           strategy,
           parameters,
           evalSamples,
-          config.exactPredictionTolerance,
+          config.exactPredictionTolerance
         );
         trainedMetrics.push({
           seed,
           trainMeanSquaredError: trainMetrics.meanSquaredError,
           evalMeanSquaredError: evalMetrics.meanSquaredError,
-          exactWithinToleranceFraction: evalMetrics.exactWithinToleranceFraction,
+          exactWithinToleranceFraction:
+            evalMetrics.exactWithinToleranceFraction,
         });
       }
 
@@ -676,7 +722,7 @@ async function runAffinePoint(
         strategy,
         summarizeSeedMetrics(trainedMetrics, 0x410000 + strategyIndex * 257),
       ] as const;
-    }),
+    })
   );
 
   const strategyReports = Object.fromEntries(strategies) as Record<
@@ -702,7 +748,7 @@ async function runAffinePoint(
 
 async function runRoutedPoint(
   config: RoutedSweepConfig,
-  regimeValue: number,
+  regimeValue: number
 ): Promise<RegimeSweepPointReport> {
   const trainSamples = buildRoutedSamples(config.trainAxis, regimeValue);
   const evalSamples = buildRoutedSamples(config.evalAxis, regimeValue);
@@ -710,13 +756,22 @@ async function runRoutedPoint(
     regimeSweepStrategies.map(async (strategy, strategyIndex) => {
       const trainedMetrics: RegimeSweepSeedMetrics[] = [];
       for (let seed = 1; seed <= config.seedCount; seed++) {
-        const random = createDeterministicRandom(0xa200 + strategyIndex * 149 + seed);
-        const parameters = initializeRoutedParameters(seed + strategyIndex * 100);
+        const random = createDeterministicRandom(
+          0xa200 + strategyIndex * 149 + seed
+        );
+        const parameters = initializeRoutedParameters(
+          seed + strategyIndex * 100
+        );
         const shuffledSamples = [...trainSamples];
         for (let epoch = 0; epoch < config.epochs; epoch++) {
           shuffleInPlace(shuffledSamples, random);
           for (const sample of shuffledSamples) {
-            updateRoutedParameters(strategy, parameters, sample, config.learningRate);
+            updateRoutedParameters(
+              strategy,
+              parameters,
+              sample,
+              config.learningRate
+            );
           }
         }
 
@@ -724,19 +779,20 @@ async function runRoutedPoint(
           strategy,
           parameters,
           trainSamples,
-          config.exactPredictionTolerance,
+          config.exactPredictionTolerance
         );
         const evalMetrics = evaluateRoutedSamples(
           strategy,
           parameters,
           evalSamples,
-          config.exactPredictionTolerance,
+          config.exactPredictionTolerance
         );
         trainedMetrics.push({
           seed,
           trainMeanSquaredError: trainMetrics.meanSquaredError,
           evalMeanSquaredError: evalMetrics.meanSquaredError,
-          exactWithinToleranceFraction: evalMetrics.exactWithinToleranceFraction,
+          exactWithinToleranceFraction:
+            evalMetrics.exactWithinToleranceFraction,
         });
       }
 
@@ -744,7 +800,7 @@ async function runRoutedPoint(
         strategy,
         summarizeSeedMetrics(trainedMetrics, 0x520000 + strategyIndex * 257),
       ] as const;
-    }),
+    })
   );
 
   const strategyReports = Object.fromEntries(strategies) as Record<
@@ -770,17 +826,17 @@ async function runRoutedPoint(
 
 function findFirstSeparatedRegimeValue(
   points: readonly RegimeSweepPointReport[],
-  threshold: number,
+  threshold: number
 ): number | null {
   const firstSeparated = points.find(
-    (point) => point.linearAdvantageEvalMeanSquaredError > threshold,
+    (point) => point.linearAdvantageEvalMeanSquaredError > threshold
   );
   return firstSeparated?.regimeValue ?? null;
 }
 
 function checkMonotonicAdvantage(
   points: readonly RegimeSweepPointReport[],
-  slack: number,
+  slack: number
 ): boolean {
   for (let index = 1; index < points.length; index++) {
     const previous = points[index - 1];
@@ -827,7 +883,7 @@ export function makeDefaultRegimeSweepConfig(): RegimeSweepRunConfig {
 
 export async function buildGnosisFoldBoundaryRegimeSweepReport(
   config: RegimeSweepRunConfig,
-  label = 'gnosis-fold-boundary-regime-sweep-v1',
+  label = 'gnosis-fold-boundary-regime-sweep-v1'
 ): Promise<GnosisFoldBoundaryRegimeSweepReport> {
   const [affineTopology, routedTopology] = await Promise.all([
     loadAffineTopologyMetrics(),
@@ -835,26 +891,31 @@ export async function buildGnosisFoldBoundaryRegimeSweepReport(
   ]);
 
   const affinePoints = await Promise.all(
-    config.affine.regimeValues.map((regimeValue) => runAffinePoint(config.affine, regimeValue)),
+    config.affine.regimeValues.map((regimeValue) =>
+      runAffinePoint(config.affine, regimeValue)
+    )
   );
   const routedPoints = await Promise.all(
-    config.routed.regimeValues.map((regimeValue) => runRoutedPoint(config.routed, regimeValue)),
+    config.routed.regimeValues.map((regimeValue) =>
+      runRoutedPoint(config.routed, regimeValue)
+    )
   );
 
   const affineFirstSeparated = findFirstSeparatedRegimeValue(
     affinePoints,
-    config.affine.separationThreshold,
+    config.affine.separationThreshold
   );
   const routedFirstSeparated = findFirstSeparatedRegimeValue(
     routedPoints,
-    config.routed.separationThreshold,
+    config.routed.separationThreshold
   );
   const affinePhaseBoundaryRecovered =
     affinePoints[0] !== undefined &&
     affinePoints[0].linearAdvantageEvalMeanSquaredError <=
       config.affine.separationThreshold &&
     affinePoints[affinePoints.length - 1] !== undefined &&
-    (affinePoints[affinePoints.length - 1]?.linearAdvantageEvalMeanSquaredError ?? 0) >
+    (affinePoints[affinePoints.length - 1]
+      ?.linearAdvantageEvalMeanSquaredError ?? 0) >
       config.affine.separationThreshold &&
     affineFirstSeparated !== null;
   const routedPhaseBoundaryRecovered =
@@ -862,7 +923,8 @@ export async function buildGnosisFoldBoundaryRegimeSweepReport(
     routedPoints[0].linearAdvantageEvalMeanSquaredError <=
       config.routed.separationThreshold &&
     routedPoints[routedPoints.length - 1] !== undefined &&
-    (routedPoints[routedPoints.length - 1]?.linearAdvantageEvalMeanSquaredError ?? 0) >
+    (routedPoints[routedPoints.length - 1]
+      ?.linearAdvantageEvalMeanSquaredError ?? 0) >
       config.routed.separationThreshold &&
     routedFirstSeparated !== null;
 
@@ -898,7 +960,7 @@ export async function buildGnosisFoldBoundaryRegimeSweepReport(
       firstSeparatedRegimeValue: affineFirstSeparated,
       monotonicAdvantageRecovered: checkMonotonicAdvantage(
         affinePoints,
-        config.affine.monotonicSlack,
+        config.affine.monotonicSlack
       ),
       phaseBoundaryRecovered: affinePhaseBoundaryRecovered,
     },
@@ -917,7 +979,7 @@ export async function buildGnosisFoldBoundaryRegimeSweepReport(
       firstSeparatedRegimeValue: routedFirstSeparated,
       monotonicAdvantageRecovered: checkMonotonicAdvantage(
         routedPoints,
-        config.routed.monotonicSlack,
+        config.routed.monotonicSlack
       ),
       phaseBoundaryRecovered: routedPhaseBoundaryRecovered,
     },
@@ -930,12 +992,12 @@ export async function buildGnosisFoldBoundaryRegimeSweepReport(
 }
 
 export async function runGnosisFoldBoundaryRegimeSweep(): Promise<GnosisFoldBoundaryRegimeSweepReport> {
-  return buildGnosisFoldBoundaryRegimeSweepReport(makeDefaultRegimeSweepConfig());
+  return buildGnosisFoldBoundaryRegimeSweepReport(
+    makeDefaultRegimeSweepConfig()
+  );
 }
 
-function renderFamilyMarkdown(
-  family: RegimeSweepFamilyReport,
-): string {
+function renderFamilyMarkdown(family: RegimeSweepFamilyReport): string {
   const lines: string[] = [];
   lines.push(`## ${family.title}`);
   lines.push('');
@@ -944,26 +1006,50 @@ function renderFamilyMarkdown(
   lines.push(`- Target family: \`${family.targetFamily}\``);
   lines.push(`- Sweep dimension: ${family.sweepDimension}`);
   lines.push(
-    `- Shared topology: β₁=${family.topology.structuralBeta1}, units=${family.topology.unitCount}, parameters=${family.topology.parameterCount}`,
+    `- Shared topology: β₁=${family.topology.structuralBeta1}, units=${family.topology.unitCount}, parameters=${family.topology.parameterCount}`
   );
   lines.push(
-    `- First separated regime value: \`${family.firstSeparatedRegimeValue === null ? 'none' : family.firstSeparatedRegimeValue.toFixed(2)}\``,
+    `- First separated regime value: \`${
+      family.firstSeparatedRegimeValue === null
+        ? 'none'
+        : family.firstSeparatedRegimeValue.toFixed(2)
+    }\``
   );
   lines.push(
-    `- Phase boundary recovered: \`${family.phaseBoundaryRecovered ? 'yes' : 'no'}\``,
+    `- Phase boundary recovered: \`${
+      family.phaseBoundaryRecovered ? 'yes' : 'no'
+    }\``
   );
   lines.push(
-    `- Monotonic advantage recovered: \`${family.monotonicAdvantageRecovered ? 'yes' : 'no'}\``,
+    `- Monotonic advantage recovered: \`${
+      family.monotonicAdvantageRecovered ? 'yes' : 'no'
+    }\``
   );
   lines.push('');
   lines.push(
-    '| Regime | Linear eval MSE | Best nonlinear | Best nonlinear eval MSE | Linear advantage | Linear exact | Best nonlinear exact | Ranking |',
+    '| Regime | Linear eval MSE | Best nonlinear | Best nonlinear eval MSE | Linear advantage | Linear exact | Best nonlinear exact | Ranking |'
   );
   lines.push('| ---: | ---: | --- | ---: | ---: | ---: | ---: | --- |');
   for (const point of family.points) {
     const bestNonlinear = point.bestNonlinearStrategy;
     lines.push(
-      `| ${point.regimeValue.toFixed(2)} | ${point.strategies.linear.meanEvalMeanSquaredError.toFixed(3)} | \`${bestNonlinear}\` | ${point.bestNonlinearMeanEvalMeanSquaredError.toFixed(3)} | ${point.linearAdvantageEvalMeanSquaredError.toFixed(3)} | ${point.strategies.linear.meanExactWithinToleranceFraction.toFixed(3)} | ${point.strategies[bestNonlinear].meanExactWithinToleranceFraction.toFixed(3)} | ${point.rankingByEvalMeanSquaredError.map((strategy) => `\`${strategy}\``).join(' < ')} |`,
+      `| ${point.regimeValue.toFixed(
+        2
+      )} | ${point.strategies.linear.meanEvalMeanSquaredError.toFixed(
+        3
+      )} | \`${bestNonlinear}\` | ${point.bestNonlinearMeanEvalMeanSquaredError.toFixed(
+        3
+      )} | ${point.linearAdvantageEvalMeanSquaredError.toFixed(
+        3
+      )} | ${point.strategies.linear.meanExactWithinToleranceFraction.toFixed(
+        3
+      )} | ${point.strategies[
+        bestNonlinear
+      ].meanExactWithinToleranceFraction.toFixed(
+        3
+      )} | ${point.rankingByEvalMeanSquaredError
+        .map((strategy) => `\`${strategy}\``)
+        .join(' < ')} |`
     );
   }
   lines.push('');
@@ -971,23 +1057,27 @@ function renderFamilyMarkdown(
 }
 
 export function renderGnosisFoldBoundaryRegimeSweepMarkdown(
-  report: GnosisFoldBoundaryRegimeSweepReport,
+  report: GnosisFoldBoundaryRegimeSweepReport
 ): string {
   const lines: string[] = [];
   lines.push('# Gnosis Fold Boundary Regime Sweep');
   lines.push('');
   lines.push(`- Label: \`${report.label}\``);
   lines.push(
-    `- Predicted boundary recovered: \`${report.predictedBoundaryRecovered ? 'yes' : 'no'}\``,
+    `- Predicted boundary recovered: \`${
+      report.predictedBoundaryRecovered ? 'yes' : 'no'
+    }\``
   );
   lines.push(
-    `- Affine seeds/epochs: \`${report.config.affineSeedCount}\` / \`${report.config.affineEpochs}\``,
+    `- Affine seeds/epochs: \`${report.config.affineSeedCount}\` / \`${report.config.affineEpochs}\``
   );
   lines.push(
-    `- Routed seeds/epochs: \`${report.config.routedSeedCount}\` / \`${report.config.routedEpochs}\``,
+    `- Routed seeds/epochs: \`${report.config.routedSeedCount}\` / \`${report.config.routedEpochs}\``
   );
   lines.push(
-    `- Regime values: ${report.config.regimeValues.map((value) => `\`${value.toFixed(2)}\``).join(', ')}`,
+    `- Regime values: ${report.config.regimeValues
+      .map((value) => `\`${value.toFixed(2)}\``)
+      .join(', ')}`
   );
   lines.push('');
   lines.push(renderFamilyMarkdown(report.affine));
@@ -995,7 +1085,7 @@ export function renderGnosisFoldBoundaryRegimeSweepMarkdown(
   lines.push(renderFamilyMarkdown(report.routed));
   lines.push('');
   lines.push(
-    'Interpretation: both sweeps start in the one-path parity regime, then move into task families that increasingly require additive recombination. The reported linear advantage quantifies where the nonlinear selection rules stop matching the linear baseline and how sharply that separation grows.',
+    'Interpretation: both sweeps start in the one-path parity regime, then move into task families that increasingly require additive recombination. The reported linear advantage quantifies where the nonlinear selection rules stop matching the linear baseline and how sharply that separation grows.'
   );
   lines.push('');
   return `${lines.join('\n')}\n`;

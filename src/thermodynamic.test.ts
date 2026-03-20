@@ -15,10 +15,17 @@ import {
   K_BOLTZMANN,
 } from './thermodynamic.js';
 import {
-  createVoidBoundary, updateVoidBoundary, complementDistribution,
-  createWalker, c0Choose, c0Update,
+  createVoidBoundary,
+  updateVoidBoundary,
+  complementDistribution,
+  createWalker,
+  c0Choose,
+  c0Update,
 } from './void.js';
-import { registerThermodynamicHandlers, THERMODYNAMIC_IDENTIFICATIONS } from './thermodynamic-handlers.js';
+import {
+  registerThermodynamicHandlers,
+  THERMODYNAMIC_IDENTIFICATIONS,
+} from './thermodynamic-handlers.js';
 import { GnosisRegistry } from './runtime/registry.js';
 
 describe('Boltzmann identification', () => {
@@ -156,7 +163,10 @@ describe('Heat engine', () => {
     const boundary = createVoidBoundary(4);
     const walker = createWalker(boundary, 2.0, 0.1);
     let seed = 42;
-    const rng = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+    const rng = () => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return seed / 0x7fffffff;
+    };
 
     for (let i = 0; i < 50; i++) {
       const dim = c0Choose(walker, rng);
@@ -216,6 +226,8 @@ describe('Handler registration', () => {
     expect(THERMODYNAMIC_IDENTIFICATIONS.length).toBe(7);
     expect(THERMODYNAMIC_IDENTIFICATIONS).toContain('complement-is-boltzmann');
     expect(THERMODYNAMIC_IDENTIFICATIONS).toContain('vent-is-landauer-erasure');
-    expect(THERMODYNAMIC_IDENTIFICATIONS).toContain('void-increase-is-second-law');
+    expect(THERMODYNAMIC_IDENTIFICATIONS).toContain(
+      'void-increase-is-second-law'
+    );
   });
 });

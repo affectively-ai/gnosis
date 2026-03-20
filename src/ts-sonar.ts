@@ -73,7 +73,10 @@ export interface TsSonarReport {
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx']);
 const SKIP_DIR_NAMES = new Set(['node_modules', '.git', 'dist', 'coverage']);
 
-function parseThreshold(args: readonly string[], flag: string): number | undefined {
+function parseThreshold(
+  args: readonly string[],
+  flag: string
+): number | undefined {
   const index = args.indexOf(flag);
   if (index < 0) {
     return undefined;
@@ -86,7 +89,9 @@ function parseThreshold(args: readonly string[], flag: string): number | undefin
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-export function parseTsSonarThresholds(args: readonly string[]): TsSonarThresholds {
+export function parseTsSonarThresholds(
+  args: readonly string[]
+): TsSonarThresholds {
   return {
     maxFileLines: parseThreshold(args, '--max-file-lines'),
     maxFunctionLines: parseThreshold(args, '--max-function-lines'),
@@ -142,7 +147,10 @@ function collectSourceFiles(targetPath: string): string[] {
   return files;
 }
 
-function countCommentAndCodeLines(source: string): { codeLines: number; commentLines: number } {
+function countCommentAndCodeLines(source: string): {
+  codeLines: number;
+  commentLines: number;
+} {
   const lines = source.split('\n');
   let commentLines = 0;
   let codeLines = 0;
@@ -182,7 +190,7 @@ function countCommentAndCodeLines(source: string): { codeLines: number; commentL
 }
 
 function isFunctionLikeWithBody(
-  node: ts.Node,
+  node: ts.Node
 ): node is
   | ts.FunctionDeclaration
   | ts.MethodDeclaration
@@ -236,8 +244,15 @@ function countLogicalDecisionOperators(expression: ts.Expression): number {
   return count;
 }
 
-function getFunctionName(node: TsFunctionLike, sourceFile: ts.SourceFile): string {
-  if (ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node) || ts.isFunctionExpression(node)) {
+function getFunctionName(
+  node: TsFunctionLike,
+  sourceFile: ts.SourceFile
+): string {
+  if (
+    ts.isFunctionDeclaration(node) ||
+    ts.isMethodDeclaration(node) ||
+    ts.isFunctionExpression(node)
+  ) {
     const name = node.name?.getText(sourceFile);
     if (name) {
       return name;
@@ -248,7 +263,9 @@ function getFunctionName(node: TsFunctionLike, sourceFile: ts.SourceFile): strin
     return 'constructor';
   }
 
-  return `<anonymous@${sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1}>`;
+  return `<anonymous@${
+    sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1
+  }>`;
 }
 
 type TsFunctionLike =
@@ -258,9 +275,16 @@ type TsFunctionLike =
   | ts.FunctionExpression
   | ts.ConstructorDeclaration;
 
-function computeFunctionMetrics(node: TsFunctionLike, sourceFile: ts.SourceFile, filePath: string): TsFunctionMetric {
-  const startLine = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
-  const endLine = sourceFile.getLineAndCharacterOfPosition(node.getEnd()).line + 1;
+function computeFunctionMetrics(
+  node: TsFunctionLike,
+  sourceFile: ts.SourceFile,
+  filePath: string
+): TsFunctionMetric {
+  const startLine =
+    sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line +
+    1;
+  const endLine =
+    sourceFile.getLineAndCharacterOfPosition(node.getEnd()).line + 1;
 
   let cyclomatic = 1;
   let cognitive = 0;
@@ -322,9 +346,17 @@ function computeFunctionMetrics(node: TsFunctionLike, sourceFile: ts.SourceFile,
   };
 }
 
-function analyzeSourceFile(filePath: string): { file: TsFileMetric; functions: TsFunctionMetric[] } {
+function analyzeSourceFile(filePath: string): {
+  file: TsFileMetric;
+  functions: TsFunctionMetric[];
+} {
   const source = fs.readFileSync(filePath, 'utf8');
-  const sourceFile = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true);
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    source,
+    ts.ScriptTarget.Latest,
+    true
+  );
   const { codeLines, commentLines } = countCommentAndCodeLines(source);
   const totalLines = source.split('\n').length;
 
@@ -384,7 +416,10 @@ function analyzeSourceFile(filePath: string): { file: TsFileMetric; functions: T
     interfaceCount,
     typeAliasCount,
     functionCount: functions.length,
-    maxFunctionLines: Math.max(0, ...functions.map((metric) => metric.lineSpan)),
+    maxFunctionLines: Math.max(
+      0,
+      ...functions.map((metric) => metric.lineSpan)
+    ),
     maxCyclomatic: Math.max(0, ...functions.map((metric) => metric.cyclomatic)),
     maxCognitive: Math.max(0, ...functions.map((metric) => metric.cognitive)),
     maxNesting: Math.max(0, ...functions.map((metric) => metric.maxNesting)),
@@ -397,33 +432,48 @@ function pushViolations(
   fileMetric: TsFileMetric,
   functions: readonly TsFunctionMetric[],
   thresholds: TsSonarThresholds,
-  violations: string[],
+  violations: string[]
 ): void {
-  if (thresholds.maxFileLines !== undefined && fileMetric.totalLines > thresholds.maxFileLines) {
+  if (
+    thresholds.maxFileLines !== undefined &&
+    fileMetric.totalLines > thresholds.maxFileLines
+  ) {
     violations.push(
-      `file-lines ${fileMetric.filePath} ${fileMetric.totalLines} > ${thresholds.maxFileLines}`,
+      `file-lines ${fileMetric.filePath} ${fileMetric.totalLines} > ${thresholds.maxFileLines}`
     );
   }
 
   for (const metric of functions) {
-    if (thresholds.maxFunctionLines !== undefined && metric.lineSpan > thresholds.maxFunctionLines) {
+    if (
+      thresholds.maxFunctionLines !== undefined &&
+      metric.lineSpan > thresholds.maxFunctionLines
+    ) {
       violations.push(
-        `function-lines ${metric.filePath}:${metric.startLine} ${metric.name} ${metric.lineSpan} > ${thresholds.maxFunctionLines}`,
+        `function-lines ${metric.filePath}:${metric.startLine} ${metric.name} ${metric.lineSpan} > ${thresholds.maxFunctionLines}`
       );
     }
-    if (thresholds.maxCyclomatic !== undefined && metric.cyclomatic > thresholds.maxCyclomatic) {
+    if (
+      thresholds.maxCyclomatic !== undefined &&
+      metric.cyclomatic > thresholds.maxCyclomatic
+    ) {
       violations.push(
-        `cyclomatic ${metric.filePath}:${metric.startLine} ${metric.name} ${metric.cyclomatic} > ${thresholds.maxCyclomatic}`,
+        `cyclomatic ${metric.filePath}:${metric.startLine} ${metric.name} ${metric.cyclomatic} > ${thresholds.maxCyclomatic}`
       );
     }
-    if (thresholds.maxCognitive !== undefined && metric.cognitive > thresholds.maxCognitive) {
+    if (
+      thresholds.maxCognitive !== undefined &&
+      metric.cognitive > thresholds.maxCognitive
+    ) {
       violations.push(
-        `cognitive ${metric.filePath}:${metric.startLine} ${metric.name} ${metric.cognitive} > ${thresholds.maxCognitive}`,
+        `cognitive ${metric.filePath}:${metric.startLine} ${metric.name} ${metric.cognitive} > ${thresholds.maxCognitive}`
       );
     }
-    if (thresholds.maxNesting !== undefined && metric.maxNesting > thresholds.maxNesting) {
+    if (
+      thresholds.maxNesting !== undefined &&
+      metric.maxNesting > thresholds.maxNesting
+    ) {
       violations.push(
-        `nesting ${metric.filePath}:${metric.startLine} ${metric.name} ${metric.maxNesting} > ${thresholds.maxNesting}`,
+        `nesting ${metric.filePath}:${metric.startLine} ${metric.name} ${metric.maxNesting} > ${thresholds.maxNesting}`
       );
     }
   }
@@ -431,16 +481,20 @@ function pushViolations(
 
 function topBy(
   items: readonly TsFunctionMetric[],
-  selector: (item: TsFunctionMetric) => number,
+  selector: (item: TsFunctionMetric) => number
 ): TsFunctionMetric[] {
-  return [...items].sort((left, right) => selector(right) - selector(left)).slice(0, 10);
+  return [...items]
+    .sort((left, right) => selector(right) - selector(left))
+    .slice(0, 10);
 }
 
 export function analyzeTypeScriptTargets(
   targetPaths: readonly string[],
-  thresholds: TsSonarThresholds = {},
+  thresholds: TsSonarThresholds = {}
 ): TsSonarReport {
-  const files = targetPaths.flatMap((targetPath) => collectSourceFiles(targetPath));
+  const files = targetPaths.flatMap((targetPath) =>
+    collectSourceFiles(targetPath)
+  );
   const fileMetrics: TsFileMetric[] = [];
   const functionMetrics: TsFunctionMetric[] = [];
   const violations: string[] = [];
@@ -452,18 +506,45 @@ export function analyzeTypeScriptTargets(
     pushViolations(file, functions, thresholds, violations);
   }
 
-  const totalLines = fileMetrics.reduce((sum, file) => sum + file.totalLines, 0);
+  const totalLines = fileMetrics.reduce(
+    (sum, file) => sum + file.totalLines,
+    0
+  );
   const codeLines = fileMetrics.reduce((sum, file) => sum + file.codeLines, 0);
-  const commentLines = fileMetrics.reduce((sum, file) => sum + file.commentLines, 0);
-  const statementCount = fileMetrics.reduce((sum, file) => sum + file.statementCount, 0);
-  const branchCount = fileMetrics.reduce((sum, file) => sum + file.branchCount, 0);
+  const commentLines = fileMetrics.reduce(
+    (sum, file) => sum + file.commentLines,
+    0
+  );
+  const statementCount = fileMetrics.reduce(
+    (sum, file) => sum + file.statementCount,
+    0
+  );
+  const branchCount = fileMetrics.reduce(
+    (sum, file) => sum + file.branchCount,
+    0
+  );
   const loopCount = fileMetrics.reduce((sum, file) => sum + file.loopCount, 0);
-  const classCount = fileMetrics.reduce((sum, file) => sum + file.classCount, 0);
-  const interfaceCount = fileMetrics.reduce((sum, file) => sum + file.interfaceCount, 0);
-  const typeAliasCount = fileMetrics.reduce((sum, file) => sum + file.typeAliasCount, 0);
+  const classCount = fileMetrics.reduce(
+    (sum, file) => sum + file.classCount,
+    0
+  );
+  const interfaceCount = fileMetrics.reduce(
+    (sum, file) => sum + file.interfaceCount,
+    0
+  );
+  const typeAliasCount = fileMetrics.reduce(
+    (sum, file) => sum + file.typeAliasCount,
+    0
+  );
   const functionCount = functionMetrics.length;
-  const totalCyclomatic = functionMetrics.reduce((sum, fn) => sum + fn.cyclomatic, 0);
-  const totalCognitive = functionMetrics.reduce((sum, fn) => sum + fn.cognitive, 0);
+  const totalCyclomatic = functionMetrics.reduce(
+    (sum, fn) => sum + fn.cyclomatic,
+    0
+  );
+  const totalCognitive = functionMetrics.reduce(
+    (sum, fn) => sum + fn.cognitive,
+    0
+  );
 
   const report: TsSonarReport = {
     ok: violations.length === 0,
@@ -482,15 +563,21 @@ export function analyzeTypeScriptTargets(
       totalCyclomatic,
       totalCognitive,
       maxFileLines: Math.max(0, ...fileMetrics.map((file) => file.totalLines)),
-      maxFunctionLines: Math.max(0, ...functionMetrics.map((fn) => fn.lineSpan)),
+      maxFunctionLines: Math.max(
+        0,
+        ...functionMetrics.map((fn) => fn.lineSpan)
+      ),
       maxCyclomatic: Math.max(0, ...functionMetrics.map((fn) => fn.cyclomatic)),
       maxCognitive: Math.max(0, ...functionMetrics.map((fn) => fn.cognitive)),
       maxNesting: Math.max(0, ...functionMetrics.map((fn) => fn.maxNesting)),
       avgFunctionLines:
         functionCount === 0
           ? 0
-          : Math.round((functionMetrics.reduce((sum, fn) => sum + fn.lineSpan, 0) / functionCount) * 100) /
-            100,
+          : Math.round(
+              (functionMetrics.reduce((sum, fn) => sum + fn.lineSpan, 0) /
+                functionCount) *
+                100
+            ) / 100,
     },
     files: fileMetrics,
     hotspots: {

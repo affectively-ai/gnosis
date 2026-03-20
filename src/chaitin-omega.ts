@@ -102,7 +102,7 @@ export interface OmegaConvergenceTrace {
 export function createProgramSpace(
   alphabetSize: number,
   maxLength: number,
-  classifier: HaltingClassifier,
+  classifier: HaltingClassifier
 ): ProgramSpace {
   const programs: string[] = [];
   const halting: boolean[] = [];
@@ -141,7 +141,7 @@ export function approximateOmega(ps: ProgramSpace): OmegaApproximation {
   let denominator = 0;
 
   for (let i = 0; i < ps.programs.length; i++) {
-    const weight = ps.alphabetSize ** (-ps.programs[i].length);
+    const weight = ps.alphabetSize ** -ps.programs[i].length;
     denominator += weight;
     if (ps.halting[i]) {
       numerator += weight;
@@ -162,7 +162,7 @@ export function approximateOmega(ps: ProgramSpace): OmegaApproximation {
  * Verifies monotone increasing property (Omega_L <= Omega_{L+1}).
  */
 export function trackOmegaConvergence(
-  approximations: OmegaApproximation[],
+  approximations: OmegaApproximation[]
 ): OmegaConvergenceTrace {
   let monotone = true;
   for (let i = 1; i < approximations.length; i++) {
@@ -175,9 +175,10 @@ export function trackOmegaConvergence(
   return {
     approximations,
     monotoneIncreasing: monotone,
-    finalRatio: approximations.length > 0
-      ? approximations[approximations.length - 1].ratio
-      : 0,
+    finalRatio:
+      approximations.length > 0
+        ? approximations[approximations.length - 1].ratio
+        : 0,
   };
 }
 
@@ -257,16 +258,23 @@ export interface SolomonoffAxiomResult {
  * 2. Normalization: weights sum to a finite positive value
  * 3. Concentration: simpler hypotheses have higher weight
  */
-export function verifySolomonoffAxioms(ss: SolomonoffSpace): SolomonoffAxiomResult {
+export function verifySolomonoffAxioms(
+  ss: SolomonoffSpace
+): SolomonoffAxiomResult {
   const n = ss.assignment.complexity.length;
   if (n === 0) {
-    return { positivity: true, normalization: true, concentration: true, allHold: true };
+    return {
+      positivity: true,
+      normalization: true,
+      concentration: true,
+      allHold: true,
+    };
   }
 
   const weights = Array.from({ length: n }, (_, i) => solomonoffWeight(ss, i));
 
   // Axiom 1: positivity
-  const positivity = weights.every(w => w > 0);
+  const positivity = weights.every((w) => w > 0);
 
   // Axiom 2: normalization (weights sum to finite positive value)
   const sum = weights.reduce((a, b) => a + b, 0);
@@ -385,7 +393,9 @@ export function estimateComplexity(input: string): number {
  * Build a ComplexityAssignment from a list of choice descriptions.
  * Each choice's complexity is estimated via compression.
  */
-export function buildComplexityAssignment(choices: string[]): ComplexityAssignment {
+export function buildComplexityAssignment(
+  choices: string[]
+): ComplexityAssignment {
   const complexity = choices.map(estimateComplexity);
   const ceiling = complexity.length > 0 ? Math.max(...complexity) : 0;
   return { complexity, ceiling };
@@ -396,7 +406,7 @@ export function buildComplexityAssignment(choices: string[]): ComplexityAssignme
  */
 export function buildSolomonoffSpace(
   choices: string[],
-  rounds: number = 0,
+  rounds: number = 0
 ): SolomonoffSpace {
   return {
     assignment: buildComplexityAssignment(choices),

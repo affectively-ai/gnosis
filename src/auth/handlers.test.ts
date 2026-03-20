@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'bun:test';
 import type { GnosisIdentity } from './core.js';
-import { GNOSIS_CORE_AUTH_LABELS, registerCoreAuthHandlers } from './handlers.js';
+import {
+  GNOSIS_CORE_AUTH_LABELS,
+  registerCoreAuthHandlers,
+} from './handlers.js';
 import {
   createHaltAttestation,
   hashPublicSignals,

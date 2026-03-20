@@ -25,7 +25,7 @@ export interface DiffValue {
 export function diffValue(
   data: number,
   requiresGrad: boolean = false,
-  label?: string,
+  label?: string
 ): DiffValue {
   return { data, grad: requiresGrad ? 0 : null, requiresGrad, label };
 }
@@ -67,7 +67,7 @@ export class GradientTape {
   record(
     result: DiffValue,
     parents: number[],
-    backward: (outGrad: number) => number[],
+    backward: (outGrad: number) => number[]
   ): number {
     const idx = this.values.length;
     this.values.push(result);
@@ -106,7 +106,7 @@ export class GradientTape {
 
   /** Get all parameter values with gradients */
   parameters(): DiffValue[] {
-    return this.values.filter(v => v.requiresGrad);
+    return this.values.filter((v) => v.requiresGrad);
   }
 
   /** Reset all gradients to zero */
@@ -207,7 +207,7 @@ export function exp(tape: GradientTape, aIdx: number): number {
 export function mseLoss(
   tape: GradientTape,
   predIdx: number,
-  targetIdx: number,
+  targetIdx: number
 ): number {
   const diff = sub(tape, predIdx, targetIdx);
   return pow(tape, diff, 2);
@@ -217,7 +217,7 @@ export function mseLoss(
 export function bceLoss(
   tape: GradientTape,
   predIdx: number,
-  targetIdx: number,
+  targetIdx: number
 ): number {
   const target = tape.get(targetIdx);
   const logPred = log(tape, predIdx);
@@ -260,7 +260,7 @@ export function createOptimizer(config: OptimizerConfig): OptimizerState {
 export function optimizerStep(
   tape: GradientTape,
   optimizer: OptimizerState,
-  paramIndices: number[],
+  paramIndices: number[]
 ): void {
   const { learningRate, weightDecay = 0, momentum = 0 } = optimizer.config;
 
@@ -312,11 +312,12 @@ export interface GradientFlowReport {
 
 export function analyzeGradientFlow(tape: GradientTape): GradientFlowReport {
   const params = tape.parameters();
-  const grads = params.map(p => Math.abs(p.grad ?? 0));
-  const nonZero = grads.filter(g => g > 1e-12);
+  const grads = params.map((p) => Math.abs(p.grad ?? 0));
+  const nonZero = grads.filter((g) => g > 1e-12);
 
   const maxGrad = grads.length > 0 ? Math.max(...grads) : 0;
-  const meanGrad = grads.length > 0 ? grads.reduce((a, b) => a + b, 0) / grads.length : 0;
+  const meanGrad =
+    grads.length > 0 ? grads.reduce((a, b) => a + b, 0) / grads.length : 0;
 
   return {
     paramCount: params.length,

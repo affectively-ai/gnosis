@@ -3,10 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { autoInitSpeculation } from './shims/aeon-flux-speculation';
 import { FlagManager } from '@a0n/aeon-flags';
 import { GoodchildProvider } from '@a0n/aeon-flags/react';
-import {
-  PreferencesProvider,
-  useAeonPreferences,
-} from '@a0n/aeon-preferences';
+import { PreferencesProvider, useAeonPreferences } from '@a0n/aeon-preferences';
 import {
   findFoundationProductByHash,
   type FoundationProductId,

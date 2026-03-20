@@ -1,12 +1,27 @@
 import { describe, it, expect } from 'bun:test';
 import {
-  mutualInformation, channelCapacity, informationGainPerStep,
-  learningRate, foldInformationLoss, foldLossEqualBranches,
-  informationBottleneckBound, ventRateDistortion, minimumDistortion,
-  mixingTimeBound, spectralGapLowerBound, mixingTimeFromGraph,
-  hoeffdingBound, minimumStepsForConcentration, concentrationRate,
+  mutualInformation,
+  channelCapacity,
+  informationGainPerStep,
+  learningRate,
+  foldInformationLoss,
+  foldLossEqualBranches,
+  informationBottleneckBound,
+  ventRateDistortion,
+  minimumDistortion,
+  mixingTimeBound,
+  spectralGapLowerBound,
+  mixingTimeFromGraph,
+  hoeffdingBound,
+  minimumStepsForConcentration,
+  concentrationRate,
 } from './void-channel.js';
-import { createVoidBoundary, updateVoidBoundary, complementDistribution, shannonEntropy } from './void.js';
+import {
+  createVoidBoundary,
+  updateVoidBoundary,
+  complementDistribution,
+  shannonEntropy,
+} from './void.js';
 
 describe('Channel capacity', () => {
   it('capacity = log(n) for n dimensions', () => {
@@ -79,7 +94,9 @@ describe('Rate-distortion at VENT', () => {
 
   it('minimum distortion decreases with higher rate budget', () => {
     const H = 2.0;
-    expect(minimumDistortion(H, 0.5)).toBeGreaterThan(minimumDistortion(H, 1.5));
+    expect(minimumDistortion(H, 0.5)).toBeGreaterThan(
+      minimumDistortion(H, 1.5)
+    );
   });
 
   it('minimum distortion is zero when rate budget >= entropy', () => {
@@ -119,12 +136,14 @@ describe('Concentration inequalities', () => {
 
   it('minimum steps increases with tighter delta', () => {
     expect(minimumStepsForConcentration(0.01)).toBeGreaterThan(
-      minimumStepsForConcentration(0.1),
+      minimumStepsForConcentration(0.1)
     );
   });
 
   it('concentration rate decreases with steps', () => {
-    expect(concentrationRate(0.1, 100)).toBeLessThan(concentrationRate(0.1, 10));
+    expect(concentrationRate(0.1, 100)).toBeLessThan(
+      concentrationRate(0.1, 10)
+    );
   });
 
   it('concentration rate approaches zero', () => {

@@ -1,14 +1,28 @@
 import { describe, it, expect } from 'bun:test';
 import {
   GradientTape,
-  parameter, constant, diffValue,
-  add, mul, sub, neg,
-  relu, sigmoid, tanh, exp, log, pow,
+  parameter,
+  constant,
+  diffValue,
+  add,
+  mul,
+  sub,
+  neg,
+  relu,
+  sigmoid,
+  tanh,
+  exp,
+  log,
+  pow,
   mseLoss,
-  createOptimizer, optimizerStep,
+  createOptimizer,
+  optimizerStep,
   analyzeGradientFlow,
 } from './differentiable.js';
-import { registerDifferentiableHandlers, DIFFERENTIABLE_OPS } from './differentiable-handlers.js';
+import {
+  registerDifferentiableHandlers,
+  DIFFERENTIABLE_OPS,
+} from './differentiable-handlers.js';
 import { GnosisRegistry } from './runtime/registry.js';
 
 describe('GradientTape', () => {

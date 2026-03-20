@@ -28,14 +28,15 @@ export interface BuleyeanDistribution {
  */
 export function computeBuleyeanDistribution(
   boundary: VoidBoundary,
-  rounds: number = 0,
+  rounds: number = 0
 ): BuleyeanDistribution {
   const T = rounds > 0 ? rounds : boundary.totalEntries;
   const weights = boundary.counts.map((v) => buleyeanWeight(T, v));
   const sum = weights.reduce((a, b) => a + b, 0);
-  const probabilities = sum > 0
-    ? weights.map((w) => w / sum)
-    : weights.map(() => 1 / weights.length);
+  const probabilities =
+    sum > 0
+      ? weights.map((w) => w / sum)
+      : weights.map(() => 1 / weights.length);
   const minimumWeight = weights.length > 0 ? Math.min(...weights) : 1;
 
   return {
@@ -52,12 +53,10 @@ export function computeBuleyeanDistribution(
  */
 export function checkFoldZeroProbability(
   boundary: VoidBoundary,
-  rounds: number = 0,
+  rounds: number = 0
 ): number[] {
   const dist = computeBuleyeanDistribution(boundary, rounds);
   // By construction, no branch can be zero (sliver guarantee).
   // This function exists for compile-time verification.
-  return dist.weights
-    .map((w, i) => (w <= 0 ? i : -1))
-    .filter((i) => i >= 0);
+  return dist.weights.map((w, i) => (w <= 0 ? i : -1)).filter((i) => i >= 0);
 }

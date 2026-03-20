@@ -153,7 +153,9 @@ function parseRecordFromUnknown(
   if (typeof value === 'string' && value.trim().length > 0) {
     try {
       const parsed = JSON.parse(value);
-      return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+      return typeof parsed === 'object' &&
+        parsed !== null &&
+        !Array.isArray(parsed)
         ? (parsed as Record<string, unknown>)
         : null;
     } catch {
@@ -285,11 +287,7 @@ function parseEncryptedPayload(value: unknown): GnosisEncryptedPayload | null {
 }
 
 function parseJsonWebKey(value: unknown): JsonWebKey | undefined {
-  if (
-    typeof value === 'object' &&
-    value !== null &&
-    !Array.isArray(value)
-  ) {
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
     return value as JsonWebKey;
   }
 
@@ -453,8 +451,8 @@ function parseEvmProofVerifierConfig(
     typeof input.verifierRpcUrl === 'string'
       ? input.verifierRpcUrl
       : typeof input.rpcUrl === 'string'
-        ? input.rpcUrl
-        : props.verifierRpcUrl ?? props.rpcUrl;
+      ? input.rpcUrl
+      : props.verifierRpcUrl ?? props.rpcUrl;
 
   const verifierAddress =
     typeof input.verifierAddress === 'string'
@@ -697,7 +695,10 @@ async function protectPayloadWithZk(
     };
   }
 
-  const candidate = findPayloadCandidate(options.input, options.candidateFields);
+  const candidate = findPayloadCandidate(
+    options.input,
+    options.candidateFields
+  );
   if (!candidate) {
     return {
       encrypted: null,
@@ -710,7 +711,10 @@ async function protectPayloadWithZk(
     };
   }
 
-  const recipientPublicKey = parseRecipientPublicKey(options.input, options.props);
+  const recipientPublicKey = parseRecipientPublicKey(
+    options.input,
+    options.props
+  );
   if (!recipientPublicKey) {
     if (required && options.sensitive) {
       throw new Error(
@@ -799,16 +803,23 @@ export function registerCoreAuthHandlers(registry: GnosisRegistry): void {
         throw new Error('UCANIssue requires payload.identity (Identity).');
       }
       if (!audience) {
-        throw new Error('UCANIssue requires an audience DID in payload.audience or props.audience.');
+        throw new Error(
+          'UCANIssue requires an audience DID in payload.audience or props.audience.'
+        );
       }
 
       const capabilities =
-        parseCapabilities(input.capabilities) || parseCapabilitiesFromProps(props);
+        parseCapabilities(input.capabilities) ||
+        parseCapabilitiesFromProps(props);
       const effectiveCapabilities =
-        capabilities.length > 0 ? capabilities : parseCapabilitiesFromProps(props);
+        capabilities.length > 0
+          ? capabilities
+          : parseCapabilitiesFromProps(props);
 
       if (effectiveCapabilities.length === 0) {
-        throw new Error('UCANIssue requires at least one capability (payload.capabilities or props.capabilities/can+with).');
+        throw new Error(
+          'UCANIssue requires at least one capability (payload.capabilities or props.capabilities/can+with).'
+        );
       }
 
       const expirationSeconds = Number.parseInt(
@@ -845,16 +856,20 @@ export function registerCoreAuthHandlers(registry: GnosisRegistry): void {
         typeof input.token === 'string'
           ? input.token
           : typeof asRecord(input.ucan).token === 'string'
-            ? (asRecord(input.ucan).token as string)
-            : null;
+          ? (asRecord(input.ucan).token as string)
+          : null;
       const issuerPublicKey = input.issuerPublicKey as JsonWebKey | undefined;
 
       if (!token) {
-        throw new Error('UCANVerify requires payload.token or payload.ucan.token.');
+        throw new Error(
+          'UCANVerify requires payload.token or payload.ucan.token.'
+        );
       }
 
       if (!issuerPublicKey) {
-        throw new Error('UCANVerify requires payload.issuerPublicKey (JsonWebKey).');
+        throw new Error(
+          'UCANVerify requires payload.issuerPublicKey (JsonWebKey).'
+        );
       }
 
       const requiredCapabilities = parseCapabilitiesFromProps(props);
@@ -905,30 +920,40 @@ export function registerCoreAuthHandlers(registry: GnosisRegistry): void {
         typeof input.parentToken === 'string'
           ? input.parentToken
           : typeof input.token === 'string'
-            ? input.token
-            : null;
+          ? input.token
+          : null;
       const issuer = input.identity as GnosisIdentity | undefined;
       const audience =
         typeof input.audience === 'string' ? input.audience : props.audience;
       const capabilities =
-        parseCapabilities(input.capabilities) || parseCapabilitiesFromProps(props);
+        parseCapabilities(input.capabilities) ||
+        parseCapabilitiesFromProps(props);
       const effectiveCapabilities =
-        capabilities.length > 0 ? capabilities : parseCapabilitiesFromProps(props);
+        capabilities.length > 0
+          ? capabilities
+          : parseCapabilitiesFromProps(props);
 
       if (!parentToken) {
-        throw new Error('UCANDelegate requires payload.parentToken (or payload.token).');
+        throw new Error(
+          'UCANDelegate requires payload.parentToken (or payload.token).'
+        );
       }
       if (!issuer) {
         throw new Error('UCANDelegate requires payload.identity (Identity).');
       }
       if (!audience) {
-        throw new Error('UCANDelegate requires payload.audience or props.audience.');
+        throw new Error(
+          'UCANDelegate requires payload.audience or props.audience.'
+        );
       }
       if (effectiveCapabilities.length === 0) {
         throw new Error('UCANDelegate requires delegated capabilities.');
       }
 
-      const sensitiveDelegation = hasDelegationConfidentialContext(input, props);
+      const sensitiveDelegation = hasDelegationConfidentialContext(
+        input,
+        props
+      );
       const delegateZkMode = resolveZkMode(
         input,
         props,
@@ -976,7 +1001,9 @@ export function registerCoreAuthHandlers(registry: GnosisRegistry): void {
       const required = parseRequiredCapability(input, props);
 
       if (!required) {
-        throw new Error('UCANRequire requires can+with (props or payload.requiredCapability).');
+        throw new Error(
+          'UCANRequire requires can+with (props or payload.requiredCapability).'
+        );
       }
 
       const capabilities = parseCapabilities(
@@ -1008,15 +1035,19 @@ export function registerCoreAuthHandlers(registry: GnosisRegistry): void {
         typeof input.plaintext === 'string'
           ? input.plaintext
           : typeof input.value === 'string'
-            ? input.value
-            : null;
-      const recipientPublicKey = input.recipientPublicKey as JsonWebKey | undefined;
+          ? input.value
+          : null;
+      const recipientPublicKey = input.recipientPublicKey as
+        | JsonWebKey
+        | undefined;
 
       if (!plaintext) {
         throw new Error('ZKEncrypt requires payload.plaintext (string).');
       }
       if (!recipientPublicKey) {
-        throw new Error('ZKEncrypt requires payload.recipientPublicKey (JsonWebKey).');
+        throw new Error(
+          'ZKEncrypt requires payload.recipientPublicKey (JsonWebKey).'
+        );
       }
 
       const encrypted = await zkEncryptUtf8({ plaintext, recipientPublicKey });
@@ -1034,13 +1065,19 @@ export function registerCoreAuthHandlers(registry: GnosisRegistry): void {
     async (payload, _props) => {
       const input = asRecord(payload);
       const encrypted = parseEncryptedPayload(input.encrypted);
-      const recipientPrivateKey = input.recipientPrivateKey as JsonWebKey | undefined;
+      const recipientPrivateKey = input.recipientPrivateKey as
+        | JsonWebKey
+        | undefined;
 
       if (!encrypted) {
-        throw new Error('ZKDecrypt requires payload.encrypted (EncryptedPayload).');
+        throw new Error(
+          'ZKDecrypt requires payload.encrypted (EncryptedPayload).'
+        );
       }
       if (!recipientPrivateKey) {
-        throw new Error('ZKDecrypt requires payload.recipientPrivateKey (JsonWebKey).');
+        throw new Error(
+          'ZKDecrypt requires payload.recipientPrivateKey (JsonWebKey).'
+        );
       }
 
       const plaintext = await zkDecryptUtf8({
@@ -1064,7 +1101,9 @@ export function registerCoreAuthHandlers(registry: GnosisRegistry): void {
         typeof input.action === 'string' ? input.action : props.action;
 
       if (!action) {
-        throw new Error('CustodialSigner requires an action (payload.action or props.action).');
+        throw new Error(
+          'CustodialSigner requires an action (payload.action or props.action).'
+        );
       }
 
       const allowed = isAllowedCustodialAction(action);
@@ -1073,8 +1112,11 @@ export function registerCoreAuthHandlers(registry: GnosisRegistry): void {
       }
 
       const hasCustodialPayload =
-        findPayloadCandidate(input, ['payload', 'signerPayload', 'signature']) !==
-        null;
+        findPayloadCandidate(input, [
+          'payload',
+          'signerPayload',
+          'signature',
+        ]) !== null;
       const custodialZkMode = resolveZkMode(
         input,
         props,
@@ -1119,7 +1161,14 @@ export function registerCoreAuthHandlers(registry: GnosisRegistry): void {
         sensitive: syncSensitive,
         input,
         props,
-        candidateFields: ['delta', 'update', 'payload', 'state', 'snapshot', 'data'],
+        candidateFields: [
+          'delta',
+          'update',
+          'payload',
+          'state',
+          'snapshot',
+          'data',
+        ],
       });
 
       return {
@@ -1151,7 +1200,14 @@ export function registerCoreAuthHandlers(registry: GnosisRegistry): void {
         sensitive: privateMaterialization,
         input,
         props,
-        candidateFields: ['payload', 'plaintext', 'value', 'state', 'snapshot', 'content'],
+        candidateFields: [
+          'payload',
+          'plaintext',
+          'value',
+          'state',
+          'snapshot',
+          'content',
+        ],
       });
 
       return {
@@ -1189,7 +1245,9 @@ export function registerCoreAuthHandlers(registry: GnosisRegistry): void {
 
       if (!verification.valid && failClosed) {
         throw new Error(
-          `HALTAttestationVerify failed: ${verification.reason ?? 'unknown failure'}`
+          `HALTAttestationVerify failed: ${
+            verification.reason ?? 'unknown failure'
+          }`
         );
       }
 

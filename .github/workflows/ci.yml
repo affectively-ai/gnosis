@@ -20,16 +20,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          bun-version: latest
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
 
       - name: Install dependencies
-        run: bun install
+        run: pnpm install
 
       - name: Build
-        run: bun run build
+        run: pnpm run build
 
       - name: Generate formal and complexity reports
         run: |
@@ -38,12 +41,12 @@ jobs:
 
           for gg_file in betti.gg transformer.gg ai_hello.gg example.gg; do
             base_name="${gg_file%.gg}"
-            bun ./bin/gnosis.js lint "${gg_file}" --json > "reports/${base_name}.gg.json"
-            bun ./bin/gnosis.js lint "${gg_file}" --sarif > "reports/${base_name}.gg.sarif"
+            node ./bin/gnosis.js lint "${gg_file}" --json > "reports/${base_name}.gg.json"
+            node ./bin/gnosis.js lint "${gg_file}" --sarif > "reports/${base_name}.gg.sarif"
           done
 
-          bun ./bin/gnosis.js analyze src --json > reports/typescript.json
-          bun ./bin/gnosis.js analyze src --sarif > reports/typescript.sarif
+          node ./bin/gnosis.js analyze src --json > reports/typescript.json
+          node ./bin/gnosis.js analyze src --sarif > reports/typescript.sarif
 
       - name: Upload SARIF to code scanning
         if: always()

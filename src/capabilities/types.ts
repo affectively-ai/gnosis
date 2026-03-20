@@ -1,4 +1,4 @@
-export type RuntimeTarget = 'agnostic' | 'workers' | 'node' | 'bun';
+export type RuntimeTarget = 'agnostic' | 'workers' | 'node' | 'gnode';
 
 export type HostCapability =
   | 'net.tcp.client'

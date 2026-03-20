@@ -22,7 +22,10 @@ const packageRoot = resolve(here, '..');
 const require = createRequire(import.meta.url);
 const driverPath = resolve(here, '../gnode/bridge-driver.ts');
 const bundlePath = resolve(here, '../dist/gnode/bridge-driver.bundle.cjs');
-const manifestPath = resolve(here, '../dist/gnode/bridge-driver.bundle-manifest.json');
+const manifestPath = resolve(
+  here,
+  '../dist/gnode/bridge-driver.bundle-manifest.json'
+);
 const forwardedArgv =
   process.argv[2] === '--' ? process.argv.slice(3) : process.argv.slice(2);
 const traceWrapperTimings =
@@ -126,6 +129,7 @@ function bundleIsFresh() {
 }
 
 function buildBundle() {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { buildSync } = require('esbuild');
   mkdirSync(dirname(bundlePath), { recursive: true });
   const result = buildSync({
@@ -186,6 +190,7 @@ async function main() {
     let bundledDriver;
     try {
       const bundleRequireStarted = performance.now();
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       bundledDriver = require(bundlePath);
       bundleRequireMs = performance.now() - bundleRequireStarted;
       if (typeof bundledDriver.runCli !== 'function') {
@@ -217,6 +222,7 @@ async function main() {
   }
 
   const childSpawnStarted = performance.now();
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const result = require('node:child_process').spawnSync(
     process.execPath,
     ['--import', 'tsx', driverPath, ...forwardedArgv],

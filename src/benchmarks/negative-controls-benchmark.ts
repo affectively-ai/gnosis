@@ -73,7 +73,10 @@ export interface NegativeControlTaskReport {
   readonly targetFamily: 'left-only-affine' | 'positive-x-single-expert';
   readonly thresholds: ControlThresholds;
   readonly topology: ControlTopologyMetrics;
-  readonly strategies: Record<NegativeControlStrategy, NegativeControlStrategyReport>;
+  readonly strategies: Record<
+    NegativeControlStrategy,
+    NegativeControlStrategyReport
+  >;
   readonly rankingByEvalMeanSquaredError: readonly NegativeControlStrategy[];
   readonly maxEvalMeanSquaredErrorGap: number;
   readonly minExactWithinToleranceFraction: number;
@@ -163,7 +166,10 @@ function sigmoid(value: number): number {
 
 function countConnectedComponents(
   nodeIds: readonly string[],
-  edges: readonly { sourceIds: readonly string[]; targetIds: readonly string[] }[],
+  edges: readonly {
+    sourceIds: readonly string[];
+    targetIds: readonly string[];
+  }[]
 ): number {
   const neighbors = new Map<string, Set<string>>();
   for (const nodeId of nodeIds) {
@@ -210,34 +216,56 @@ function countConnectedComponents(
 
 function structuralBeta1(
   nodeIds: readonly string[],
-  edges: readonly { sourceIds: readonly string[]; targetIds: readonly string[] }[],
+  edges: readonly {
+    sourceIds: readonly string[];
+    targetIds: readonly string[];
+  }[]
 ): number {
   const expandedEdgeCount = edges.reduce(
     (sum, edge) => sum + edge.sourceIds.length * edge.targetIds.length,
-    0,
+    0
   );
-  return Math.max(0, expandedEdgeCount - nodeIds.length + countConnectedComponents(nodeIds, edges));
+  return Math.max(
+    0,
+    expandedEdgeCount -
+      nodeIds.length +
+      countConnectedComponents(nodeIds, edges)
+  );
 }
 
 function summarizeSeedMetrics(
-  metrics: readonly SeedMetrics[],
+  metrics: readonly SeedMetrics[]
 ): ControlMetricSummary {
-  const evalMeanSquaredErrors = metrics.map((entry) => entry.evalMeanSquaredError);
-  const exactFractions = metrics.map((entry) => entry.exactWithinToleranceFraction);
+  const evalMeanSquaredErrors = metrics.map(
+    (entry) => entry.evalMeanSquaredError
+  );
+  const exactFractions = metrics.map(
+    (entry) => entry.exactWithinToleranceFraction
+  );
 
   return {
     seedMetrics: metrics,
-    meanTrainMeanSquaredError: mean(metrics.map((entry) => entry.trainMeanSquaredError)),
-    stdevTrainMeanSquaredError: stdev(metrics.map((entry) => entry.trainMeanSquaredError)),
+    meanTrainMeanSquaredError: mean(
+      metrics.map((entry) => entry.trainMeanSquaredError)
+    ),
+    stdevTrainMeanSquaredError: stdev(
+      metrics.map((entry) => entry.trainMeanSquaredError)
+    ),
     meanEvalMeanSquaredError: mean(evalMeanSquaredErrors),
-    evalMeanSquaredErrorCi95: bootstrapMeanConfidenceInterval(evalMeanSquaredErrors, {
-      seed: 0x55112233,
-    }),
+    evalMeanSquaredErrorCi95: bootstrapMeanConfidenceInterval(
+      evalMeanSquaredErrors,
+      {
+        seed: 0x55112233,
+      }
+    ),
     stdevEvalMeanSquaredError: stdev(evalMeanSquaredErrors),
     meanExactWithinToleranceFraction: mean(exactFractions),
-    exactWithinToleranceFractionCi95: bootstrapMeanConfidenceInterval(exactFractions, {
-      seed: 0x66112233,
-    }),
+    exactWithinToleranceFractionCi95: bootstrapMeanConfidenceInterval(
+      exactFractions,
+      {
+        seed: 0x66112233,
+      }
+    ),
     stdevExactWithinToleranceFraction: stdev(exactFractions),
   };
 }
@@ -265,10 +293,12 @@ function buildAffineControlSamples(axis: readonly number[]): AffineSample[] {
 function predictAffine(
   strategy: NegativeControlStrategy,
   parameters: AffineParameters,
-  sample: AffineSample,
+  sample: AffineSample
 ): AffinePrediction {
-  const leftValue = parameters.leftWeight * sample.leftInput + parameters.leftBias;
-  const rightValue = parameters.rightWeight * sample.rightInput + parameters.rightBias;
+  const leftValue =
+    parameters.leftWeight * sample.leftInput + parameters.leftBias;
+  const rightValue =
+    parameters.rightWeight * sample.rightInput + parameters.rightBias;
 
   if (strategy === 'linear') {
     return {
@@ -288,7 +318,8 @@ function predictAffine(
     };
   }
 
-  const selectedBranch = Math.abs(leftValue) >= Math.abs(rightValue) ? 'left' : 'right';
+  const selectedBranch =
+    Math.abs(leftValue) >= Math.abs(rightValue) ? 'left' : 'right';
   return {
     leftValue,
     rightValue,
@@ -301,7 +332,7 @@ function updateAffineParameters(
   strategy: NegativeControlStrategy,
   parameters: AffineParameters,
   sample: AffineSample,
-  learningRate: number,
+  learningRate: number
 ): void {
   const result = predictAffine(strategy, parameters, sample);
   const error = result.prediction - sample.target;
@@ -328,13 +359,14 @@ function evaluateAffineSamples(
   strategy: NegativeControlStrategy,
   parameters: AffineParameters,
   samples: readonly AffineSample[],
-  tolerance: number,
+  tolerance: number
 ): Omit<SeedMetrics, 'seed' | 'trainMeanSquaredError'> {
   let squaredErrorSum = 0;
   let exactCount = 0;
 
   for (const sample of samples) {
-    const error = predictAffine(strategy, parameters, sample).prediction - sample.target;
+    const error =
+      predictAffine(strategy, parameters, sample).prediction - sample.target;
     squaredErrorSum += error * error;
     if (Math.abs(error) <= tolerance) {
       exactCount++;
@@ -350,7 +382,7 @@ function evaluateAffineSamples(
 function sampleAffinePredictions(
   strategy: NegativeControlStrategy,
   parameterSets: readonly AffineParameters[],
-  samplePoints: readonly number[],
+  samplePoints: readonly number[]
 ): SamplePrediction[] {
   return samplePoints.map((leftInput) => {
     const sample: AffineSample = {
@@ -359,7 +391,7 @@ function sampleAffinePredictions(
       target: leftInput,
     };
     const predictions = parameterSets.map(
-      (parameters) => predictAffine(strategy, parameters, sample).prediction,
+      (parameters) => predictAffine(strategy, parameters, sample).prediction
     );
     return {
       leftInput,
@@ -375,7 +407,8 @@ function initializeExpertParameters(seed: number): ExpertParameters[] {
   const random = createDeterministicRandom(seed);
   return expertSpecs.map((_, index) => ({
     gateWeight: index === 0 ? 0.3 + random() * 0.3 : (random() - 0.5) * 0.2,
-    gateBias: index === 0 ? 0.2 + random() * 0.2 : -0.2 + (random() - 0.5) * 0.2,
+    gateBias:
+      index === 0 ? 0.2 + random() * 0.2 : -0.2 + (random() - 0.5) * 0.2,
     valueWeight: index === 0 ? 0.4 + random() * 0.4 : (random() - 0.5) * 0.2,
     valueBias: (random() - 0.5) * 0.1,
   }));
@@ -392,7 +425,7 @@ function buildRoutingControlSamples(axis: readonly number[]): RoutedSample[] {
 function predictRouting(
   strategy: NegativeControlStrategy,
   parameters: readonly ExpertParameters[],
-  sample: RoutedSample,
+  sample: RoutedSample
 ): RoutedPrediction {
   const expertActivations = expertSpecs.map((expert, index) => {
     const parameter = parameters[index];
@@ -402,7 +435,9 @@ function predictRouting(
 
     const signedInput = expert.signedProjection(sample);
     const axisInput = expert.axisProjection(sample);
-    const gate = sigmoid(parameter.gateWeight * signedInput + parameter.gateBias);
+    const gate = sigmoid(
+      parameter.gateWeight * signedInput + parameter.gateBias
+    );
     const value = parameter.valueWeight * axisInput + parameter.valueBias;
 
     return {
@@ -418,14 +453,21 @@ function predictRouting(
   for (let index = 1; index < expertActivations.length; index++) {
     const selected = expertActivations[selectedExpertIndex];
     const candidate = expertActivations[index];
-    if (candidate && selected && Math.abs(candidate.output) > Math.abs(selected.output)) {
+    if (
+      candidate &&
+      selected &&
+      Math.abs(candidate.output) > Math.abs(selected.output)
+    ) {
       selectedExpertIndex = index;
     }
   }
 
   if (strategy === 'linear') {
     return {
-      prediction: expertActivations.reduce((sum, activation) => sum + activation.output, 0),
+      prediction: expertActivations.reduce(
+        (sum, activation) => sum + activation.output,
+        0
+      ),
       selectedExpertIndex,
       expertActivations,
     };
@@ -450,13 +492,16 @@ function updateRoutingParameters(
   strategy: NegativeControlStrategy,
   parameters: ExpertParameters[],
   sample: RoutedSample,
-  learningRate: number,
+  learningRate: number
 ): void {
   const result = predictRouting(strategy, parameters, sample);
   const error = result.prediction - sample.target;
 
   for (let index = 0; index < parameters.length; index++) {
-    if (strategy === 'winner-take-all' && index !== result.selectedExpertIndex) {
+    if (
+      strategy === 'winner-take-all' &&
+      index !== result.selectedExpertIndex
+    ) {
       continue;
     }
     if (strategy === 'early-stop' && index !== 0) {
@@ -470,10 +515,15 @@ function updateRoutingParameters(
     }
 
     const gatePrime = activation.gate * (1 - activation.gate);
-    parameter.valueWeight -= learningRate * error * activation.gate * activation.axisInput;
+    parameter.valueWeight -=
+      learningRate * error * activation.gate * activation.axisInput;
     parameter.valueBias -= learningRate * error * activation.gate;
     parameter.gateWeight -=
-      learningRate * error * gatePrime * activation.signedInput * activation.value;
+      learningRate *
+      error *
+      gatePrime *
+      activation.signedInput *
+      activation.value;
     parameter.gateBias -= learningRate * error * gatePrime * activation.value;
   }
 }
@@ -482,13 +532,14 @@ function evaluateRoutingSamples(
   strategy: NegativeControlStrategy,
   parameters: readonly ExpertParameters[],
   samples: readonly RoutedSample[],
-  tolerance: number,
+  tolerance: number
 ): Omit<SeedMetrics, 'seed' | 'trainMeanSquaredError'> {
   let squaredErrorSum = 0;
   let exactCount = 0;
 
   for (const sample of samples) {
-    const error = predictRouting(strategy, parameters, sample).prediction - sample.target;
+    const error =
+      predictRouting(strategy, parameters, sample).prediction - sample.target;
     squaredErrorSum += error * error;
     if (Math.abs(error) <= tolerance) {
       exactCount++;
@@ -504,7 +555,7 @@ function evaluateRoutingSamples(
 function sampleRoutingPredictions(
   strategy: NegativeControlStrategy,
   parameterSets: readonly (readonly ExpertParameters[])[],
-  samplePoints: readonly number[],
+  samplePoints: readonly number[]
 ): SamplePrediction[] {
   return samplePoints.map((leftInput) => {
     const sample: RoutedSample = {
@@ -513,7 +564,7 @@ function sampleRoutingPredictions(
       target: leftInput,
     };
     const predictions = parameterSets.map(
-      (parameters) => predictRouting(strategy, parameters, sample).prediction,
+      (parameters) => predictRouting(strategy, parameters, sample).prediction
     );
     return {
       leftInput,
@@ -527,28 +578,34 @@ function sampleRoutingPredictions(
 
 async function loadAffineTopologyMetrics(): Promise<ControlTopologyMetrics> {
   const topologies = await Promise.all(
-    (Object.keys(DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES) as NegativeControlStrategy[]).map(
-      async (strategy) => {
-        const path = DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES[strategy];
-        const source = await readFile(path, 'utf8');
-        const program = parseGgProgram(source);
-        const branchNodes = program.nodes.filter((node) => node.labels.includes('AffineBranch'));
-        return {
-          strategy,
-          nodeCount: program.nodes.length,
-          edgeCount: program.edges.length,
-          structuralBeta1: structuralBeta1(
-            program.nodes.map((node) => node.id),
-            program.edges.map((edge) => ({
-              sourceIds: edge.sourceIds,
-              targetIds: edge.targetIds,
-            })),
-          ),
-          unitCount: branchNodes.length,
-          parameterCount: branchNodes.length * 2,
-        } satisfies ControlTopologyMetrics & { strategy: NegativeControlStrategy };
-      },
-    ),
+    (
+      Object.keys(
+        DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES
+      ) as NegativeControlStrategy[]
+    ).map(async (strategy) => {
+      const path = DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES[strategy];
+      const source = await readFile(path, 'utf8');
+      const program = parseGgProgram(source);
+      const branchNodes = program.nodes.filter((node) =>
+        node.labels.includes('AffineBranch')
+      );
+      return {
+        strategy,
+        nodeCount: program.nodes.length,
+        edgeCount: program.edges.length,
+        structuralBeta1: structuralBeta1(
+          program.nodes.map((node) => node.id),
+          program.edges.map((edge) => ({
+            sourceIds: edge.sourceIds,
+            targetIds: edge.targetIds,
+          }))
+        ),
+        unitCount: branchNodes.length,
+        parameterCount: branchNodes.length * 2,
+      } satisfies ControlTopologyMetrics & {
+        strategy: NegativeControlStrategy;
+      };
+    })
   );
 
   const baseline = topologies[0];
@@ -563,7 +620,9 @@ async function loadAffineTopologyMetrics(): Promise<ControlTopologyMetrics> {
       topology.unitCount !== baseline.unitCount ||
       topology.parameterCount !== baseline.parameterCount
     ) {
-      throw new Error(`Affine negative control is not parameter-matched for ${topology.strategy}`);
+      throw new Error(
+        `Affine negative control is not parameter-matched for ${topology.strategy}`
+      );
     }
   }
   return baseline;
@@ -571,32 +630,36 @@ async function loadAffineTopologyMetrics(): Promise<ControlTopologyMetrics> {
 
 async function loadRoutingTopologyMetrics(): Promise<ControlTopologyMetrics> {
   const topologies = await Promise.all(
-    (Object.keys(DEFAULT_MINI_MOE_ROUTING_TOPOLOGY_FILES) as MiniMoeRoutingStrategy[]).map(
-      async (strategy) => {
-        const path = DEFAULT_MINI_MOE_ROUTING_TOPOLOGY_FILES[strategy];
-        const source = await readFile(path, 'utf8');
-        const program = parseGgProgram(source);
-        const expertNodes = program.nodes.filter((node) => node.labels.includes('MoEExpert'));
-        const parameterCount = expertNodes.reduce((sum, node) => {
-          const rawParameters = Number(node.properties.parameters ?? 0);
-          return sum + (Number.isFinite(rawParameters) ? rawParameters : 0);
-        }, 0);
-        return {
-          strategy,
-          nodeCount: program.nodes.length,
-          edgeCount: program.edges.length,
-          structuralBeta1: structuralBeta1(
-            program.nodes.map((node) => node.id),
-            program.edges.map((edge) => ({
-              sourceIds: edge.sourceIds,
-              targetIds: edge.targetIds,
-            })),
-          ),
-          unitCount: expertNodes.length,
-          parameterCount,
-        } satisfies ControlTopologyMetrics & { strategy: MiniMoeRoutingStrategy };
-      },
-    ),
+    (
+      Object.keys(
+        DEFAULT_MINI_MOE_ROUTING_TOPOLOGY_FILES
+      ) as MiniMoeRoutingStrategy[]
+    ).map(async (strategy) => {
+      const path = DEFAULT_MINI_MOE_ROUTING_TOPOLOGY_FILES[strategy];
+      const source = await readFile(path, 'utf8');
+      const program = parseGgProgram(source);
+      const expertNodes = program.nodes.filter((node) =>
+        node.labels.includes('MoEExpert')
+      );
+      const parameterCount = expertNodes.reduce((sum, node) => {
+        const rawParameters = Number(node.properties.parameters ?? 0);
+        return sum + (Number.isFinite(rawParameters) ? rawParameters : 0);
+      }, 0);
+      return {
+        strategy,
+        nodeCount: program.nodes.length,
+        edgeCount: program.edges.length,
+        structuralBeta1: structuralBeta1(
+          program.nodes.map((node) => node.id),
+          program.edges.map((edge) => ({
+            sourceIds: edge.sourceIds,
+            targetIds: edge.targetIds,
+          }))
+        ),
+        unitCount: expertNodes.length,
+        parameterCount,
+      } satisfies ControlTopologyMetrics & { strategy: MiniMoeRoutingStrategy };
+    })
   );
 
   const baseline = topologies[0];
@@ -611,7 +674,9 @@ async function loadRoutingTopologyMetrics(): Promise<ControlTopologyMetrics> {
       topology.unitCount !== baseline.unitCount ||
       topology.parameterCount !== baseline.parameterCount
     ) {
-      throw new Error(`Routing negative control is not parameter-matched for ${topology.strategy}`);
+      throw new Error(
+        `Routing negative control is not parameter-matched for ${topology.strategy}`
+      );
     }
   }
   return baseline;
@@ -633,9 +698,14 @@ async function buildAffineLeftOnlyTask(): Promise<NegativeControlTaskReport> {
   const trainSamples = buildAffineControlSamples(trainAxis);
   const evalSamples = buildAffineControlSamples(evalAxis);
 
-  const strategies = {} as Record<NegativeControlStrategy, NegativeControlStrategyReport>;
+  const strategies = {} as Record<
+    NegativeControlStrategy,
+    NegativeControlStrategyReport
+  >;
 
-  for (const strategy of Object.keys(DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES) as NegativeControlStrategy[]) {
+  for (const strategy of Object.keys(
+    DEFAULT_FOLD_TRAINING_TOPOLOGY_FILES
+  ) as NegativeControlStrategy[]) {
     const seedMetrics: SeedMetrics[] = [];
     const trainedParameters: AffineParameters[] = [];
 
@@ -652,20 +722,35 @@ async function buildAffineLeftOnlyTask(): Promise<NegativeControlTaskReport> {
         }
       }
 
-      const trainEvaluation = evaluateAffineSamples(strategy, parameters, trainSamples, tolerance);
-      const evalEvaluation = evaluateAffineSamples(strategy, parameters, evalSamples, tolerance);
+      const trainEvaluation = evaluateAffineSamples(
+        strategy,
+        parameters,
+        trainSamples,
+        tolerance
+      );
+      const evalEvaluation = evaluateAffineSamples(
+        strategy,
+        parameters,
+        evalSamples,
+        tolerance
+      );
       seedMetrics.push({
         seed,
         trainMeanSquaredError: trainEvaluation.evalMeanSquaredError,
         evalMeanSquaredError: evalEvaluation.evalMeanSquaredError,
-        exactWithinToleranceFraction: evalEvaluation.exactWithinToleranceFraction,
+        exactWithinToleranceFraction:
+          evalEvaluation.exactWithinToleranceFraction,
       });
       trainedParameters.push({ ...parameters });
     }
 
     strategies[strategy] = {
       ...summarizeSeedMetrics(seedMetrics),
-      samplePredictions: sampleAffinePredictions(strategy, trainedParameters, samplePoints),
+      samplePredictions: sampleAffinePredictions(
+        strategy,
+        trainedParameters,
+        samplePoints
+      ),
     };
   }
 
@@ -673,16 +758,18 @@ async function buildAffineLeftOnlyTask(): Promise<NegativeControlTaskReport> {
     Object.keys(strategies) as NegativeControlStrategy[]
   ).sort(
     (left, right) =>
-      strategies[left].meanEvalMeanSquaredError - strategies[right].meanEvalMeanSquaredError,
+      strategies[left].meanEvalMeanSquaredError -
+      strategies[right].meanEvalMeanSquaredError
   );
 
   const evalValues = rankingByEvalMeanSquaredError.map(
-    (strategy) => strategies[strategy].meanEvalMeanSquaredError,
+    (strategy) => strategies[strategy].meanEvalMeanSquaredError
   );
   const exactValues = rankingByEvalMeanSquaredError.map(
-    (strategy) => strategies[strategy].meanExactWithinToleranceFraction,
+    (strategy) => strategies[strategy].meanExactWithinToleranceFraction
   );
-  const maxEvalMeanSquaredErrorGap = Math.max(...evalValues) - Math.min(...evalValues);
+  const maxEvalMeanSquaredErrorGap =
+    Math.max(...evalValues) - Math.min(...evalValues);
   const minExactWithinToleranceFraction = Math.min(...exactValues);
 
   return {
@@ -699,7 +786,8 @@ async function buildAffineLeftOnlyTask(): Promise<NegativeControlTaskReport> {
     minExactWithinToleranceFraction,
     parityRecovered:
       maxEvalMeanSquaredErrorGap <= thresholds.maxEvalMeanSquaredErrorGap &&
-      minExactWithinToleranceFraction >= thresholds.minExactWithinToleranceFraction,
+      minExactWithinToleranceFraction >=
+        thresholds.minExactWithinToleranceFraction,
   };
 }
 
@@ -719,10 +807,13 @@ async function buildRoutingPositiveXTask(): Promise<NegativeControlTaskReport> {
   const trainSamples = buildRoutingControlSamples(trainAxis);
   const evalSamples = buildRoutingControlSamples(evalAxis);
 
-  const strategies = {} as Record<NegativeControlStrategy, NegativeControlStrategyReport>;
+  const strategies = {} as Record<
+    NegativeControlStrategy,
+    NegativeControlStrategyReport
+  >;
 
   for (const strategy of Object.keys(
-    DEFAULT_MINI_MOE_ROUTING_TOPOLOGY_FILES,
+    DEFAULT_MINI_MOE_ROUTING_TOPOLOGY_FILES
   ) as NegativeControlStrategy[]) {
     const seedMetrics: SeedMetrics[] = [];
     const trainedParameters: ExpertParameters[][] = [];
@@ -740,20 +831,35 @@ async function buildRoutingPositiveXTask(): Promise<NegativeControlTaskReport> {
         }
       }
 
-      const trainEvaluation = evaluateRoutingSamples(strategy, parameters, trainSamples, tolerance);
-      const evalEvaluation = evaluateRoutingSamples(strategy, parameters, evalSamples, tolerance);
+      const trainEvaluation = evaluateRoutingSamples(
+        strategy,
+        parameters,
+        trainSamples,
+        tolerance
+      );
+      const evalEvaluation = evaluateRoutingSamples(
+        strategy,
+        parameters,
+        evalSamples,
+        tolerance
+      );
       seedMetrics.push({
         seed,
         trainMeanSquaredError: trainEvaluation.evalMeanSquaredError,
         evalMeanSquaredError: evalEvaluation.evalMeanSquaredError,
-        exactWithinToleranceFraction: evalEvaluation.exactWithinToleranceFraction,
+        exactWithinToleranceFraction:
+          evalEvaluation.exactWithinToleranceFraction,
       });
       trainedParameters.push(parameters.map((parameter) => ({ ...parameter })));
     }
 
     strategies[strategy] = {
       ...summarizeSeedMetrics(seedMetrics),
-      samplePredictions: sampleRoutingPredictions(strategy, trainedParameters, samplePoints),
+      samplePredictions: sampleRoutingPredictions(
+        strategy,
+        trainedParameters,
+        samplePoints
+      ),
     };
   }
 
@@ -761,16 +867,18 @@ async function buildRoutingPositiveXTask(): Promise<NegativeControlTaskReport> {
     Object.keys(strategies) as NegativeControlStrategy[]
   ).sort(
     (left, right) =>
-      strategies[left].meanEvalMeanSquaredError - strategies[right].meanEvalMeanSquaredError,
+      strategies[left].meanEvalMeanSquaredError -
+      strategies[right].meanEvalMeanSquaredError
   );
 
   const evalValues = rankingByEvalMeanSquaredError.map(
-    (strategy) => strategies[strategy].meanEvalMeanSquaredError,
+    (strategy) => strategies[strategy].meanEvalMeanSquaredError
   );
   const exactValues = rankingByEvalMeanSquaredError.map(
-    (strategy) => strategies[strategy].meanExactWithinToleranceFraction,
+    (strategy) => strategies[strategy].meanExactWithinToleranceFraction
   );
-  const maxEvalMeanSquaredErrorGap = Math.max(...evalValues) - Math.min(...evalValues);
+  const maxEvalMeanSquaredErrorGap =
+    Math.max(...evalValues) - Math.min(...evalValues);
   const minExactWithinToleranceFraction = Math.min(...exactValues);
 
   return {
@@ -787,7 +895,8 @@ async function buildRoutingPositiveXTask(): Promise<NegativeControlTaskReport> {
     minExactWithinToleranceFraction,
     parityRecovered:
       maxEvalMeanSquaredErrorGap <= thresholds.maxEvalMeanSquaredErrorGap &&
-      minExactWithinToleranceFraction >= thresholds.minExactWithinToleranceFraction,
+      minExactWithinToleranceFraction >=
+        thresholds.minExactWithinToleranceFraction,
   };
 }
 
@@ -814,13 +923,15 @@ function formatSamplePair(sample: SamplePrediction): string {
 }
 
 export function renderGnosisNegativeControlsBenchmarkMarkdown(
-  report: GnosisNegativeControlsBenchmarkReport,
+  report: GnosisNegativeControlsBenchmarkReport
 ): string {
   const lines: string[] = [];
   lines.push('# Gnosis Negative Controls Benchmark');
   lines.push('');
   lines.push(`- Label: \`${report.label}\``);
-  lines.push(`- All controls pass: \`${report.allControlsPass ? 'yes' : 'no'}\``);
+  lines.push(
+    `- All controls pass: \`${report.allControlsPass ? 'yes' : 'no'}\``
+  );
   lines.push('');
 
   for (const [taskId, task] of Object.entries(report.tasks) as Array<
@@ -835,34 +946,44 @@ export function renderGnosisNegativeControlsBenchmarkMarkdown(
     lines.push(`- Shared parameter count: \`${task.topology.parameterCount}\``);
     lines.push(`- Shared structural β₁: \`${task.topology.structuralBeta1}\``);
     lines.push(
-      `- Control recovered: \`${task.parityRecovered ? 'yes' : 'no'}\` (max eval-MSE gap ${task.maxEvalMeanSquaredErrorGap.toFixed(3)}, min exact ${task.minExactWithinToleranceFraction.toFixed(3)})`,
+      `- Control recovered: \`${
+        task.parityRecovered ? 'yes' : 'no'
+      }\` (max eval-MSE gap ${task.maxEvalMeanSquaredErrorGap.toFixed(
+        3
+      )}, min exact ${task.minExactWithinToleranceFraction.toFixed(3)})`
     );
     lines.push('');
     lines.push(
-      '| Strategy | Mean eval MSE | Eval MSE 95% CI | Exact-within-tolerance | Exact 95% CI |',
+      '| Strategy | Mean eval MSE | Eval MSE 95% CI | Exact-within-tolerance | Exact 95% CI |'
     );
     lines.push('|---|---:|---:|---:|---:|');
 
     for (const strategy of task.rankingByEvalMeanSquaredError) {
       const metrics = task.strategies[strategy];
       lines.push(
-        `| \`${strategy}\` | ${metrics.meanEvalMeanSquaredError.toFixed(3)} | ${formatInterval(
-          metrics.evalMeanSquaredErrorCi95,
-        )} | ${metrics.meanExactWithinToleranceFraction.toFixed(3)} | ${formatInterval(
-          metrics.exactWithinToleranceFractionCi95,
-        )} |`,
+        `| \`${strategy}\` | ${metrics.meanEvalMeanSquaredError.toFixed(
+          3
+        )} | ${formatInterval(
+          metrics.evalMeanSquaredErrorCi95
+        )} | ${metrics.meanExactWithinToleranceFraction.toFixed(
+          3
+        )} | ${formatInterval(metrics.exactWithinToleranceFractionCi95)} |`
       );
     }
 
     lines.push('');
-    lines.push('| Strategy | Input pair | Target | Mean prediction | Prediction σ |');
+    lines.push(
+      '| Strategy | Input pair | Target | Mean prediction | Prediction σ |'
+    );
     lines.push('|---|---|---:|---:|---:|');
     for (const strategy of task.rankingByEvalMeanSquaredError) {
       for (const sample of task.strategies[strategy].samplePredictions) {
         lines.push(
-          `| \`${strategy}\` | ${formatSamplePair(sample)} | ${sample.target.toFixed(
-            3,
-          )} | ${sample.meanPrediction.toFixed(3)} | ${sample.predictionStddev.toFixed(3)} |`,
+          `| \`${strategy}\` | ${formatSamplePair(
+            sample
+          )} | ${sample.target.toFixed(3)} | ${sample.meanPrediction.toFixed(
+            3
+          )} | ${sample.predictionStddev.toFixed(3)} |`
         );
       }
     }
@@ -870,7 +991,7 @@ export function renderGnosisNegativeControlsBenchmarkMarkdown(
   }
 
   lines.push(
-    'Interpretation: these controls reuse the Chapter 17 Gnosis topologies but switch to one-path tasks where additive recombination is unnecessary. The expected result is parity across fold rules, which is what the artifact reports.',
+    'Interpretation: these controls reuse the Chapter 17 Gnosis topologies but switch to one-path tasks where additive recombination is unnecessary. The expected result is parity across fold rules, which is what the artifact reports.'
   );
   lines.push('');
   return `${lines.join('\n')}\n`;
