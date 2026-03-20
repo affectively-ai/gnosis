@@ -55,6 +55,22 @@ enum GnodeCommand {
         #[arg(long, value_enum, default_value_t = Strategy::Cannon)]
         strategy: Strategy,
     },
+    /// Build-time topo-race: race each function across languages at compile time,
+    /// record winners in strategy memory, emit optimized topology with languages pinned.
+    Build {
+        /// Source files to build.
+        #[arg(num_args = 1..)]
+        files: Vec<PathBuf>,
+        /// Candidate languages (comma-separated). Default: auto-detected.
+        #[arg(long)]
+        languages: Option<String>,
+        /// Maximum candidates to race per function.
+        #[arg(long, default_value_t = 3)]
+        max_candidates: usize,
+        /// Test input JSON for racing.
+        #[arg(long)]
+        input_json: Option<String>,
+    },
     /// Compose multiple source files into a single polyglot topology.
     /// Analyzes function signatures and data flow to automatically wire
     /// functions across languages.
@@ -204,6 +220,28 @@ fn build_driver_args(command: &GnodeCommand) -> Vec<String> {
             }
             if *print_schedule {
                 args.push("--print-schedule".to_string());
+            }
+            args
+        }
+        GnodeCommand::Build {
+            files,
+            languages,
+            max_candidates,
+            input_json,
+        } => {
+            let mut args = vec!["build".to_string()];
+            for f in files {
+                args.push(f.display().to_string());
+            }
+            if let Some(langs) = languages {
+                args.push("--languages".to_string());
+                args.push(langs.clone());
+            }
+            args.push("--max-candidates".to_string());
+            args.push(max_candidates.to_string());
+            if let Some(input) = input_json {
+                args.push("--input-json".to_string());
+                args.push(input.clone());
             }
             args
         }

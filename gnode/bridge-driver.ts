@@ -34,6 +34,7 @@ import {
   extractFunctions,
   generateTopoRaceTopology,
 } from '../src/polyglot-compose.js';
+import { buildWithTopoRace, type PolyglotBuildConfig } from '../src/polyglot-build.js';
 
 type Strategy = 'cannon' | 'linear';
 type CommandName = 'compile' | 'schedule' | 'run' | 'polyglot-run' | 'scaffold' | 'compose' | 'translate' | 'best-language' | 'topo-race';
@@ -216,7 +217,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
   const command = argv[0];
   const filePath = argv[1];
 
-  const validCommands = ['compile', 'schedule', 'run', 'polyglot-run', 'scaffold', 'compose', 'translate', 'best-language', 'topo-race'];
+  const validCommands = ['compile', 'schedule', 'run', 'polyglot-run', 'scaffold', 'compose', 'translate', 'best-language', 'topo-race', 'build'];
   if (!validCommands.includes(command ?? '') || !filePath) {
     throw new Error(usage());
   }
@@ -1016,6 +1017,11 @@ export async function runCli(argv: readonly string[]): Promise<number> {
     return runTopoRace(parsed);
   }
 
+  // Build path: build-time topo-race with speculative superposition.
+  if (parsed.command === 'build') {
+    return runBuild(parsed);
+  }
+
   const artifact = await loadArtifact(parsed.filePath, parsed.exportName);
 
   if (parsed.command === 'compile') {
@@ -1433,6 +1439,85 @@ async function runTopoRace(parsed: ParsedArgs): Promise<number> {
     process.stderr.write(`  Predicted winner: ${fitness[0]?.language} (${(fitness[0]?.score ?? 0 * 100).toFixed(1)}%)\n`);
     for (const entry of fitness) {
       process.stderr.write(`    ${entry.language}: ${(entry.score * 100).toFixed(1)}%\n`);
+    }
+  }
+
+  return 0;
+}
+
+async function runBuild(parsed: ParsedArgs): Promise<number> {
+  // Collect all file paths.
+  const files: string[] = [parsed.filePath];
+  const argv = process.argv;
+  for (const arg of argv) {
+    if (arg && !arg.startsWith('-') && arg !== parsed.filePath && arg !== 'build' &&
+        /\.(py|go|rs|rb|js|ts|java|c|cpp|lua|php|swift|kt|scala|hs|ml|zig|sh|exs|cs)$/i.test(arg)) {
+      files.push(path.resolve(arg));
+    }
+  }
+
+  // Parse build options from flags.
+  let candidateLanguages: string[] | undefined;
+  let maxCandidates = 3;
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--languages' && argv[i + 1]) {
+      candidateLanguages = argv[i + 1].split(',').map((l) => l.trim());
+    }
+    if (argv[i] === '--max-candidates' && argv[i + 1]) {
+      maxCandidates = Number.parseInt(argv[i + 1], 10) || 3;
+    }
+  }
+
+  // Analyze all files.
+  const allFunctions: Awaited<ReturnType<typeof extractFunctions>>[] = [];
+  for (const filePath of files) {
+    const analysis = await analyzePolyglotSourceForExecution(filePath);
+    const functions = extractFunctions(analysis, filePath);
+    allFunctions.push(functions);
+  }
+
+  const flatFunctions = allFunctions.flat();
+  if (flatFunctions.length === 0) {
+    process.stderr.write('No functions found to build.\n');
+    return 1;
+  }
+
+  process.stderr.write(`Building ${flatFunctions.length} function(s) with topo-race...\n`);
+
+  const config: PolyglotBuildConfig = {
+    sourceFiles: files,
+    candidateLanguages,
+    maxCandidates,
+    testInput: parsed.inputJson ? JSON.parse(parsed.inputJson) : undefined,
+  };
+
+  const result = await buildWithTopoRace(flatFunctions, config);
+
+  // Output the optimized topology.
+  process.stdout.write(result.optimizedTopology);
+
+  // Print build summary.
+  process.stderr.write(`\n[gnode build summary]\n`);
+  process.stderr.write(`  Total: ${result.totalMs.toFixed(0)}ms\n`);
+  process.stderr.write(`  Overall speedup: ${result.overallSpeedup.toFixed(1)}x\n`);
+  process.stderr.write(`  Functions:\n`);
+
+  for (const race of result.races) {
+    const marker = race.sourceWon ? '  (source optimal)' : ` → ${race.winner} (${race.speedup.toFixed(1)}x)`;
+    process.stderr.write(`    ${race.functionName} (${race.sourceLanguage})${marker}\n`);
+    for (const entry of race.entries) {
+      const status = entry.status === 'success' ? 'ok' : entry.status;
+      const spec = entry.speculative ? ' [speculative]' : '';
+      process.stderr.write(`      ${entry.language}: ${entry.durationMs.toFixed(0)}ms ${status}${spec}\n`);
+    }
+  }
+
+  if (result.memorySummary.length > 0) {
+    process.stderr.write(`  Strategy memory:\n`);
+    for (const entry of result.memorySummary) {
+      process.stderr.write(
+        `    ${entry.functionName}: best=${entry.bestLanguage} (${entry.totalObservations} observations)\n`
+      );
     }
   }
 
