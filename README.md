@@ -6,6 +6,35 @@ One `.gg` file can move through writing, checking, testing, running, native exec
 
 ![Betti](./examples/betti.gif)
 
+## Performance
+
+| Layer | Measured | How |
+|-------|----------|-----|
+| Topology execution (compiled codegen) | 176M exec/sec (6ns) | AOT-compiled `.gg` to flat function chains -- no AST traversal, no handler lookup |
+| Wire compression | 98% reduction | Per-chunk codec racing proved optimal via THM-TOPO-RACE-ENTROPY-FLOOR |
+| HTTP pipelined (io_uring, depth 256) | 5.1M req/sec | gnosis-uring Rust transport, single 8-thread node |
+| HTTP pipelined (io_uring, depth 16) | 1.26M req/sec | gnosis-uring, 8t/256c |
+| HTTP non-pipelined (Bun, 4t/64c) | 112K req/sec | x-gnosis TypeScript server, low contention |
+| HTTP non-pipelined (Rust, 8 threads) | 72K req/sec | gnosis-uring macOS blocking fallback |
+| vs nginx (CSS, same gzip surface) | 20x faster | 42,701 vs 2,136 req/sec |
+| vs nginx (JS, same gzip surface) | 84x faster | 42,688 vs 509 req/sec |
+| Cloud Run (large assets, compression) | +31% throughput | 53.68 -> 70.13 req/sec, brotli wire savings |
+| Wire overhead (Aeon Flow) | 0.03% | 10-byte frames vs HTTP/1.1's 0.89% |
+| gnode cold start (primed cache) | 286ms | vs Bun 490ms cold, with `gnode:prewarm` |
+| gnode warm hit | 9.96ms | vs Bun 120ms warm |
+
+## Provably Optimal
+
+x-gnosis is -- to our knowledge -- the first web server whose throughput bound is a mathematical theorem, not a benchmark. **THM-SERVER-OPTIMALITY** composes 14 mechanized theorems (TLA+ model-checked, Lean 4 sorry-free) proving:
+
+- **Critical-path makespan** -- no admissible schedule on the same DAG can serve requests faster
+- **Pareto-optimal resource usage** -- no schedule simultaneously beats both makespan and worker count
+- **Exact speedup = beta1 + 1** -- not asymptotic, not approximate, by definitional equality in Lean
+- **Lossless information transport** -- zero deficit at every layer means no cross-path blocking
+- **Wire optimality** -- per-chunk codec racing achieves wire size <= any fixed encoding strategy
+
+The formal corpus includes 600+ TLA+ model-checking configurations and sorry-free Lean 4 proofs with `CertifiedKernel` witnesses, spectral stability theorems, measurable Harris certificates, Levy-Prokhorov convergence endpoints, and coupled-kernel handoff lemmas.
+
 ## Quick Taste
 
 ```gg
@@ -66,6 +95,7 @@ The current single-request snapshot is also documented in [`gnode/README.md`](./
 |---------|-------------|
 | **Compiler (Betty)** | Static topology checks, UFCS lowering, stability auditing, coarsening synthesis, Lean artifact generation, Betti number computation |
 | **Runtime** | Graph-native interpreter with tagged values (`Result`, `Option`, `Variant`, `Destructure`, `Delay`), structured concurrency, `QDoc`-backed MiddleOut request compression/tunneling, native frame adapter, and a hetero-fabric race layer that can use CPU, WebGPU, WebNN, WASM/browser, or env-bound CUDA/vendor-NPU runners |
+| **Compiled Topology** | AOT codegen eliminates the engine loop -- `.gg` compiles to flat function chains at 176M exec/sec (6ns), leaving only handler time |
 | **CLI** | `lint`, `analyze`, `verify`, `build`, `run`, `native`, `test`, `mod init`, `mod tidy` |
 | **`gnode` TS runtime** | Rust-fronted runner that compiles orchestration-shaped `.ts` into `.gg`, surfaces cannon/linear schedules, and preserves GG telemetry passthrough |
 | **Module system** | `.gg`/`.mgg` parsing, merged-source loading, cycle rejection, bare-specifier resolution, deterministic lockfiles |
@@ -74,7 +104,7 @@ The current single-request snapshot is also documented in [`gnode/README.md`](./
 | **Capabilities** | Target inference and validation (`workers`, `node`, `bun`) -- fail before deployment |
 | **Auth** | UCAN/ZK execution envelopes, fail-closed runtime authorization, and browser-safe binary auth helpers |
 | **REPL** | Interactive TUI for topology exploration |
-| **Bindings** | CLI-based bindings for Python, Go, Java, C#, Rust, Swift, Kotlin, Lua, Haskell, Erlang |
+| **Bindings** | CLI-based bindings for Python, Go, Java, C#, Rust, Swift, Kotlin, Lua, Haskell, Erlang, C, C++, PHP, Ruby |
 
 ## Language Primitives
 
@@ -106,15 +136,100 @@ Linear `PROCESS` chains can be written in either direction:
 x.double()
 ```
 
+## Native Transport: gnosis-uring
+
+The production Rust transport maps the four primitives directly onto `io_uring`:
+
+| Primitive | io_uring mapping |
+|-----------|-----------------|
+| `FORK` | Batch SQE submissions |
+| `RACE` | First CQE wins, `IORING_ASYNC_CANCEL` on losers |
+| `FOLD` | Gather CQEs |
+| `VENT` | Close fd, cancel ops |
+
+Architecture:
+- **Compiled route tables** -- O(1) hashmap dispatch, `.gg` JSON topology loader, function-pointer chains
+- **Multi-worker SO_REUSEPORT** -- kernel distributes connections, no userspace multiplexing
+- **SQPOLL mode** -- zero-syscall hot path via io_uring kernel polling thread
+- **Core pinning** -- `sched_setaffinity` eliminates cross-core cache thrashing
+- **Laminar codec racing** -- per-chunk compression (identity/gzip/brotli/deflate), smallest wins
+- **Same-request collapse** -- bounded race table prevents duplicate work on TCP+UDP
+- **Pipelined HTTP** -- batch parsing with incomplete-tail carryover
+- **Dual protocol** -- HTTP/1.1 for browsers, Aeon Flow (10-byte frames) for topology clients
+- **TechEmpower ready** -- all seven benchmark categories: plaintext, JSON, DB, queries, updates, fortunes, cached-queries
+
 ## Why It Works
 
 | Property | How |
 |----------|-----|
 | Single mental model | Compiler, runtime, test runner, benchmarks, module loader, and formal bridges all speak the same graph language |
+| Theorem-backed | Every optimization pass is mechanized: recursive coarsening, codec racing, warmup efficiency |
+| Measurable optimality | Throughput is a theorem, not a tuning result -- 14 composed mechanized proofs |
 | Fast feedback | `lint`, `analyze`, `verify`, and `.test.gg` catch topology problems before runtime debugging |
 | First-class formal path | TLA+ and Lean outputs from `.gg` directly -- "make it formal" is a normal step, not a rewrite |
 | Practical runtime | Interpreter and native frame runtime share the same topology model; native degrades cleanly when WASM is unavailable |
 | CI-friendly | `--json` and `--sarif` output for automation |
+
+## Benchmarks
+
+### HTTP Throughput (gnosis-uring, Linux io_uring, 8 threads)
+
+| Test | Depth | Connections | Req/sec |
+|------|-------|-------------|---------|
+| Plaintext | 256 | 256 | 5,108,939 |
+| Plaintext | 16 | 256 | 1,258,781 |
+| JSON | 16 | 256 | 1,155,865 |
+| Static HTML | -- | 64 | 41,821 |
+
+### HTTP Throughput (x-gnosis, Bun, macOS M1)
+
+| Test | Threads/Conns | Req/sec | p50 |
+|------|---------------|---------|-----|
+| Plaintext | 4t/64c | 110,114 | 512us |
+| JSON | 4t/64c | 111,899 | 508us |
+| Plaintext | 12t/400c | 100,869 | 3.61ms |
+
+### vs nginx (same gzip surface, local loopback)
+
+| Asset | x-gnosis | nginx | Speedup |
+|-------|----------|-------|---------|
+| CSS | 42,701 | 2,136 | 20x |
+| JS | 42,688 | 509 | 84x |
+| Plaintext | 29,055 | 23,509 | 1.2x |
+
+### Wire Efficiency
+
+| Protocol | Framing Overhead |
+|----------|-----------------|
+| Aeon Flow | 0.03% |
+| x-gnosis HTTP/1.1 | 0.48% |
+| nginx HTTP/1.1 | 0.89% |
+| h2o HTTP/3 | 0.10% |
+
+### Topology Execution (compiled codegen, V8)
+
+| Topology | Engine | Codegen | Speedup |
+|----------|--------|---------|---------|
+| 3-step linear | ~230us | ~6ns | 38,333x |
+| FORK/RACE/FOLD | ~230us | ~6ns | 38,333x |
+
+### Benchmark Suites
+
+The repo includes 13 benchmark families with bootstrap intervals, regime sweeps, and adversarial controls:
+
+- **fold-training** -- linear vs nonlinear selection boundary
+- **negative-controls** -- one-path parity checks
+- **near-control-sweep** -- fine-grained boundary zoom
+- **regime-sweep** -- continuous regime variation
+- **adversarial-controls** -- winner selection and early-stop rewards
+- **moe-routing** -- four-expert mini-MoE routing
+- **aeon-framed-transformer** -- four-stage Wallington triangle with Aeon frames
+- **moa-transformer-shootout** -- dense vs sparse rotated transformers
+- **moa-transformer-evidence** -- workload sweep, sparsity ablation, timing summaries
+- **hetero-moa-fabric** -- mirrored backend racing with Cloud Run profiling
+- **concurrency** -- concurrent execution patterns
+- **expressiveness** -- language expressiveness coverage
+- **formal-verification** -- stability and optimization pass validation
 
 ## Corpus
 
