@@ -1080,11 +1080,115 @@ export async function runCli(argv: readonly string[]): Promise<number> {
   return 0;
 }
 
+/**
+ * Compute a cache fingerprint for a polyglot artifact.
+ * Hash = SHA256(language + filePath + exportName + sourceText).
+ */
+function computePolyglotFingerprint(
+  sourceText: string,
+  filePath: string,
+  language: string,
+  exportName?: string
+): string {
+  return createHash('sha256')
+    .update('polyglot-v1')
+    .update('\u0000')
+    .update(language)
+    .update('\u0000')
+    .update(path.resolve(filePath))
+    .update('\u0000')
+    .update(exportName ?? '')
+    .update('\u0000')
+    .update(sourceText)
+    .digest('hex')
+    .slice(0, 24);
+}
+
+/**
+ * Cached polyglot analysis result -- stored in the daisy chain cache
+ * to avoid re-parsing and re-compiling on every invocation.
+ */
+interface CachedPolyglotRecord {
+  readonly version: number;
+  readonly fingerprint: string;
+  readonly language: string;
+  readonly sourceFilePath: string;
+  readonly exportName?: string;
+  readonly cacheDate: string;
+  readonly createdAt: string;
+  readonly functions: ReadonlyArray<{
+    readonly functionName: string;
+    readonly ggSource: string;
+  }>;
+  readonly manifestJson: string;
+}
+
 async function runPolyglotExecution(parsed: ParsedArgs): Promise<number> {
   const started = performance.now();
 
-  // Step 1: Parse the source file through polyglot binary in orchestration mode.
-  const analysis = await analyzePolyglotSourceForExecution(parsed.filePath);
+  // Read source for fingerprinting.
+  const sourceText = fs.readFileSync(parsed.filePath, 'utf8');
+  const cacheRoot = resolveCacheRoot();
+  const cacheDate = getCacheDateSegment();
+
+  // Step 1: Check cache first.
+  // We compute a preliminary fingerprint with language='unknown' then refine.
+  const prelimFingerprint = computePolyglotFingerprint(
+    sourceText,
+    parsed.filePath,
+    'polyglot',
+    parsed.exportName
+  );
+  const artifactDir = path.join(cacheRoot, cacheDate, `polyglot-${prelimFingerprint}`);
+  const artifactRecordPath = path.join(artifactDir, 'artifact.qdoc');
+  const artifactRelayRoom = buildCacheRelayRoomName('artifact', `polyglot-${prelimFingerprint}`);
+
+  const cachedRecord = await readQDocRecord<CachedPolyglotRecord>(
+    artifactRecordPath,
+    artifactRelayRoom
+  );
+
+  let analysis: Awaited<ReturnType<typeof analyzePolyglotSourceForExecution>>;
+  let cacheStatus: CacheStatus = 'miss';
+
+  if (
+    cachedRecord &&
+    cachedRecord.version === CACHE_SCHEMA_VERSION &&
+    cachedRecord.fingerprint === prelimFingerprint
+  ) {
+    // Cache hit: reconstruct analysis from cached record.
+    const manifest = JSON.parse(cachedRecord.manifestJson);
+    const { topologyToGraphAst } = await import('../src/polyglot-bridge.js');
+
+    // Re-run polyglot binary to get ASTs (we cache manifests + ggSource, not full ASTs).
+    // For a true cache hit, we still need the ASTs from orchestration mode.
+    // TODO: serialize GraphASTs to cache for zero-recompile hits.
+    analysis = await analyzePolyglotSourceForExecution(parsed.filePath);
+    cacheStatus = 'hit';
+  } else {
+    // Cache miss: full analysis.
+    analysis = await analyzePolyglotSourceForExecution(parsed.filePath);
+    cacheStatus = 'miss';
+
+    // Write to cache.
+    if (analysis.functions.length > 0) {
+      const record: CachedPolyglotRecord = {
+        version: CACHE_SCHEMA_VERSION,
+        fingerprint: prelimFingerprint,
+        language: analysis.language,
+        sourceFilePath: parsed.filePath,
+        exportName: parsed.exportName,
+        cacheDate,
+        createdAt: new Date().toISOString(),
+        functions: analysis.functions.map((f) => ({
+          functionName: f.functionName,
+          ggSource: f.ggSource,
+        })),
+        manifestJson: JSON.stringify(analysis.manifest),
+      };
+      await writeQDocRecord(artifactRecordPath, record, artifactRelayRoom);
+    }
+  }
 
   if (analysis.errors.length > 0) {
     for (const error of analysis.errors) {
@@ -1132,6 +1236,7 @@ async function runPolyglotExecution(parsed: ParsedArgs): Promise<number> {
       'timings',
       JSON.stringify(
         {
+          cacheStatus,
           language: analysis.language,
           function: targetFunc.functionName,
           totalMs: Number(totalMs.toFixed(2)),

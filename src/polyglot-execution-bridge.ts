@@ -244,3 +244,212 @@ export async function executePolyglotWithGnosis(
   const engine = new GnosisEngine(registry, options.engineOptions ?? {});
   return engine.executeWithResult(options.ast, options.input);
 }
+
+// ─── Multi-Language Topology Support ─────────────────────────────────────────
+//
+// A single .gg topology can orchestrate functions across multiple languages.
+// Each PolyglotBridgeCall node can specify its own language and file via
+// node properties:
+//
+//   (ml_predict: PolyglotBridgeCall { language='python', file='ml.py', callee='predict' })
+//   (api_call: PolyglotBridgeCall { language='go', file='api.go', callee='fetchUser' })
+//
+// The topology engine manages concurrency (fork/race/fold) across language
+// boundaries. Betty can statically verify the topology won't deadlock before
+// you run it.
+
+/**
+ * Multi-language execution manifest -- maps node IDs to their language/file overrides.
+ */
+export interface MultiLanguageManifest {
+  /** Default language for nodes that don't specify one. */
+  defaultLanguage: string;
+  /** Default file path for nodes that don't specify one. */
+  defaultFilePath: string;
+  /** Per-node overrides. */
+  nodeOverrides: Map<string, { language: string; filePath: string }>;
+}
+
+/**
+ * Build a multi-language manifest from a GraphAST.
+ * Scans node properties for `language` and `file` overrides.
+ */
+export function buildMultiLanguageManifest(
+  ast: import('./betty/compiler.js').GraphAST,
+  defaultLanguage: string,
+  defaultFilePath: string
+): MultiLanguageManifest {
+  const nodeOverrides = new Map<string, { language: string; filePath: string }>();
+
+  for (const [nodeId, node] of ast.nodes) {
+    const lang = node.properties.language;
+    const file = node.properties.file;
+    if (lang || file) {
+      nodeOverrides.set(nodeId, {
+        language: lang ?? defaultLanguage,
+        filePath: file ?? defaultFilePath,
+      });
+    }
+  }
+
+  return { defaultLanguage, defaultFilePath, nodeOverrides };
+}
+
+/**
+ * Register polyglot bridge handlers with multi-language support.
+ * Each node can dispatch to a different language runtime based on its properties.
+ */
+export function registerMultiLanguageBridgeHandlers(
+  registry: GnosisRegistry,
+  manifest: PolyglotExecutionManifest,
+  multiLang: MultiLanguageManifest
+): void {
+  const plansByNodeId = new Map(
+    manifest.node_execution_plans.map((plan) => [plan.node_id, plan] as const)
+  );
+
+  registry.register('PolyglotBridgeEntry', async (payload) => ({
+    input: payload,
+    locals: {},
+    language: multiLang.defaultLanguage,
+    filePath: multiLang.defaultFilePath,
+  } satisfies PolyglotBridgeState));
+
+  registry.register('PolyglotBridgeCall', async (payload, _props, context) => {
+    const nodeId = context?.nodeId;
+    if (!nodeId) {
+      throw new Error('PolyglotBridgeCall requires a node id.');
+    }
+
+    const plan = plansByNodeId.get(nodeId);
+    const state = ensurePolyglotState(payload, nodeId);
+
+    // Per-node language/file override from topology properties.
+    const override = multiLang.nodeOverrides.get(nodeId);
+    const language = _props.language ?? override?.language ?? state.language;
+    const filePath = _props.file ?? override?.filePath ?? state.filePath;
+    const functionName = plan?.callee ?? _props.callee ?? 'main';
+
+    const sourceRange = plan?.source_range
+      ? { startByte: plan.source_range.start_byte, endByte: plan.source_range.end_byte }
+      : undefined;
+
+    const request: InvokeRequest = {
+      action: 'execute',
+      language,
+      filePath,
+      functionName,
+      args: state.input !== undefined ? [state.input, state.locals] : [state.locals],
+      sourceRange,
+    };
+
+    const response = await invokeSubprocess(request);
+
+    if (response.status === 'error') {
+      const mapped = response.mappedError;
+      const location = mapped?.line ? ` at line ${mapped.line}` : '';
+      throw new Error(
+        `PolyglotBridgeCall failed for '${functionName}' (${language}:${filePath}${location}): ${mapped?.message ?? response.value}\n${response.stderr}`
+      );
+    }
+
+    const assignTo = _props.assignTo ?? functionName;
+    return {
+      input: state.input,
+      locals: { ...state.locals, [assignTo]: response.value },
+      language: state.language,
+      filePath: state.filePath,
+    } satisfies PolyglotBridgeState;
+  });
+
+  registry.register('PolyglotBridgeStatement', async (payload, _props, context) => {
+    const nodeId = context?.nodeId;
+    if (!nodeId) {
+      throw new Error('PolyglotBridgeStatement requires a node id.');
+    }
+
+    const plan = plansByNodeId.get(nodeId);
+    const state = ensurePolyglotState(payload, nodeId);
+    const override = multiLang.nodeOverrides.get(nodeId);
+    const language = _props.language ?? override?.language ?? state.language;
+    const filePath = _props.file ?? override?.filePath ?? state.filePath;
+
+    const stmtSourceRange = plan?.source_range
+      ? { startByte: plan.source_range.start_byte, endByte: plan.source_range.end_byte }
+      : undefined;
+
+    const request: InvokeRequest = {
+      action: 'execute',
+      language,
+      filePath,
+      functionName: plan?.callee ?? '__gnode_eval__',
+      args: [state.locals],
+      sourceRange: stmtSourceRange,
+    };
+
+    const response = await invokeSubprocess(request);
+
+    if (response.status === 'error') {
+      throw new Error(
+        `PolyglotBridgeStatement failed at node '${nodeId}': ${response.value}\n${response.stderr}`
+      );
+    }
+
+    return {
+      input: state.input,
+      locals: { ...state.locals, __last__: response.value },
+      language: state.language,
+      filePath: state.filePath,
+    } satisfies PolyglotBridgeState;
+  });
+
+  registry.register('PolyglotBridgeReturn', async (payload, _props, context) => {
+    const nodeId = context?.nodeId;
+    if (!nodeId) {
+      throw new Error('PolyglotBridgeReturn requires a node id.');
+    }
+    const state = ensurePolyglotState(payload, nodeId);
+    const returnKey = _props.returnKey;
+    if (returnKey && returnKey in state.locals) {
+      return state.locals[returnKey];
+    }
+    if ('__last__' in state.locals) {
+      return state.locals.__last__;
+    }
+    return state.locals;
+  });
+
+  registry.register('PolyglotBridgeJoin', async (payload, _props, context) => {
+    const nodeId = context?.nodeId;
+    if (!nodeId) {
+      throw new Error('PolyglotBridgeJoin requires a node id.');
+    }
+    if (Array.isArray(payload)) {
+      const merged: PolyglotBridgeState = {
+        input: payload[0]?.input,
+        locals: {},
+        language: payload[0]?.language ?? '',
+        filePath: payload[0]?.filePath ?? '',
+      };
+      for (const branch of payload) {
+        if (branch && typeof branch === 'object' && 'locals' in branch) {
+          Object.assign(merged.locals, (branch as PolyglotBridgeState).locals);
+        }
+      }
+      return merged;
+    }
+    return payload;
+  });
+}
+
+/**
+ * Execute a multi-language topology through the Gnosis engine.
+ */
+export async function executeMultiLanguageTopology(
+  options: ExecutePolyglotOptions & { multiLang: MultiLanguageManifest }
+): Promise<GnosisEngineExecutionResult> {
+  const registry = options.registry ?? new GnosisRegistry();
+  registerMultiLanguageBridgeHandlers(registry, options.manifest, options.multiLang);
+  const engine = new GnosisEngine(registry, options.engineOptions ?? {});
+  return engine.executeWithResult(options.ast, options.input);
+}
