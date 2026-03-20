@@ -441,10 +441,12 @@ fn classify_declaration(node: &Node, source: &str) -> CfgNodeKind {
     let text = node_text(*node, source);
 
     // Check for resource acquisition in declaration.
+    // Note: readFileSync/writeFileSync are NOT resource acquires -- they are
+    // synchronous operations that open, read/write, and close in one call.
     let resource_patterns = [
         ("fs.open", ResourceKind::File),
-        ("readFileSync", ResourceKind::File),
         ("createReadStream", ResourceKind::File),
+        ("createWriteStream", ResourceKind::File),
         ("createConnection", ResourceKind::Connection),
         ("new Pool(", ResourceKind::Connection),
     ];

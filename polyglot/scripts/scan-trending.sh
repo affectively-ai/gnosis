@@ -74,19 +74,23 @@ echo "  Auto-fix:  $AUTO_FIX"
 echo ""
 
 # Fetch trending repos via GitHub search API (stars created recently)
+# polyglot:ignore UNREACHABLE_COMPONENT — function and nested case/logic; scanner can't parse bash CFG
 fetch_trending() {
   local date_filter
+  # polyglot:ignore UNREACHABLE_COMPONENT — case branches are reachable; scanner can't parse bash case
   case "$SINCE" in
     daily)   date_filter=$(date -v-1d +%Y-%m-%d 2>/dev/null || date -d "1 day ago" +%Y-%m-%d) ;;
     weekly)  date_filter=$(date -v-7d +%Y-%m-%d 2>/dev/null || date -d "7 days ago" +%Y-%m-%d) ;;
     monthly) date_filter=$(date -v-30d +%Y-%m-%d 2>/dev/null || date -d "30 days ago" +%Y-%m-%d) ;;
   esac
 
+  # polyglot:ignore UNREACHABLE_COMPONENT — post-case logic is reachable; scanner lost CFG after esac
   local query="stars:>=${MIN_STARS} pushed:>=${date_filter}"
   if [[ -n "$LANGUAGE" ]]; then
     query="$query language:${LANGUAGE}"
   fi
 
+  # polyglot:ignore UNREACHABLE_COMPONENT — reachable after conditional; scanner CFG false positive
   gh api -X GET /search/repositories \
     -f q="$query" \
     -f sort=stars \
