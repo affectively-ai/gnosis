@@ -1,0 +1,10 @@
+// Bug: error swallowed -- catch block does nothing with the error.
+export function fetchData(url: string): string | null {
+    try {
+        const response = fetch(url);
+        return response.text();
+    } catch (e) {
+        // BUG: error completely swallowed, no logging, no rethrow
+        return null;
+    }
+}

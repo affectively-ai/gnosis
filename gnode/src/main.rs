@@ -53,6 +53,24 @@ enum GnodeCommand {
         #[arg(long, value_enum, default_value_t = Strategy::Cannon)]
         strategy: Strategy,
     },
+    /// Polyglot analysis: parse source code in any language via tree-sitter,
+    /// extract control flow into GG topologies, and run Betty analysis.
+    Polyglot {
+        /// File or directory to scan.
+        path: PathBuf,
+        /// Override language detection.
+        #[arg(long)]
+        language: Option<String>,
+        /// Output format: gg, json, or sarif.
+        #[arg(long, default_value = "json")]
+        format: String,
+        /// Only analyze a specific function by name.
+        #[arg(long)]
+        function: Option<String>,
+        /// Print the .gg source for each function.
+        #[arg(long, default_value_t = false)]
+        print_gg: bool,
+    },
 }
 
 #[derive(Debug, Parser)]
@@ -142,11 +160,76 @@ fn build_driver_args(command: &GnodeCommand) -> Vec<String> {
             }
             args
         }
+        GnodeCommand::Polyglot { .. } => {
+            // Handled separately in run(); this arm is unreachable.
+            unreachable!("polyglot subcommand is handled directly")
+        }
     }
+}
+
+fn polyglot_binary_path() -> Result<PathBuf> {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("polyglot")
+        .join("target")
+        .join("release")
+        .join("gnosis-polyglot");
+    if !path.exists() {
+        bail!(
+            "gnosis-polyglot binary not found at {}. Run: cd polyglot && cargo build --release",
+            path.display()
+        );
+    }
+    Ok(path)
 }
 
 fn run() -> Result<()> {
     let cli = Cli::parse();
+
+    // Polyglot subcommand uses the Rust polyglot binary directly.
+    if let GnodeCommand::Polyglot {
+        ref path,
+        ref language,
+        ref format,
+        ref function,
+        print_gg,
+    } = cli.command
+    {
+        let binary = polyglot_binary_path()?;
+        let mut args = vec![path.display().to_string()];
+        args.push("--format".to_string());
+        args.push(format.clone());
+        if let Some(lang) = language {
+            args.push("--language".to_string());
+            args.push(lang.clone());
+        }
+        if let Some(func) = function {
+            args.push("--function".to_string());
+            args.push(func.clone());
+        }
+        if print_gg {
+            args.push("--print-gg".to_string());
+        }
+
+        let status = Command::new(&binary)
+            .args(&args)
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .status()
+            .with_context(|| {
+                format!(
+                    "failed to launch gnosis-polyglot at {}",
+                    binary.display()
+                )
+            })?;
+
+        match status.code() {
+            Some(code) => process::exit(code),
+            None => bail!("gnosis-polyglot process terminated without an exit code"),
+        }
+    }
+
     let driver = driver_path()?;
     let driver_args = build_driver_args(&cli.command);
 
