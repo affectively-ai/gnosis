@@ -12,6 +12,15 @@ enum OutputFormat {
     Sarif,
 }
 
+#[derive(Clone, Debug, ValueEnum, Default)]
+enum ScanMode {
+    /// Static analysis mode (default): emit topologies for Betty analysis.
+    #[default]
+    Analysis,
+    /// Orchestration mode: emit topologies with PolyglotBridge* labels + execution manifest.
+    Orchestration,
+}
+
 #[derive(Debug, Parser)]
 #[command(name = "gnosis-polyglot")]
 #[command(about = "Universal bug detection via topological verification")]
@@ -36,6 +45,10 @@ struct Cli {
     /// Print the .gg source for each function (useful for debugging).
     #[arg(long, default_value_t = false)]
     print_gg: bool,
+
+    /// Scan mode: analysis (default) or orchestration (for execution).
+    #[arg(long, value_enum, default_value_t = ScanMode::Analysis)]
+    mode: ScanMode,
 }
 
 fn main() {
@@ -137,6 +150,11 @@ fn scan_directory(cli: &Cli) -> Result<()> {
 }
 
 fn scan_file(cli: &Cli, file_path: &PathBuf) -> Result<()> {
+    // Orchestration mode: produce execution-ready output.
+    if matches!(cli.mode, ScanMode::Orchestration) {
+        return scan_file_orchestration(cli, file_path);
+    }
+
     let result = scan_file_inner(file_path)?;
 
     match cli.format {
@@ -209,6 +227,50 @@ fn scan_file_inner(
 
     let path_str = file_path.to_string_lossy();
     gnosis_polyglot::parse_and_extract(&source, &path_str)
+}
+
+fn scan_file_orchestration(cli: &Cli, file_path: &PathBuf) -> Result<()> {
+    let source = fs::read_to_string(file_path)
+        .with_context(|| format!("failed to read {}", file_path.display()))?;
+
+    let path_str = file_path.to_string_lossy();
+    let result = gnosis_polyglot::parse_and_extract_orchestration(&source, &path_str)?;
+
+    match cli.format {
+        OutputFormat::Json => {
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+        OutputFormat::Gg => {
+            for topo in &result.scan_result.topologies {
+                if let Some(ref filter_fn) = cli.function {
+                    if &topo.function_name != filter_fn {
+                        continue;
+                    }
+                }
+                println!("{}", topo.gg_source);
+            }
+        }
+        OutputFormat::Sarif => {
+            // Orchestration mode doesn't support SARIF; fall back to JSON.
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+    }
+
+    if cli.print_gg {
+        for topo in &result.scan_result.topologies {
+            eprintln!("--- {} ---", topo.function_name);
+            eprintln!("{}", topo.gg_source);
+        }
+    }
+
+    if !result.scan_result.errors.is_empty() {
+        for err in &result.scan_result.errors {
+            eprintln!("error: {}", err.message);
+        }
+        std::process::exit(1);
+    }
+
+    Ok(())
 }
 
 /// Detect bundled/generated JS chunks (e.g., `chunk-abc123.js`, `1234.abcdef.js`).

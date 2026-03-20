@@ -22,9 +22,11 @@ import {
   type GnosisTypeScriptBridgeResult,
   type SerializedGnosisTypeScriptBridgeResult,
 } from '../src/ts-bridge.js';
+import { analyzePolyglotSourceForExecution } from '../src/polyglot-bridge.js';
+import { executePolyglotWithGnosis } from '../src/polyglot-execution-bridge.js';
 
 type Strategy = 'cannon' | 'linear';
-type CommandName = 'compile' | 'schedule' | 'run';
+type CommandName = 'compile' | 'schedule' | 'run' | 'polyglot-run';
 type CacheStatus = 'hit' | 'miss';
 
 const CACHE_SCHEMA_VERSION = 1;
@@ -200,7 +202,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
   const filePath = argv[1];
 
   if (
-    (command !== 'compile' && command !== 'schedule' && command !== 'run') ||
+    (command !== 'compile' && command !== 'schedule' && command !== 'run' && command !== 'polyglot-run') ||
     !filePath
   ) {
     throw new Error(usage());
@@ -970,6 +972,12 @@ function getCompileCacheTrace():
 export async function runCli(argv: readonly string[]): Promise<number> {
   const started = performance.now();
   const parsed = parseArgs(argv);
+
+  // Polyglot execution path: parse any language → topology → execute.
+  if (parsed.command === 'polyglot-run') {
+    return runPolyglotExecution(parsed);
+  }
+
   const artifact = await loadArtifact(parsed.filePath, parsed.exportName);
 
   if (parsed.command === 'compile') {
@@ -1049,6 +1057,85 @@ export async function runCli(argv: readonly string[]): Promise<number> {
           compileCache: getCompileCacheTrace(),
           totalMs: Number((performance.now() - started).toFixed(2)),
         } satisfies TraceTimings,
+        null,
+        2
+      )
+    );
+  }
+
+  if (shouldPrintRuntimeLogs() && result.logs.trim().length > 0) {
+    writeSection('logs', result.logs);
+  }
+
+  if (result.payload === null || result.payload === undefined) {
+    return 0;
+  }
+
+  if (typeof result.payload === 'string') {
+    process.stdout.write(`${result.payload}\n`);
+    return 0;
+  }
+
+  process.stdout.write(`${JSON.stringify(result.payload, null, 2)}\n`);
+  return 0;
+}
+
+async function runPolyglotExecution(parsed: ParsedArgs): Promise<number> {
+  const started = performance.now();
+
+  // Step 1: Parse the source file through polyglot binary in orchestration mode.
+  const analysis = await analyzePolyglotSourceForExecution(parsed.filePath);
+
+  if (analysis.errors.length > 0) {
+    for (const error of analysis.errors) {
+      process.stderr.write(`polyglot error: ${error}\n`);
+    }
+  }
+
+  if (analysis.functions.length === 0) {
+    process.stderr.write(
+      `no functions found in ${parsed.filePath} (language: ${analysis.language})\n`
+    );
+    return 1;
+  }
+
+  // Use the first function's AST (or match by export name).
+  const targetFunc = parsed.exportName
+    ? analysis.functions.find((f) => f.functionName === parsed.exportName)
+    : analysis.functions[0];
+
+  if (!targetFunc) {
+    process.stderr.write(
+      `function '${parsed.exportName}' not found. Available: ${analysis.functions.map((f) => f.functionName).join(', ')}\n`
+    );
+    return 1;
+  }
+
+  if (parsed.printGg) {
+    writeSection('gg', targetFunc.ggSource);
+  }
+
+  // Step 2: Execute through GnosisEngine with polyglot bridge handlers.
+  const input =
+    parsed.inputJson !== undefined ? JSON.parse(parsed.inputJson) : undefined;
+
+  const result = await executePolyglotWithGnosis({
+    ast: targetFunc.ast,
+    manifest: analysis.manifest,
+    input,
+  });
+
+  const totalMs = performance.now() - started;
+
+  if (shouldTraceTimings(parsed)) {
+    writeSection(
+      'timings',
+      JSON.stringify(
+        {
+          language: analysis.language,
+          function: targetFunc.functionName,
+          totalMs: Number(totalMs.toFixed(2)),
+        },
         null,
         2
       )

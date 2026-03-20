@@ -37,7 +37,9 @@ enum GnodeCommand {
         #[arg(long, value_enum, default_value_t = Strategy::Cannon)]
         strategy: Strategy,
     },
-    /// Compile the TypeScript file into GG and run it through Gnosis.
+    /// Compile and run a file through Gnosis. TypeScript files use the TS bridge;
+    /// all other supported languages (.py, .go, .rs, .rb, .java, .c, etc.)
+    /// are routed through the polyglot execution bridge automatically.
     Run {
         file: PathBuf,
         #[arg(long = "export")]
@@ -183,6 +185,50 @@ fn polyglot_binary_path() -> Result<PathBuf> {
     Ok(path)
 }
 
+/// TypeScript/TSX extensions that use the TS bridge path.
+const TS_EXTENSIONS: &[&str] = &["ts", "tsx", "mts", "cts"];
+
+/// Check whether a `gnode run` invocation should use the polyglot path.
+fn is_polyglot_run(command: &GnodeCommand) -> bool {
+    if let GnodeCommand::Run { file, .. } = command {
+        if let Some(ext) = file.extension().and_then(|e| e.to_str()) {
+            return !TS_EXTENSIONS.contains(&ext);
+        }
+    }
+    false
+}
+
+/// Build bridge-driver args for polyglot execution (polyglot-run command).
+fn build_polyglot_run_args(command: &GnodeCommand) -> Vec<String> {
+    match command {
+        GnodeCommand::Run {
+            file,
+            export_name,
+            input_json,
+            print_gg,
+            ..
+        } => {
+            let mut args = vec![
+                "polyglot-run".to_string(),
+                file.display().to_string(),
+            ];
+            if let Some(export_name) = export_name {
+                args.push("--export".to_string());
+                args.push(export_name.clone());
+            }
+            if let Some(input_json) = input_json {
+                args.push("--input-json".to_string());
+                args.push(input_json.clone());
+            }
+            if *print_gg {
+                args.push("--print-gg".to_string());
+            }
+            args
+        }
+        _ => unreachable!("build_polyglot_run_args called on non-Run command"),
+    }
+}
+
 fn run() -> Result<()> {
     let cli = Cli::parse();
 
@@ -231,7 +277,14 @@ fn run() -> Result<()> {
     }
 
     let driver = driver_path()?;
-    let driver_args = build_driver_args(&cli.command);
+
+    // Auto-detect polyglot: if `gnode run` is invoked on a non-TypeScript file,
+    // route through the polyglot execution bridge instead of the TS bridge.
+    let driver_args = if is_polyglot_run(&cli.command) {
+        build_polyglot_run_args(&cli.command)
+    } else {
+        build_driver_args(&cli.command)
+    };
 
     let status = Command::new(&cli.bun)
         .arg("run")

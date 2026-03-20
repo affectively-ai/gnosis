@@ -3,6 +3,16 @@ use crate::source_map::{SourceMap, SourceSpan};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Compilation mode: Analysis (default, for bug detection) or Orchestration (for execution).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum CompilationMode {
+    /// Default mode: emit topology for static analysis via Betty.
+    #[default]
+    Analysis,
+    /// Orchestration mode: emit topology with PolyglotBridge* labels for execution.
+    Orchestration,
+}
+
 /// A node in the GG topology output.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GgNode {
@@ -183,7 +193,16 @@ impl GgTopology {
 /// this compiler maps them to the universal FORK/RACE/FOLD/VENT/PROCESS/INTERFERE
 /// topology that Betty can analyze.
 pub fn compile_cfg_to_gg(cfg: &ControlFlowGraph) -> GgTopology {
+    compile_cfg_to_gg_with_mode(cfg, &CompilationMode::Analysis)
+}
+
+/// Compile a ControlFlowGraph into a GgTopology with a specific compilation mode.
+///
+/// In orchestration mode, nodes receive dual labels (e.g. `["Entry", "PolyglotBridgeEntry"]`)
+/// and source_range properties so the execution harness knows what to run.
+pub fn compile_cfg_to_gg_with_mode(cfg: &ControlFlowGraph, mode: &CompilationMode) -> GgTopology {
     let mut compiler = GgCompiler::new(cfg);
+    compiler.mode = mode.clone();
     compiler.compile();
     compiler.into_topology()
 }
@@ -203,6 +222,8 @@ struct GgCompiler<'a> {
     open_spawns: Vec<String>,
     /// Track lock acquires for deadlock cycle detection.
     lock_order: Vec<(String, String)>,
+    /// Compilation mode: analysis or orchestration.
+    mode: CompilationMode,
 }
 
 impl<'a> GgCompiler<'a> {
@@ -217,6 +238,7 @@ impl<'a> GgCompiler<'a> {
             open_resources: HashMap::new(),
             open_spawns: Vec::new(),
             lock_order: Vec::new(),
+            mode: CompilationMode::Analysis,
         }
     }
 
@@ -271,6 +293,51 @@ impl<'a> GgCompiler<'a> {
                 "source_line".to_string(),
                 cfg_node.span.start_line.to_string(),
             );
+
+            // In orchestration mode, attach source_range so the harness knows
+            // which byte range to execute.
+            if self.mode == CompilationMode::Orchestration {
+                props.insert(
+                    "source_start_byte".to_string(),
+                    cfg_node.span.start_byte.to_string(),
+                );
+                props.insert(
+                    "source_end_byte".to_string(),
+                    cfg_node.span.end_byte.to_string(),
+                );
+                // Attach callee name from the label if this is a call statement.
+                if matches!(cfg_node.kind, CfgNodeKind::Statement) {
+                    let label = &cfg_node.label;
+                    if label.starts_with("call: ") || label.contains('(') {
+                        // Extract function name, handling patterns like:
+                        // "call: fetch_data()" → "fetch_data"
+                        // "data = fetch_data(...)" → "fetch_data"
+                        // "result = process(data)" → "process"
+                        let raw = label.trim_start_matches("call: ");
+                        // If it has an assignment, take the right side.
+                        let rhs = if let Some(eq_pos) = raw.find('=') {
+                            // Skip == and != operators.
+                            let after_eq = &raw[eq_pos..];
+                            if after_eq.starts_with("==") || raw[..eq_pos].ends_with('!') {
+                                raw
+                            } else {
+                                raw[eq_pos + 1..].trim_start()
+                            }
+                        } else {
+                            raw
+                        };
+                        let callee = rhs
+                            .split('(')
+                            .next()
+                            .unwrap_or(rhs)
+                            .trim()
+                            .to_string();
+                        if !callee.is_empty() {
+                            props.insert("callee".to_string(), callee);
+                        }
+                    }
+                }
+            }
 
             let gg_id = self.add_gg_node(
                 labels,
@@ -538,12 +605,24 @@ impl<'a> GgCompiler<'a> {
 
     fn classify_cfg_node(&self, kind: &CfgNodeKind) -> (Vec<String>, HashMap<String, String>) {
         let mut props = HashMap::new();
+        let is_orchestration = self.mode == CompilationMode::Orchestration;
+
         let labels = match kind {
             CfgNodeKind::Entry { name } => {
                 props.insert("name".to_string(), name.clone());
-                vec!["Entry".to_string()]
+                if is_orchestration {
+                    vec!["Entry".to_string(), "PolyglotBridgeEntry".to_string()]
+                } else {
+                    vec!["Entry".to_string()]
+                }
             }
-            CfgNodeKind::Statement => vec!["Statement".to_string()],
+            CfgNodeKind::Statement => {
+                if is_orchestration {
+                    vec!["Statement".to_string(), "PolyglotBridgeStatement".to_string()]
+                } else {
+                    vec!["Statement".to_string()]
+                }
+            }
             CfgNodeKind::Branch { exhaustive } => {
                 props.insert("exhaustive".to_string(), exhaustive.to_string());
                 vec!["Branch".to_string()]
@@ -564,7 +643,13 @@ impl<'a> GgCompiler<'a> {
                 vec!["Release".to_string()]
             }
             CfgNodeKind::ConcurrentSpawn => vec!["Spawn".to_string()],
-            CfgNodeKind::SyncJoin => vec!["Join".to_string()],
+            CfgNodeKind::SyncJoin => {
+                if is_orchestration {
+                    vec!["Join".to_string(), "PolyglotBridgeJoin".to_string()]
+                } else {
+                    vec!["Join".to_string()]
+                }
+            }
             CfgNodeKind::LockAcquire { lock_id } => {
                 if let Some(lid) = lock_id {
                     props.insert("lock_id".to_string(), lid.clone());
@@ -577,7 +662,13 @@ impl<'a> GgCompiler<'a> {
                 }
                 vec!["LockRelease".to_string()]
             }
-            CfgNodeKind::Return => vec!["Return".to_string()],
+            CfgNodeKind::Return => {
+                if is_orchestration {
+                    vec!["Return".to_string(), "PolyglotBridgeReturn".to_string()]
+                } else {
+                    vec!["Return".to_string()]
+                }
+            }
             CfgNodeKind::Unreachable => vec!["Unreachable".to_string()],
             CfgNodeKind::Merge => vec!["Merge".to_string()],
         };
@@ -668,7 +759,21 @@ impl<'a> GgCompiler<'a> {
         }
     }
 
-    fn into_topology(self) -> GgTopology {
+    fn into_topology(mut self) -> GgTopology {
+        // In orchestration mode, upgrade Statement nodes with a "callee" property
+        // to use PolyglotBridgeCall instead of PolyglotBridgeStatement.
+        if self.mode == CompilationMode::Orchestration {
+            for node in &mut self.nodes {
+                if node.properties.contains_key("callee")
+                    && node.labels.contains(&"PolyglotBridgeStatement".to_string())
+                {
+                    // Replace PolyglotBridgeStatement with PolyglotBridgeCall.
+                    node.labels.retain(|l| l != "PolyglotBridgeStatement");
+                    node.labels.push("PolyglotBridgeCall".to_string());
+                }
+            }
+        }
+
         GgTopology {
             nodes: self.nodes,
             edges: self.edges,
@@ -824,5 +929,122 @@ mod tests {
             .filter(|n| n.labels.contains(&"SpawnLeak".to_string()))
             .collect();
         assert_eq!(vent_nodes.len(), 1, "should detect goroutine leak");
+    }
+
+    #[test]
+    fn orchestration_mode_adds_polyglot_bridge_labels() {
+        let mut cfg = ControlFlowGraph::new(
+            "handler".to_string(),
+            "python".to_string(),
+            "app.py".to_string(),
+        );
+        let entry = cfg.add_node(
+            CfgNodeKind::Entry {
+                name: "handler".to_string(),
+            },
+            span(),
+            "entry".to_string(),
+        );
+        cfg.entry = entry;
+        let stmt = cfg.add_node(
+            CfgNodeKind::Statement,
+            span(),
+            "call: fetch_data()".to_string(),
+        );
+        let ret = cfg.add_node(CfgNodeKind::Return, span(), "return".to_string());
+        cfg.exits.push(ret);
+
+        cfg.add_edge(entry, stmt, None);
+        cfg.add_edge(stmt, ret, None);
+
+        let gg = compile_cfg_to_gg_with_mode(&cfg, &CompilationMode::Orchestration);
+
+        // Entry should have dual labels.
+        let entry_node = gg
+            .nodes
+            .iter()
+            .find(|n| n.labels.contains(&"Entry".to_string()))
+            .expect("should have Entry node");
+        assert!(
+            entry_node.labels.contains(&"PolyglotBridgeEntry".to_string()),
+            "Entry node should have PolyglotBridgeEntry label"
+        );
+
+        // Statement with call should be upgraded to PolyglotBridgeCall.
+        let call_node = gg
+            .nodes
+            .iter()
+            .find(|n| n.labels.contains(&"Statement".to_string()))
+            .expect("should have Statement node");
+        assert!(
+            call_node.labels.contains(&"PolyglotBridgeCall".to_string()),
+            "Statement with call should have PolyglotBridgeCall label"
+        );
+        assert!(
+            call_node.properties.contains_key("callee"),
+            "Call node should have callee property"
+        );
+        assert_eq!(
+            call_node.properties.get("callee").unwrap(),
+            "fetch_data",
+            "Callee should be 'fetch_data'"
+        );
+
+        // Return should have dual labels.
+        let ret_node = gg
+            .nodes
+            .iter()
+            .find(|n| n.labels.contains(&"Return".to_string()))
+            .expect("should have Return node");
+        assert!(
+            ret_node.labels.contains(&"PolyglotBridgeReturn".to_string()),
+            "Return node should have PolyglotBridgeReturn label"
+        );
+
+        // All nodes should have source_start_byte and source_end_byte in orchestration mode.
+        for node in &gg.nodes {
+            assert!(
+                node.properties.contains_key("source_start_byte"),
+                "Node {} should have source_start_byte",
+                node.id
+            );
+            assert!(
+                node.properties.contains_key("source_end_byte"),
+                "Node {} should have source_end_byte",
+                node.id
+            );
+        }
+    }
+
+    #[test]
+    fn analysis_mode_does_not_add_bridge_labels() {
+        let mut cfg = ControlFlowGraph::new(
+            "handler".to_string(),
+            "python".to_string(),
+            "app.py".to_string(),
+        );
+        let entry = cfg.add_node(
+            CfgNodeKind::Entry {
+                name: "handler".to_string(),
+            },
+            span(),
+            "entry".to_string(),
+        );
+        cfg.entry = entry;
+        let ret = cfg.add_node(CfgNodeKind::Return, span(), "return".to_string());
+        cfg.exits.push(ret);
+        cfg.add_edge(entry, ret, None);
+
+        let gg = compile_cfg_to_gg(&cfg);
+
+        // Should NOT have any PolyglotBridge labels.
+        for node in &gg.nodes {
+            for label in &node.labels {
+                assert!(
+                    !label.starts_with("PolyglotBridge"),
+                    "Analysis mode should not have PolyglotBridge labels, found '{label}'"
+                );
+            }
+        }
     }
 }

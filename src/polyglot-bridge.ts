@@ -260,6 +260,119 @@ export async function analyzePolyglotSourceString(
 /**
  * Map a Betty diagnostic back to the original source location.
  */
+/**
+ * Run the polyglot binary in orchestration mode for execution.
+ */
+async function runPolyglotBinaryOrchestration(filePath: string): Promise<PolyglotOrchestrationResult> {
+  const binary = resolvePolyglotBinary();
+
+  try {
+    const { stdout } = await execFileAsync(binary, [filePath, '--format', 'json', '--mode', 'orchestration'], {
+      maxBuffer: 50 * 1024 * 1024,
+      timeout: 60_000,
+    });
+
+    return JSON.parse(stdout) as PolyglotOrchestrationResult;
+  } catch (error: unknown) {
+    const polyglotDir = path.resolve(
+      path.dirname(new URL(import.meta.url).pathname),
+      '..',
+      'polyglot'
+    );
+
+    try {
+      const { stdout } = await execFileAsync(
+        'cargo',
+        ['run', '--release', '--', filePath, '--format', 'json', '--mode', 'orchestration'],
+        {
+          cwd: polyglotDir,
+          maxBuffer: 50 * 1024 * 1024,
+          timeout: 120_000,
+        }
+      );
+
+      return JSON.parse(stdout) as PolyglotOrchestrationResult;
+    } catch {
+      const msg = error instanceof Error ? error.message : String(error);
+      throw new Error(`failed to run gnosis-polyglot in orchestration mode: ${msg}`);
+    }
+  }
+}
+
+/**
+ * Orchestration result from polyglot binary (scan result + execution manifest).
+ */
+interface PolyglotOrchestrationResult {
+  scan_result: PolyglotScanResult;
+  manifest: PolyglotExecutionManifest;
+}
+
+/**
+ * Execution manifest from polyglot orchestration mode.
+ */
+export interface PolyglotExecutionManifest {
+  language: string;
+  file_path: string;
+  entry_function: string;
+  node_execution_plans: Array<{
+    node_id: string;
+    source_range: { start_byte: number; end_byte: number };
+    kind: string;
+    callee?: string;
+  }>;
+}
+
+/**
+ * Analyze a source file for polyglot execution (orchestration mode).
+ * Returns the GraphAST + execution manifest ready for GnosisEngine.
+ */
+export async function analyzePolyglotSourceForExecution(
+  filePath: string
+): Promise<{
+  functions: Array<{
+    functionName: string;
+    ast: GraphAST;
+    ggSource: string;
+  }>;
+  manifest: PolyglotExecutionManifest;
+  language: string;
+  errors: string[];
+}> {
+  const result = await runPolyglotBinaryOrchestration(filePath);
+
+  const functions: Array<{
+    functionName: string;
+    ast: GraphAST;
+    ggSource: string;
+  }> = [];
+  const errors: string[] = [];
+
+  for (const err of result.scan_result.errors) {
+    errors.push(err.message);
+  }
+
+  for (const funcResult of result.scan_result.topologies) {
+    try {
+      const ast = topologyToGraphAst(funcResult.topology);
+      functions.push({
+        functionName: funcResult.function_name,
+        ast,
+        ggSource: funcResult.gg_source,
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      errors.push(`orchestration error in ${funcResult.function_name}: ${msg}`);
+    }
+  }
+
+  return {
+    functions,
+    manifest: result.manifest,
+    language: result.scan_result.language,
+    errors,
+  };
+}
+
 export function mapDiagnosticToSource(
   diagnostic: Diagnostic,
   sourceMap: Map<string, PolyglotSourceSpan>,
