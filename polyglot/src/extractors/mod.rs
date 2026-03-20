@@ -1,4 +1,6 @@
+pub mod declarative;
 pub mod go;
+pub mod grammars;
 pub mod java;
 pub mod python;
 pub mod rust_lang;
@@ -6,6 +8,8 @@ pub mod typescript;
 
 use crate::cfg::ControlFlowGraph;
 use anyhow::Result;
+
+use self::declarative::DeclarativeExtractor;
 
 /// Trait that all language extractors implement. An extractor takes source code
 /// and a tree-sitter parse tree and produces one or more ControlFlowGraphs
@@ -21,9 +25,40 @@ pub trait LanguageExtractor: Send + Sync {
     fn extract(&self, source: &str, file_path: &str) -> Result<Vec<ControlFlowGraph>>;
 }
 
+/// Embedded TOML configs for Phase 2 languages.
+const CONFIGS: &[(&str, &str)] = &[
+    ("c", include_str!("../../configs/c.toml")),
+    ("cpp", include_str!("../../configs/cpp.toml")),
+    ("c_sharp", include_str!("../../configs/csharp.toml")),
+    ("ruby", include_str!("../../configs/ruby.toml")),
+    ("php", include_str!("../../configs/php.toml")),
+    ("bash", include_str!("../../configs/bash.toml")),
+    ("scala", include_str!("../../configs/scala.toml")),
+    ("kotlin", include_str!("../../configs/kotlin.toml")),
+    ("swift", include_str!("../../configs/swift.toml")),
+    ("haskell", include_str!("../../configs/haskell.toml")),
+    ("ocaml", include_str!("../../configs/ocaml.toml")),
+    ("lua", include_str!("../../configs/lua.toml")),
+    ("elixir", include_str!("../../configs/elixir.toml")),
+    ("zig", include_str!("../../configs/zig.toml")),
+];
+
+/// Build declarative extractors from embedded TOML configs.
+fn declarative_extractors() -> Vec<Box<dyn LanguageExtractor>> {
+    let mut extractors: Vec<Box<dyn LanguageExtractor>> = Vec::new();
+    for (_id, toml_str) in CONFIGS {
+        match DeclarativeExtractor::from_toml(toml_str) {
+            Ok(ext) => extractors.push(Box::new(ext)),
+            Err(e) => eprintln!("warning: failed to load config for {}: {}", _id, e),
+        }
+    }
+    extractors
+}
+
 /// Detect language from file extension and return the appropriate extractor.
 pub fn extractor_for_file(file_path: &str) -> Option<Box<dyn LanguageExtractor>> {
-    let extractors: Vec<Box<dyn LanguageExtractor>> = vec![
+    // Phase 1 hand-written extractors take priority.
+    let phase1: Vec<Box<dyn LanguageExtractor>> = vec![
         Box::new(typescript::TypeScriptExtractor),
         Box::new(rust_lang::RustExtractor),
         Box::new(python::PythonExtractor),
@@ -32,28 +67,47 @@ pub fn extractor_for_file(file_path: &str) -> Option<Box<dyn LanguageExtractor>>
     ];
 
     let lower = file_path.to_lowercase();
-    for extractor in extractors {
+
+    for extractor in phase1 {
         for ext in extractor.file_extensions() {
             if lower.ends_with(ext) {
                 return Some(extractor);
             }
         }
     }
+
+    // Phase 2 declarative extractors.
+    for extractor in declarative_extractors() {
+        for ext in extractor.file_extensions() {
+            if lower.ends_with(ext) {
+                return Some(extractor);
+            }
+        }
+    }
+
     None
 }
 
-/// Get all registered extractors.
+/// Get all registered extractors (Phase 1 + Phase 2).
 pub fn all_extractors() -> Vec<Box<dyn LanguageExtractor>> {
-    vec![
+    let mut all: Vec<Box<dyn LanguageExtractor>> = vec![
         Box::new(typescript::TypeScriptExtractor),
         Box::new(rust_lang::RustExtractor),
         Box::new(python::PythonExtractor),
         Box::new(go::GoExtractor),
         Box::new(java::JavaExtractor),
-    ]
+    ];
+    all.extend(declarative_extractors());
+    all
 }
 
 /// List all supported language IDs.
 pub fn supported_languages() -> Vec<&'static str> {
-    vec!["typescript", "javascript", "rust", "python", "go", "java"]
+    vec![
+        // Phase 1
+        "typescript", "javascript", "rust", "python", "go", "java",
+        // Phase 2
+        "c", "cpp", "c_sharp", "ruby", "php", "bash", "scala",
+        "kotlin", "swift", "haskell", "ocaml", "lua", "elixir", "zig",
+    ]
 }
