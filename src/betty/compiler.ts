@@ -12,6 +12,13 @@ import {
 } from './coarsen.js';
 import { analyzeSemanticCompatibility, type SemanticCompatibilityResult } from './semantic-compatibility.js';
 import { generateHopeCertificate, type HopeCertificate } from './semantic-hope.js';
+import {
+  parseNodeDeclarations,
+  parseEdgeDeclarations,
+  parseProperties as parsePropertiesShared,
+  parseNodeRefsFromEdgeGroup,
+  IMPERATIVE_KEYWORD_REGEX,
+} from './parse-utils.js';
 
 export interface ASTNode {
   id: string;
@@ -278,9 +285,7 @@ export class BettyCompiler {
       if (!line || line.startsWith('//')) continue;
 
       // 1. REJECT IMPERATIVE CODE
-      const imperativeMatch = line.match(
-        /\b(function|return|if|while|for|var|let|const)\b/
-      );
+      const imperativeMatch = line.match(IMPERATIVE_KEYWORD_REGEX);
       if (imperativeMatch) {
         this.diagnostics.push({
           line: i + 1,
@@ -293,30 +298,24 @@ export class BettyCompiler {
 
       // 2. PARSE NODES
       // Only match nodes that are NOT part of an edge definition (followed by -[: or preceded by ]->)
-      if (!line.includes('-[:')) {
-        const nodeRegex =
-          /\(([^:)\s|]+)(?:\s*:\s*([^){\s]+))?(?:\s*{([^}]+)})?\)/g;
-        let nodeMatch;
-        while ((nodeMatch = nodeRegex.exec(line)) !== null) {
-          const id = nodeMatch[1].trim();
-          if (!id) continue;
+      {
+        const parsedNodes = parseNodeDeclarations(line);
+        for (const pn of parsedNodes) {
+          if (!pn.id) continue;
+          const properties = this.parseProperties(pn.propertiesRaw);
 
-          const label = nodeMatch[2] ? nodeMatch[2].trim() : '';
-          const propertiesRaw = nodeMatch[3] ? nodeMatch[3].trim() : '';
-          const properties = this.parseProperties(propertiesRaw);
-
-          if (!this.ast.nodes.has(id)) {
-            this.ast.nodes.set(id, {
-              id,
-              labels: label ? [label] : [],
+          if (!this.ast.nodes.has(pn.id)) {
+            this.ast.nodes.set(pn.id, {
+              id: pn.id,
+              labels: pn.label ? [pn.label] : [],
               properties,
             });
             continue;
           }
 
-          const existing = this.ast.nodes.get(id)!;
-          if (label && existing.labels.length === 0) {
-            existing.labels = [label];
+          const existing = this.ast.nodes.get(pn.id)!;
+          if (pn.label && existing.labels.length === 0) {
+            existing.labels = [pn.label];
           }
           if (Object.keys(properties).length > 0) {
             existing.properties = { ...existing.properties, ...properties };
@@ -325,65 +324,45 @@ export class BettyCompiler {
       }
 
       // 3. PARSE EDGES
-      const edgeRegex =
-        /\(([^)]+)\)\s*-\[:([A-Z]+)(?:\s*{([^}]+)})?\]->\s*\(([^)]+)\)/g;
-      let edgeMatch;
-      let lineMatched = false;
+      const parsedEdges = parseEdgeDeclarations(line);
+      let lineMatched = parsedEdges.length > 0;
 
-      while ((edgeMatch = edgeRegex.exec(line)) !== null) {
-        lineMatched = true;
-        const sourceRaw = edgeMatch[1].trim();
-        const edgeType = edgeMatch[2].trim();
-        const propertiesRaw = edgeMatch[3] ? edgeMatch[3].trim() : '';
-        const targetRaw = edgeMatch[4].trim();
+      for (const pe of parsedEdges) {
+        const sourceRaw = pe.sourceRaw;
+        const edgeType = pe.edgeType;
+        const propertiesRaw = pe.propertiesRaw;
+        const targetRaw = pe.targetRaw;
 
         const sources = sourceRaw.split('|').map((s) => s.split(':')[0].trim());
         const targets = targetRaw.split('|').map((s) => s.split(':')[0].trim());
 
         // Create nodes if they don't exist
-        sourceRaw.split('|').forEach((s) => {
-          const nodeRegexInEdge =
-            /([^:)\s|{]+)(?:\s*:\s*([^){\s]+))?(?:\s*{([^}]+)})?/g;
-          const nm = nodeRegexInEdge.exec(s.trim());
-          if (nm) {
-            const id = nm[1].trim();
-            const label = nm[2] ? nm[2].trim().replace(/[)\s{}]+$/, '') : '';
-            const propertiesRaw = nm[3] ? nm[3].trim() : '';
-            const properties = this.parseProperties(propertiesRaw);
-            if (!this.ast.nodes.has(id)) {
-              this.ast.nodes.set(id, {
-                id,
-                labels: label ? [label] : [],
-                properties,
-              });
-            } else if (Object.keys(properties).length > 0) {
-              // Merge properties if they were provided in the edge but not before
-              const existing = this.ast.nodes.get(id)!;
-              existing.properties = { ...existing.properties, ...properties };
-            }
+        for (const ref of parseNodeRefsFromEdgeGroup(sourceRaw)) {
+          const properties = this.parseProperties(ref.propertiesRaw);
+          if (!this.ast.nodes.has(ref.id)) {
+            this.ast.nodes.set(ref.id, {
+              id: ref.id,
+              labels: ref.label ? [ref.label] : [],
+              properties,
+            });
+          } else if (Object.keys(properties).length > 0) {
+            const existing = this.ast.nodes.get(ref.id)!;
+            existing.properties = { ...existing.properties, ...properties };
           }
-        });
-        targetRaw.split('|').forEach((s) => {
-          const nodeRegexInEdge =
-            /([^:)\s|{]+)(?:\s*:\s*([^){\s]+))?(?:\s*{([^}]+)})?/g;
-          const nm = nodeRegexInEdge.exec(s.trim());
-          if (nm) {
-            const id = nm[1].trim();
-            const label = nm[2] ? nm[2].trim().replace(/[)\s{}]+$/, '') : '';
-            const propertiesRaw = nm[3] ? nm[3].trim() : '';
-            const properties = this.parseProperties(propertiesRaw);
-            if (!this.ast.nodes.has(id)) {
-              this.ast.nodes.set(id, {
-                id,
-                labels: label ? [label] : [],
-                properties,
-              });
-            } else if (Object.keys(properties).length > 0) {
-              const existing = this.ast.nodes.get(id)!;
-              existing.properties = { ...existing.properties, ...properties };
-            }
+        }
+        for (const ref of parseNodeRefsFromEdgeGroup(targetRaw)) {
+          const properties = this.parseProperties(ref.propertiesRaw);
+          if (!this.ast.nodes.has(ref.id)) {
+            this.ast.nodes.set(ref.id, {
+              id: ref.id,
+              labels: ref.label ? [ref.label] : [],
+              properties,
+            });
+          } else if (Object.keys(properties).length > 0) {
+            const existing = this.ast.nodes.get(ref.id)!;
+            existing.properties = { ...existing.properties, ...properties };
           }
-        });
+        }
 
         // Topological Validation
         if (edgeType === 'FORK') {

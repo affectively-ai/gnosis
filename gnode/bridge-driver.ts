@@ -35,9 +35,10 @@ import {
   generateTopoRaceTopology,
 } from '../src/polyglot-compose.js';
 import { buildWithTopoRace, type PolyglotBuildConfig } from '../src/polyglot-build.js';
+import { runBootstrap } from '../src/betti/bootstrap.js';
 
 type Strategy = 'cannon' | 'linear';
-type CommandName = 'compile' | 'schedule' | 'run' | 'polyglot-run' | 'scaffold' | 'compose' | 'translate' | 'best-language' | 'topo-race';
+type CommandName = 'compile' | 'schedule' | 'run' | 'polyglot-run' | 'scaffold' | 'compose' | 'translate' | 'best-language' | 'topo-race' | 'bootstrap';
 type CacheStatus = 'hit' | 'miss';
 
 const CACHE_SCHEMA_VERSION = 1;
@@ -209,6 +210,7 @@ function usage(): string {
     '  gnode best-language <file.py|.go|.rs|...> [--export name]',
     '  gnode topo-race <file.py> --languages python,go,rust',
     '  gnode scaffold <file.gg> [--assign node=lang ...] [--output-dir dir]',
+    '  gnode bootstrap <betti.gg> [--race] [--verify-final-only]',
     '  gnode <command> ... [--trace-timings]',
   ].join('\n');
 }
@@ -217,7 +219,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
   const command = argv[0];
   const filePath = argv[1];
 
-  const validCommands = ['compile', 'schedule', 'run', 'polyglot-run', 'scaffold', 'compose', 'translate', 'best-language', 'topo-race', 'build'];
+  const validCommands = ['compile', 'schedule', 'run', 'polyglot-run', 'scaffold', 'compose', 'translate', 'best-language', 'topo-race', 'build', 'bootstrap'];
   if (!validCommands.includes(command ?? '') || !filePath) {
     throw new Error(usage());
   }
@@ -270,6 +272,10 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
     }
     if (flag === '--trace-timings') {
       traceTimings = true;
+      continue;
+    }
+    if (flag === '--race' || flag === '--verify-final-only') {
+      // Bootstrap-specific flags, handled in runBootstrapCommand
       continue;
     }
 
@@ -1022,6 +1028,11 @@ export async function runCli(argv: readonly string[]): Promise<number> {
     return runBuild(parsed);
   }
 
+  // Bootstrap path: self-hosting verification (Betty vs Betti).
+  if (parsed.command === 'bootstrap') {
+    return runBootstrapCommand(parsed);
+  }
+
   const artifact = await loadArtifact(parsed.filePath, parsed.exportName);
 
   if (parsed.command === 'compile') {
@@ -1600,6 +1611,62 @@ async function runScaffold(parsed: ParsedArgs): Promise<number> {
 
   process.stderr.write(`\n${scaffolded.files.length} file(s) scaffolded.\n`);
   return 0;
+}
+
+async function runBootstrapCommand(parsed: ParsedArgs): Promise<number> {
+  const race = process.argv.includes('--race');
+  const verifyFinalOnly = process.argv.includes('--verify-final-only');
+
+  process.stderr.write('[Betti Bootstrap] Starting self-hosting verification...\n');
+
+  const result = runBootstrap(parsed.filePath, { race, verifyFinalOnly });
+
+  process.stderr.write(`[Betti Bootstrap] Betty nodes: ${result.bettyAst.nodes.size}, edges: ${result.bettyAst.edges.length}\n`);
+  process.stderr.write(`[Betti Bootstrap] Betti nodes: ${result.bettiAst.nodes.size}, edges: ${result.bettiAst.edges.length}\n`);
+  process.stderr.write(`[Betti Bootstrap] Structural equivalence: ${result.equivalent}\n`);
+  process.stderr.write(`[Betti Bootstrap] Beta1 match: ${result.b1Match}\n`);
+  process.stderr.write(`[Betti Bootstrap] Fixed-point converged: ${result.fixedPoint.converged} (${result.fixedPoint.iterations} iteration(s), residual: ${result.fixedPoint.residual.toFixed(8)})\n`);
+
+  if (!result.equivalent) {
+    process.stderr.write(`[Betti Bootstrap] DIVERGENCE DETECTED - ${result.diffs.length} diff(s):\n`);
+    for (const diff of result.diffs.slice(0, 20)) {
+      process.stderr.write(`  ${diff.kind}: ${diff.id}${diff.details ? ` (${diff.details})` : ''}\n`);
+    }
+    if (result.diffs.length > 20) {
+      process.stderr.write(`  ... and ${result.diffs.length - 20} more\n`);
+    }
+  }
+
+  if (result.polyglotWinners.size > 0) {
+    process.stderr.write('[Betti Bootstrap] Polyglot race winners:\n');
+    for (const [handler, lang] of result.polyglotWinners) {
+      process.stderr.write(`  ${handler}: ${lang}\n`);
+    }
+  }
+
+  // Output structured result to stdout
+  process.stdout.write(
+    JSON.stringify(
+      {
+        equivalent: result.equivalent,
+        b1Match: result.b1Match,
+        fixedPoint: {
+          converged: result.fixedPoint.converged,
+          iterations: result.fixedPoint.iterations,
+          residual: result.fixedPoint.residual,
+        },
+        bettyNodes: result.bettyAst.nodes.size,
+        bettyEdges: result.bettyAst.edges.length,
+        bettiNodes: result.bettiAst.nodes.size,
+        bettiEdges: result.bettiAst.edges.length,
+        diffs: result.diffs.length,
+      },
+      null,
+      2
+    )
+  );
+
+  return result.equivalent && result.fixedPoint.converged ? 0 : 1;
 }
 
 function isCliEntrypoint(): boolean {

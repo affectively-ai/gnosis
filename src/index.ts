@@ -53,6 +53,7 @@ import { generateTlaFromGnosisSource } from './tla-bridge.js';
 
 import { GnosisNeo4jBridge } from './neo4j-bridge.js';
 import { GnosisFormatter } from './formatter.js';
+import { registerBettiHandlers } from './betti/handlers.js';
 import { renderWithTopologyCompat } from './runtime/renderer-compat.js';
 import {
   authorizeSteeringApply,
@@ -2013,138 +2014,7 @@ async function main() {
       });
 
       // Compiler Handlers for Betti self-hosting
-      registry.register('IO', async (payload, props) => {
-        const op = props['op'];
-        if (op === 'read_file') {
-          const filePath = path.resolve(
-            process.cwd(),
-            (payload as string) || 'transformer.gg'
-          );
-          console.log(`[Betti:IO] Reading source: ${filePath}`);
-          return fs.readFileSync(filePath, 'utf-8');
-        }
-        return payload;
-      });
-
-      registry.register('Logic', async (payload, props) => {
-        const pattern = props['pattern'];
-        if (pattern === '//') {
-          console.log(`[Betti:Logic] Stripping comments...`);
-          return (payload as string)
-            .split('\n')
-            .map((line) => line.trim())
-            .filter((line) => line && !line.startsWith('//'))
-            .join('\n');
-        }
-        return payload;
-      });
-
-      registry.register('Lexer', async (payload, props) => {
-        const target = props['target'];
-        const input = payload as string;
-        console.log(`[Betti:Lexer] Extracting ${target}...`);
-
-        if (target === 'nodes') {
-          const nodeRegex =
-            /\(([^:)\s]+)(?:\s*:\s*([^{\s)]+))?(?:\s*{([^}]+)})?\)/g;
-          const nodes: any[] = [];
-          let match;
-          while ((match = nodeRegex.exec(input)) !== null) {
-            if (match[1].includes('|')) continue;
-            nodes.push({ id: match[1], label: match[2], props: match[3] });
-          }
-          return nodes;
-        }
-
-        if (target === 'edges') {
-          const edgeRegex =
-            /\(([^)]+)\)\s*-\[:([A-Z]+)(?:\s*{([^}]+)})?\]->\s*\(([^)]+)\)/g;
-          const edges: any[] = [];
-          let match;
-          while ((match = edgeRegex.exec(input)) !== null) {
-            edges.push({
-              src: match[1],
-              type: match[2],
-              props: match[3],
-              target: match[4],
-            });
-          }
-          return edges;
-        }
-
-        return [];
-      });
-
-      registry.register('Compiler', async (payload, props) => {
-        const phase = props['phase'];
-        if (phase === 'assemble') {
-          console.log(
-            `[Betti:Compiler] Assembling AST from fragmented tokens...`
-          );
-          return { type: 'GraphAST', data: payload, timestamp: Date.now() };
-        }
-        return payload;
-      });
-
-      registry.register('Topology', async (payload, props) => {
-        const astData = payload.data as any;
-        console.log(
-          `[Betti:Topology] Verifying quantum bounds with aeon-logic...`
-        );
-        const edges = (astData.edge_lexer || []) as Array<{
-          src: string;
-          type: string;
-          props?: string;
-          target: string;
-        }>;
-        const ggSource = edges
-          .map((edge) => {
-            const properties = edge.props ? ` { ${edge.props} }` : '';
-            return `(${edge.src})-[:${edge.type}${properties}]->(${edge.target})`;
-          })
-          .join('\n');
-
-        const report = await analyzeGnosisSource(ggSource, { steeringMode });
-        if (!report.correctness.ok) {
-          const [firstViolation] = formatGnosisViolations(report.correctness);
-          console.error(
-            `[Betti:Topology] Verification Failed: ${
-              firstViolation || 'Unknown violation'
-            }`
-          );
-          return {
-            ...payload,
-            verified: false,
-            errors: report.correctness.violations,
-            buleyNumber: report.buleyNumber,
-          };
-        }
-
-        console.log(
-          `[Betti:Topology] Verified! States explored: ${
-            report.correctness.stateCount
-          }, Beta1: ${report.correctness.topology.beta1}, Buley Number: ${
-            report.buleyNumber
-          }, Quantum Index: ${
-            report.quantum.quantumIndex
-          }, Steering: ${formatSteeringSummary(report.steering)}`
-        );
-        return {
-          ...payload,
-          verified: true,
-          stats: report.correctness.topology,
-          buleyNumber: report.buleyNumber,
-          quantum: report.quantum,
-          complexity: report.topology,
-          steering: report.steering,
-        };
-      });
-
-      registry.register('Runtime', async (payload, props) => {
-        const target = props['target'];
-        console.log(`[Betti:Runtime] Emitting binary for ${target}...`);
-        return Buffer.from([0x0a, 0x0e, 0x00, 0x46, 0x4c, 0x4f, 0x57]);
-      });
+      registerBettiHandlers(registry);
 
       // Twokeys Statistical Handlers
       registry.register('Statistics', async (payload, props) => {
