@@ -62,18 +62,23 @@ const SKIP_HINTS: &[&str] = &[
 ];
 
 /// Resource acquisition text patterns (language-agnostic).
+/// Note: patterns must be specific enough to avoid matching non-resource
+/// usage (e.g. WebAudio node.connect(), GraphQL isConnection).
 const ACQUIRE_PATTERNS: &[(&str, &str)] = &[
-    ("open(", "File"),
     ("fopen(", "File"),
-    ("Open(", "File"),
-    ("create(", "File"),
-    ("Create(", "File"),
-    ("connect(", "Connection"),
-    ("Connect(", "Connection"),
-    ("dial(", "Connection"),
-    ("Dial(", "Connection"),
+    ("os.Open(", "File"),
+    ("os.Create(", "File"),
+    ("os.OpenFile(", "File"),
+    ("fs.open(", "File"),
+    ("createReadStream(", "File"),
+    ("createWriteStream(", "File"),
+    ("net.connect(", "Connection"),
+    ("net.Dial(", "Connection"),
+    ("tls.connect(", "Connection"),
+    ("sql.Open(", "Connection"),
+    ("DriverManager.getConnection(", "Connection"),
     ("socket(", "Socket"),
-    ("Socket(", "Socket"),
+    ("new WebSocket(", "Socket"),
     ("malloc(", "Memory"),
     ("calloc(", "Memory"),
     ("alloc(", "Memory"),

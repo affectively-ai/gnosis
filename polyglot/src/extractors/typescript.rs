@@ -395,14 +395,19 @@ fn classify_expression(node: &Node, source: &str) -> CfgNodeKind {
     }
 
     // Detect resource patterns.
+    // Note: .connect( alone is too broad -- matches Web Audio node.connect(),
+    // GraphQL isConnection, UI state connections, etc. Only match explicit
+    // network connection creation patterns.
     let resource_patterns = [
         ("fs.open", ResourceKind::File),
         ("createReadStream", ResourceKind::File),
         ("createWriteStream", ResourceKind::File),
         ("net.connect", ResourceKind::Socket),
+        ("net.createConnection", ResourceKind::Socket),
+        ("tls.connect", ResourceKind::Socket),
         ("new WebSocket", ResourceKind::Socket),
-        ("createConnection", ResourceKind::Connection),
-        (".connect(", ResourceKind::Connection),
+        ("http.request(", ResourceKind::Connection),
+        ("https.request(", ResourceKind::Connection),
     ];
 
     for (pattern, kind) in &resource_patterns {
