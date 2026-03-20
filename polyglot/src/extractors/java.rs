@@ -458,13 +458,19 @@ fn classify_java_statement(node: &Node, source: &str) -> CfgNodeKind {
         };
     }
 
-    // Thread spawn.
-    if text.contains(".start()") || text.contains("new Thread(") || text.contains("executor.submit(") {
+    // Thread spawn -- only actual threading primitives.
+    // .start() alone is too broad (matches Lifecycle.start(), Observation.start(), etc.)
+    if text.contains("new Thread(") || text.contains("executor.submit(")
+        || text.contains("executor.execute(") || text.contains("CompletableFuture.supplyAsync(")
+        || text.contains("CompletableFuture.runAsync(")
+    {
         return CfgNodeKind::ConcurrentSpawn;
     }
 
-    // Join.
-    if text.contains(".join()") || text.contains(".get()") {
+    // Join -- only actual synchronization, not generic .get().
+    if text.contains("thread.join()") || text.contains("Thread.join()")
+        || text.contains(".get(") && (text.contains("Future") || text.contains("CompletableFuture"))
+    {
         return CfgNodeKind::SyncJoin;
     }
 
@@ -479,7 +485,8 @@ fn node_text_truncated(node: &Node, source: &str, max: usize) -> String {
     let full = &source[node.start_byte()..node.end_byte()];
     let first_line = full.lines().next().unwrap_or(full);
     if first_line.len() > max {
-        format!("{}...", &first_line[..max])
+        let end = first_line.char_indices().nth(max).map(|(i, _)| i).unwrap_or(first_line.len());
+        format!("{}...", &first_line[..end])
     } else {
         first_line.to_string()
     }

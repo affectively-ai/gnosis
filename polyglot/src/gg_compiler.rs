@@ -333,11 +333,11 @@ impl<'a> GgCompiler<'a> {
                         continue;
                     }
 
-                    let mut props = HashMap::new();
-                    if exceptional_succs.is_empty() {
-                        // Try without catch -- will be flagged as deficit.
-                        props.insert("missing_catch".to_string(), "true".to_string());
-                    }
+                    let props = HashMap::new();
+                    // Note: we no longer flag try-without-catch as missing_catch.
+                    // try/finally without catch is a valid and common pattern where
+                    // errors propagate while cleanup runs. The CERA LLM triage
+                    // layer handles semantic error-handling analysis instead.
                     self.add_gg_edge(
                         vec![gg_source],
                         all_targets,
@@ -586,12 +586,44 @@ impl<'a> GgCompiler<'a> {
 
     /// Emit VENT edges for unmatched resource acquires (resource leaks).
     fn emit_deficit_vents(&mut self) {
+        // Before emitting leaks, do a global check: if ANY node in the CFG
+        // is a ResourceRelease with the same kind, the acquire is matched.
+        // This handles defer, finally, with, using patterns where the release
+        // may not be in direct CFG-order after the acquire.
+        let all_release_kinds: std::collections::HashSet<String> = self
+            .cfg
+            .nodes
+            .iter()
+            .filter_map(|n| match &n.kind {
+                CfgNodeKind::ResourceRelease { resource_kind } => {
+                    Some(format!("{:?}", resource_kind))
+                }
+                CfgNodeKind::LockRelease { .. } => Some("Lock".to_string()),
+                _ => None,
+            })
+            .collect();
+
+        // Also check for defer/finally/with patterns in source text
+        let source_has_defer = self.cfg.nodes.iter().any(|n| {
+            let label = &n.label;
+            label.contains("defer ") || label.contains("finally")
+                || label.contains("with ") || label.contains("using ")
+                || label.contains(".close()") || label.contains(".Close()")
+                || label.contains(".destroy()") || label.contains(".Dispose()")
+                || label.contains("__exit__")
+        });
+
         // Collect data first to avoid borrow conflicts.
         let resource_leaks: Vec<(String, String)> = self
             .open_resources
             .iter()
             .flat_map(|(kind, ids)| {
-                ids.iter().map(move |id| (kind.clone(), id.clone()))
+                // If there's a release of the same kind anywhere, skip this acquire.
+                if all_release_kinds.contains(kind) || source_has_defer {
+                    vec![]
+                } else {
+                    ids.iter().map(move |id| (kind.clone(), id.clone())).collect::<Vec<_>>()
+                }
             })
             .collect();
 

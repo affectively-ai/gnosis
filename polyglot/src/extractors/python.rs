@@ -217,8 +217,18 @@ fn extract_python_body(
             }
 
             "while_statement" => {
+                let text = node_text(child, source);
+                // while loops with explicit termination conditions are bounded.
+                let bounded = text.contains(" < ")
+                    || text.contains(" <= ")
+                    || text.contains(" > ")
+                    || text.contains(" >= ")
+                    || text.contains(" not ")
+                    || text.contains("len(")
+                    || text.contains(".empty")
+                    || text.contains("is not None");
                 let loop_node = cfg.add_node(
-                    CfgNodeKind::Loop { bounded: false },
+                    CfgNodeKind::Loop { bounded },
                     SourceSpan::from_tree_sitter(file_path, &child),
                     node_text_truncated(&child, source, 40),
                 );
@@ -460,7 +470,8 @@ fn node_text_truncated(node: &Node, source: &str, max: usize) -> String {
     let full = &source[node.start_byte()..node.end_byte()];
     let first_line = full.lines().next().unwrap_or(full);
     if first_line.len() > max {
-        format!("{}...", &first_line[..max])
+        let end = first_line.char_indices().nth(max).map(|(i, _)| i).unwrap_or(first_line.len());
+        format!("{}...", &first_line[..end])
     } else {
         first_line.to_string()
     }

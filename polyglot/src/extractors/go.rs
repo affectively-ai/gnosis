@@ -199,8 +199,11 @@ fn extract_go_body(
 
             "for_statement" => {
                 let text = node_text(child, source);
-                // Go's `for` with no condition is unbounded.
-                let bounded = text.contains("range") || text.contains(";");
+                // Go's `for` with no condition is unbounded (`for { ... }`).
+                // `for range` and C-style `for` with comparison are bounded.
+                let bounded = text.contains("range")
+                    || (text.contains(";") && (text.contains(" < ") || text.contains(" <= ")
+                        || text.contains(" > ") || text.contains(" >= ")));
                 let loop_node = cfg.add_node(
                     CfgNodeKind::Loop { bounded },
                     SourceSpan::from_tree_sitter(file_path, &child),
@@ -405,7 +408,8 @@ fn node_text_truncated(node: &Node, source: &str, max: usize) -> String {
     let full = &source[node.start_byte()..node.end_byte()];
     let first_line = full.lines().next().unwrap_or(full);
     if first_line.len() > max {
-        format!("{}...", &first_line[..max])
+        let end = first_line.char_indices().nth(max).map(|(i, _)| i).unwrap_or(first_line.len());
+        format!("{}...", &first_line[..end])
     } else {
         first_line.to_string()
     }

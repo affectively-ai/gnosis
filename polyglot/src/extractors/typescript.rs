@@ -423,11 +423,12 @@ fn classify_expression(node: &Node, source: &str) -> CfgNodeKind {
     }
 
     // Detect spawn patterns.
-    if text.contains("setTimeout(")
-        || text.contains("setInterval(")
-        || text.contains("new Worker(")
-        || text.contains("fork(")
-        || text.contains("spawn(")
+    // Note: setTimeout/setInterval are NOT concurrent spawns -- they are
+    // timer scheduling on the same event loop. Only flag actual thread/process spawns.
+    if text.contains("new Worker(")
+        || text.contains("child_process.fork(")
+        || text.contains("child_process.spawn(")
+        || text.contains("cluster.fork(")
     {
         return CfgNodeKind::ConcurrentSpawn;
     }
@@ -472,7 +473,8 @@ fn node_text_truncated(node: &Node, source: &str, max: usize) -> String {
     let full = &source[node.start_byte()..node.end_byte()];
     let first_line = full.lines().next().unwrap_or(full);
     if first_line.len() > max {
-        format!("{}...", &first_line[..max])
+        let end = first_line.char_indices().nth(max).map(|(i, _)| i).unwrap_or(first_line.len());
+        format!("{}...", &first_line[..end])
     } else {
         first_line.to_string()
     }
@@ -481,14 +483,35 @@ fn node_text_truncated(node: &Node, source: &str, max: usize) -> String {
 fn is_bounded_loop(node: &Node, source: &str) -> bool {
     let kind = node.kind();
     match kind {
-        // for...in / for...of are bounded (iterate over collection).
+        // for...in / for...of are always bounded (iterate over collection).
         "for_in_statement" => true,
         "for_statement" => {
-            // Heuristic: if condition references a known-finite iterator pattern.
             let text = node_text(*node, source);
-            text.contains(".length") || text.contains(" of ") || text.contains(" in ")
+            // C-style for with .length, .size, numeric bound, or collection iteration.
+            text.contains(".length")
+                || text.contains(".size")
+                || text.contains(" of ")
+                || text.contains(" in ")
+                || text.contains(" < ")
+                || text.contains(" <= ")
+                || text.contains(" > ")
+                || text.contains(" >= ")
         }
-        "while_statement" | "do_statement" => false,
+        "while_statement" | "do_statement" => {
+            // while loops with explicit termination conditions are bounded.
+            let text = node_text(*node, source);
+            // while (i < n), while (arr.length), while (queue.length > 0), etc.
+            text.contains(" < ")
+                || text.contains(" <= ")
+                || text.contains(" > ")
+                || text.contains(" >= ")
+                || text.contains(".length")
+                || text.contains(".size")
+                || text.contains(".hasNext")
+                || text.contains("!done")
+                || text.contains("!finished")
+                || text.contains("!eof")
+        }
         _ => false,
     }
 }

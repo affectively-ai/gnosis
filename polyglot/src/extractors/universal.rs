@@ -99,17 +99,23 @@ const RELEASE_PATTERNS: &[(&str, &str)] = &[
 ];
 
 /// Spawn/concurrency text patterns.
+/// Note: setTimeout/setInterval, Lifecycle.start(), Observation.start() are NOT
+/// concurrent spawns. Only flag actual thread/process/goroutine creation.
 const SPAWN_PATTERNS: &[&str] = &[
-    "spawn(", "Spawn(", "Thread(", "thread(",
-    "go ", "async(", "Task(", "fork(",
-    "launch(", "Future(", "coroutine",
+    "thread::spawn(", "tokio::spawn(", "task::spawn(",
+    "Thread(", "new Thread(",
+    "go func", "go ",
+    "child_process.fork(", "child_process.spawn(",
     "pthread_create(", "CreateThread(",
+    "CompletableFuture.runAsync(", "CompletableFuture.supplyAsync(",
+    "executor.submit(", "executor.execute(",
+    "cluster.fork(",
 ];
 
 /// Join/synchronization text patterns.
 const JOIN_PATTERNS: &[&str] = &[
-    "join(", "Join(", "await ", ".Wait(",
-    "wait(", "pthread_join(", ".get()",
+    ".join()", "Join(", "await ", ".Wait(",
+    "wait(", "pthread_join(",
     "WaitForSingleObject(", "sync(",
 ];
 
@@ -449,8 +455,21 @@ fn extract_body_universal(
 
         // Unbounded loops.
         if matches_any(kind, LOOP_UNBOUNDED_HINTS) {
+            // Check if the condition contains comparison/length checks.
+            let text = node_text(child, source);
+            let bounded = text.contains(" < ")
+                || text.contains(" <= ")
+                || text.contains(" > ")
+                || text.contains(" >= ")
+                || text.contains(".length")
+                || text.contains(".size")
+                || text.contains("len(")
+                || text.contains(".empty")
+                || text.contains(".hasNext")
+                || text.contains("!done")
+                || text.contains("not ");
             let loop_node = cfg.add_node(
-                CfgNodeKind::Loop { bounded: false },
+                CfgNodeKind::Loop { bounded },
                 SourceSpan::from_tree_sitter(file_path, &child),
                 node_text_truncated(&child, source, 40),
             );
@@ -641,7 +660,8 @@ fn node_text_truncated(node: &Node, source: &str, max: usize) -> String {
     let full = &source[node.start_byte()..node.end_byte()];
     let first_line = full.lines().next().unwrap_or(full);
     if first_line.len() > max {
-        format!("{}...", &first_line[..max])
+        let end = first_line.char_indices().nth(max).map(|(i, _)| i).unwrap_or(first_line.len());
+        format!("{}...", &first_line[..end])
     } else {
         first_line.to_string()
     }
