@@ -1,4 +1,5 @@
 pub mod cfg;
+pub mod diagnostics;
 pub mod extractors;
 pub mod gg_compiler;
 pub mod serialization;

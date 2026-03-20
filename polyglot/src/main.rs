@@ -92,7 +92,17 @@ fn scan_directory(cli: &Cli) -> Result<()> {
             }
         }
         OutputFormat::Sarif => {
-            println!("{}", serde_json::to_string_pretty(&all_results)?);
+            let mut all_diags = Vec::new();
+            for result in &all_results {
+                for topo in &result.topologies {
+                    let diags = gnosis_polyglot::diagnostics::analyze_topology(&topo.topology);
+                    all_diags.extend(diags);
+                }
+            }
+            let file = all_results.first().map(|r| r.file_path.as_str()).unwrap_or("unknown");
+            let lang = all_results.first().map(|r| r.language.as_str()).unwrap_or("unknown");
+            let sarif = gnosis_polyglot::diagnostics::diagnostics_to_sarif(file, lang, &all_diags);
+            println!("{}", serde_json::to_string_pretty(&sarif)?);
         }
     }
 
@@ -127,7 +137,17 @@ fn scan_file(cli: &Cli, file_path: &PathBuf) -> Result<()> {
             }
         }
         OutputFormat::Sarif => {
-            println!("{}", serde_json::to_string_pretty(&result)?);
+            let mut all_diags = Vec::new();
+            for topo in &result.topologies {
+                let diags = gnosis_polyglot::diagnostics::analyze_topology(&topo.topology);
+                all_diags.extend(diags);
+            }
+            let sarif = gnosis_polyglot::diagnostics::diagnostics_to_sarif(
+                &result.file_path,
+                &result.language,
+                &all_diags,
+            );
+            println!("{}", serde_json::to_string_pretty(&sarif)?);
         }
     }
 

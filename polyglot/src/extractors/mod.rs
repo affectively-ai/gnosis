@@ -5,11 +5,13 @@ pub mod java;
 pub mod python;
 pub mod rust_lang;
 pub mod typescript;
+pub mod universal;
 
 use crate::cfg::ControlFlowGraph;
 use anyhow::Result;
 
 use self::declarative::DeclarativeExtractor;
+use self::universal::UniversalExtractor;
 
 /// Trait that all language extractors implement. An extractor takes source code
 /// and a tree-sitter parse tree and produces one or more ControlFlowGraphs
@@ -81,6 +83,21 @@ pub fn extractor_for_file(file_path: &str) -> Option<Box<dyn LanguageExtractor>>
         for ext in extractor.file_extensions() {
             if lower.ends_with(ext) {
                 return Some(extractor);
+            }
+        }
+    }
+
+    // Phase 3: Universal extractor fallback.
+    // Try to find a grammar by extension and use the universal heuristic extractor.
+    if let Some(dot_pos) = file_path.rfind('.') {
+        let ext = &file_path[dot_pos..].to_lowercase();
+        if let Some(lang_id) = grammars::grammar_for_extension(ext) {
+            if let Some(grammar) = grammars::get_grammar(lang_id) {
+                return Some(Box::new(UniversalExtractor::new(
+                    format!("{}_universal", lang_id),
+                    vec![ext.to_string()],
+                    grammar,
+                )));
             }
         }
     }
