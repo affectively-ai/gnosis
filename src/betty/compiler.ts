@@ -11,6 +11,7 @@ import {
   type CoarseningSynthesisResult,
 } from './coarsen.js';
 import { analyzeSemanticCompatibility, type SemanticCompatibilityResult } from './semantic-compatibility.js';
+import { generateHopeCertificate, type HopeCertificate } from './semantic-hope.js';
 
 export interface ASTNode {
   id: string;
@@ -90,6 +91,7 @@ export interface BettyParseResult {
   landauerHeat: number;
   deficit: DeficitAnalysis | null;
   semanticCompatibility: SemanticCompatibilityResult | null;
+  hopeCertificate: HopeCertificate | null;
 }
 
 export interface DeficitAnalysis {
@@ -258,6 +260,7 @@ export class BettyCompiler {
         landauerHeat: 0,
         deficit: null,
         semanticCompatibility: null,
+        hopeCertificate: null,
       };
 
     this.logs = [];
@@ -585,6 +588,9 @@ export class BettyCompiler {
       landauerHeat,
       deficit,
       semanticCompatibility: this.semanticResult,
+      hopeCertificate: this.semanticResult
+        ? generateHopeCertificate(this.ast, this.semanticResult)
+        : null,
     };
   }
 
