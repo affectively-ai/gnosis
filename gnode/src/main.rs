@@ -55,6 +55,19 @@ enum GnodeCommand {
         #[arg(long, value_enum, default_value_t = Strategy::Cannon)]
         strategy: Strategy,
     },
+    /// Scaffold skeleton implementations for a .gg topology.
+    /// Each node can be assigned to a language; generates source files with
+    /// correct function signatures inferred from the topology.
+    Scaffold {
+        /// The .gg topology file.
+        file: PathBuf,
+        /// Language assignments: node_id=language (e.g., ml_predict=python).
+        #[arg(long, num_args = 1..)]
+        assign: Vec<String>,
+        /// Output directory for generated files.
+        #[arg(long, default_value = ".")]
+        output_dir: String,
+    },
     /// Polyglot analysis: parse source code in any language via tree-sitter,
     /// extract control flow into GG topologies, and run Betty analysis.
     Polyglot {
@@ -160,6 +173,23 @@ fn build_driver_args(command: &GnodeCommand) -> Vec<String> {
             if *print_schedule {
                 args.push("--print-schedule".to_string());
             }
+            args
+        }
+        GnodeCommand::Scaffold {
+            file,
+            assign,
+            output_dir,
+        } => {
+            let mut args = vec![
+                "scaffold".to_string(),
+                file.display().to_string(),
+            ];
+            for assignment in assign {
+                args.push("--assign".to_string());
+                args.push(assignment.clone());
+            }
+            args.push("--output-dir".to_string());
+            args.push(output_dir.clone());
             args
         }
         GnodeCommand::Polyglot { .. } => {

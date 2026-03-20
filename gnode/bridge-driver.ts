@@ -24,9 +24,11 @@ import {
 } from '../src/ts-bridge.js';
 import { analyzePolyglotSourceForExecution } from '../src/polyglot-bridge.js';
 import { executePolyglotWithGnosis } from '../src/polyglot-execution-bridge.js';
+import { buildExecutionTrace, formatExecutionTrace } from '../src/polyglot-trace.js';
+import { scaffoldTopology, type ScaffoldAssignment } from '../src/polyglot-scaffold.js';
 
 type Strategy = 'cannon' | 'linear';
-type CommandName = 'compile' | 'schedule' | 'run' | 'polyglot-run';
+type CommandName = 'compile' | 'schedule' | 'run' | 'polyglot-run' | 'scaffold';
 type CacheStatus = 'hit' | 'miss';
 
 const CACHE_SCHEMA_VERSION = 1;
@@ -192,7 +194,8 @@ function usage(): string {
     'Usage:',
     '  gnode compile <file.ts> [--export name]',
     '  gnode schedule <file.ts> [--export name] [--lanes N] [--strategy cannon|linear]',
-    '  gnode run <file.ts> [--export name] [--input-json JSON] [--print-gg] [--print-schedule] [--lanes N] [--strategy cannon|linear]',
+    '  gnode run <file.ts|.py|.go|...> [--export name] [--input-json JSON] [--print-gg] [--print-schedule]',
+    '  gnode scaffold <file.gg> [--assign node=lang ...] [--output-dir dir]',
     '  gnode <command> ... [--trace-timings]',
   ].join('\n');
 }
@@ -202,7 +205,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
   const filePath = argv[1];
 
   if (
-    (command !== 'compile' && command !== 'schedule' && command !== 'run' && command !== 'polyglot-run') ||
+    (command !== 'compile' && command !== 'schedule' && command !== 'run' && command !== 'polyglot-run' && command !== 'scaffold') ||
     !filePath
   ) {
     throw new Error(usage());
@@ -978,6 +981,11 @@ export async function runCli(argv: readonly string[]): Promise<number> {
     return runPolyglotExecution(parsed);
   }
 
+  // Scaffold path: generate skeleton implementations from a .gg topology.
+  if (parsed.command === 'scaffold') {
+    return runScaffold(parsed);
+  }
+
   const artifact = await loadArtifact(parsed.filePath, parsed.exportName);
 
   if (parsed.command === 'compile') {
@@ -1261,6 +1269,84 @@ async function runPolyglotExecution(parsed: ParsedArgs): Promise<number> {
   }
 
   process.stdout.write(`${JSON.stringify(result.payload, null, 2)}\n`);
+  return 0;
+}
+
+async function runScaffold(parsed: ParsedArgs): Promise<number> {
+  // Read the .gg source.
+  const ggSource = fs.readFileSync(parsed.filePath, 'utf8');
+
+  // Parse the topology.
+  const { BettyCompiler } = await import('../src/betty/compiler.js');
+  const compiler = new BettyCompiler();
+  const result = compiler.parse(ggSource);
+
+  if (!result.ast) {
+    process.stderr.write('Failed to parse .gg topology.\n');
+    for (const d of result.diagnostics) {
+      process.stderr.write(`  ${d.line}:${d.column} ${d.message}\n`);
+    }
+    return 1;
+  }
+
+  // Parse --assign flags from argv (passed through as extra args).
+  // Format: node_id=language
+  const assignments: ScaffoldAssignment[] = [];
+  const argv = process.argv;
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--assign' && argv[i + 1]) {
+      const parts = argv[i + 1].split('=');
+      if (parts.length === 2) {
+        assignments.push({
+          nodeId: parts[0],
+          language: parts[1],
+        });
+      }
+      i += 1;
+    }
+  }
+
+  if (assignments.length === 0) {
+    // Auto-assign: list all PolyglotBridge nodes and their current language properties.
+    process.stderr.write('No --assign flags provided. Available nodes:\n');
+    for (const [nodeId, node] of result.ast.nodes) {
+      const labels = node.labels.join(', ');
+      const lang = node.properties.language ?? '(unassigned)';
+      process.stderr.write(`  ${nodeId}: [${labels}] language=${lang}\n`);
+    }
+    return 0;
+  }
+
+  const scaffolded = scaffoldTopology(result.ast, assignments, ggSource);
+
+  // Determine output directory.
+  let outputDir = '.';
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--output-dir' && argv[i + 1]) {
+      outputDir = argv[i + 1];
+      break;
+    }
+  }
+
+  // Write generated files.
+  fs.mkdirSync(outputDir, { recursive: true });
+  for (const file of scaffolded.files) {
+    const filePath = path.join(outputDir, file.fileName);
+    fs.writeFileSync(filePath, file.source, 'utf8');
+    process.stderr.write(`  generated ${filePath} (${file.language}:${file.functionName})\n`);
+  }
+
+  // Write annotated topology.
+  if (scaffolded.annotatedTopology) {
+    const annotatedPath = path.join(
+      outputDir,
+      `${path.basename(parsed.filePath, '.gg')}.annotated.gg`
+    );
+    fs.writeFileSync(annotatedPath, scaffolded.annotatedTopology, 'utf8');
+    process.stderr.write(`  generated ${annotatedPath} (annotated topology)\n`);
+  }
+
+  process.stderr.write(`\n${scaffolded.files.length} file(s) scaffolded.\n`);
   return 0;
 }
 

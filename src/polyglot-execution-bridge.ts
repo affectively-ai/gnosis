@@ -6,6 +6,11 @@ import {
   type InvokeRequest,
   type InvokeResponse,
 } from './runtime/subprocess-invoker.js';
+import {
+  buildExecutionTrace,
+  formatExecutionTrace,
+  type PolyglotExecutionTrace,
+} from './polyglot-trace.js';
 
 /**
  * Execution manifest emitted by the polyglot scanner in orchestration mode.
@@ -96,9 +101,15 @@ export function registerPolyglotBridgeHandlers(
     const response = await invokeSubprocess(request);
 
     if (response.status === 'error') {
-      throw new Error(
-        `PolyglotBridgeCall failed for '${functionName}': ${response.value}\n${response.stderr}`
+      const mapped = response.mappedError;
+      const location = mapped?.line ? ` at line ${mapped.line}` : '';
+      const err = new Error(
+        `PolyglotBridgeCall failed for '${functionName}' (${state.language}:${state.filePath}${location}): ${mapped?.message ?? response.value}\n${response.stderr}`
       );
+      // Attach trace metadata for the caller to format.
+      (err as any).__polyglotNodeId = nodeId;
+      (err as any).__polyglotMappedError = mapped;
+      throw err;
     }
 
     const assignTo = _props.assignTo ?? functionName;
@@ -242,7 +253,33 @@ export async function executePolyglotWithGnosis(
   const registry = options.registry ?? new GnosisRegistry();
   registerPolyglotBridgeHandlers(registry, options.manifest);
   const engine = new GnosisEngine(registry, options.engineOptions ?? {});
-  return engine.executeWithResult(options.ast, options.input);
+
+  try {
+    return await engine.executeWithResult(options.ast, options.input);
+  } catch (error: unknown) {
+    // If a PolyglotBridge handler failed, build a cross-language execution trace.
+    const nodeId = (error as any)?.__polyglotNodeId;
+    const mappedError = (error as any)?.__polyglotMappedError;
+
+    if (nodeId && options.ast) {
+      const trace = buildExecutionTrace(
+        options.ast,
+        nodeId,
+        mappedError,
+        options.manifest
+      );
+      const formatted = formatExecutionTrace(trace);
+
+      // Re-throw with the trace attached.
+      const traceError = new Error(
+        `${(error as Error).message}\n\n${formatted}`
+      );
+      (traceError as any).__polyglotTrace = trace;
+      throw traceError;
+    }
+
+    throw error;
+  }
 }
 
 // ─── Multi-Language Topology Support ─────────────────────────────────────────
