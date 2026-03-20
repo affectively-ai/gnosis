@@ -197,6 +197,16 @@ fn scan_file_inner(
     let source = fs::read_to_string(file_path)
         .with_context(|| format!("failed to read {}", file_path.display()))?;
 
+    // Skip very large files (>10K lines) -- likely generated/bundled code.
+    if source.lines().count() > 10_000 {
+        return Ok(gnosis_polyglot::serialization::PolyglotScanResult {
+            file_path: file_path.to_string_lossy().to_string(),
+            language: "skipped".to_string(),
+            topologies: Vec::new(),
+            errors: Vec::new(),
+        });
+    }
+
     let path_str = file_path.to_string_lossy();
     gnosis_polyglot::parse_and_extract(&source, &path_str)
 }
@@ -258,6 +268,7 @@ fn collect_files(
                 || name == "storybook-static"
                 || name == ".next"
                 || name == ".turbo"
+                || name == "fixtures"
             {
                 continue;
             }

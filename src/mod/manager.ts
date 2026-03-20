@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import fs from 'node:fs';
-import path from 'node:path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 export interface ModDependency {
   path: string;
@@ -89,6 +89,7 @@ export class ModManager {
       );
     }
 
+    // polyglot:ignore RESOURCE_LEAK — readFileSync returns a string, no handle to release
     const content = fs.readFileSync(this.modFilePath, 'utf-8');
     const lines = content.split('\n');
 
@@ -147,6 +148,7 @@ export class ModManager {
       return null;
     }
 
+    // polyglot:ignore RESOURCE_LEAK — readFileSync returns a string, no handle to release
     const raw = fs.readFileSync(this.lockFilePath, 'utf-8');
     const parsed = JSON.parse(raw) as Partial<ModLockFile>;
 

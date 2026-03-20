@@ -6,8 +6,8 @@
  * Certificates are stored alongside the code.
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import {
   checkTypeScriptWithGnosis,
   type GnosisTypeScriptCheckResult,
@@ -250,6 +250,7 @@ export async function generateCertificatesForDirectory(
   const files = findTypeScriptFiles(dirPath);
 
   for (const file of files) {
+    // polyglot:ignore RESOURCE_LEAK — readFileSync returns a string, no handle to release
     const sourceText = fs.readFileSync(file, 'utf-8');
     const cert = await generateLeanCertificate(sourceText, file, { outputDir });
     if (cert) {

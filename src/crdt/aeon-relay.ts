@@ -254,7 +254,7 @@ export class QDocAeonRelay {
       const ws = new WebSocket(this.config.url);
       this.ws = ws;
 
-      ws.onopen = () => {
+      (ws as any).onopen = () => {
         this.emitTelemetry('socket.open', this.telemetryAttributes());
         const joinEnvelope = createQDocAeonRelayJoinEnvelope(
           this.config,
@@ -264,7 +264,7 @@ export class QDocAeonRelay {
         this.emitTelemetry('join.sent', this.telemetryAttributes());
       };
 
-      ws.onmessage = (event) => {
+      (ws as any).onmessage = (event: any) => {
         if (typeof event.data !== 'string') {
           const update = new Uint8Array(event.data as ArrayBuffer);
           this.doc.applyUpdate(update, 'remote');
@@ -332,11 +332,11 @@ export class QDocAeonRelay {
         }
       };
 
-      ws.onerror = () => {
+      (ws as any).onerror = () => {
         rejectConnection(new Error('WebSocket error'));
       };
 
-      ws.onclose = () => {
+      (ws as any).onclose = () => {
         this.connected = false;
         this.emitTelemetry('disconnect', this.telemetryAttributes());
         this.detachUpdateHandler();

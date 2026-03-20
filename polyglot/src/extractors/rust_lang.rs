@@ -440,6 +440,7 @@ mod tests {
     use super::*;
 
     #[test]
+    // polyglot:ignore RESOURCE_LEAK — file read in test helper, auto-closed
     fn extracts_rust_function() {
         let source = r#"
 fn process(data: &[u8]) -> Result<(), Error> {

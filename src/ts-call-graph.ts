@@ -6,8 +6,8 @@
  * Computes module-level buley, wallace, and regime.
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { createRequire } from 'node:module';
 import type * as TsTypes from 'typescript';
 import {
@@ -27,6 +27,7 @@ type TypeScriptModule = typeof import('typescript');
 const runtimeRequire =
   typeof __filename === 'string'
     ? createRequire(__filename)
+    // @ts-ignore -- import.meta.url requires ESM module setting
     : createRequire(import.meta.url);
 
 let cachedTs: TypeScriptModule | undefined;
@@ -379,6 +380,7 @@ export async function buildCallGraph(
       return;
     }
 
+    // polyglot:ignore RESOURCE_LEAK — readFileSync returns a string, no handle to release
     const sourceText = fs.readFileSync(absPath, 'utf-8');
     const extraction = extractFileInfo(absPath, sourceText);
     const nodes: CallGraphNode[] = [];

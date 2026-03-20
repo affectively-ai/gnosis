@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import path from 'node:path';
+import * as path from 'node:path';
 import { readFile } from 'node:fs/promises';
 import type { ASTEdge, ASTNode, GraphAST, Diagnostic, DiagnosticCode, BettyParseResult } from './betty/compiler.js';
 import { BettyCompiler } from './betty/compiler.js';

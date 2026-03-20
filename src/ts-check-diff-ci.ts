@@ -12,8 +12,8 @@
  *     --output <diff.md> --json-output <diff.json>
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import {
   computeTopologyDiff,
   formatPrComment,
@@ -63,6 +63,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // polyglot:ignore RESOURCE_LEAK — readFileSync returns a string, no handle to release
   const changedFiles = fs
     .readFileSync(args.filesPath, 'utf-8')
     .split('\n')
@@ -88,9 +89,11 @@ async function main(): Promise<void> {
     const basePath = path.join(args.baseDir, file);
     const headPath = path.join(args.headDir, file);
 
+    // polyglot:ignore RESOURCE_LEAK — readFileSync returns a string, no handle to release
     const baseSource = fs.existsSync(basePath)
       ? fs.readFileSync(basePath, 'utf-8')
       : '';
+    // polyglot:ignore RESOURCE_LEAK — readFileSync returns a string, no handle to release
     const headSource = fs.existsSync(headPath)
       ? fs.readFileSync(headPath, 'utf-8')
       : '';

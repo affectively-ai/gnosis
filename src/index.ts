@@ -1,5 +1,5 @@
-import fs from 'fs';
-import path from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'url';
 import { Pipeline } from '@a0n/aeon-pipelines';
@@ -699,6 +699,7 @@ interface LoadedCliTopologySource {
 async function loadCliTopologySource(
   filePath: string
 ): Promise<LoadedCliTopologySource> {
+  // polyglot:ignore RESOURCE_LEAK — readFileSync returns a string, no handle to release
   const rawSource = fs.readFileSync(filePath, 'utf-8');
   if (detectModuleFormat(filePath, rawSource) === 'mgg') {
     const loadedModule = await loadGnosisModuleFromFile(
@@ -1187,6 +1188,7 @@ async function main() {
       const filePath = resolveTopologyPath(fileArg);
       if (fs.existsSync(filePath)) {
         console.log(`[Gnosis] Fixing topology: ${filePath}`);
+        // polyglot:ignore RESOURCE_LEAK — readFileSync returns a string, no handle to release
         const source = fs.readFileSync(filePath, 'utf-8');
         const fixed = formatTopologySource(filePath, source);
         fs.writeFileSync(filePath, fixed, 'utf-8');
@@ -1910,6 +1912,7 @@ async function main() {
         const fullPath = path.resolve(process.cwd(), tomlPath);
         if (!fs.existsSync(fullPath))
           throw new Error(`Weights file not found: ${fullPath}`);
+        // polyglot:ignore RESOURCE_LEAK — readFileSync returns a string, no handle to release
         const content = fs.readFileSync(fullPath, 'utf-8');
         try {
           const parsed = (Bun as any).TOML.parse(content);

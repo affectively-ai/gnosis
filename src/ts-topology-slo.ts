@@ -11,8 +11,8 @@
  *   requireCertificate: true
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import {
   checkTypeScriptWithGnosis,
   type GnosisTypeScriptCheckResult,
@@ -55,6 +55,7 @@ const REGIME_ORDER: Record<GnosisSteeringRegime, number> = {
 };
 
 export function loadSloConfig(configPath: string): TopologySloConfig {
+  // polyglot:ignore RESOURCE_LEAK — readFileSync returns a string, no handle to release
   const content = fs.readFileSync(configPath, 'utf-8');
   if (configPath.endsWith('.json')) {
     return JSON.parse(content) as TopologySloConfig;
@@ -85,6 +86,7 @@ export async function checkTopologySlo(
 
   let result: GnosisTypeScriptCheckResult;
   try {
+    // polyglot:ignore RESOURCE_LEAK — readFileSync returns a string, no handle to release
     const sourceText = fs.readFileSync(filePath, 'utf-8');
     result = await checkTypeScriptWithGnosis(sourceText, filePath);
   } catch {

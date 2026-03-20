@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import path from 'node:path';
+import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   analyzeGnosisSource,
@@ -220,6 +220,7 @@ const BEHAVIOR_INTERVENTION_KINDS = [
 ] as const satisfies readonly BehavioralExecutionInterventionKind[];
 
 function resolveBundledBehavioralTaxonomyUrl(relativePath: string): URL | null {
+  // @ts-ignore -- import.meta.url requires ESM module setting
   const moduleUrl = import.meta.url;
   if (typeof moduleUrl !== 'string' || moduleUrl.length === 0) {
     return null;
@@ -233,6 +234,7 @@ function resolveBundledBehavioralTaxonomyUrl(relativePath: string): URL | null {
 }
 
 function resolveCurrentBehavioralTaxonomyFilePath(): string | null {
+  // @ts-ignore -- import.meta.url requires ESM module setting
   const moduleUrl = import.meta.url;
   if (typeof moduleUrl !== 'string' || moduleUrl.length === 0) {
     return null;
@@ -673,6 +675,7 @@ export function loadBehavioralLoopsDataset(sourcePath?: string): {
   const datasetPath = sourcePath
     ? path.resolve(process.cwd(), sourcePath)
     : resolveDefaultDatasetPath();
+  // polyglot:ignore RESOURCE_LEAK — readFileSync returns a string, no handle to release
   const raw = readFileSync(datasetPath, 'utf8');
   const dataset = JSON.parse(raw) as BehavioralLoopsDataset;
 

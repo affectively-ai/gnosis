@@ -5,7 +5,7 @@
  * Splices updated subgraphs into the cached topology for <50ms feedback.
  */
 
-import crypto from 'node:crypto';
+import * as crypto from 'node:crypto';
 import {
   checkTypeScriptWithGnosis,
   type GnosisTypeScriptCheckResult,

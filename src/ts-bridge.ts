@@ -1,5 +1,5 @@
-import fs from 'node:fs';
-import path from 'node:path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import type * as TsTypes from 'typescript';
@@ -20,6 +20,7 @@ type TypeScriptModule = typeof import('typescript');
 const runtimeRequire =
   typeof __filename === 'string'
     ? createRequire(__filename)
+    // @ts-ignore -- import.meta.url requires ESM module setting
     : createRequire(import.meta.url);
 let cachedTypeScriptModule: TypeScriptModule | undefined;
 
@@ -2269,6 +2270,7 @@ async function loadRuntimeBindings(
     options.sourceFilePath ??
     options.modulePath ??
     options.compiled?.sourceFilePath;
+  // polyglot:ignore RESOURCE_LEAK — readFileSync returns a string, no handle to release
   const sourceText =
     options.sourceText ??
     (sourceFilePath && fs.existsSync(sourceFilePath)

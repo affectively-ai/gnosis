@@ -6,7 +6,7 @@
  *   bun run open-source/gnosis/src/ts-check-cli.ts --file <path> [--json] [--sarif] [--max-buley N] [--target T] [--export NAME]
  */
 
-import fs from 'node:fs';
+import * as fs from 'node:fs';
 import { checkTypeScriptWithGnosis } from './ts-check.js';
 import type { RuntimeTarget } from './capabilities/index.js';
 

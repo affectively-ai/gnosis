@@ -5,8 +5,8 @@
  * Pushes results to registered listeners (SSE endpoints, IDE plugins, etc.)
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { GnosisIncrementalChecker } from './ts-check-incremental.js';
 import type {
   GnosisTypeScriptCheckResult,
@@ -154,6 +154,7 @@ export class GnosisFileWatcher {
     try {
       if (!fs.existsSync(filePath)) return;
 
+      // polyglot:ignore RESOURCE_LEAK — readFileSync returns a string, no handle to release
       const sourceText = fs.readFileSync(filePath, 'utf-8');
       const result = await this.checker.check(
         sourceText,

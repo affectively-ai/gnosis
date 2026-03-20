@@ -296,12 +296,13 @@ pub fn filter_suppressed(diagnostics: Vec<PolyglotDiagnostic>, sources: &std::co
         let lines: Vec<&str> = source.lines().collect();
         let line_idx = loc.start_line.saturating_sub(1);
 
-        // Check the flagged line and the line above it.
-        let check_lines: Vec<usize> = if line_idx > 0 {
-            vec![line_idx, line_idx - 1]
-        } else {
-            vec![line_idx]
-        };
+        // Check the flagged line and up to 3 lines above (comments may precede by 1-3 lines).
+        let mut check_lines = vec![line_idx];
+        for offset in 1..=3 {
+            if line_idx >= offset {
+                check_lines.push(line_idx - offset);
+            }
+        }
 
         for idx in check_lines {
             if let Some(line) = lines.get(idx) {

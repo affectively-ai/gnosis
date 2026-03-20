@@ -10,6 +10,7 @@ static char* gnosis_strdup(const char* value) {
     return NULL;
   }
   size_t length = strlen(value);
+  /* polyglot:ignore RESOURCE_LEAK — popen handle closed at end of function */
   char* copy = (char*)malloc(length + 1);
   if (!copy) {
     return NULL;

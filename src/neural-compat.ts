@@ -266,6 +266,7 @@ async function readTopologyFromPath(topologyFilePath: string): Promise<string> {
 async function tryReadCanonicalTopicDomainTopology(): Promise<string | null> {
   const sourceFileUrl = new URL(
     TOPIC_DOMAIN_TRANSFORMER_TOPOLOGY_ASSET_RELATIVE_PATH,
+    // @ts-ignore -- import.meta.url requires ESM module setting
     import.meta.url
   );
 

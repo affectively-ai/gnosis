@@ -5,7 +5,7 @@
  * (e.g., main branch vs PR branch). Used by CI pipelines and PR review bots.
  */
 
-import path from 'node:path';
+import * as path from 'node:path';
 import type {
   GnosisTypeScriptCheckMetrics,
   GnosisTypeScriptCheckResult,

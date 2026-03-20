@@ -152,6 +152,7 @@ async function verifyModule(
 }
 
 async function loadModuleSource(filePath: string): Promise<string> {
+  // polyglot:ignore RESOURCE_LEAK — readFileSync returns a string, no handle to release
   const source = readFileSync(filePath, 'utf-8');
   if (detectModuleFormat(filePath, source) === 'mgg') {
     const loadedModule = await loadGnosisModuleFromFile(filePath);
@@ -169,6 +170,7 @@ export async function runGGTestFile(
   const start = performance.now();
   const absPath = resolve(testFilePath);
   const testDir = dirname(absPath);
+  // polyglot:ignore RESOURCE_LEAK — readFileSync returns a string, no handle to release
   const source = readFileSync(absPath, 'utf-8');
 
   // Read the topology: extract Verify nodes (these are the modules under test)

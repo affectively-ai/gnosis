@@ -722,6 +722,7 @@ async function loadArtifact(
   const overallStarted = performance.now();
 
   const sourceReadStarted = performance.now();
+  // polyglot:ignore RESOURCE_LEAK — readFileSync returns a string, no handle to release
   const sourceText = fs.readFileSync(filePath, 'utf8');
   const sourceReadMs = performance.now() - sourceReadStarted;
 

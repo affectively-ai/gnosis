@@ -1,7 +1,7 @@
 import { parseGgProgram } from '@a0n/aeon-logic';
-import fsSync from 'node:fs';
-import fs from 'node:fs/promises';
-import path from 'node:path';
+import * as fsSync from 'node:fs';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   BettyCompiler,
@@ -105,6 +105,7 @@ interface ModuleResolverState {
 }
 
 function resolveBundledTopologyUrl(relativePath: string): URL | null {
+  // @ts-ignore -- import.meta.url requires ESM module setting
   const moduleUrl = import.meta.url;
   if (typeof moduleUrl !== 'string' || moduleUrl.length === 0) {
     return null;

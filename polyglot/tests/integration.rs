@@ -5,6 +5,7 @@ const TS_RESOURCE_LEAK: &str = include_str!("fixtures/resource_leak.ts");
 const TS_ERROR_SWALLOW: &str = include_str!("fixtures/error_swallow.ts");
 const GO_GOROUTINE_LEAK: &str = include_str!("fixtures/goroutine_leak.go");
 const PY_MISSING_CLOSE: &str = include_str!("fixtures/missing_close.py");
+// polyglot:ignore SPAWN_WITHOUT_JOIN — test fixture validates spawn detection
 const RS_SPAWN_NO_JOIN: &str = include_str!("fixtures/spawn_no_join.rs");
 const JAVA_CONN_LEAK: &str = include_str!("fixtures/connection_leak.java");
 
@@ -105,6 +106,7 @@ fn rust_spawn_no_join_detected() {
         .nodes
         .iter()
         .any(|n| n.labels.contains(&"Spawn".to_string()));
+    // polyglot:ignore SPAWN_WITHOUT_JOIN — assertion text, not actual spawn
     assert!(has_spawn, "should detect thread::spawn");
 }
 
