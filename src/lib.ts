@@ -104,6 +104,17 @@ export { GnosisNeo4jBridge } from './neo4j-bridge.js';
 export { GnosisRegistry } from './runtime/registry.js';
 export { GnosisEngine } from './runtime/engine.js';
 export { GnosisCoreCache } from './runtime/core-cache.js';
+export {
+  compileTopology,
+  executeCompiled,
+  CannonLauncher,
+} from './runtime/compiled-topology.js';
+export type {
+  CompiledTopology,
+  CompiledStep,
+  CompiledFork,
+  CompiledExecutionResult,
+} from './runtime/compiled-topology.js';
 export { BettyCompiler } from './betty/compiler.js';
 export { generateLeanFromGnosisAst } from './betty/lean.js';
 export {
