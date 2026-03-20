@@ -391,6 +391,7 @@ export {
   compileTypeScriptToGnosis,
   executeTypeScriptWithGnosis,
   registerTypeScriptBridgeHandlers,
+  renderTypeScriptBridgeRuntimeModule,
 } from './ts-bridge.js';
 
 export type {
