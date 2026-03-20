@@ -47,7 +47,7 @@ impl PolyglotDiagnosticCode {
             Self::SpawnWithoutJoin => DiagnosticSeverity::Warning,
             Self::ErrorSwallowed => DiagnosticSeverity::Warning,
             Self::MissingErrorHandler => DiagnosticSeverity::Warning,
-            Self::UnboundedLoop => DiagnosticSeverity::Warning,
+            Self::UnboundedLoop => DiagnosticSeverity::Info,
             Self::RaceNoSync => DiagnosticSeverity::Error,
             Self::DeadlockCycle => DiagnosticSeverity::Error,
             Self::UnreachableComponent => DiagnosticSeverity::Warning,
@@ -201,10 +201,17 @@ fn detect_missing_error_handlers(
 }
 
 fn detect_unbounded_loops(topology: &GgTopology, diagnostics: &mut Vec<PolyglotDiagnostic>) {
+    let mut seen_sources = std::collections::HashSet::new();
     for edge in &topology.edges {
         if edge.properties.get("unbounded").map(|v| v == "true").unwrap_or(false)
             && edge.properties.get("loop").map(|v| v == "true").unwrap_or(false)
         {
+            // Deduplicate: only report once per loop source node.
+            let source_key = edge.source_ids.first().cloned().unwrap_or_default();
+            if !seen_sources.insert(source_key) {
+                continue;
+            }
+
             let location = edge
                 .source_ids
                 .first()
@@ -272,6 +279,46 @@ fn detect_unreachable_components(
             });
         }
     }
+}
+
+/// Filter out diagnostics suppressed by `polyglot:ignore` comments in source.
+///
+/// Checks the diagnostic's source line and the line above it for:
+/// - `polyglot:ignore` (suppresses all diagnostics on that line)
+/// - `polyglot:ignore RULE_NAME` (suppresses only that specific rule)
+pub fn filter_suppressed(diagnostics: Vec<PolyglotDiagnostic>, sources: &std::collections::HashMap<String, String>) -> Vec<PolyglotDiagnostic> {
+    diagnostics.into_iter().filter(|diag| {
+        let Some(ref loc) = diag.location else { return true };
+        let Some(source) = sources.get(&loc.file) else { return true };
+
+        let lines: Vec<&str> = source.lines().collect();
+        let line_idx = loc.start_line.saturating_sub(1);
+
+        // Check the flagged line and the line above it.
+        let check_lines: Vec<usize> = if line_idx > 0 {
+            vec![line_idx, line_idx - 1]
+        } else {
+            vec![line_idx]
+        };
+
+        for idx in check_lines {
+            if let Some(line) = lines.get(idx) {
+                if let Some(pos) = line.find("polyglot:ignore") {
+                    let after = &line[pos + 15..].trim_start();
+                    // Bare `polyglot:ignore` suppresses everything.
+                    if after.is_empty() || after.starts_with("--") || after.starts_with("//") || after.starts_with('#') {
+                        return false;
+                    }
+                    // `polyglot:ignore RULE_NAME` suppresses that specific rule.
+                    if after.starts_with(diag.code.as_str()) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        true
+    }).collect()
 }
 
 /// Generate SARIF 2.1.0 output from polyglot diagnostics.

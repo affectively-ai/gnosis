@@ -97,12 +97,25 @@ fn scan_directory(cli: &Cli) -> Result<()> {
         }
         OutputFormat::Sarif => {
             let mut all_diags = Vec::new();
+            let mut sources = std::collections::HashMap::new();
             for result in &all_results {
                 for topo in &result.topologies {
                     let diags = gnosis_polyglot::diagnostics::analyze_topology(&topo.topology);
+                    // Collect source files referenced by diagnostics.
+                    for diag in &diags {
+                        if let Some(ref loc) = diag.location {
+                            if !sources.contains_key(&loc.file) {
+                                if let Ok(src) = fs::read_to_string(&loc.file) {
+                                    sources.insert(loc.file.clone(), src);
+                                }
+                            }
+                        }
+                    }
                     all_diags.extend(diags);
                 }
             }
+            // Filter out suppressed diagnostics (polyglot:ignore comments).
+            let all_diags = gnosis_polyglot::diagnostics::filter_suppressed(all_diags, &sources);
             let file = all_results.first().map(|r| r.file_path.as_str()).unwrap_or("unknown");
             let lang = all_results.first().map(|r| r.language.as_str()).unwrap_or("unknown");
             let sarif = gnosis_polyglot::diagnostics::diagnostics_to_sarif(file, lang, &all_diags);
@@ -146,6 +159,12 @@ fn scan_file(cli: &Cli, file_path: &PathBuf) -> Result<()> {
                 let diags = gnosis_polyglot::diagnostics::analyze_topology(&topo.topology);
                 all_diags.extend(diags);
             }
+            // Filter suppressed diagnostics.
+            let mut sources = std::collections::HashMap::new();
+            if let Ok(src) = fs::read_to_string(file_path) {
+                sources.insert(result.file_path.clone(), src);
+            }
+            let all_diags = gnosis_polyglot::diagnostics::filter_suppressed(all_diags, &sources);
             let sarif = gnosis_polyglot::diagnostics::diagnostics_to_sarif(
                 &result.file_path,
                 &result.language,
@@ -182,6 +201,36 @@ fn scan_file_inner(
     gnosis_polyglot::parse_and_extract(&source, &path_str)
 }
 
+/// Detect bundled/generated JS chunks (e.g., `chunk-abc123.js`, `1234.abcdef.js`).
+fn is_bundled_chunk(name: &str) -> bool {
+    if !(name.ends_with(".js") || name.ends_with(".mjs")) {
+        return false;
+    }
+    // Pattern: starts with "chunk-" (Vite/Rollup)
+    if name.starts_with("chunk-") {
+        return true;
+    }
+    // Pattern: <number>.<hex>.iframe.bundle.js (Storybook)
+    if name.contains(".iframe.") {
+        return true;
+    }
+    // Pattern: <hash>.js where hash is hex (webpack numeric chunks)
+    let stem = name.rsplit('.').nth(1).unwrap_or("");
+    if stem.len() >= 6 && stem.chars().all(|c| c.is_ascii_hexdigit()) {
+        return true;
+    }
+    // Pattern: digit-prefixed files like 1234.abcdef.js (webpack chunks)
+    if let Some(first) = name.chars().next() {
+        if first.is_ascii_digit() && name.contains('.') {
+            let parts: Vec<&str> = name.split('.').collect();
+            if parts.len() >= 3 {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 fn collect_files(
     dir: &PathBuf,
     extensions: &[&str],
@@ -206,8 +255,25 @@ fn collect_files(
                 || name == ".git"
                 || name == "coverage"
                 || name == "out"
+                || name == "storybook-static"
+                || name == ".next"
+                || name == ".turbo"
             {
                 continue;
+            }
+        }
+
+        // Skip minified, bundled, and generated files.
+        if path.is_file() {
+            if let Some(fname) = path.file_name().and_then(|n| n.to_str()) {
+                if fname.contains(".min.")
+                    || fname.contains(".bundle.")
+                    || fname.ends_with(".min.js")
+                    || fname.ends_with(".min.mjs")
+                    || is_bundled_chunk(fname)
+                {
+                    continue;
+                }
             }
         }
 
