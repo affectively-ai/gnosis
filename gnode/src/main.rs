@@ -55,6 +55,38 @@ enum GnodeCommand {
         #[arg(long, value_enum, default_value_t = Strategy::Cannon)]
         strategy: Strategy,
     },
+    /// Compose multiple source files into a single polyglot topology.
+    /// Analyzes function signatures and data flow to automatically wire
+    /// functions across languages.
+    Compose {
+        /// Source files to compose (any supported language).
+        #[arg(num_args = 1..)]
+        files: Vec<PathBuf>,
+    },
+    /// Translate a source file to another language via the GG topology IR.
+    /// Source → tree-sitter → CFG → GG → scaffold in target language.
+    Translate {
+        file: PathBuf,
+        /// Target language (python, go, rust, ruby, etc.).
+        #[arg(long)]
+        to: String,
+    },
+    /// Find the optimal language for each function in a source file.
+    /// Analyzes topology characteristics (compute, IO, concurrency) and
+    /// scores each language on fitness.
+    BestLanguage {
+        file: PathBuf,
+        #[arg(long = "export")]
+        export_name: Option<String>,
+    },
+    /// Race a function across multiple languages. Generates a RACE topology
+    /// where all implementations run in parallel; fastest correct result wins.
+    TopoRace {
+        file: PathBuf,
+        /// Languages to race (comma-separated).
+        #[arg(long, default_value = "python,go,rust")]
+        languages: String,
+    },
     /// Scaffold skeleton implementations for a .gg topology.
     /// Each node can be assigned to a language; generates source files with
     /// correct function signatures inferred from the topology.
@@ -174,6 +206,40 @@ fn build_driver_args(command: &GnodeCommand) -> Vec<String> {
                 args.push("--print-schedule".to_string());
             }
             args
+        }
+        GnodeCommand::Compose { files } => {
+            let mut args = vec!["compose".to_string()];
+            for f in files {
+                args.push(f.display().to_string());
+            }
+            args
+        }
+        GnodeCommand::Translate { file, to } => {
+            vec![
+                "translate".to_string(),
+                file.display().to_string(),
+                "--to".to_string(),
+                to.clone(),
+            ]
+        }
+        GnodeCommand::BestLanguage { file, export_name } => {
+            let mut args = vec![
+                "best-language".to_string(),
+                file.display().to_string(),
+            ];
+            if let Some(name) = export_name {
+                args.push("--export".to_string());
+                args.push(name.clone());
+            }
+            args
+        }
+        GnodeCommand::TopoRace { file, languages } => {
+            vec![
+                "topo-race".to_string(),
+                file.display().to_string(),
+                "--languages".to_string(),
+                languages.clone(),
+            ]
         }
         GnodeCommand::Scaffold {
             file,

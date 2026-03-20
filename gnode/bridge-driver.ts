@@ -26,9 +26,17 @@ import { analyzePolyglotSourceForExecution } from '../src/polyglot-bridge.js';
 import { executePolyglotWithGnosis } from '../src/polyglot-execution-bridge.js';
 import { buildExecutionTrace, formatExecutionTrace } from '../src/polyglot-trace.js';
 import { scaffoldTopology, type ScaffoldAssignment } from '../src/polyglot-scaffold.js';
+import {
+  compose,
+  translate,
+  findBestLanguage,
+  computeBetaCost,
+  extractFunctions,
+  generateTopoRaceTopology,
+} from '../src/polyglot-compose.js';
 
 type Strategy = 'cannon' | 'linear';
-type CommandName = 'compile' | 'schedule' | 'run' | 'polyglot-run' | 'scaffold';
+type CommandName = 'compile' | 'schedule' | 'run' | 'polyglot-run' | 'scaffold' | 'compose' | 'translate' | 'best-language' | 'topo-race';
 type CacheStatus = 'hit' | 'miss';
 
 const CACHE_SCHEMA_VERSION = 1;
@@ -194,7 +202,11 @@ function usage(): string {
     'Usage:',
     '  gnode compile <file.ts> [--export name]',
     '  gnode schedule <file.ts> [--export name] [--lanes N] [--strategy cannon|linear]',
-    '  gnode run <file.ts|.py|.go|...> [--export name] [--input-json JSON] [--print-gg] [--print-schedule]',
+    '  gnode run <file.ts|.py|.go|...> [--export name] [--input-json JSON] [--print-gg]',
+    '  gnode compose <file1.py> <file2.go> [<file3.rs> ...]',
+    '  gnode translate <file.py> --to rust',
+    '  gnode best-language <file.py|.go|.rs|...> [--export name]',
+    '  gnode topo-race <file.py> --languages python,go,rust',
     '  gnode scaffold <file.gg> [--assign node=lang ...] [--output-dir dir]',
     '  gnode <command> ... [--trace-timings]',
   ].join('\n');
@@ -204,10 +216,8 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
   const command = argv[0];
   const filePath = argv[1];
 
-  if (
-    (command !== 'compile' && command !== 'schedule' && command !== 'run' && command !== 'polyglot-run' && command !== 'scaffold') ||
-    !filePath
-  ) {
+  const validCommands = ['compile', 'schedule', 'run', 'polyglot-run', 'scaffold', 'compose', 'translate', 'best-language', 'topo-race'];
+  if (!validCommands.includes(command ?? '') || !filePath) {
     throw new Error(usage());
   }
 
@@ -986,6 +996,26 @@ export async function runCli(argv: readonly string[]): Promise<number> {
     return runScaffold(parsed);
   }
 
+  // Compose path: auto-compose multiple source files into one topology.
+  if (parsed.command === 'compose') {
+    return runCompose(parsed);
+  }
+
+  // Translate path: translate source to another language via topology IR.
+  if (parsed.command === 'translate') {
+    return runTranslate(parsed);
+  }
+
+  // Best-language path: find the optimal language for each function.
+  if (parsed.command === 'best-language') {
+    return runBestLanguage(parsed);
+  }
+
+  // Topo-race path: race function across languages, fastest wins.
+  if (parsed.command === 'topo-race') {
+    return runTopoRace(parsed);
+  }
+
   const artifact = await loadArtifact(parsed.filePath, parsed.exportName);
 
   if (parsed.command === 'compile') {
@@ -1269,6 +1299,143 @@ async function runPolyglotExecution(parsed: ParsedArgs): Promise<number> {
   }
 
   process.stdout.write(`${JSON.stringify(result.payload, null, 2)}\n`);
+  return 0;
+}
+
+async function runCompose(parsed: ParsedArgs): Promise<number> {
+  // Collect all file paths from argv (compose takes multiple files).
+  const files: string[] = [parsed.filePath];
+  const argv = process.argv;
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--') break;
+    const arg = argv[i];
+    if (
+      arg &&
+      !arg.startsWith('-') &&
+      arg !== parsed.filePath &&
+      arg !== 'compose' &&
+      /\.(py|go|rs|rb|js|ts|java|c|cpp|lua|php|swift|kt|scala|hs|ml|zig|sh|exs|cs)$/i.test(arg)
+    ) {
+      files.push(path.resolve(arg));
+    }
+  }
+
+  // Analyze each file.
+  const results: Array<Awaited<ReturnType<typeof analyzePolyglotSourceForExecution>>> = [];
+  for (const filePath of files) {
+    const analysis = await analyzePolyglotSourceForExecution(filePath);
+    results.push(analysis);
+  }
+
+  // Compose.
+  const composed = compose(results, files);
+
+  // Output the composed topology.
+  process.stdout.write(composed.ggSource);
+
+  // Summary.
+  process.stderr.write(`\nComposed ${composed.functions.length} functions across ${composed.languages.join(', ')}\n`);
+  process.stderr.write(`Connections:\n`);
+  for (const conn of composed.connections) {
+    process.stderr.write(
+      `  ${conn.from.function} (${conn.from.language}) →[${conn.edgeType}]→ ${conn.to.function} (${conn.to.language}) [${conn.inference}]\n`
+    );
+  }
+
+  return 0;
+}
+
+async function runTranslate(parsed: ParsedArgs): Promise<number> {
+  // Find --to flag.
+  const argv = process.argv;
+  let targetLanguage = 'python';
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--to' && argv[i + 1]) {
+      targetLanguage = argv[i + 1];
+      break;
+    }
+  }
+
+  const analysis = await analyzePolyglotSourceForExecution(parsed.filePath);
+  const result = translate(analysis, parsed.filePath, targetLanguage);
+
+  if (result.files.length === 0) {
+    process.stderr.write(`No functions found to translate in ${parsed.filePath}\n`);
+    return 1;
+  }
+
+  for (const file of result.files) {
+    process.stderr.write(`--- ${file.fileName} ---\n`);
+    process.stdout.write(file.source);
+    process.stdout.write('\n');
+  }
+
+  process.stderr.write(`\nTranslated ${result.files.length} function(s) from ${analysis.language} to ${targetLanguage}\n`);
+  return 0;
+}
+
+async function runBestLanguage(parsed: ParsedArgs): Promise<number> {
+  const analysis = await analyzePolyglotSourceForExecution(parsed.filePath);
+  const functions = extractFunctions(analysis, parsed.filePath);
+
+  if (functions.length === 0) {
+    process.stderr.write(`No functions found in ${parsed.filePath}\n`);
+    return 1;
+  }
+
+  for (const func of functions) {
+    const fitness = findBestLanguage(func);
+    const beta = computeBetaCost(func);
+
+    process.stdout.write(`\n${func.name} (${func.language}, ${func.nodeCount} nodes, beta=${beta.totalBeta})\n`);
+    process.stdout.write(`  Least bule score: ${beta.leastBuleScore.toFixed(3)}\n`);
+    process.stdout.write(`  Best languages:\n`);
+
+    for (const entry of fitness.slice(0, 5)) {
+      const current = entry.language === func.language ? ' ← current' : '';
+      process.stdout.write(
+        `    ${entry.language}: ${(entry.score * 100).toFixed(1)}% — ${entry.rationale}${current}\n`
+      );
+    }
+  }
+
+  return 0;
+}
+
+async function runTopoRace(parsed: ParsedArgs): Promise<number> {
+  // Parse --languages flag.
+  const argv = process.argv;
+  let languages = ['python', 'go', 'rust'];
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--languages' && argv[i + 1]) {
+      languages = argv[i + 1].split(',').map((l) => l.trim());
+      break;
+    }
+  }
+
+  const analysis = await analyzePolyglotSourceForExecution(parsed.filePath);
+  const functions = extractFunctions(analysis, parsed.filePath);
+
+  if (functions.length === 0) {
+    process.stderr.write(`No functions found in ${parsed.filePath}\n`);
+    return 1;
+  }
+
+  for (const func of functions) {
+    process.stderr.write(`\nTopo-race: ${func.name} across ${languages.join(', ')}\n`);
+
+    // Generate the race topology.
+    const raceTopology = generateTopoRaceTopology(func.name, parsed.filePath, languages);
+    process.stdout.write(raceTopology);
+
+    // Show fitness comparison.
+    const fitness = findBestLanguage(func, languages);
+    process.stderr.write(`  Predicted winner: ${fitness[0]?.language} (${(fitness[0]?.score ?? 0 * 100).toFixed(1)}%)\n`);
+    for (const entry of fitness) {
+      process.stderr.write(`    ${entry.language}: ${(entry.score * 100).toFixed(1)}%\n`);
+    }
+  }
+
   return 0;
 }
 
