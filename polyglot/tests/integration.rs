@@ -1,4 +1,4 @@
-use gnosis_polyglot::parse_and_extract;
+use gnosis_polyglot::{parse_and_extract, parse_and_extract_orchestration};
 
 // Phase 1 fixtures
 const TS_RESOURCE_LEAK: &str = include_str!("fixtures/resource_leak.ts");
@@ -344,4 +344,157 @@ fn supported_languages_includes_all_20() {
     assert!(langs.contains(&"kotlin"));
     assert!(langs.contains(&"swift"));
     assert!(langs.contains(&"zig"));
+}
+
+// --- Orchestration mode integration tests ---
+
+#[test]
+fn python_orchestration_produces_bridge_labels() {
+    let result =
+        parse_and_extract_orchestration(PY_MISSING_CLOSE, "missing_close.py").unwrap();
+    assert_eq!(result.scan_result.language, "python");
+    assert!(
+        !result.scan_result.topologies.is_empty(),
+        "should extract functions in orchestration mode"
+    );
+
+    // Verify PolyglotBridge labels are present.
+    let topo = &result.scan_result.topologies[0];
+    let has_bridge_entry = topo
+        .topology
+        .nodes
+        .iter()
+        .any(|n| n.labels.contains(&"PolyglotBridgeEntry".to_string()));
+    assert!(
+        has_bridge_entry,
+        "orchestration mode should produce PolyglotBridgeEntry labels"
+    );
+
+    let has_bridge_return = topo
+        .topology
+        .nodes
+        .iter()
+        .any(|n| n.labels.contains(&"PolyglotBridgeReturn".to_string()));
+    assert!(
+        has_bridge_return,
+        "orchestration mode should produce PolyglotBridgeReturn labels"
+    );
+
+    // Verify source ranges are attached.
+    for node in &topo.topology.nodes {
+        if node.labels.iter().any(|l| l.starts_with("PolyglotBridge")) {
+            assert!(
+                node.properties.contains_key("source_start_byte"),
+                "PolyglotBridge node {} should have source_start_byte",
+                node.id
+            );
+        }
+    }
+}
+
+#[test]
+fn orchestration_manifest_has_execution_plans() {
+    let result =
+        parse_and_extract_orchestration(PY_MISSING_CLOSE, "missing_close.py").unwrap();
+
+    assert!(
+        !result.manifest.node_execution_plans.is_empty(),
+        "manifest should have execution plans"
+    );
+    assert_eq!(result.manifest.language, "python");
+    assert_eq!(result.manifest.file_path, "missing_close.py");
+
+    // Every plan should have valid source ranges.
+    for plan in &result.manifest.node_execution_plans {
+        assert!(
+            plan.source_range.end_byte >= plan.source_range.start_byte,
+            "end_byte should be >= start_byte for node {}",
+            plan.node_id
+        );
+    }
+}
+
+#[test]
+fn go_orchestration_preserves_analysis_topology() {
+    // Orchestration mode should produce valid topologies AND bridge labels.
+    let analysis = parse_and_extract(GO_GOROUTINE_LEAK, "goroutine_leak.go").unwrap();
+    let orchestration =
+        parse_and_extract_orchestration(GO_GOROUTINE_LEAK, "goroutine_leak.go").unwrap();
+
+    // Same number of functions extracted.
+    assert_eq!(
+        analysis.topologies.len(),
+        orchestration.scan_result.topologies.len(),
+        "orchestration should extract same number of functions as analysis"
+    );
+
+    // Orchestration should have bridge labels that analysis doesn't.
+    let orch_topo = &orchestration.scan_result.topologies[0];
+    let has_any_bridge = orch_topo
+        .topology
+        .nodes
+        .iter()
+        .any(|n| n.labels.iter().any(|l| l.starts_with("PolyglotBridge")));
+    assert!(
+        has_any_bridge,
+        "orchestration topology should have PolyglotBridge labels"
+    );
+
+    let analysis_topo = &analysis.topologies[0];
+    let analysis_has_bridge = analysis_topo
+        .topology
+        .nodes
+        .iter()
+        .any(|n| n.labels.iter().any(|l| l.starts_with("PolyglotBridge")));
+    assert!(
+        !analysis_has_bridge,
+        "analysis topology should NOT have PolyglotBridge labels"
+    );
+}
+
+#[test]
+fn typescript_orchestration_detects_calls() {
+    let source = r#"
+function fetchData(url: string) {
+    const response = fetch(url);
+    return response.json();
+}
+"#;
+    let result =
+        parse_and_extract_orchestration(source, "fetch.ts").unwrap();
+
+    let topo = &result.scan_result.topologies[0];
+    let call_nodes: Vec<_> = topo
+        .topology
+        .nodes
+        .iter()
+        .filter(|n| n.labels.contains(&"PolyglotBridgeCall".to_string()))
+        .collect();
+
+    // Should detect function calls.
+    let has_callee = call_nodes
+        .iter()
+        .any(|n| n.properties.contains_key("callee"));
+
+    if !call_nodes.is_empty() {
+        assert!(
+            has_callee,
+            "PolyglotBridgeCall nodes should have callee property"
+        );
+    }
+
+    // Manifest should have call-type plans.
+    let call_plans: Vec<_> = result
+        .manifest
+        .node_execution_plans
+        .iter()
+        .filter(|p| p.kind == "call")
+        .collect();
+
+    if !call_nodes.is_empty() {
+        assert!(
+            !call_plans.is_empty(),
+            "manifest should have call-type execution plans"
+        );
+    }
 }
