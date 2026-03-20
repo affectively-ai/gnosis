@@ -28,15 +28,28 @@ export interface InvokeResponse {
  * Each entry is [command, ...prefixArgs].
  */
 const DEFAULT_LANGUAGE_COMMANDS: Record<string, string[]> = {
+  // Phase 1: Hand-written extractors
   python: ['python3'],
   javascript: ['node'],
   typescript: ['node', '--import', 'tsx'],
   go: ['go', 'run'],
   ruby: ['ruby'],
   java: ['java'],
-  rust: ['cargo', 'run', '--release', '--'],
+  rust: ['sh'],
+  // Phase 2: Declarative extractors
   c: ['sh'],
   cpp: ['sh'],
+  c_sharp: ['sh'],
+  kotlin: ['sh'],
+  scala: ['sh'],
+  swift: ['sh'],
+  haskell: ['sh'],
+  ocaml: ['sh'],
+  lua: ['lua'],
+  php: ['php'],
+  elixir: ['elixir'],
+  zig: ['sh'],
+  bash: ['sh'],
   shell: ['sh'],
 };
 
@@ -52,15 +65,29 @@ function resolveHarnessPath(language: string): string {
   );
 
   const harnessMap: Record<string, string> = {
+    // Phase 1: Dedicated harnesses
     python: 'python_harness.py',
     javascript: 'node_harness.mjs',
     typescript: 'node_harness.mjs',
     go: 'go_harness.go',
+    ruby: 'ruby_harness.rb',
+    lua: 'lua_harness.lua',
+    php: 'php_harness.php',
+    elixir: 'elixir_harness.exs',
+    // Phase 2: Language-specific shell harnesses
+    kotlin: 'kotlin_harness.sh',
+    scala: 'scala_harness.sh',
+    swift: 'swift_harness.sh',
+    haskell: 'haskell_harness.sh',
+    ocaml: 'ocaml_harness.sh',
+    zig: 'zig_harness.sh',
+    c_sharp: 'csharp_harness.sh',
+    bash: 'bash_harness.sh',
+    // Fallback to generic
     c: 'generic_harness.sh',
     cpp: 'generic_harness.sh',
     rust: 'generic_harness.sh',
     java: 'generic_harness.sh',
-    ruby: 'ruby_harness.rb',
     shell: 'generic_harness.sh',
   };
 

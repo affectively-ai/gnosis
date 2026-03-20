@@ -79,8 +79,8 @@ enum GnodeCommand {
 #[command(name = "gnode")]
 #[command(about = "Compile TypeScript orchestrators into GG and run them through Gnosis")]
 struct Cli {
-    #[arg(long, default_value = "bun")]
-    bun: String,
+    #[arg(long, default_value = "node")]
+    runtime: String,
     #[command(subcommand)]
     command: GnodeCommand,
 }
@@ -286,8 +286,9 @@ fn run() -> Result<()> {
         build_driver_args(&cli.command)
     };
 
-    let status = Command::new(&cli.bun)
-        .arg("run")
+    let status = Command::new(&cli.runtime)
+        .arg("--import")
+        .arg("tsx")
         .arg(&driver)
         .arg("--")
         .args(&driver_args)
@@ -297,7 +298,7 @@ fn run() -> Result<()> {
         .status()
         .with_context(|| {
             format!(
-                "failed to launch Bun bridge driver {}",
+                "failed to launch bridge driver {}",
                 driver.display()
             )
         })?;
