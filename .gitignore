@@ -7,3 +7,4 @@ runtime/target/
 .DS_Store
 states/
 *.bin
+__pycache__/
