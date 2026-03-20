@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "@a0n/aeon-container": "workspace:*",
-    "@affectively/edgework-sdk": "workspace:*",
+    "@a0n/edgework-sdk": "workspace:*",
     "@a0n/gnosis": "workspace:*",
     "@affectively/shared-ui": "workspace:*",
     "@affectively/shared-utils": "workspace:*",

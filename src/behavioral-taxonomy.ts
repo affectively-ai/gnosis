@@ -901,7 +901,7 @@ export function buildBehavioralTaxonomyTopology(
 
   const sections = [
     '// behavioral-taxonomy.gg',
-    '// Generated from @affectively/behavioral-taxonomy for Gnosis buley-number measurement.',
+    '// Generated from @a0n/behavioral-taxonomy for Gnosis buley-number measurement.',
     '// Mapping: category -> loop branches, per-loop logic expansion, inferred prerequisites, same-origin couplings.',
     '',
     '// Nodes',
