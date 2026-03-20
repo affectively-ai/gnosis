@@ -218,10 +218,12 @@ fn detect_unbounded_loops(topology: &GgTopology, diagnostics: &mut Vec<PolyglotD
                 .and_then(|id| topology.source_map.find_by_gg_id(id))
                 .map(|entry| entry.span.clone());
 
+            let code = PolyglotDiagnosticCode::UnboundedLoop;
+            let severity = code.severity();
             diagnostics.push(PolyglotDiagnostic {
-                code: PolyglotDiagnosticCode::UnboundedLoop,
+                code,
                 message: "loop without termination proof (unbounded beta-1)".to_string(),
-                severity: DiagnosticSeverity::Warning,
+                severity,
                 location,
                 related_nodes: edge.source_ids.clone(),
             });
