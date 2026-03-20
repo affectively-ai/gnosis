@@ -136,7 +136,10 @@ export type {
   ResolveResult,
   GnosisModuleResolver,
 } from './mod/loader.js';
-export type { GnosisHandler, GnosisHandlerContext } from './runtime/registry.js';
+export type {
+  GnosisHandler,
+  GnosisHandlerContext,
+} from './runtime/registry.js';
 export type {
   GnosisEngineExecutionCacheState,
   GnosisEngineExecutionResult,
@@ -327,7 +330,10 @@ export {
   buildEffectContract,
   contractsCompatible,
 } from './effects.js';
-export { registerEffectHandlers, EFFECT_SYSTEM_FEATURES } from './effects-handlers.js';
+export {
+  registerEffectHandlers,
+  EFFECT_SYSTEM_FEATURES,
+} from './effects-handlers.js';
 
 // Algebraic Data Types — closed state modeling
 export {
@@ -355,19 +361,39 @@ export { registerAdtHandlers, ADT_BUILTIN_TYPES } from './adt-handlers.js';
 export {
   type GnosisOption,
   type GnosisResult,
-  some, none, ok, err,
-  isSome, isNone, isOk, isErr,
-  unwrapOption, unwrapOptionOr,
-  unwrapResult, unwrapResultOr, unwrapErr,
-  mapOption, flatMapOption, filterOption,
-  mapResult, mapErr, flatMapResult,
-  tryCatch, tryCatchAsync,
-  collectResults, partitionResults,
-  optionToResult, resultToOption,
+  some,
+  none,
+  ok,
+  err,
+  isSome,
+  isNone,
+  isOk,
+  isErr,
+  unwrapOption,
+  unwrapOptionOr,
+  unwrapResult,
+  unwrapResultOr,
+  unwrapErr,
+  mapOption,
+  flatMapOption,
+  filterOption,
+  mapResult,
+  mapErr,
+  flatMapResult,
+  tryCatch,
+  tryCatchAsync,
+  collectResults,
+  partitionResults,
+  optionToResult,
+  resultToOption,
   transposeOptionResult,
-  routeResult, resultHandler,
+  routeResult,
+  resultHandler,
 } from './option-result.js';
-export { registerOptionResultHandlers, OPTION_RESULT_HANDLERS } from './option-result-handlers.js';
+export {
+  registerOptionResultHandlers,
+  OPTION_RESULT_HANDLERS,
+} from './option-result-handlers.js';
 
 // Quantum — graph-native quantum values and transitions
 export {
@@ -378,20 +404,52 @@ export {
   type MeasurementOutcome,
   type CircuitOp,
   type QuantumCircuit,
-  complex, complexMul, complexAdd, complexNorm, complexConj,
-  qubit, ket0, ket1, ketPlus, ketMinus,
-  isNormalized, prob0, prob1,
-  applyGate, hadamard, pauliX, pauliZ, phaseGate,
-  H_GATE, X_GATE, Y_GATE, Z_GATE, S_GATE, T_GATE,
-  createRegister, registerFromQubit, registerNormalized,
-  applyCNOT, applyCZ, applyGateToRegister,
+  complex,
+  complexMul,
+  complexAdd,
+  complexNorm,
+  complexConj,
+  qubit,
+  ket0,
+  ket1,
+  ketPlus,
+  ketMinus,
+  isNormalized,
+  prob0,
+  prob1,
+  applyGate,
+  hadamard,
+  pauliX,
+  pauliZ,
+  phaseGate,
+  H_GATE,
+  X_GATE,
+  Y_GATE,
+  Z_GATE,
+  S_GATE,
+  T_GATE,
+  createRegister,
+  registerFromQubit,
+  registerNormalized,
+  applyCNOT,
+  applyCZ,
+  applyGateToRegister,
   measure as quantumMeasure,
   measureRegister,
-  bellState, isEntangled,
-  createCircuit, addGate, addCNOT, addCZ, addMeasure, addBarrier,
+  bellState,
+  isEntangled,
+  createCircuit,
+  addGate,
+  addCNOT,
+  addCZ,
+  addMeasure,
+  addBarrier,
   executeCircuit,
 } from './quantum.js';
-export { registerQuantumHandlers, QUANTUM_GATE_NAMES } from './quantum-handlers.js';
+export {
+  registerQuantumHandlers,
+  QUANTUM_GATE_NAMES,
+} from './quantum-handlers.js';
 
 // Differentiable Programming — gradients as topology expressions
 export {
@@ -403,14 +461,26 @@ export {
   parameter as diffParameter,
   constant as diffConstant,
   diffValue,
-  add as diffAdd, mul as diffMul, sub as diffSub, neg as diffNeg,
-  relu as diffRelu, sigmoid as diffSigmoid, tanh as diffTanh,
-  exp as diffExp, log as diffLog, pow as diffPow,
-  mseLoss, bceLoss,
-  createOptimizer, optimizerStep,
+  add as diffAdd,
+  mul as diffMul,
+  sub as diffSub,
+  neg as diffNeg,
+  relu as diffRelu,
+  sigmoid as diffSigmoid,
+  tanh as diffTanh,
+  exp as diffExp,
+  log as diffLog,
+  pow as diffPow,
+  mseLoss,
+  bceLoss,
+  createOptimizer,
+  optimizerStep,
   analyzeGradientFlow,
 } from './differentiable.js';
-export { registerDifferentiableHandlers, DIFFERENTIABLE_OPS } from './differentiable-handlers.js';
+export {
+  registerDifferentiableHandlers,
+  DIFFERENTIABLE_OPS,
+} from './differentiable-handlers.js';
 
 // Destructuring — clean value unpacking
 export {
@@ -435,7 +505,10 @@ export {
   validateRecordPattern,
   checkPatternExhaustiveness,
 } from './destructuring.js';
-export { registerDestructuringHandlers, DESTRUCTURING_PATTERNS } from './destructuring-handlers.js';
+export {
+  registerDestructuringHandlers,
+  DESTRUCTURING_PATTERNS,
+} from './destructuring-handlers.js';
 
 // Module System — reproducible build units
 export {
@@ -447,14 +520,23 @@ export {
   type Lockfile,
   type ResolutionResult,
   type CompatibilityReport,
-  parseSemVer, formatSemVer, compareSemVer,
-  parseConstraint, satisfiesConstraint,
+  parseSemVer,
+  formatSemVer,
+  compareSemVer,
+  parseConstraint,
+  satisfiesConstraint,
   createManifest,
-  createLockfile, addLockfileEntry, lockfileHas, lockfileGet,
+  createLockfile,
+  addLockfileEntry,
+  lockfileHas,
+  lockfileGet,
   resolveDependencies,
   checkModuleCompatibility,
 } from './module-system.js';
-export { registerModuleSystemHandlers, MODULE_SYSTEM_FEATURES } from './module-system-handlers.js';
+export {
+  registerModuleSystemHandlers,
+  MODULE_SYSTEM_FEATURES,
+} from './module-system-handlers.js';
 
 // Continuous Harris — compiler-driven measurable Harris packages
 export {
@@ -477,7 +559,10 @@ export {
   inferKernelFamily,
   generateHarrisLean,
 } from './continuous-harris.js';
-export { registerContinuousHarrisHandlers, HARRIS_KERNEL_FAMILIES } from './continuous-harris-handlers.js';
+export {
+  registerContinuousHarrisHandlers,
+  HARRIS_KERNEL_FAMILIES,
+} from './continuous-harris-handlers.js';
 
 // Thermodynamics — Landauer erasure + Boltzmann as void walking
 export {
@@ -502,7 +587,10 @@ export {
   crooksRatio,
   jarzynskiAverage,
 } from './thermodynamic.js';
-export { registerThermodynamicHandlers, THERMODYNAMIC_IDENTIFICATIONS } from './thermodynamic-handlers.js';
+export {
+  registerThermodynamicHandlers,
+  THERMODYNAMIC_IDENTIFICATIONS,
+} from './thermodynamic-handlers.js';
 
 // Traced Monoidal Category — fork/race/fold as string diagrams
 export {
@@ -511,7 +599,8 @@ export {
   type MorphismKind,
   type CoherenceCheck,
   type StringDiagram,
-  catObject, UNIT,
+  catObject,
+  UNIT,
   identity as catIdentity,
   process as catProcess,
   fork as catFork,
@@ -534,7 +623,10 @@ export {
   isDiagramClosed,
   edgeToMorphism,
 } from './traced-monoidal.js';
-export { registerTracedMonoidalHandlers, COHERENCE_CONDITIONS } from './traced-monoidal-handlers.js';
+export {
+  registerTracedMonoidalHandlers,
+  COHERENCE_CONDITIONS,
+} from './traced-monoidal-handlers.js';
 
 // Chaitin-Omega — computability-theoretic void boundary
 export {
@@ -1250,10 +1342,14 @@ async function main() {
         ? parseFlagValue(args, '--lean-module')
         : null;
       const leanArtifact = shouldGenerateLean
-        ? generateLeanFromGnosisAst(compilerResult.ast, compilerResult.stability, {
-            moduleName: leanModuleOverride ?? undefined,
-            sourceFilePath: filePath,
-          })
+        ? generateLeanFromGnosisAst(
+            compilerResult.ast,
+            compilerResult.stability,
+            {
+              moduleName: leanModuleOverride ?? undefined,
+              sourceFilePath: filePath,
+            }
+          )
         : null;
       let tlaWritePaths: TlaWritePaths | null = null;
       let leanWritePaths: LeanWritePaths | null = null;
@@ -1465,11 +1561,58 @@ async function main() {
           );
           if (compilerResult.stability) {
             console.log(
-              `  thermodynamics: spectral-radius=${compilerResult.stability.spectralRadius ?? 'n/a'} redline=${compilerResult.stability.redline ?? 'n/a'} ceiling=${compilerResult.stability.geometricCeiling ?? 'n/a'} proof=${compilerResult.stability.proof.kind}`
+              `  thermodynamics: spectral-radius=${
+                compilerResult.stability.spectralRadius ?? 'n/a'
+              } redline=${compilerResult.stability.redline ?? 'n/a'} ceiling=${
+                compilerResult.stability.geometricCeiling ?? 'n/a'
+              } proof=${compilerResult.stability.proof.kind}`
             );
             if (compilerResult.stability.metadata.countableQueueCertified) {
               console.log(
-                `  laminar-proof: queue-boundary=${compilerResult.stability.metadata.queueBoundary ?? 'n/a'} atom=${compilerResult.stability.metadata.laminarAtom ?? 'n/a'} potential=${compilerResult.stability.metadata.queuePotential ?? 'n/a'} theorem=${compilerResult.stability.metadata.laminarGeometricTheoremName ?? 'n/a'} measurable-theorem=${compilerResult.stability.metadata.measurableHarrisTheoremName ?? 'n/a'} measurable-laminar=${compilerResult.stability.metadata.measurableLaminarTheoremName ?? 'n/a'} measurable-quantitative=${compilerResult.stability.metadata.measurableQuantitativeLaminarTheoremName ?? 'n/a'} measurable-q-harris=${compilerResult.stability.metadata.measurableQuantitativeHarrisTheoremName ?? 'n/a'} measurable-finite-harris=${compilerResult.stability.metadata.measurableFiniteTimeHarrisTheoremName ?? 'n/a'} measurable-harris-recurrent=${compilerResult.stability.metadata.measurableHarrisRecurrentTheoremName ?? 'n/a'} measurable-finite-geometric=${compilerResult.stability.metadata.measurableFiniteTimeGeometricErgodicTheoremName ?? 'n/a'} measurable-lp-geometric=${compilerResult.stability.metadata.measurableLevyProkhorovGeometricErgodicTheoremName ?? 'n/a'} measurable-lp-decay=${compilerResult.stability.metadata.measurableLevyProkhorovGeometricDecayTheoremName ?? 'n/a'} measurable-lp-abstract=${compilerResult.stability.metadata.measurableLevyProkhorovAbstractGeometricErgodicTheoremName ?? 'n/a'} measurable-witness-q-harris=${compilerResult.stability.metadata.measurableWitnessQuantitativeHarrisTheoremName ?? 'n/a'}`
+                `  laminar-proof: queue-boundary=${
+                  compilerResult.stability.metadata.queueBoundary ?? 'n/a'
+                } atom=${
+                  compilerResult.stability.metadata.laminarAtom ?? 'n/a'
+                } potential=${
+                  compilerResult.stability.metadata.queuePotential ?? 'n/a'
+                } theorem=${
+                  compilerResult.stability.metadata
+                    .laminarGeometricTheoremName ?? 'n/a'
+                } measurable-theorem=${
+                  compilerResult.stability.metadata
+                    .measurableHarrisTheoremName ?? 'n/a'
+                } measurable-laminar=${
+                  compilerResult.stability.metadata
+                    .measurableLaminarTheoremName ?? 'n/a'
+                } measurable-quantitative=${
+                  compilerResult.stability.metadata
+                    .measurableQuantitativeLaminarTheoremName ?? 'n/a'
+                } measurable-q-harris=${
+                  compilerResult.stability.metadata
+                    .measurableQuantitativeHarrisTheoremName ?? 'n/a'
+                } measurable-finite-harris=${
+                  compilerResult.stability.metadata
+                    .measurableFiniteTimeHarrisTheoremName ?? 'n/a'
+                } measurable-harris-recurrent=${
+                  compilerResult.stability.metadata
+                    .measurableHarrisRecurrentTheoremName ?? 'n/a'
+                } measurable-finite-geometric=${
+                  compilerResult.stability.metadata
+                    .measurableFiniteTimeGeometricErgodicTheoremName ?? 'n/a'
+                } measurable-lp-geometric=${
+                  compilerResult.stability.metadata
+                    .measurableLevyProkhorovGeometricErgodicTheoremName ?? 'n/a'
+                } measurable-lp-decay=${
+                  compilerResult.stability.metadata
+                    .measurableLevyProkhorovGeometricDecayTheoremName ?? 'n/a'
+                } measurable-lp-abstract=${
+                  compilerResult.stability.metadata
+                    .measurableLevyProkhorovAbstractGeometricErgodicTheoremName ??
+                  'n/a'
+                } measurable-witness-q-harris=${
+                  compilerResult.stability.metadata
+                    .measurableWitnessQuantitativeHarrisTheoremName ?? 'n/a'
+                }`
               );
               if (compilerResult.stability.metadata.continuousHarris) {
                 console.log(
@@ -1477,7 +1620,8 @@ async function main() {
                 );
               }
             }
-            for (const fabric of compilerResult.stability.metadata.heteroMoAFabrics ?? []) {
+            for (const fabric of compilerResult.stability.metadata
+              .heteroMoAFabrics ?? []) {
               console.log(
                 `  hetero-fabric: id=${fabric.fabricNodeId} layers=${fabric.activeLayerCount} lanes=${fabric.totalLaneCount} pairs=${fabric.pairCount} mirrored=${fabric.mirroredKernelCount} schedule=${fabric.scheduleStrategy} gate=${fabric.launchGate} hedge=${fabric.hedgeDelayTicks} protocol=${fabric.frameProtocol} lowering=${fabric.loweringTheoremName} cannon=${fabric.cannonTheoremName} pair=${fabric.pairTheoremName} waste=${fabric.wasteTheoremName} coupled=${fabric.coupledTheoremName}`
               );
@@ -1557,7 +1701,9 @@ async function main() {
         if (compilerResult.diagnostics.length > 0) {
           for (const diagnostic of compilerResult.diagnostics) {
             const prefix = diagnostic.severity === 'error' ? 'error' : 'warn';
-            console.error(`  ${prefix}: ${formatCompilerDiagnostic(diagnostic)}`);
+            console.error(
+              `  ${prefix}: ${formatCompilerDiagnostic(diagnostic)}`
+            );
           }
         }
         if (violations.length > 0) {

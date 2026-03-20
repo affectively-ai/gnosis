@@ -107,13 +107,19 @@ export { GnosisCoreCache } from './runtime/core-cache.js';
 export {
   compileTopology,
   executeCompiled,
+  executeCompiledSync,
+  compileSyncTopology,
+  codegenSyncExecutor,
   CannonLauncher,
 } from './runtime/compiled-topology.js';
 export type {
   CompiledTopology,
+  CompiledSyncTopology,
   CompiledStep,
+  CompiledSyncStep,
   CompiledFork,
   CompiledExecutionResult,
+  SyncHandler,
 } from './runtime/compiled-topology.js';
 export { BettyCompiler } from './betty/compiler.js';
 export { generateLeanFromGnosisAst } from './betty/lean.js';
@@ -167,7 +173,10 @@ export {
   summarizeSteeringTraceRecords,
 } from './steering-trace.js';
 
-export type { GnosisHandler, GnosisHandlerContext } from './runtime/registry.js';
+export type {
+  GnosisHandler,
+  GnosisHandlerContext,
+} from './runtime/registry.js';
 export type {
   GnosisEngineExecutionCacheState,
   GnosisEngineExecutionResult,
@@ -462,10 +471,7 @@ export type {
 } from './ts-call-graph.js';
 
 // Topology diff for PR reviews
-export {
-  computeTopologyDiff,
-  formatPrComment,
-} from './ts-check-diff.js';
+export { computeTopologyDiff, formatPrComment } from './ts-check-diff.js';
 export type {
   FunctionDiff,
   TopologyDiffOptions,
