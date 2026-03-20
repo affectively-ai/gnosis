@@ -33,14 +33,7 @@ pub fn get_grammar(language_id: &str) -> Option<Language> {
             Some(new_lang)
         }
         "swift" => Some(tree_sitter_swift::LANGUAGE.into()),
-        // tree-sitter-lua 0.4.x depends on tree-sitter ^0.26 but we use 0.24.
-        // Bridge via unsafe pointer cast like Kotlin -- both wrap *const TSLanguage.
-        "lua" => {
-            let lang_fn = tree_sitter_lua::LANGUAGE;
-            let raw: *const () = unsafe { std::mem::transmute(lang_fn) };
-            let new_lang: Language = unsafe { std::mem::transmute(raw) };
-            Some(new_lang)
-        }
+        "lua" => Some(tree_sitter_lua::LANGUAGE.into()),
         "elixir" => Some(tree_sitter_elixir::LANGUAGE.into()),
         "zig" => Some(tree_sitter_zig::LANGUAGE.into()),
 

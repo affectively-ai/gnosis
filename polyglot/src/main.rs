@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
+use rayon::prelude::*;
 
 #[derive(Clone, Debug, ValueEnum)]
 enum OutputFormat {
@@ -71,13 +72,16 @@ fn scan_directory(cli: &Cli) -> Result<()> {
 
     eprintln!("scanning {} files...", files.len());
 
-    let mut all_results = Vec::new();
-    for file in &files {
-        match scan_file_inner(file) {
-            Ok(result) => all_results.push(result),
-            Err(e) => eprintln!("  error in {}: {e}", file.display()),
-        }
-    }
+    let all_results: Vec<_> = files
+        .par_iter()
+        .filter_map(|file| match scan_file_inner(file) {
+            Ok(result) => Some(result),
+            Err(e) => {
+                eprintln!("  error in {}: {e}", file.display());
+                None
+            }
+        })
+        .collect();
 
     // Print combined results.
     match cli.format {
@@ -190,9 +194,19 @@ fn collect_files(
         let entry = entry?;
         let path = entry.path();
 
-        // Skip hidden dirs and node_modules.
+        // Skip hidden dirs, vendor, and build artifacts.
         if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-            if name.starts_with('.') || name == "node_modules" || name == "target" || name == "dist" || name == "build" {
+            if name.starts_with('.')
+                || name == "node_modules"
+                || name == "target"
+                || name == "dist"
+                || name == "build"
+                || name == "vendor"
+                || name == "__pycache__"
+                || name == ".git"
+                || name == "coverage"
+                || name == "out"
+            {
                 continue;
             }
         }
