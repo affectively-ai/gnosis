@@ -2,6 +2,7 @@ pub mod cfg;
 pub mod diagnostics;
 pub mod extractors;
 pub mod gg_compiler;
+pub mod semantic_bridge;
 pub mod serialization;
 pub mod source_map;
 
@@ -69,6 +70,7 @@ pub fn parse_with_extractor(
                     function_name: cfg.function_name.clone(),
                     topology: gg,
                     gg_source,
+                    semantic_contract: cfg.signature.semantic_contract.clone(),
                     signature: cfg.signature.clone(),
                 });
             }
@@ -171,6 +173,7 @@ fn parse_with_extractor_orchestration(
                     function_name: cfg.function_name.clone(),
                     topology: gg,
                     gg_source,
+                    semantic_contract: cfg.signature.semantic_contract.clone(),
                     signature: cfg.signature.clone(),
                 });
             }

@@ -87,6 +87,9 @@ pub struct FunctionParam {
     pub default_value: Option<String>,
     /// Whether this is a rest/variadic parameter.
     pub is_variadic: bool,
+    /// Topology-level semantic type (computed from language-specific type annotation).
+    #[serde(default)]
+    pub semantic_type: TopologyType,
 }
 
 /// Function signature extracted from source.
@@ -104,6 +107,284 @@ pub struct FunctionSignature {
     pub callees: Vec<String>,
     /// Receiver/self type for methods (e.g., Go receiver, Python self).
     pub receiver_type: Option<String>,
+    /// Semantic contract: topology-level types for params and return value.
+    #[serde(default)]
+    pub semantic_contract: SemanticContract,
+}
+
+/// Topology-level semantic types -- language-agnostic types that live on GG edges.
+/// These are the proof obligations that Betty checks for cross-language compatibility.
+/// All cross-language data flows through JSON serialization, so this models
+/// the JSON-representable subset of each language's type system.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "kind")]
+pub enum TopologyType {
+    /// A JSON value conforming to a schema.
+    Json { schema: JsonSchema },
+    /// Raw byte buffer.
+    Bytes,
+    /// Ordered sequence of elements.
+    Stream { element: Box<TopologyType> },
+    /// Nullable wrapper.
+    Option { inner: Box<TopologyType> },
+    /// Record / struct / dict -- a product type with named fields.
+    Product { fields: Vec<(String, TopologyType)>, open: bool },
+    /// Tagged union -- a sum type with named variants.
+    Sum { variants: Vec<(String, TopologyType)> },
+    /// Opaque type that cannot cross language boundaries without explicit conversion.
+    Opaque { language: String, name: String },
+    /// Unknown type -- no annotation available, treated as TJson(Any).
+    Unknown,
+}
+
+/// JSON schema subset for topology type annotations.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "type")]
+pub enum JsonSchema {
+    /// Any JSON value.
+    Any,
+    /// JSON null.
+    Null,
+    /// JSON boolean.
+    Boolean,
+    /// JSON number (integer or float).
+    Number,
+    /// JSON integer.
+    Integer,
+    /// JSON string.
+    String,
+    /// JSON array with element schema.
+    Array { items: Box<JsonSchema> },
+    /// JSON object with known properties.
+    Object { properties: Vec<(String, JsonSchema)>, additional: bool },
+}
+
+/// Semantic contract for a function: precondition on inputs, postcondition on output.
+/// Betty propagates these through PROCESS edges (Hoare logic), splits at FORK,
+/// and checks consistency at FOLD.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SemanticContract {
+    /// Preconditions: topology types expected for each parameter.
+    pub param_types: Vec<TopologyType>,
+    /// Postcondition: topology type of the return value.
+    pub return_type: TopologyType,
+    /// Semantic predicates that hold on the output.
+    pub predicates: Vec<SemanticPredicate>,
+}
+
+/// Semantic predicates that can be attached to topology nodes and propagated through edges.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "kind")]
+pub enum SemanticPredicate {
+    /// Output conforms to a JSON schema.
+    ValidJson { schema: JsonSchema },
+    /// The function is invertible (has a left inverse).
+    Invertible,
+    /// The function is idempotent: f(f(x)) = f(x).
+    Idempotent,
+    /// The function is a total function (defined on all inputs in domain).
+    TotalFunction,
+    /// The function preserves a monotone ordering.
+    Monotone { ordering: String },
+    /// The function preserves a user-defined property.
+    Custom { name: String, description: String },
+}
+
+impl Default for TopologyType {
+    fn default() -> Self {
+        TopologyType::Unknown
+    }
+}
+
+impl Default for JsonSchema {
+    fn default() -> Self {
+        JsonSchema::Any
+    }
+}
+
+impl TopologyType {
+    /// Check if this type is compatible with another under JSON serialization.
+    /// Compatible means: serializing a value of type `self` and deserializing as `other`
+    /// produces a valid value. This is the core cross-language compatibility check.
+    pub fn is_compatible_with(&self, other: &TopologyType) -> TypeCompatibility {
+        match (self, other) {
+            // Unknown is compatible with anything (no constraint).
+            (TopologyType::Unknown, _) | (_, TopologyType::Unknown) => {
+                TypeCompatibility::Compatible
+            }
+            // Same type is always compatible.
+            _ if self == other => TypeCompatibility::Compatible,
+            // Bytes are only compatible with Bytes.
+            (TopologyType::Bytes, TopologyType::Bytes) => TypeCompatibility::Compatible,
+            (TopologyType::Bytes, _) | (_, TopologyType::Bytes) => {
+                TypeCompatibility::Incompatible {
+                    reason: "byte buffers cannot cross-serialize with non-byte types".to_string(),
+                }
+            }
+            // Stream<A> is compatible with Stream<B> if A is compatible with B.
+            (TopologyType::Stream { element: a }, TopologyType::Stream { element: b }) => {
+                a.is_compatible_with(b)
+            }
+            // Option<A> is compatible with Option<B> if A is compatible with B.
+            (TopologyType::Option { inner: a }, TopologyType::Option { inner: b }) => {
+                a.is_compatible_with(b)
+            }
+            // A is compatible with Option<A> (non-null subset).
+            (a, TopologyType::Option { inner: b }) => a.is_compatible_with(b),
+            // Product types: open products accept any superset of fields.
+            (
+                TopologyType::Product { fields: fa, open: oa },
+                TopologyType::Product { fields: fb, open: ob },
+            ) => {
+                // Check that every required field in `other` exists in `self` with compatible type.
+                for (name, tb) in fb {
+                    match fa.iter().find(|(n, _)| n == name) {
+                        Some((_, ta)) => {
+                            if let TypeCompatibility::Incompatible { reason } =
+                                ta.is_compatible_with(tb)
+                            {
+                                return TypeCompatibility::Incompatible {
+                                    reason: format!("field '{}': {}", name, reason),
+                                };
+                            }
+                        }
+                        None => {
+                            if !ob {
+                                return TypeCompatibility::Incompatible {
+                                    reason: format!(
+                                        "field '{}' missing in source product type",
+                                        name
+                                    ),
+                                };
+                            }
+                        }
+                    }
+                }
+                // If target is closed and source has extra fields, that's a proof obligation.
+                if !ob && fa.len() > fb.len() {
+                    TypeCompatibility::ProofObligation {
+                        obligation: format!(
+                            "source has {} extra fields not in target's closed product",
+                            fa.len() - fb.len()
+                        ),
+                    }
+                } else {
+                    TypeCompatibility::Compatible
+                }
+            }
+            // Json types: check schema compatibility.
+            (TopologyType::Json { schema: sa }, TopologyType::Json { schema: sb }) => {
+                sa.is_compatible_with(sb)
+            }
+            // Stream → Json Array: compatible if element types match.
+            (TopologyType::Stream { element }, TopologyType::Json { schema: JsonSchema::Array { items } }) => {
+                if let TopologyType::Json { schema: inner } = element.as_ref() {
+                    inner.is_compatible_with(items)
+                } else {
+                    TypeCompatibility::ProofObligation {
+                        obligation: "stream element must be JSON-serializable".to_string(),
+                    }
+                }
+            }
+            // Product → Json Object: compatible (products serialize to objects).
+            (TopologyType::Product { .. }, TopologyType::Json { schema: JsonSchema::Object { .. } }) => {
+                TypeCompatibility::ProofObligation {
+                    obligation: "product fields must match JSON object properties".to_string(),
+                }
+            }
+            // Opaque types are only compatible with the same opaque type.
+            (
+                TopologyType::Opaque { language: la, name: na },
+                TopologyType::Opaque { language: lb, name: nb },
+            ) => {
+                if la == lb && na == nb {
+                    TypeCompatibility::Compatible
+                } else {
+                    TypeCompatibility::Incompatible {
+                        reason: format!(
+                            "opaque type {}:{} is not compatible with {}:{}",
+                            la, na, lb, nb
+                        ),
+                    }
+                }
+            }
+            // Opaque on one side: proof obligation.
+            (TopologyType::Opaque { language, name }, _)
+            | (_, TopologyType::Opaque { language, name }) => {
+                TypeCompatibility::ProofObligation {
+                    obligation: format!(
+                        "opaque type {}:{} requires explicit conversion proof",
+                        language, name
+                    ),
+                }
+            }
+            // Fallback: mismatched types.
+            _ => TypeCompatibility::Incompatible {
+                reason: format!(
+                    "type mismatch: {:?} vs {:?}",
+                    std::mem::discriminant(self),
+                    std::mem::discriminant(other)
+                ),
+            },
+        }
+    }
+}
+
+impl JsonSchema {
+    /// Check if a JSON schema is compatible with another (subtype check).
+    pub fn is_compatible_with(&self, other: &JsonSchema) -> TypeCompatibility {
+        match (self, other) {
+            (_, JsonSchema::Any) | (JsonSchema::Any, _) => TypeCompatibility::Compatible,
+            _ if self == other => TypeCompatibility::Compatible,
+            // Number subsumes Integer.
+            (JsonSchema::Integer, JsonSchema::Number) => TypeCompatibility::Compatible,
+            (JsonSchema::Number, JsonSchema::Integer) => TypeCompatibility::ProofObligation {
+                obligation: "number may not be integer -- requires runtime check".to_string(),
+            },
+            (JsonSchema::Array { items: a }, JsonSchema::Array { items: b }) => {
+                a.is_compatible_with(b)
+            }
+            (
+                JsonSchema::Object { properties: pa, additional: aa },
+                JsonSchema::Object { properties: pb, additional: ab },
+            ) => {
+                for (name, sb) in pb {
+                    match pa.iter().find(|(n, _)| n == name) {
+                        Some((_, sa)) => {
+                            if let TypeCompatibility::Incompatible { reason } =
+                                sa.is_compatible_with(sb)
+                            {
+                                return TypeCompatibility::Incompatible {
+                                    reason: format!("property '{}': {}", name, reason),
+                                };
+                            }
+                        }
+                        None if !ab => {
+                            return TypeCompatibility::Incompatible {
+                                reason: format!("property '{}' missing", name),
+                            };
+                        }
+                        _ => {}
+                    }
+                }
+                TypeCompatibility::Compatible
+            }
+            _ => TypeCompatibility::Incompatible {
+                reason: format!("JSON schema mismatch: {:?} vs {:?}", self, other),
+            },
+        }
+    }
+}
+
+/// Result of a cross-language type compatibility check.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum TypeCompatibility {
+    /// Types are fully compatible under JSON serialization.
+    Compatible,
+    /// Types may be compatible but require a proof obligation (runtime check or annotation).
+    ProofObligation { obligation: String },
+    /// Types are incompatible -- data will be lost or corrupted.
+    Incompatible { reason: String },
 }
 
 /// A control flow graph extracted from source code.

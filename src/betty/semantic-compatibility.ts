@@ -1,0 +1,652 @@
+/**
+ * Betty Phase 8: Semantic Compatibility Analysis
+ *
+ * Checks that cross-language topology edges preserve semantic properties.
+ * When a Python node's output flows to a Go node's input via a PROCESS edge,
+ * this phase verifies that the types are compatible under JSON serialization.
+ *
+ * The key insight: all cross-language data flows through JSON. We only need
+ * to model the JSON-representable fragment of each language's type system.
+ */
+
+import type { GraphAST, ASTNode, ASTEdge, Diagnostic, DiagnosticCode } from './compiler.js';
+
+// ─── Topology Types ─────────────────────────────────────────────────────────
+
+/**
+ * Topology-level semantic types -- language-agnostic types that live on GG edges.
+ * These mirror the Rust TopologyType enum in cfg.rs.
+ */
+export type TopologyType =
+  | { kind: 'json'; schema: JsonSchema }
+  | { kind: 'bytes' }
+  | { kind: 'stream'; element: TopologyType }
+  | { kind: 'option'; inner: TopologyType }
+  | { kind: 'product'; fields: Array<[string, TopologyType]>; open: boolean }
+  | { kind: 'sum'; variants: Array<[string, TopologyType]> }
+  | { kind: 'opaque'; language: string; name: string }
+  | { kind: 'unknown' };
+
+export type JsonSchema =
+  | { type: 'any' }
+  | { type: 'null' }
+  | { type: 'boolean' }
+  | { type: 'number' }
+  | { type: 'integer' }
+  | { type: 'string' }
+  | { type: 'array'; items: JsonSchema }
+  | { type: 'object'; properties: Array<[string, JsonSchema]>; additional: boolean };
+
+export type SemanticPredicate =
+  | { kind: 'valid-json'; schema: JsonSchema }
+  | { kind: 'invertible' }
+  | { kind: 'idempotent' }
+  | { kind: 'total-function' }
+  | { kind: 'monotone'; ordering: string }
+  | { kind: 'custom'; name: string; description: string };
+
+export interface SemanticContract {
+  paramTypes: TopologyType[];
+  returnType: TopologyType;
+  predicates: SemanticPredicate[];
+}
+
+export type TypeCompatibility =
+  | { status: 'compatible' }
+  | { status: 'proof-obligation'; obligation: string }
+  | { status: 'incompatible'; reason: string };
+
+export interface SemanticCompatibilityResult {
+  edgeChecks: EdgeSemanticCheck[];
+  predicatePropagation: PredicatePropagation[];
+  diagnostics: Diagnostic[];
+  proofObligations: ProofObligation[];
+}
+
+export interface EdgeSemanticCheck {
+  sourceNode: string;
+  targetNode: string;
+  edgeType: string;
+  sourceType: TopologyType;
+  targetType: TopologyType;
+  compatibility: TypeCompatibility;
+}
+
+export interface PredicatePropagation {
+  nodeId: string;
+  predicates: SemanticPredicate[];
+  propagatedFrom: string[];
+}
+
+export interface ProofObligation {
+  edge: { source: string; target: string };
+  obligation: string;
+  severity: 'warning' | 'error';
+}
+
+// ─── Denotation Functions ───────────────────────────────────────────────────
+
+/**
+ * Convert a language-specific type annotation to a TopologyType.
+ * This is the denotation function ⟦·⟧_L.
+ */
+export function denoteType(language: string, typeAnnotation: string): TopologyType {
+  const ty = typeAnnotation.trim();
+  switch (language) {
+    case 'python': return denotePythonType(ty);
+    case 'go': return denoteGoType(ty);
+    case 'rust': return denoteRustType(ty);
+    case 'typescript':
+    case 'javascript': return denoteTypeScriptType(ty);
+    case 'java': return denoteJavaType(ty);
+    default: return { kind: 'unknown' };
+  }
+}
+
+function denotePythonType(ty: string): TopologyType {
+  switch (ty) {
+    case 'int': return { kind: 'json', schema: { type: 'integer' } };
+    case 'float': return { kind: 'json', schema: { type: 'number' } };
+    case 'str': return { kind: 'json', schema: { type: 'string' } };
+    case 'bool': return { kind: 'json', schema: { type: 'boolean' } };
+    case 'None': case 'NoneType': return { kind: 'json', schema: { type: 'null' } };
+    case 'bytes': case 'bytearray': return { kind: 'bytes' };
+    case 'dict': return { kind: 'product', fields: [], open: true };
+    case 'list': return { kind: 'stream', element: { kind: 'json', schema: { type: 'any' } } };
+    case 'tuple': return { kind: 'stream', element: { kind: 'json', schema: { type: 'any' } } };
+  }
+
+  if (ty.startsWith('list[') && ty.endsWith(']')) {
+    const inner = ty.slice(5, -1);
+    return { kind: 'stream', element: denotePythonType(inner) };
+  }
+  if (ty.startsWith('dict[') && ty.endsWith(']')) {
+    const inner = ty.slice(5, -1);
+    const parts = splitTypeArgs(inner);
+    if (parts.length === 2 && parts[0]!.trim() === 'str') {
+      return { kind: 'product', fields: [], open: true };
+    }
+    return { kind: 'opaque', language: 'python', name: ty };
+  }
+  if (ty.startsWith('Optional[') && ty.endsWith(']')) {
+    return { kind: 'option', inner: denotePythonType(ty.slice(9, -1)) };
+  }
+  if (ty.startsWith('tuple[') && ty.endsWith(']')) {
+    const parts = splitTypeArgs(ty.slice(6, -1));
+    return {
+      kind: 'product',
+      fields: parts.map((p, i) => [`_${i}`, denotePythonType(p.trim())]),
+      open: false,
+    };
+  }
+  return { kind: 'opaque', language: 'python', name: ty };
+}
+
+function denoteGoType(ty: string): TopologyType {
+  const intTypes = ['int', 'int8', 'int16', 'int32', 'int64', 'uint', 'uint8', 'uint16', 'uint32', 'uint64'];
+  if (intTypes.includes(ty)) return { kind: 'json', schema: { type: 'integer' } };
+  if (ty === 'float32' || ty === 'float64') return { kind: 'json', schema: { type: 'number' } };
+  if (ty === 'string') return { kind: 'json', schema: { type: 'string' } };
+  if (ty === 'bool') return { kind: 'json', schema: { type: 'boolean' } };
+  if (ty === 'interface{}' || ty === 'any') return { kind: 'json', schema: { type: 'any' } };
+  if (ty === 'error') return { kind: 'option', inner: { kind: 'json', schema: { type: 'string' } } };
+  if (ty === '[]byte') return { kind: 'bytes' };
+  if (ty.startsWith('[]')) return { kind: 'stream', element: denoteGoType(ty.slice(2)) };
+  if (ty.startsWith('map[string]')) {
+    return { kind: 'product', fields: [], open: true };
+  }
+  if (ty.startsWith('*')) return denoteGoType(ty.slice(1));
+  if (ty.includes(',')) {
+    const parts = ty.replace(/^\(/, '').replace(/\)$/, '').split(',');
+    return {
+      kind: 'product',
+      fields: parts.map((p, i) => [`_${i}`, denoteGoType(p.trim())]),
+      open: false,
+    };
+  }
+  return { kind: 'opaque', language: 'go', name: ty };
+}
+
+function denoteRustType(ty: string): TopologyType {
+  const intTypes = ['i8', 'i16', 'i32', 'i64', 'i128', 'isize', 'u8', 'u16', 'u32', 'u64', 'u128', 'usize'];
+  if (intTypes.includes(ty)) return { kind: 'json', schema: { type: 'integer' } };
+  if (ty === 'f32' || ty === 'f64') return { kind: 'json', schema: { type: 'number' } };
+  if (ty === 'String' || ty === '&str') return { kind: 'json', schema: { type: 'string' } };
+  if (ty === 'bool') return { kind: 'json', schema: { type: 'boolean' } };
+  if (ty === '()') return { kind: 'json', schema: { type: 'null' } };
+  if (ty === 'Value' || ty === 'serde_json::Value') return { kind: 'json', schema: { type: 'any' } };
+  if (ty === 'Vec<u8>') return { kind: 'bytes' };
+  if (ty.startsWith('Vec<') && ty.endsWith('>')) {
+    return { kind: 'stream', element: denoteRustType(ty.slice(4, -1)) };
+  }
+  if (ty.startsWith('Option<') && ty.endsWith('>')) {
+    return { kind: 'option', inner: denoteRustType(ty.slice(7, -1)) };
+  }
+  if ((ty.startsWith('HashMap<String,') || ty.startsWith('HashMap<&str,')) && ty.endsWith('>')) {
+    return { kind: 'product', fields: [], open: true };
+  }
+  if (ty.startsWith('Result<') && ty.endsWith('>')) {
+    const parts = splitTypeArgs(ty.slice(7, -1));
+    if (parts.length === 2) {
+      return {
+        kind: 'sum',
+        variants: [
+          ['Ok', denoteRustType(parts[0]!.trim())],
+          ['Err', denoteRustType(parts[1]!.trim())],
+        ],
+      };
+    }
+  }
+  if (ty.startsWith('&mut ')) return denoteRustType(ty.slice(5));
+  if (ty.startsWith('&')) return denoteRustType(ty.slice(1));
+  return { kind: 'opaque', language: 'rust', name: ty };
+}
+
+function denoteTypeScriptType(ty: string): TopologyType {
+  switch (ty) {
+    case 'number': return { kind: 'json', schema: { type: 'number' } };
+    case 'string': return { kind: 'json', schema: { type: 'string' } };
+    case 'boolean': return { kind: 'json', schema: { type: 'boolean' } };
+    case 'null': case 'undefined': case 'void': return { kind: 'json', schema: { type: 'null' } };
+    case 'any': case 'unknown': return { kind: 'json', schema: { type: 'any' } };
+    case 'object': case 'Record<string, unknown>': case 'Record<string, any>':
+      return { kind: 'product', fields: [], open: true };
+    case 'Uint8Array': case 'ArrayBuffer': case 'Buffer':
+      return { kind: 'bytes' };
+  }
+  if (ty.endsWith('[]')) return { kind: 'stream', element: denoteTypeScriptType(ty.slice(0, -2)) };
+  if (ty.startsWith('Array<') && ty.endsWith('>')) {
+    return { kind: 'stream', element: denoteTypeScriptType(ty.slice(6, -1)) };
+  }
+  if (ty.startsWith('Promise<') && ty.endsWith('>')) {
+    return denoteTypeScriptType(ty.slice(8, -1));
+  }
+  if (ty.includes('|')) {
+    const parts = ty.split('|').map(p => p.trim());
+    const hasNull = parts.some(p => p === 'null' || p === 'undefined');
+    const nonNull = parts.filter(p => p !== 'null' && p !== 'undefined');
+    if (hasNull && nonNull.length === 1) {
+      return { kind: 'option', inner: denoteTypeScriptType(nonNull[0]!) };
+    }
+    return { kind: 'sum', variants: parts.map(p => [p, denoteTypeScriptType(p)]) };
+  }
+  return { kind: 'opaque', language: 'typescript', name: ty };
+}
+
+function denoteJavaType(ty: string): TopologyType {
+  const intTypes = ['int', 'Integer', 'long', 'Long', 'short', 'Short', 'byte', 'Byte'];
+  if (intTypes.includes(ty)) return { kind: 'json', schema: { type: 'integer' } };
+  if (['float', 'Float', 'double', 'Double'].includes(ty)) return { kind: 'json', schema: { type: 'number' } };
+  if (ty === 'String' || ty === 'CharSequence') return { kind: 'json', schema: { type: 'string' } };
+  if (ty === 'boolean' || ty === 'Boolean') return { kind: 'json', schema: { type: 'boolean' } };
+  if (ty === 'void') return { kind: 'json', schema: { type: 'null' } };
+  if (ty === 'Object') return { kind: 'json', schema: { type: 'any' } };
+  if (ty === 'byte[]') return { kind: 'bytes' };
+  if ((ty.startsWith('List<') || ty.startsWith('ArrayList<')) && ty.endsWith('>')) {
+    const start = ty.indexOf('<') + 1;
+    return { kind: 'stream', element: denoteJavaType(ty.slice(start, -1)) };
+  }
+  if ((ty.startsWith('Map<String,') || ty.startsWith('HashMap<String,')) && ty.endsWith('>')) {
+    return { kind: 'product', fields: [], open: true };
+  }
+  if (ty.startsWith('Optional<') && ty.endsWith('>')) {
+    return { kind: 'option', inner: denoteJavaType(ty.slice(9, -1)) };
+  }
+  if (ty.endsWith('[]')) {
+    return { kind: 'stream', element: denoteJavaType(ty.slice(0, -2)) };
+  }
+  return { kind: 'opaque', language: 'java', name: ty };
+}
+
+// ─── Type Compatibility ─────────────────────────────────────────────────────
+
+/**
+ * Check if two topology types are compatible under JSON serialization.
+ */
+export function checkTypeCompatibility(
+  source: TopologyType,
+  target: TopologyType,
+): TypeCompatibility {
+  // Unknown is compatible with anything.
+  if (source.kind === 'unknown' || target.kind === 'unknown') {
+    return { status: 'compatible' };
+  }
+  // Deep equality check.
+  if (JSON.stringify(source) === JSON.stringify(target)) {
+    return { status: 'compatible' };
+  }
+  // Bytes only with bytes.
+  if (source.kind === 'bytes' || target.kind === 'bytes') {
+    if (source.kind === 'bytes' && target.kind === 'bytes') return { status: 'compatible' };
+    return { status: 'incompatible', reason: 'byte buffers cannot cross-serialize with non-byte types' };
+  }
+  // Stream compatibility.
+  if (source.kind === 'stream' && target.kind === 'stream') {
+    return checkTypeCompatibility(source.element, target.element);
+  }
+  // Option compatibility.
+  if (source.kind === 'option' && target.kind === 'option') {
+    return checkTypeCompatibility(source.inner, target.inner);
+  }
+  // Non-null into option.
+  if (target.kind === 'option') {
+    return checkTypeCompatibility(source, target.inner);
+  }
+  // Product compatibility.
+  if (source.kind === 'product' && target.kind === 'product') {
+    for (const [name, tb] of target.fields) {
+      const sa = source.fields.find(([n]) => n === name);
+      if (sa) {
+        const compat = checkTypeCompatibility(sa[1], tb);
+        if (compat.status === 'incompatible') {
+          return { status: 'incompatible', reason: `field '${name}': ${compat.reason}` };
+        }
+      } else if (!target.open) {
+        return { status: 'incompatible', reason: `field '${name}' missing in source` };
+      }
+    }
+    if (!target.open && source.fields.length > target.fields.length) {
+      return {
+        status: 'proof-obligation',
+        obligation: `source has ${source.fields.length - target.fields.length} extra fields not in target`,
+      };
+    }
+    return { status: 'compatible' };
+  }
+  // JSON schema compatibility.
+  if (source.kind === 'json' && target.kind === 'json') {
+    return checkJsonSchemaCompatibility(source.schema, target.schema);
+  }
+  // Stream → JSON array.
+  if (source.kind === 'stream' && target.kind === 'json' && target.schema.type === 'array') {
+    if (source.element.kind === 'json') {
+      return checkJsonSchemaCompatibility(source.element.schema, target.schema.items);
+    }
+    return { status: 'proof-obligation', obligation: 'stream element must be JSON-serializable' };
+  }
+  // Product → JSON object.
+  if (source.kind === 'product' && target.kind === 'json' && target.schema.type === 'object') {
+    return { status: 'proof-obligation', obligation: 'product fields must match JSON object properties' };
+  }
+  // Opaque types.
+  if (source.kind === 'opaque' && target.kind === 'opaque') {
+    if (source.language === target.language && source.name === target.name) {
+      return { status: 'compatible' };
+    }
+    return { status: 'incompatible', reason: `opaque ${source.language}:${source.name} vs ${target.language}:${target.name}` };
+  }
+  if (source.kind === 'opaque' || target.kind === 'opaque') {
+    const opaque = source.kind === 'opaque' ? source : target as { kind: 'opaque'; language: string; name: string };
+    return { status: 'proof-obligation', obligation: `opaque type ${opaque.language}:${opaque.name} requires conversion proof` };
+  }
+  return { status: 'incompatible', reason: `type mismatch: ${source.kind} vs ${target.kind}` };
+}
+
+function checkJsonSchemaCompatibility(a: JsonSchema, b: JsonSchema): TypeCompatibility {
+  if (a.type === 'any' || b.type === 'any') return { status: 'compatible' };
+  if (a.type === b.type) {
+    if (a.type === 'array' && b.type === 'array') {
+      return checkJsonSchemaCompatibility(a.items, b.items);
+    }
+    if (a.type === 'object' && b.type === 'object') {
+      for (const [name, sb] of b.properties) {
+        const sa = a.properties.find(([n]) => n === name);
+        if (sa) {
+          const c = checkJsonSchemaCompatibility(sa[1], sb);
+          if (c.status === 'incompatible') return c;
+        } else if (!b.additional) {
+          return { status: 'incompatible', reason: `property '${name}' missing` };
+        }
+      }
+      return { status: 'compatible' };
+    }
+    return { status: 'compatible' };
+  }
+  // Integer is a subtype of Number.
+  if (a.type === 'integer' && b.type === 'number') return { status: 'compatible' };
+  if (a.type === 'number' && b.type === 'integer') {
+    return { status: 'proof-obligation', obligation: 'number may not be integer' };
+  }
+  return { status: 'incompatible', reason: `JSON schema mismatch: ${a.type} vs ${b.type}` };
+}
+
+// ─── Semantic Analysis Phase ────────────────────────────────────────────────
+
+/**
+ * Run semantic compatibility analysis on a topology.
+ * This is Betty Phase 8: checks cross-language type compatibility on all edges.
+ */
+export function analyzeSemanticCompatibility(
+  ast: GraphAST,
+): SemanticCompatibilityResult {
+  const diagnostics: Diagnostic[] = [];
+  const edgeChecks: EdgeSemanticCheck[] = [];
+  const proofObligations: ProofObligation[] = [];
+  const predicatePropagation: PredicatePropagation[] = [];
+
+  // Build a map of node semantic contracts from node properties.
+  const nodeContracts = new Map<string, SemanticContract>();
+
+  for (const [nodeId, node] of ast.nodes) {
+    const contract = extractContractFromNode(node);
+    if (contract) {
+      nodeContracts.set(nodeId, contract);
+    }
+  }
+
+  // Check each edge for semantic compatibility.
+  for (const edge of ast.edges) {
+    for (const sourceId of edge.sourceIds) {
+      for (const targetId of edge.targetIds) {
+        const sourceContract = nodeContracts.get(sourceId);
+        const targetContract = nodeContracts.get(targetId);
+
+        if (!sourceContract || !targetContract) continue;
+
+        const sourceType = sourceContract.returnType;
+        const targetType = targetContract.paramTypes[0] ?? { kind: 'unknown' as const };
+        const compatibility = checkTypeCompatibility(sourceType, targetType);
+
+        edgeChecks.push({
+          sourceNode: sourceId,
+          targetNode: targetId,
+          edgeType: edge.type,
+          sourceType,
+          targetType,
+          compatibility,
+        });
+
+        if (compatibility.status === 'incompatible') {
+          diagnostics.push({
+            line: 0,
+            column: 0,
+            code: 'SEMANTIC_TYPE_INCOMPATIBLE' as DiagnosticCode,
+            message: `Semantic type mismatch on ${edge.type} edge ${sourceId} → ${targetId}: ${compatibility.reason}`,
+            severity: 'error',
+          });
+        } else if (compatibility.status === 'proof-obligation') {
+          proofObligations.push({
+            edge: { source: sourceId, target: targetId },
+            obligation: compatibility.obligation,
+            severity: 'warning',
+          });
+          diagnostics.push({
+            line: 0,
+            column: 0,
+            code: 'SEMANTIC_PROOF_OBLIGATION' as DiagnosticCode,
+            message: `Proof obligation on ${edge.type} edge ${sourceId} → ${targetId}: ${compatibility.obligation}`,
+            severity: 'warning',
+          });
+        }
+
+        // Propagate predicates through PROCESS edges (Hoare logic).
+        if (edge.type === 'PROCESS' && sourceContract.predicates.length > 0) {
+          propagatePredicates(
+            sourceContract,
+            targetContract,
+            sourceId,
+            targetId,
+            predicatePropagation,
+            diagnostics,
+          );
+        }
+      }
+    }
+  }
+
+  // Check FOLD consistency: all incoming branches must have compatible types.
+  for (const edge of ast.edges) {
+    if (edge.type === 'FOLD' && edge.sourceIds.length > 1) {
+      checkFoldConsistency(edge, nodeContracts, diagnostics, proofObligations);
+    }
+  }
+
+  return { edgeChecks, predicatePropagation, diagnostics, proofObligations };
+}
+
+function extractContractFromNode(node: ASTNode): SemanticContract | null {
+  // Check for explicit semantic_type property (set by polyglot scanner).
+  const semanticReturn = node.properties['semantic_return_type'];
+  const semanticParams = node.properties['semantic_param_types'];
+  const language = node.properties['language'] ?? '';
+
+  if (!semanticReturn && !semanticParams && !node.properties['return_type']) {
+    return null;
+  }
+
+  let returnType: TopologyType = { kind: 'unknown' };
+  const paramTypes: TopologyType[] = [];
+  const predicates: SemanticPredicate[] = [];
+
+  // Parse return type.
+  if (semanticReturn) {
+    try {
+      returnType = JSON.parse(semanticReturn) as TopologyType;
+    } catch {
+      returnType = { kind: 'unknown' };
+    }
+  } else if (node.properties['return_type'] && language) {
+    returnType = denoteType(language, node.properties['return_type']);
+  }
+
+  // Parse param types.
+  if (semanticParams) {
+    try {
+      const parsed = JSON.parse(semanticParams) as TopologyType[];
+      paramTypes.push(...parsed);
+    } catch {
+      // Ignore parse failures.
+    }
+  }
+
+  // Infer predicates.
+  if (returnType.kind === 'json') {
+    predicates.push({ kind: 'valid-json', schema: returnType.schema });
+  }
+
+  // Check for explicit predicate annotations.
+  const predicateStr = node.properties['semantic_predicates'];
+  if (predicateStr) {
+    try {
+      const parsed = JSON.parse(predicateStr) as SemanticPredicate[];
+      predicates.push(...parsed);
+    } catch {
+      // Ignore.
+    }
+  }
+
+  return { paramTypes, returnType, predicates };
+}
+
+function propagatePredicates(
+  source: SemanticContract,
+  _target: SemanticContract,
+  sourceId: string,
+  targetId: string,
+  propagation: PredicatePropagation[],
+  _diagnostics: Diagnostic[],
+): void {
+  // Predicates that survive across PROCESS edges:
+  // - ValidJson: survives if target also produces valid JSON.
+  // - Invertible: survives if both source and target are invertible (composition).
+  // - Idempotent: does NOT survive composition in general.
+  // - TotalFunction: survives if target is also total.
+  // - Monotone: survives if both preserve the same ordering.
+
+  const survivingPredicates: SemanticPredicate[] = [];
+
+  for (const pred of source.predicates) {
+    switch (pred.kind) {
+      case 'valid-json':
+        // ValidJson propagates: if source produces valid JSON and target consumes it.
+        survivingPredicates.push(pred);
+        break;
+      case 'total-function':
+        survivingPredicates.push(pred);
+        break;
+      case 'invertible':
+      case 'monotone':
+        // These require the target to also have the predicate.
+        survivingPredicates.push(pred);
+        break;
+      case 'idempotent':
+        // Does not survive composition.
+        break;
+      case 'custom':
+        survivingPredicates.push(pred);
+        break;
+    }
+  }
+
+  if (survivingPredicates.length > 0) {
+    propagation.push({
+      nodeId: targetId,
+      predicates: survivingPredicates,
+      propagatedFrom: [sourceId],
+    });
+  }
+}
+
+function checkFoldConsistency(
+  edge: ASTEdge,
+  contracts: Map<string, SemanticContract>,
+  diagnostics: Diagnostic[],
+  obligations: ProofObligation[],
+): void {
+  const branchTypes: Array<{ nodeId: string; type: TopologyType }> = [];
+
+  for (const sourceId of edge.sourceIds) {
+    const contract = contracts.get(sourceId);
+    if (contract) {
+      branchTypes.push({ nodeId: sourceId, type: contract.returnType });
+    }
+  }
+
+  if (branchTypes.length < 2) return;
+
+  // All branches flowing into a FOLD must produce compatible types.
+  const reference = branchTypes[0]!;
+  for (let i = 1; i < branchTypes.length; i++) {
+    const branch = branchTypes[i]!;
+    const compat = checkTypeCompatibility(reference.type, branch.type);
+
+    if (compat.status === 'incompatible') {
+      diagnostics.push({
+        line: 0,
+        column: 0,
+        code: 'SEMANTIC_FOLD_MISMATCH' as DiagnosticCode,
+        message: `FOLD branches have incompatible types: ${reference.nodeId} vs ${branch.nodeId}: ${compat.reason}`,
+        severity: 'error',
+      });
+    } else if (compat.status === 'proof-obligation') {
+      obligations.push({
+        edge: { source: branch.nodeId, target: edge.targetIds[0] ?? '' },
+        obligation: `FOLD branch type consistency: ${compat.obligation}`,
+        severity: 'warning',
+      });
+    }
+  }
+}
+
+// ─── Utility ────────────────────────────────────────────────────────────────
+
+function splitTypeArgs(s: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i]!;
+    if (c === '<' || c === '[' || c === '(') depth++;
+    else if (c === '>' || c === ']' || c === ')') depth--;
+    else if (c === ',' && depth === 0) {
+      parts.push(s.slice(start, i));
+      start = i + 1;
+    }
+  }
+  if (start < s.length) parts.push(s.slice(start));
+  return parts;
+}
+
+/**
+ * Format a TopologyType as a human-readable string.
+ */
+export function formatTopologyType(ty: TopologyType): string {
+  switch (ty.kind) {
+    case 'json': return `Json(${ty.schema.type})`;
+    case 'bytes': return 'Bytes';
+    case 'stream': return `Stream<${formatTopologyType(ty.element)}>`;
+    case 'option': return `Option<${formatTopologyType(ty.inner)}>`;
+    case 'product': {
+      if (ty.fields.length === 0) return ty.open ? 'Product{..}' : 'Product{}';
+      const fields = ty.fields.map(([k, v]) => `${k}: ${formatTopologyType(v)}`).join(', ');
+      return `Product{${fields}${ty.open ? ', ..' : ''}}`;
+    }
+    case 'sum': {
+      const variants = ty.variants.map(([k, v]) => `${k}(${formatTopologyType(v)})`).join(' | ');
+      return variants;
+    }
+    case 'opaque': return `${ty.language}::${ty.name}`;
+    case 'unknown': return '?';
+  }
+}

@@ -19,6 +19,9 @@ pub struct PolyglotFunctionResult {
     /// Function signature (parameters, return type, callees).
     #[serde(default)]
     pub signature: FunctionSignature,
+    /// Semantic contract for cross-language type compatibility.
+    #[serde(default)]
+    pub semantic_contract: crate::cfg::SemanticContract,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

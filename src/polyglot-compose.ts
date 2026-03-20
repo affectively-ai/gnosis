@@ -16,6 +16,7 @@ import * as path from 'node:path';
 import type { GraphAST, ASTNode, ASTEdge } from './betty/compiler.js';
 import type { PolyglotExecutionManifest } from './polyglot-execution-bridge.js';
 import { scaffoldTopology, type ScaffoldAssignment } from './polyglot-scaffold.js';
+import { denoteType, formatTopologyType, checkTypeCompatibility, type TopologyType } from './betty/semantic-compatibility.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -41,6 +42,10 @@ export interface ExtractedFunction {
   nodeCount: number;
   /** Edge types present (FORK, RACE, FOLD, etc.). */
   edgeTypes: string[];
+  /** Topology-level semantic return type (from language-specific annotation). */
+  semanticReturnType?: TopologyType;
+  /** Topology-level semantic param types. */
+  semanticParamTypes?: TopologyType[];
 }
 
 /**
@@ -196,6 +201,31 @@ function inferConnections(
     }
   }
 
+  // Strategy 1.5: Type-compatible matching.
+  // If a function's return type is compatible with another function's param type,
+  // and they are in different files, create a PROCESS edge.
+  if (connections.length === 0) {
+    for (const source of functions) {
+      if (!source.semanticReturnType || source.semanticReturnType.kind === 'unknown') continue;
+      for (const target of functions) {
+        if (source === target || source.filePath === target.filePath) continue;
+        if (!target.semanticParamTypes || target.semanticParamTypes.length === 0) continue;
+        const compat = checkTypeCompatibility(
+          source.semanticReturnType,
+          target.semanticParamTypes[0]!,
+        );
+        if (compat.status === 'compatible' || compat.status === 'proof-obligation') {
+          connections.push({
+            from: { file: source.filePath, function: source.name, language: source.language },
+            to: { file: target.filePath, function: target.name, language: target.language },
+            inference: 'type-compatible',
+            edgeType: 'PROCESS',
+          });
+        }
+      }
+    }
+  }
+
   // If no direct calls found, use name-based pipeline detection.
   if (connections.length === 0) {
     // Look for pipeline patterns: input/parse/ingest → process/transform → output/serve/render
@@ -283,12 +313,15 @@ function generateComposedTopology(
   for (const func of functions) {
     const ext = languageExtension(func.language);
     const fileName = `${toSnakeCase(func.name)}.${ext}`;
+    const semanticProps = func.semanticReturnType
+      ? `, semantic_return_type='${JSON.stringify(func.semanticReturnType)}'`
+      : '';
     lines.push(
       `(${sanitizeId(func.name)}: Statement:PolyglotBridgeCall { ` +
       `language='${func.language}', ` +
       `file='${fileName}', ` +
       `callee='${func.name}', ` +
-      `source_file='${func.filePath}' })`
+      `source_file='${func.filePath}'${semanticProps} })`
     );
   }
   lines.push('');

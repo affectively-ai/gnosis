@@ -10,6 +10,7 @@ import {
   synthesizeCoarsening,
   type CoarseningSynthesisResult,
 } from './coarsen.js';
+import { analyzeSemanticCompatibility, type SemanticCompatibilityResult } from './semantic-compatibility.js';
 
 export interface ASTNode {
   id: string;
@@ -66,7 +67,10 @@ export type DiagnosticCode =
   | 'INFO_DEFICIT_SUBGRAPH'
   | 'ENTANGLE_DIM_MISMATCH'
   | 'ALEPH_INCOMPLETE'
-  | 'ENTROPY_REVERSAL_DETECTED';
+  | 'ENTROPY_REVERSAL_DETECTED'
+  | 'SEMANTIC_TYPE_INCOMPATIBLE'
+  | 'SEMANTIC_PROOF_OBLIGATION'
+  | 'SEMANTIC_FOLD_MISMATCH';
 
 export interface GraphAST {
   nodes: Map<string, ASTNode>;
@@ -85,6 +89,7 @@ export interface BettyParseResult {
   voidDimensions: number;
   landauerHeat: number;
   deficit: DeficitAnalysis | null;
+  semanticCompatibility: SemanticCompatibilityResult | null;
 }
 
 export interface DeficitAnalysis {
@@ -116,6 +121,7 @@ export class BettyCompiler {
   private stability: StabilityReport | null = null;
   private optimizerResult: OptimizerResult | null = null;
   private coarseningSynthesisResult: CoarseningSynthesisResult | null = null;
+  private semanticResult: SemanticCompatibilityResult | null = null;
   private wasmBridge: QuantumWasmBridge;
 
   constructor() {
@@ -198,6 +204,7 @@ export class BettyCompiler {
         voidDimensions: 0,
         landauerHeat: 0,
         deficit: null,
+        semanticCompatibility: null,
       };
 
     this.logs = [];
@@ -485,6 +492,10 @@ export class BettyCompiler {
     this.checkAlephCompleteness();
     this.checkEntropyReversal();
 
+    // Phase 8: Semantic compatibility analysis (cross-language type checking)
+    this.semanticResult = analyzeSemanticCompatibility(this.ast);
+    this.diagnostics.push(...this.semanticResult.diagnostics);
+
     const buleyMeasure = this.getBuleyMeasurement();
     const spectralSummary =
       this.stability?.spectralRadius !== null &&
@@ -517,6 +528,7 @@ export class BettyCompiler {
       voidDimensions,
       landauerHeat,
       deficit,
+      semanticCompatibility: this.semanticResult,
     };
   }
 
