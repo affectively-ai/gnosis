@@ -339,6 +339,31 @@ impl<'a> GgCompiler<'a> {
                 }
             }
 
+            // Attach semantic type info to Entry and Return nodes for Betty Phase 8.
+            if matches!(cfg_node.kind, CfgNodeKind::Entry { .. }) {
+                let contract = &self.cfg.signature.semantic_contract;
+                if !matches!(contract.return_type, crate::cfg::TopologyType::Unknown) {
+                    if let Ok(json) = serde_json::to_string(&contract.return_type) {
+                        props.insert("semantic_return_type".to_string(), json);
+                    }
+                }
+                if !contract.param_types.is_empty() {
+                    if let Ok(json) = serde_json::to_string(&contract.param_types) {
+                        props.insert("semantic_param_types".to_string(), json);
+                    }
+                }
+                if !contract.predicates.is_empty() {
+                    if let Ok(json) = serde_json::to_string(&contract.predicates) {
+                        props.insert("semantic_predicates".to_string(), json);
+                    }
+                }
+                // Also attach the language for Phase 8 denotation.
+                props.insert("language".to_string(), self.cfg.language.clone());
+                if let Some(ref ret) = self.cfg.signature.return_type {
+                    props.insert("return_type".to_string(), ret.clone());
+                }
+            }
+
             let gg_id = self.add_gg_node(
                 labels,
                 props,

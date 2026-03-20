@@ -10,6 +10,7 @@ use anyhow::{bail, Result};
 
 use crate::extractors::{extractor_for_file, LanguageExtractor};
 use crate::gg_compiler::{compile_cfg_to_gg, compile_cfg_to_gg_with_mode, CompilationMode};
+use crate::semantic_bridge::build_semantic_contract;
 use crate::serialization::{
     build_execution_manifest, PolyglotError, PolyglotExecutionManifest,
     PolyglotFunctionResult, PolyglotOrchestrationResult, PolyglotScanResult,
@@ -59,6 +60,19 @@ pub fn parse_with_extractor(
 
     let mut topologies = Vec::new();
     let mut errors = Vec::new();
+
+    // Populate semantic contracts from type annotations before GG compilation.
+    let mut cfgs = cfgs;
+    let language = extractor.language_id();
+    for cfg in &mut cfgs {
+        cfg.signature.semantic_contract = build_semantic_contract(&cfg.signature, language);
+        // Also populate semantic_type on each param.
+        for param in &mut cfg.signature.params {
+            if let Some(ref type_ann) = param.type_annotation {
+                param.semantic_type = crate::semantic_bridge::denote_type(language, type_ann);
+            }
+        }
+    }
 
     for cfg in &cfgs {
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -156,6 +170,18 @@ fn parse_with_extractor_orchestration(
     let mut errors = Vec::new();
     let mut all_plans = Vec::new();
     let mut entry_function = "main".to_string();
+
+    // Populate semantic contracts from type annotations.
+    let mut cfgs = cfgs;
+    let language = extractor.language_id();
+    for cfg in &mut cfgs {
+        cfg.signature.semantic_contract = build_semantic_contract(&cfg.signature, language);
+        for param in &mut cfg.signature.params {
+            if let Some(ref type_ann) = param.type_annotation {
+                param.semantic_type = crate::semantic_bridge::denote_type(language, type_ann);
+            }
+        }
+    }
 
     for cfg in &cfgs {
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {

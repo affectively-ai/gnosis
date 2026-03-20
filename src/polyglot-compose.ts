@@ -132,6 +132,17 @@ export function extractFunctions(
       functionName: string;
       ast: GraphAST;
       ggSource: string;
+      /** Signature from the polyglot scanner (includes semantic contract). */
+      signature?: {
+        params: Array<{ name: string; type_annotation: string | null; semantic_type?: unknown }>;
+        return_type: string | null;
+        callees: string[];
+        semantic_contract?: {
+          param_types: unknown[];
+          return_type: unknown;
+          predicates: unknown[];
+        };
+      };
     }>;
     language: string;
     errors: string[];
@@ -147,14 +158,43 @@ export function extractFunctions(
       if (node.properties.callee) {
         callees.push(node.properties.callee);
       }
-      // Entry nodes may have parameter info in their label.
-      if (node.labels.includes('Entry') && node.properties.name) {
-        // Params are hard to extract without deeper analysis.
-        // Use the entry node's name as a signal.
+    }
+
+    // Use signature callees if available (more complete than AST extraction).
+    if (func.signature?.callees) {
+      for (const c of func.signature.callees) {
+        if (!callees.includes(c)) callees.push(c);
+      }
+    }
+
+    // Extract param names from signature.
+    if (func.signature?.params) {
+      for (const p of func.signature.params) {
+        params.push(p.name);
       }
     }
 
     const edgeTypes = [...new Set(func.ast.edges.map((e) => e.type))];
+
+    // Extract semantic types from the scanner's semantic contract.
+    let semanticReturnType: TopologyType | undefined;
+    let semanticParamTypes: TopologyType[] | undefined;
+
+    if (func.signature?.semantic_contract) {
+      const contract = func.signature.semantic_contract;
+      semanticReturnType = contract.return_type as TopologyType | undefined;
+      if (contract.param_types && contract.param_types.length > 0) {
+        semanticParamTypes = contract.param_types as TopologyType[];
+      }
+    } else if (func.signature?.return_type) {
+      // Fallback: compute denotation from type string on the TS side.
+      semanticReturnType = denoteType(analysisResult.language, func.signature.return_type);
+      if (func.signature.params) {
+        semanticParamTypes = func.signature.params
+          .filter((p) => p.type_annotation)
+          .map((p) => denoteType(analysisResult.language, p.type_annotation!));
+      }
+    }
 
     return {
       filePath,
@@ -166,6 +206,8 @@ export function extractFunctions(
       ggSource: func.ggSource,
       nodeCount: func.ast.nodes.size,
       edgeTypes,
+      semanticReturnType,
+      semanticParamTypes,
     };
   });
 }

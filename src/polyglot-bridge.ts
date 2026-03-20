@@ -22,6 +22,32 @@ interface PolyglotFunctionResult {
   function_name: string;
   topology: PolyglotGgTopology;
   gg_source: string;
+  /** Function signature with type annotations. */
+  signature?: {
+    params: Array<{
+      name: string;
+      type_annotation: string | null;
+      default_value: string | null;
+      is_variadic: boolean;
+      semantic_type?: unknown;
+    }>;
+    return_type: string | null;
+    is_async: boolean;
+    is_generator: boolean;
+    callees: string[];
+    receiver_type: string | null;
+    semantic_contract?: {
+      param_types: unknown[];
+      return_type: unknown;
+      predicates: unknown[];
+    };
+  };
+  /** Semantic contract for cross-language type compatibility. */
+  semantic_contract?: {
+    param_types: unknown[];
+    return_type: unknown;
+    predicates: unknown[];
+  };
 }
 
 interface PolyglotGgTopology {
@@ -90,6 +116,8 @@ export interface PolyglotFunctionAnalysis {
   ast: GraphAST;
   bettyResult: BettyParseResult;
   sourceMap: Map<string, PolyglotSourceSpan>;
+  /** Function signature with type annotations and semantic contract. */
+  signature?: PolyglotFunctionResult['signature'];
 }
 
 /**
@@ -214,6 +242,7 @@ export async function analyzePolyglotSource(
         ast,
         bettyResult,
         sourceMap,
+        signature: funcResult.signature,
       });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
