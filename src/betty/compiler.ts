@@ -159,6 +159,59 @@ export class BettyCompiler {
     return this.b1 * 1.5 + pathComplexity * 0.5;
   }
 
+  /**
+   * Check if a node has semantic predicate annotations.
+   * Supported predicates: invertible, idempotent, total-function, monotone, valid-json.
+   *
+   * Usage in .gg source:
+   *   (transform: Statement { semantic_predicates='["invertible","total-function"]' })
+   *   (compress: Statement { semantic_predicates='[{"kind":"valid-json","schema":{"type":"object"}}]' })
+   */
+  private validateSemanticPredicates(): void {
+    for (const [nodeId, node] of this.ast.nodes) {
+      const predStr = node.properties['semantic_predicates'];
+      if (!predStr) continue;
+
+      try {
+        const preds = JSON.parse(predStr);
+        if (!Array.isArray(preds)) {
+          this.diagnostics.push({
+            line: 0,
+            column: 0,
+            message: `Node '${nodeId}': semantic_predicates must be a JSON array`,
+            severity: 'warning',
+          });
+          continue;
+        }
+
+        // Validate each predicate.
+        for (const pred of preds) {
+          if (typeof pred === 'string') {
+            // Shorthand: just the predicate name.
+            const validNames = ['invertible', 'idempotent', 'total-function', 'monotone', 'valid-json'];
+            if (!validNames.includes(pred)) {
+              this.diagnostics.push({
+                line: 0,
+                column: 0,
+                message: `Node '${nodeId}': unknown semantic predicate '${pred}'. Valid: ${validNames.join(', ')}`,
+                severity: 'warning',
+              });
+            }
+          } else if (typeof pred === 'object' && pred.kind) {
+            // Full predicate object -- Phase 8 will handle validation.
+          }
+        }
+      } catch {
+        this.diagnostics.push({
+          line: 0,
+          column: 0,
+          message: `Node '${nodeId}': semantic_predicates is not valid JSON`,
+          severity: 'warning',
+        });
+      }
+    }
+  }
+
   public getCompletions(line: string, column: number): string[] {
     const keywords = [
       'FORK',
@@ -491,6 +544,9 @@ export class BettyCompiler {
     // Phase 7: Aleph completeness + entropy reversal
     this.checkAlephCompleteness();
     this.checkEntropyReversal();
+
+    // Phase 7.5: Validate semantic predicate annotations on nodes
+    this.validateSemanticPredicates();
 
     // Phase 8: Semantic compatibility analysis (cross-language type checking)
     this.semanticResult = analyzeSemanticCompatibility(this.ast);

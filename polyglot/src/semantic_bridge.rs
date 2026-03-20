@@ -16,6 +16,19 @@ pub fn denote_type(language: &str, type_annotation: &str) -> TopologyType {
         "rust" => denote_rust_type(type_annotation),
         "typescript" | "javascript" => denote_typescript_type(type_annotation),
         "java" => denote_java_type(type_annotation),
+        "c" | "cpp" | "c++" => denote_c_type(type_annotation),
+        "ruby" => denote_ruby_type(type_annotation),
+        "kotlin" => denote_kotlin_type(type_annotation),
+        "swift" => denote_swift_type(type_annotation),
+        "haskell" => denote_haskell_type(type_annotation),
+        "ocaml" => denote_ocaml_type(type_annotation),
+        "lua" => denote_lua_type(type_annotation),
+        "elixir" => denote_elixir_type(type_annotation),
+        "zig" => denote_zig_type(type_annotation),
+        "scala" => denote_scala_type(type_annotation),
+        "php" => denote_php_type(type_annotation),
+        "bash" => denote_bash_type(type_annotation),
+        "c_sharp" | "csharp" => denote_csharp_type(type_annotation),
         _ => TopologyType::Unknown,
     }
 }
@@ -361,6 +374,377 @@ fn denote_java_type(ty: &str) -> TopologyType {
     }
 }
 
+// --- C/C++ denotation -----------------------------------------------------
+
+fn denote_c_type(ty: &str) -> TopologyType {
+    let ty = ty.trim();
+    match ty {
+        "int" | "long" | "short" | "int8_t" | "int16_t" | "int32_t" | "int64_t"
+        | "uint8_t" | "uint16_t" | "uint32_t" | "uint64_t" | "size_t" | "ssize_t" => {
+            TopologyType::Json { schema: JsonSchema::Integer }
+        }
+        "float" | "double" => TopologyType::Json { schema: JsonSchema::Number },
+        "char*" | "const char*" | "std::string" | "string" => {
+            TopologyType::Json { schema: JsonSchema::String }
+        }
+        "bool" | "_Bool" => TopologyType::Json { schema: JsonSchema::Boolean },
+        "void" => TopologyType::Json { schema: JsonSchema::Null },
+        "void*" => TopologyType::Json { schema: JsonSchema::Any },
+        _ if ty.contains("*") => TopologyType::Opaque {
+            language: "c".to_string(),
+            name: ty.to_string(),
+        },
+        _ if ty.starts_with("std::vector<") => {
+            let inner = &ty[12..ty.len()-1];
+            TopologyType::Stream { element: Box::new(denote_c_type(inner)) }
+        }
+        _ if ty.starts_with("std::map<std::string,") || ty.starts_with("std::unordered_map<std::string,") => {
+            TopologyType::Product { fields: vec![], open: true }
+        }
+        _ if ty.starts_with("std::optional<") => {
+            let inner = &ty[14..ty.len()-1];
+            TopologyType::Option { inner: Box::new(denote_c_type(inner)) }
+        }
+        _ => TopologyType::Opaque {
+            language: "c".to_string(),
+            name: ty.to_string(),
+        },
+    }
+}
+
+// --- Ruby denotation ------------------------------------------------------
+
+fn denote_ruby_type(ty: &str) -> TopologyType {
+    let ty = ty.trim();
+    match ty {
+        "Integer" | "Fixnum" | "Bignum" => TopologyType::Json { schema: JsonSchema::Integer },
+        "Float" => TopologyType::Json { schema: JsonSchema::Number },
+        "String" => TopologyType::Json { schema: JsonSchema::String },
+        "TrueClass" | "FalseClass" | "Boolean" => TopologyType::Json { schema: JsonSchema::Boolean },
+        "NilClass" | "nil" => TopologyType::Json { schema: JsonSchema::Null },
+        "Hash" => TopologyType::Product { fields: vec![], open: true },
+        "Array" => TopologyType::Stream { element: Box::new(TopologyType::Json { schema: JsonSchema::Any }) },
+        "Symbol" => TopologyType::Json { schema: JsonSchema::String },
+        _ => TopologyType::Opaque { language: "ruby".to_string(), name: ty.to_string() },
+    }
+}
+
+// --- Kotlin denotation ----------------------------------------------------
+
+fn denote_kotlin_type(ty: &str) -> TopologyType {
+    let ty = ty.trim();
+    match ty {
+        "Int" | "Long" | "Short" | "Byte" => TopologyType::Json { schema: JsonSchema::Integer },
+        "Float" | "Double" => TopologyType::Json { schema: JsonSchema::Number },
+        "String" => TopologyType::Json { schema: JsonSchema::String },
+        "Boolean" => TopologyType::Json { schema: JsonSchema::Boolean },
+        "Unit" => TopologyType::Json { schema: JsonSchema::Null },
+        "Any" | "Any?" => TopologyType::Json { schema: JsonSchema::Any },
+        "ByteArray" => TopologyType::Bytes,
+        _ if ty.ends_with("?") => {
+            let inner = &ty[..ty.len()-1];
+            TopologyType::Option { inner: Box::new(denote_kotlin_type(inner)) }
+        }
+        _ if ty.starts_with("List<") || ty.starts_with("MutableList<") => {
+            let start = ty.find('<').unwrap() + 1;
+            let inner = &ty[start..ty.len()-1];
+            TopologyType::Stream { element: Box::new(denote_kotlin_type(inner)) }
+        }
+        _ if ty.starts_with("Map<String,") || ty.starts_with("MutableMap<String,") => {
+            TopologyType::Product { fields: vec![], open: true }
+        }
+        _ => TopologyType::Opaque { language: "kotlin".to_string(), name: ty.to_string() },
+    }
+}
+
+// --- Swift denotation -----------------------------------------------------
+
+fn denote_swift_type(ty: &str) -> TopologyType {
+    let ty = ty.trim();
+    match ty {
+        "Int" | "Int8" | "Int16" | "Int32" | "Int64" | "UInt" | "UInt8" | "UInt16" | "UInt32" | "UInt64" => {
+            TopologyType::Json { schema: JsonSchema::Integer }
+        }
+        "Float" | "Double" | "CGFloat" => TopologyType::Json { schema: JsonSchema::Number },
+        "String" => TopologyType::Json { schema: JsonSchema::String },
+        "Bool" => TopologyType::Json { schema: JsonSchema::Boolean },
+        "Void" | "()" => TopologyType::Json { schema: JsonSchema::Null },
+        "Any" => TopologyType::Json { schema: JsonSchema::Any },
+        "Data" => TopologyType::Bytes,
+        _ if ty.ends_with("?") => {
+            let inner = &ty[..ty.len()-1];
+            TopologyType::Option { inner: Box::new(denote_swift_type(inner)) }
+        }
+        _ if ty.starts_with("[") && ty.ends_with("]") && !ty.contains(":") => {
+            let inner = &ty[1..ty.len()-1];
+            TopologyType::Stream { element: Box::new(denote_swift_type(inner)) }
+        }
+        _ if ty.starts_with("[String:") => {
+            TopologyType::Product { fields: vec![], open: true }
+        }
+        _ if ty.starts_with("Result<") => {
+            let inner = &ty[7..ty.len()-1];
+            let parts: Vec<&str> = split_type_args(inner);
+            if parts.len() == 2 {
+                TopologyType::Sum { variants: vec![
+                    ("success".to_string(), denote_swift_type(parts[0].trim())),
+                    ("failure".to_string(), denote_swift_type(parts[1].trim())),
+                ]}
+            } else {
+                TopologyType::Unknown
+            }
+        }
+        _ => TopologyType::Opaque { language: "swift".to_string(), name: ty.to_string() },
+    }
+}
+
+// --- Haskell denotation ---------------------------------------------------
+
+fn denote_haskell_type(ty: &str) -> TopologyType {
+    let ty = ty.trim();
+    match ty {
+        "Int" | "Integer" => TopologyType::Json { schema: JsonSchema::Integer },
+        "Float" | "Double" => TopologyType::Json { schema: JsonSchema::Number },
+        "String" | "Text" => TopologyType::Json { schema: JsonSchema::String },
+        "Bool" => TopologyType::Json { schema: JsonSchema::Boolean },
+        "()" => TopologyType::Json { schema: JsonSchema::Null },
+        "ByteString" => TopologyType::Bytes,
+        "Value" => TopologyType::Json { schema: JsonSchema::Any },
+        _ if ty.starts_with("Maybe ") => {
+            let inner = &ty[6..];
+            TopologyType::Option { inner: Box::new(denote_haskell_type(inner)) }
+        }
+        _ if ty.starts_with("[") && ty.ends_with("]") => {
+            let inner = &ty[1..ty.len()-1];
+            TopologyType::Stream { element: Box::new(denote_haskell_type(inner)) }
+        }
+        _ if ty.starts_with("Map String ") || ty.starts_with("HashMap String ") => {
+            TopologyType::Product { fields: vec![], open: true }
+        }
+        _ if ty.starts_with("Either ") => {
+            let parts: Vec<&str> = ty[7..].splitn(2, ' ').collect();
+            if parts.len() == 2 {
+                TopologyType::Sum { variants: vec![
+                    ("Left".to_string(), denote_haskell_type(parts[0])),
+                    ("Right".to_string(), denote_haskell_type(parts[1])),
+                ]}
+            } else {
+                TopologyType::Unknown
+            }
+        }
+        _ if ty.starts_with("IO ") => denote_haskell_type(&ty[3..]),
+        _ => TopologyType::Opaque { language: "haskell".to_string(), name: ty.to_string() },
+    }
+}
+
+// --- OCaml denotation -----------------------------------------------------
+
+fn denote_ocaml_type(ty: &str) -> TopologyType {
+    let ty = ty.trim();
+    match ty {
+        "int" => TopologyType::Json { schema: JsonSchema::Integer },
+        "float" => TopologyType::Json { schema: JsonSchema::Number },
+        "string" => TopologyType::Json { schema: JsonSchema::String },
+        "bool" => TopologyType::Json { schema: JsonSchema::Boolean },
+        "unit" => TopologyType::Json { schema: JsonSchema::Null },
+        "bytes" => TopologyType::Bytes,
+        _ if ty.ends_with(" option") => {
+            let inner = &ty[..ty.len()-7];
+            TopologyType::Option { inner: Box::new(denote_ocaml_type(inner)) }
+        }
+        _ if ty.ends_with(" list") || ty.ends_with(" array") => {
+            let split = ty.rfind(' ').unwrap();
+            let inner = &ty[..split];
+            TopologyType::Stream { element: Box::new(denote_ocaml_type(inner)) }
+        }
+        _ => TopologyType::Opaque { language: "ocaml".to_string(), name: ty.to_string() },
+    }
+}
+
+// --- Lua denotation -------------------------------------------------------
+
+fn denote_lua_type(ty: &str) -> TopologyType {
+    let ty = ty.trim();
+    match ty {
+        "number" | "integer" => TopologyType::Json { schema: JsonSchema::Number },
+        "string" => TopologyType::Json { schema: JsonSchema::String },
+        "boolean" => TopologyType::Json { schema: JsonSchema::Boolean },
+        "nil" => TopologyType::Json { schema: JsonSchema::Null },
+        "table" => TopologyType::Product { fields: vec![], open: true },
+        _ => TopologyType::Opaque { language: "lua".to_string(), name: ty.to_string() },
+    }
+}
+
+// --- Elixir denotation ----------------------------------------------------
+
+fn denote_elixir_type(ty: &str) -> TopologyType {
+    let ty = ty.trim();
+    match ty {
+        "integer" => TopologyType::Json { schema: JsonSchema::Integer },
+        "float" | "number" => TopologyType::Json { schema: JsonSchema::Number },
+        "binary" | "String.t" => TopologyType::Json { schema: JsonSchema::String },
+        "boolean" => TopologyType::Json { schema: JsonSchema::Boolean },
+        "nil" => TopologyType::Json { schema: JsonSchema::Null },
+        "atom" => TopologyType::Json { schema: JsonSchema::String },
+        "list" => TopologyType::Stream { element: Box::new(TopologyType::Json { schema: JsonSchema::Any }) },
+        "map" => TopologyType::Product { fields: vec![], open: true },
+        "tuple" => TopologyType::Product { fields: vec![], open: false },
+        _ if ty.starts_with("[") => {
+            TopologyType::Stream { element: Box::new(TopologyType::Json { schema: JsonSchema::Any }) }
+        }
+        _ if ty.starts_with("%{") || ty.starts_with("map(") => {
+            TopologyType::Product { fields: vec![], open: true }
+        }
+        _ => TopologyType::Opaque { language: "elixir".to_string(), name: ty.to_string() },
+    }
+}
+
+// --- Zig denotation -------------------------------------------------------
+
+fn denote_zig_type(ty: &str) -> TopologyType {
+    let ty = ty.trim();
+    match ty {
+        "i8" | "i16" | "i32" | "i64" | "i128" | "isize" | "u8" | "u16" | "u32" | "u64" | "u128" | "usize" | "comptime_int" => {
+            TopologyType::Json { schema: JsonSchema::Integer }
+        }
+        "f16" | "f32" | "f64" | "f128" | "comptime_float" => TopologyType::Json { schema: JsonSchema::Number },
+        "bool" => TopologyType::Json { schema: JsonSchema::Boolean },
+        "void" | "noreturn" => TopologyType::Json { schema: JsonSchema::Null },
+        "anyopaque" => TopologyType::Json { schema: JsonSchema::Any },
+        _ if ty.starts_with("[]const u8") || ty.starts_with("[]u8") => TopologyType::Bytes,
+        _ if ty.starts_with("[]") => {
+            let inner = &ty[2..];
+            TopologyType::Stream { element: Box::new(denote_zig_type(inner)) }
+        }
+        _ if ty.starts_with("?") => {
+            let inner = &ty[1..];
+            TopologyType::Option { inner: Box::new(denote_zig_type(inner)) }
+        }
+        _ => TopologyType::Opaque { language: "zig".to_string(), name: ty.to_string() },
+    }
+}
+
+// --- Scala denotation -----------------------------------------------------
+
+fn denote_scala_type(ty: &str) -> TopologyType {
+    let ty = ty.trim();
+    match ty {
+        "Int" | "Long" | "Short" | "Byte" => TopologyType::Json { schema: JsonSchema::Integer },
+        "Float" | "Double" => TopologyType::Json { schema: JsonSchema::Number },
+        "String" => TopologyType::Json { schema: JsonSchema::String },
+        "Boolean" => TopologyType::Json { schema: JsonSchema::Boolean },
+        "Unit" => TopologyType::Json { schema: JsonSchema::Null },
+        "Any" => TopologyType::Json { schema: JsonSchema::Any },
+        _ if ty.starts_with("Option[") => {
+            let inner = &ty[7..ty.len()-1];
+            TopologyType::Option { inner: Box::new(denote_scala_type(inner)) }
+        }
+        _ if ty.starts_with("List[") || ty.starts_with("Seq[") || ty.starts_with("Vector[") => {
+            let start = ty.find('[').unwrap() + 1;
+            let inner = &ty[start..ty.len()-1];
+            TopologyType::Stream { element: Box::new(denote_scala_type(inner)) }
+        }
+        _ if ty.starts_with("Map[String,") => {
+            TopologyType::Product { fields: vec![], open: true }
+        }
+        _ if ty.starts_with("Either[") => {
+            let inner = &ty[7..ty.len()-1];
+            let parts: Vec<&str> = split_type_args(inner);
+            if parts.len() == 2 {
+                TopologyType::Sum { variants: vec![
+                    ("Left".to_string(), denote_scala_type(parts[0].trim())),
+                    ("Right".to_string(), denote_scala_type(parts[1].trim())),
+                ]}
+            } else {
+                TopologyType::Unknown
+            }
+        }
+        _ if ty.starts_with("Future[") => {
+            let inner = &ty[7..ty.len()-1];
+            denote_scala_type(inner)
+        }
+        _ => TopologyType::Opaque { language: "scala".to_string(), name: ty.to_string() },
+    }
+}
+
+// --- PHP denotation -------------------------------------------------------
+
+fn denote_php_type(ty: &str) -> TopologyType {
+    let ty = ty.trim();
+    match ty {
+        "int" | "integer" => TopologyType::Json { schema: JsonSchema::Integer },
+        "float" | "double" => TopologyType::Json { schema: JsonSchema::Number },
+        "string" => TopologyType::Json { schema: JsonSchema::String },
+        "bool" | "boolean" => TopologyType::Json { schema: JsonSchema::Boolean },
+        "null" | "void" => TopologyType::Json { schema: JsonSchema::Null },
+        "mixed" => TopologyType::Json { schema: JsonSchema::Any },
+        "array" => TopologyType::Product { fields: vec![], open: true },
+        "object" => TopologyType::Product { fields: vec![], open: true },
+        _ if ty.starts_with("?") => {
+            let inner = &ty[1..];
+            TopologyType::Option { inner: Box::new(denote_php_type(inner)) }
+        }
+        _ if ty.contains("|") => {
+            let parts: Vec<&str> = ty.split('|').collect();
+            let has_null = parts.iter().any(|p| *p == "null");
+            let non_null: Vec<&&str> = parts.iter().filter(|p| **p != "null").collect();
+            if has_null && non_null.len() == 1 {
+                TopologyType::Option { inner: Box::new(denote_php_type(non_null[0])) }
+            } else {
+                TopologyType::Json { schema: JsonSchema::Any }
+            }
+        }
+        _ => TopologyType::Opaque { language: "php".to_string(), name: ty.to_string() },
+    }
+}
+
+// --- Bash denotation ------------------------------------------------------
+
+fn denote_bash_type(_ty: &str) -> TopologyType {
+    // Bash has no type system. Everything is a string.
+    TopologyType::Json { schema: JsonSchema::String }
+}
+
+// --- C# denotation -------------------------------------------------------
+
+fn denote_csharp_type(ty: &str) -> TopologyType {
+    let ty = ty.trim();
+    match ty {
+        "int" | "Int32" | "long" | "Int64" | "short" | "Int16" | "byte" | "Byte" => {
+            TopologyType::Json { schema: JsonSchema::Integer }
+        }
+        "float" | "Single" | "double" | "Double" | "decimal" | "Decimal" => {
+            TopologyType::Json { schema: JsonSchema::Number }
+        }
+        "string" | "String" => TopologyType::Json { schema: JsonSchema::String },
+        "bool" | "Boolean" => TopologyType::Json { schema: JsonSchema::Boolean },
+        "void" => TopologyType::Json { schema: JsonSchema::Null },
+        "object" | "dynamic" => TopologyType::Json { schema: JsonSchema::Any },
+        "byte[]" => TopologyType::Bytes,
+        _ if ty.ends_with("?") => {
+            let inner = &ty[..ty.len()-1];
+            TopologyType::Option { inner: Box::new(denote_csharp_type(inner)) }
+        }
+        _ if ty.starts_with("List<") || ty.starts_with("IList<") || ty.starts_with("IEnumerable<") => {
+            let start = ty.find('<').unwrap() + 1;
+            let inner = &ty[start..ty.len()-1];
+            TopologyType::Stream { element: Box::new(denote_csharp_type(inner)) }
+        }
+        _ if ty.starts_with("Dictionary<string,") || ty.starts_with("IDictionary<string,") => {
+            TopologyType::Product { fields: vec![], open: true }
+        }
+        _ if ty.ends_with("[]") => {
+            let inner = &ty[..ty.len()-2];
+            TopologyType::Stream { element: Box::new(denote_csharp_type(inner)) }
+        }
+        _ if ty.starts_with("Task<") => {
+            let inner = &ty[5..ty.len()-1];
+            denote_csharp_type(inner)
+        }
+        _ => TopologyType::Opaque { language: "csharp".to_string(), name: ty.to_string() },
+    }
+}
+
 // --- Utility --------------------------------------------------------------
 
 /// Split type arguments respecting nested angle brackets.
@@ -446,5 +830,53 @@ mod tests {
     fn rust_result_is_sum() {
         let ty = denote_type("rust", "Result<String, String>");
         assert!(matches!(ty, TopologyType::Sum { .. }));
+    }
+
+    #[test]
+    fn kotlin_nullable_is_option() {
+        let ty = denote_type("kotlin", "String?");
+        assert!(matches!(ty, TopologyType::Option { .. }));
+    }
+
+    #[test]
+    fn swift_array_is_stream() {
+        let ty = denote_type("swift", "[Int]");
+        assert!(matches!(ty, TopologyType::Stream { .. }));
+    }
+
+    #[test]
+    fn csharp_list_is_stream() {
+        let ty = denote_type("csharp", "List<int>");
+        assert!(matches!(ty, TopologyType::Stream { .. }));
+    }
+
+    #[test]
+    fn haskell_maybe_is_option() {
+        let ty = denote_type("haskell", "Maybe Int");
+        assert!(matches!(ty, TopologyType::Option { .. }));
+    }
+
+    #[test]
+    fn elixir_map_is_product() {
+        let ty = denote_type("elixir", "map");
+        assert!(matches!(ty, TopologyType::Product { .. }));
+    }
+
+    #[test]
+    fn bash_is_always_string() {
+        let ty = denote_type("bash", "anything");
+        assert_eq!(ty, TopologyType::Json { schema: JsonSchema::String });
+    }
+
+    #[test]
+    fn php_nullable_is_option() {
+        let ty = denote_type("php", "?string");
+        assert!(matches!(ty, TopologyType::Option { .. }));
+    }
+
+    #[test]
+    fn ruby_hash_is_product() {
+        let ty = denote_type("ruby", "Hash");
+        assert!(matches!(ty, TopologyType::Product { .. }));
     }
 }

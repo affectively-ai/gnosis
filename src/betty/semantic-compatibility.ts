@@ -99,6 +99,19 @@ export function denoteType(language: string, typeAnnotation: string): TopologyTy
     case 'typescript':
     case 'javascript': return denoteTypeScriptType(ty);
     case 'java': return denoteJavaType(ty);
+    case 'c': case 'cpp': case 'c++': return denoteCType(ty);
+    case 'ruby': return denoteRubyType(ty);
+    case 'kotlin': return denoteKotlinType(ty);
+    case 'swift': return denoteSwiftType(ty);
+    case 'haskell': return denoteHaskellType(ty);
+    case 'ocaml': return denoteOcamlType(ty);
+    case 'lua': return denoteLuaType(ty);
+    case 'elixir': return denoteElixirType(ty);
+    case 'zig': return denoteZigType(ty);
+    case 'scala': return denoteScalaType(ty);
+    case 'php': return denotePHPType(ty);
+    case 'bash': return { kind: 'json', schema: { type: 'string' } };
+    case 'c_sharp': case 'csharp': return denoteCSharpType(ty);
     default: return { kind: 'unknown' };
   }
 }
@@ -256,6 +269,291 @@ function denoteJavaType(ty: string): TopologyType {
     return { kind: 'stream', element: denoteJavaType(ty.slice(0, -2)) };
   }
   return { kind: 'opaque', language: 'java', name: ty };
+}
+
+// ─── C/C++ denotation ───────────────────────────────────────────────────────
+
+function denoteCType(ty: string): TopologyType {
+  const intTypes = ['int', 'long', 'short', 'int8_t', 'int16_t', 'int32_t', 'int64_t',
+    'uint8_t', 'uint16_t', 'uint32_t', 'uint64_t', 'size_t', 'ssize_t'];
+  if (intTypes.includes(ty)) return { kind: 'json', schema: { type: 'integer' } };
+  if (ty === 'float' || ty === 'double') return { kind: 'json', schema: { type: 'number' } };
+  if (['char*', 'const char*', 'std::string', 'string'].includes(ty)) return { kind: 'json', schema: { type: 'string' } };
+  if (ty === 'bool' || ty === '_Bool') return { kind: 'json', schema: { type: 'boolean' } };
+  if (ty === 'void') return { kind: 'json', schema: { type: 'null' } };
+  if (ty === 'void*') return { kind: 'json', schema: { type: 'any' } };
+  if (ty.startsWith('std::vector<') && ty.endsWith('>')) {
+    return { kind: 'stream', element: denoteCType(ty.slice(12, -1)) };
+  }
+  if ((ty.startsWith('std::map<std::string,') || ty.startsWith('std::unordered_map<std::string,')) && ty.endsWith('>')) {
+    return { kind: 'product', fields: [], open: true };
+  }
+  if (ty.startsWith('std::optional<') && ty.endsWith('>')) {
+    return { kind: 'option', inner: denoteCType(ty.slice(14, -1)) };
+  }
+  if (ty.includes('*')) return { kind: 'opaque', language: 'c', name: ty };
+  return { kind: 'opaque', language: 'c', name: ty };
+}
+
+// ─── Ruby denotation ────────────────────────────────────────────────────────
+
+function denoteRubyType(ty: string): TopologyType {
+  switch (ty) {
+    case 'Integer': case 'Fixnum': case 'Bignum': return { kind: 'json', schema: { type: 'integer' } };
+    case 'Float': return { kind: 'json', schema: { type: 'number' } };
+    case 'String': return { kind: 'json', schema: { type: 'string' } };
+    case 'TrueClass': case 'FalseClass': case 'Boolean': return { kind: 'json', schema: { type: 'boolean' } };
+    case 'NilClass': case 'nil': return { kind: 'json', schema: { type: 'null' } };
+    case 'Hash': return { kind: 'product', fields: [], open: true };
+    case 'Array': return { kind: 'stream', element: { kind: 'json', schema: { type: 'any' } } };
+    case 'Symbol': return { kind: 'json', schema: { type: 'string' } };
+  }
+  return { kind: 'opaque', language: 'ruby', name: ty };
+}
+
+// ─── Kotlin denotation ──────────────────────────────────────────────────────
+
+function denoteKotlinType(ty: string): TopologyType {
+  const intTypes = ['Int', 'Long', 'Short', 'Byte'];
+  if (intTypes.includes(ty)) return { kind: 'json', schema: { type: 'integer' } };
+  if (ty === 'Float' || ty === 'Double') return { kind: 'json', schema: { type: 'number' } };
+  if (ty === 'String') return { kind: 'json', schema: { type: 'string' } };
+  if (ty === 'Boolean') return { kind: 'json', schema: { type: 'boolean' } };
+  if (ty === 'Unit') return { kind: 'json', schema: { type: 'null' } };
+  if (ty === 'Any' || ty === 'Any?') return { kind: 'json', schema: { type: 'any' } };
+  if (ty === 'ByteArray') return { kind: 'bytes' };
+  if (ty.endsWith('?')) return { kind: 'option', inner: denoteKotlinType(ty.slice(0, -1)) };
+  if ((ty.startsWith('List<') || ty.startsWith('MutableList<')) && ty.endsWith('>')) {
+    const start = ty.indexOf('<') + 1;
+    return { kind: 'stream', element: denoteKotlinType(ty.slice(start, -1)) };
+  }
+  if ((ty.startsWith('Map<String,') || ty.startsWith('MutableMap<String,')) && ty.endsWith('>')) {
+    return { kind: 'product', fields: [], open: true };
+  }
+  return { kind: 'opaque', language: 'kotlin', name: ty };
+}
+
+// ─── Swift denotation ───────────────────────────────────────────────────────
+
+function denoteSwiftType(ty: string): TopologyType {
+  const intTypes = ['Int', 'Int8', 'Int16', 'Int32', 'Int64', 'UInt', 'UInt8', 'UInt16', 'UInt32', 'UInt64'];
+  if (intTypes.includes(ty)) return { kind: 'json', schema: { type: 'integer' } };
+  if (ty === 'Float' || ty === 'Double' || ty === 'CGFloat') return { kind: 'json', schema: { type: 'number' } };
+  if (ty === 'String') return { kind: 'json', schema: { type: 'string' } };
+  if (ty === 'Bool') return { kind: 'json', schema: { type: 'boolean' } };
+  if (ty === 'Void' || ty === '()') return { kind: 'json', schema: { type: 'null' } };
+  if (ty === 'Any') return { kind: 'json', schema: { type: 'any' } };
+  if (ty === 'Data') return { kind: 'bytes' };
+  if (ty.endsWith('?')) return { kind: 'option', inner: denoteSwiftType(ty.slice(0, -1)) };
+  if (ty.startsWith('[') && ty.endsWith(']') && !ty.includes(':')) {
+    return { kind: 'stream', element: denoteSwiftType(ty.slice(1, -1)) };
+  }
+  if (ty.startsWith('[String:')) return { kind: 'product', fields: [], open: true };
+  if (ty.startsWith('Result<') && ty.endsWith('>')) {
+    const parts = splitTypeArgs(ty.slice(7, -1));
+    if (parts.length === 2) {
+      return {
+        kind: 'sum',
+        variants: [
+          ['success', denoteSwiftType(parts[0]!.trim())],
+          ['failure', denoteSwiftType(parts[1]!.trim())],
+        ],
+      };
+    }
+  }
+  return { kind: 'opaque', language: 'swift', name: ty };
+}
+
+// ─── Haskell denotation ─────────────────────────────────────────────────────
+
+function denoteHaskellType(ty: string): TopologyType {
+  switch (ty) {
+    case 'Int': case 'Integer': return { kind: 'json', schema: { type: 'integer' } };
+    case 'Float': case 'Double': return { kind: 'json', schema: { type: 'number' } };
+    case 'String': case 'Text': return { kind: 'json', schema: { type: 'string' } };
+    case 'Bool': return { kind: 'json', schema: { type: 'boolean' } };
+    case '()': return { kind: 'json', schema: { type: 'null' } };
+    case 'ByteString': return { kind: 'bytes' };
+    case 'Value': return { kind: 'json', schema: { type: 'any' } };
+  }
+  if (ty.startsWith('Maybe ')) return { kind: 'option', inner: denoteHaskellType(ty.slice(6)) };
+  if (ty.startsWith('[') && ty.endsWith(']')) {
+    return { kind: 'stream', element: denoteHaskellType(ty.slice(1, -1)) };
+  }
+  if (ty.startsWith('Map String ') || ty.startsWith('HashMap String ')) {
+    return { kind: 'product', fields: [], open: true };
+  }
+  if (ty.startsWith('Either ')) {
+    const rest = ty.slice(7);
+    const parts = rest.split(' ', 2);
+    if (parts.length === 2) {
+      return {
+        kind: 'sum',
+        variants: [
+          ['Left', denoteHaskellType(parts[0]!)],
+          ['Right', denoteHaskellType(parts[1]!)],
+        ],
+      };
+    }
+  }
+  if (ty.startsWith('IO ')) return denoteHaskellType(ty.slice(3));
+  return { kind: 'opaque', language: 'haskell', name: ty };
+}
+
+// ─── OCaml denotation ───────────────────────────────────────────────────────
+
+function denoteOcamlType(ty: string): TopologyType {
+  switch (ty) {
+    case 'int': return { kind: 'json', schema: { type: 'integer' } };
+    case 'float': return { kind: 'json', schema: { type: 'number' } };
+    case 'string': return { kind: 'json', schema: { type: 'string' } };
+    case 'bool': return { kind: 'json', schema: { type: 'boolean' } };
+    case 'unit': return { kind: 'json', schema: { type: 'null' } };
+    case 'bytes': return { kind: 'bytes' };
+  }
+  if (ty.endsWith(' option')) return { kind: 'option', inner: denoteOcamlType(ty.slice(0, -7)) };
+  if (ty.endsWith(' list') || ty.endsWith(' array')) {
+    const split = ty.lastIndexOf(' ');
+    return { kind: 'stream', element: denoteOcamlType(ty.slice(0, split)) };
+  }
+  return { kind: 'opaque', language: 'ocaml', name: ty };
+}
+
+// ─── Lua denotation ─────────────────────────────────────────────────────────
+
+function denoteLuaType(ty: string): TopologyType {
+  switch (ty) {
+    case 'number': case 'integer': return { kind: 'json', schema: { type: 'number' } };
+    case 'string': return { kind: 'json', schema: { type: 'string' } };
+    case 'boolean': return { kind: 'json', schema: { type: 'boolean' } };
+    case 'nil': return { kind: 'json', schema: { type: 'null' } };
+    case 'table': return { kind: 'product', fields: [], open: true };
+  }
+  return { kind: 'opaque', language: 'lua', name: ty };
+}
+
+// ─── Elixir denotation ──────────────────────────────────────────────────────
+
+function denoteElixirType(ty: string): TopologyType {
+  switch (ty) {
+    case 'integer': return { kind: 'json', schema: { type: 'integer' } };
+    case 'float': case 'number': return { kind: 'json', schema: { type: 'number' } };
+    case 'binary': case 'String.t': return { kind: 'json', schema: { type: 'string' } };
+    case 'boolean': return { kind: 'json', schema: { type: 'boolean' } };
+    case 'nil': return { kind: 'json', schema: { type: 'null' } };
+    case 'atom': return { kind: 'json', schema: { type: 'string' } };
+    case 'list': return { kind: 'stream', element: { kind: 'json', schema: { type: 'any' } } };
+    case 'map': return { kind: 'product', fields: [], open: true };
+    case 'tuple': return { kind: 'product', fields: [], open: false };
+  }
+  if (ty.startsWith('[')) return { kind: 'stream', element: { kind: 'json', schema: { type: 'any' } } };
+  if (ty.startsWith('%{') || ty.startsWith('map(')) return { kind: 'product', fields: [], open: true };
+  return { kind: 'opaque', language: 'elixir', name: ty };
+}
+
+// ─── Zig denotation ─────────────────────────────────────────────────────────
+
+function denoteZigType(ty: string): TopologyType {
+  const intTypes = ['i8', 'i16', 'i32', 'i64', 'i128', 'isize', 'u8', 'u16', 'u32', 'u64', 'u128', 'usize', 'comptime_int'];
+  if (intTypes.includes(ty)) return { kind: 'json', schema: { type: 'integer' } };
+  const floatTypes = ['f16', 'f32', 'f64', 'f128', 'comptime_float'];
+  if (floatTypes.includes(ty)) return { kind: 'json', schema: { type: 'number' } };
+  if (ty === 'bool') return { kind: 'json', schema: { type: 'boolean' } };
+  if (ty === 'void' || ty === 'noreturn') return { kind: 'json', schema: { type: 'null' } };
+  if (ty === 'anyopaque') return { kind: 'json', schema: { type: 'any' } };
+  if (ty.startsWith('[]const u8') || ty.startsWith('[]u8')) return { kind: 'bytes' };
+  if (ty.startsWith('[]')) return { kind: 'stream', element: denoteZigType(ty.slice(2)) };
+  if (ty.startsWith('?')) return { kind: 'option', inner: denoteZigType(ty.slice(1)) };
+  return { kind: 'opaque', language: 'zig', name: ty };
+}
+
+// ─── Scala denotation ───────────────────────────────────────────────────────
+
+function denoteScalaType(ty: string): TopologyType {
+  const intTypes = ['Int', 'Long', 'Short', 'Byte'];
+  if (intTypes.includes(ty)) return { kind: 'json', schema: { type: 'integer' } };
+  if (ty === 'Float' || ty === 'Double') return { kind: 'json', schema: { type: 'number' } };
+  if (ty === 'String') return { kind: 'json', schema: { type: 'string' } };
+  if (ty === 'Boolean') return { kind: 'json', schema: { type: 'boolean' } };
+  if (ty === 'Unit') return { kind: 'json', schema: { type: 'null' } };
+  if (ty === 'Any') return { kind: 'json', schema: { type: 'any' } };
+  if (ty.startsWith('Option[') && ty.endsWith(']')) {
+    return { kind: 'option', inner: denoteScalaType(ty.slice(7, -1)) };
+  }
+  if ((ty.startsWith('List[') || ty.startsWith('Seq[') || ty.startsWith('Vector[')) && ty.endsWith(']')) {
+    const start = ty.indexOf('[') + 1;
+    return { kind: 'stream', element: denoteScalaType(ty.slice(start, -1)) };
+  }
+  if (ty.startsWith('Map[String,') && ty.endsWith(']')) {
+    return { kind: 'product', fields: [], open: true };
+  }
+  if (ty.startsWith('Either[') && ty.endsWith(']')) {
+    const parts = splitTypeArgs(ty.slice(7, -1));
+    if (parts.length === 2) {
+      return {
+        kind: 'sum',
+        variants: [
+          ['Left', denoteScalaType(parts[0]!.trim())],
+          ['Right', denoteScalaType(parts[1]!.trim())],
+        ],
+      };
+    }
+  }
+  if (ty.startsWith('Future[') && ty.endsWith(']')) {
+    return denoteScalaType(ty.slice(7, -1));
+  }
+  return { kind: 'opaque', language: 'scala', name: ty };
+}
+
+// ─── PHP denotation ─────────────────────────────────────────────────────────
+
+function denotePHPType(ty: string): TopologyType {
+  switch (ty) {
+    case 'int': case 'integer': return { kind: 'json', schema: { type: 'integer' } };
+    case 'float': case 'double': return { kind: 'json', schema: { type: 'number' } };
+    case 'string': return { kind: 'json', schema: { type: 'string' } };
+    case 'bool': case 'boolean': return { kind: 'json', schema: { type: 'boolean' } };
+    case 'null': case 'void': return { kind: 'json', schema: { type: 'null' } };
+    case 'mixed': return { kind: 'json', schema: { type: 'any' } };
+    case 'array': case 'object': return { kind: 'product', fields: [], open: true };
+  }
+  if (ty.startsWith('?')) return { kind: 'option', inner: denotePHPType(ty.slice(1)) };
+  if (ty.includes('|')) {
+    const parts = ty.split('|').map(p => p.trim());
+    const hasNull = parts.some(p => p === 'null');
+    const nonNull = parts.filter(p => p !== 'null');
+    if (hasNull && nonNull.length === 1) {
+      return { kind: 'option', inner: denotePHPType(nonNull[0]!) };
+    }
+    return { kind: 'json', schema: { type: 'any' } };
+  }
+  return { kind: 'opaque', language: 'php', name: ty };
+}
+
+// ─── C# denotation ─────────────────────────────────────────────────────────
+
+function denoteCSharpType(ty: string): TopologyType {
+  const intTypes = ['int', 'Int32', 'long', 'Int64', 'short', 'Int16', 'byte', 'Byte'];
+  if (intTypes.includes(ty)) return { kind: 'json', schema: { type: 'integer' } };
+  if (['float', 'Single', 'double', 'Double', 'decimal', 'Decimal'].includes(ty)) {
+    return { kind: 'json', schema: { type: 'number' } };
+  }
+  if (ty === 'string' || ty === 'String') return { kind: 'json', schema: { type: 'string' } };
+  if (ty === 'bool' || ty === 'Boolean') return { kind: 'json', schema: { type: 'boolean' } };
+  if (ty === 'void') return { kind: 'json', schema: { type: 'null' } };
+  if (ty === 'object' || ty === 'dynamic') return { kind: 'json', schema: { type: 'any' } };
+  if (ty === 'byte[]') return { kind: 'bytes' };
+  if (ty.endsWith('?')) return { kind: 'option', inner: denoteCSharpType(ty.slice(0, -1)) };
+  if ((ty.startsWith('List<') || ty.startsWith('IList<') || ty.startsWith('IEnumerable<')) && ty.endsWith('>')) {
+    const start = ty.indexOf('<') + 1;
+    return { kind: 'stream', element: denoteCSharpType(ty.slice(start, -1)) };
+  }
+  if ((ty.startsWith('Dictionary<string,') || ty.startsWith('IDictionary<string,')) && ty.endsWith('>')) {
+    return { kind: 'product', fields: [], open: true };
+  }
+  if (ty.endsWith('[]')) return { kind: 'stream', element: denoteCSharpType(ty.slice(0, -2)) };
+  if (ty.startsWith('Task<') && ty.endsWith('>')) return denoteCSharpType(ty.slice(5, -1));
+  return { kind: 'opaque', language: 'csharp', name: ty };
 }
 
 // ─── Type Compatibility ─────────────────────────────────────────────────────
