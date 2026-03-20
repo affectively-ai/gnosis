@@ -76,6 +76,36 @@ pub struct CfgNode {
     pub label: String,
 }
 
+/// A function parameter extracted from source.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct FunctionParam {
+    /// Parameter name.
+    pub name: String,
+    /// Type annotation (if available). Language-specific syntax.
+    pub type_annotation: Option<String>,
+    /// Default value expression (if available).
+    pub default_value: Option<String>,
+    /// Whether this is a rest/variadic parameter.
+    pub is_variadic: bool,
+}
+
+/// Function signature extracted from source.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct FunctionSignature {
+    /// Function parameters.
+    pub params: Vec<FunctionParam>,
+    /// Return type annotation (if available).
+    pub return_type: Option<String>,
+    /// Whether the function is async.
+    pub is_async: bool,
+    /// Whether the function is a generator (yield).
+    pub is_generator: bool,
+    /// Functions called by this function (call graph).
+    pub callees: Vec<String>,
+    /// Receiver/self type for methods (e.g., Go receiver, Python self).
+    pub receiver_type: Option<String>,
+}
+
 /// A control flow graph extracted from source code.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ControlFlowGraph {
@@ -86,6 +116,9 @@ pub struct ControlFlowGraph {
     pub function_name: String,
     pub language: String,
     pub file_path: String,
+    /// Function signature (parameters, return type, callees).
+    #[serde(default)]
+    pub signature: FunctionSignature,
 }
 
 impl ControlFlowGraph {
@@ -98,6 +131,7 @@ impl ControlFlowGraph {
             function_name,
             language,
             file_path,
+            signature: FunctionSignature::default(),
         }
     }
 

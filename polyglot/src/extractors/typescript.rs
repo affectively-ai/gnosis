@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use tree_sitter::{Node, Parser};
 
-use crate::cfg::{CfgNodeKind, ControlFlowGraph, ResourceKind};
+use crate::cfg::{CfgNodeKind, ControlFlowGraph, FunctionParam, ResourceKind};
 use crate::extractors::LanguageExtractor;
 use crate::source_map::SourceSpan;
 
@@ -110,6 +110,24 @@ fn extract_function_cfg(
         "typescript".to_string(),
         file_path.to_string(),
     );
+
+    // Extract TypeScript function signature.
+    let func_text = node_text(*func_node, source);
+    cfg.signature.is_async = func_text.starts_with("async ");
+    cfg.signature.is_generator = func_text.contains("function*");
+
+    // Extract parameters.
+    if let Some(params_node) = func_node.child_by_field_name("parameters") {
+        extract_ts_params(&params_node, source, &mut cfg.signature.params);
+    }
+    // Extract return type.
+    if let Some(ret_type) = func_node.child_by_field_name("return_type") {
+        cfg.signature.return_type = Some(node_text(ret_type, source).trim_start_matches(':').trim().to_string());
+    }
+    // Extract callees.
+    if let Some(body_node) = func_node.child_by_field_name("body") {
+        extract_ts_callees(&body_node, source, &mut cfg.signature.callees);
+    }
 
     let entry = cfg.add_node(
         CfgNodeKind::Entry {
@@ -470,6 +488,54 @@ fn classify_declaration(node: &Node, source: &str) -> CfgNodeKind {
 fn get_function_name(node: &Node, source: &str) -> Option<String> {
     node.child_by_field_name("name")
         .map(|n| node_text(n, source))
+}
+
+fn extract_ts_params(params_node: &Node, source: &str, params: &mut Vec<FunctionParam>) {
+    for i in 0..params_node.child_count() {
+        if let Some(child) = params_node.child(i) {
+            let kind = child.kind();
+            if kind == "required_parameter" || kind == "optional_parameter" || kind == "rest_pattern" {
+                let name = child.child_by_field_name("pattern")
+                    .or_else(|| child.child(0))
+                    .map(|n| node_text(n, source))
+                    .unwrap_or_default()
+                    .trim_start_matches("...")
+                    .to_string();
+                let type_ann = child.child_by_field_name("type")
+                    .map(|n| node_text(n, source).trim_start_matches(':').trim().to_string());
+                let default_val = child.child_by_field_name("value")
+                    .map(|n| node_text(n, source));
+                let is_variadic = kind == "rest_pattern" || node_text(child, source).starts_with("...");
+
+                if !name.is_empty() {
+                    params.push(FunctionParam { name, type_annotation: type_ann, default_value: default_val, is_variadic });
+                }
+            } else if kind == "identifier" {
+                let name = node_text(child, source);
+                if !name.is_empty() && name != "," {
+                    params.push(FunctionParam { name, type_annotation: None, default_value: None, is_variadic: false });
+                }
+            }
+        }
+    }
+}
+
+fn extract_ts_callees(node: &Node, source: &str, callees: &mut Vec<String>) {
+    if node.kind() == "call_expression" {
+        if let Some(func) = node.child_by_field_name("function") {
+            let callee = node_text(func, source);
+            if !callee.is_empty() && !callees.contains(&callee) {
+                callees.push(callee);
+            }
+        }
+    }
+    for i in 0..node.child_count() {
+        if let Some(child) = node.child(i) {
+            if child.kind() != "function_declaration" && child.kind() != "arrow_function" {
+                extract_ts_callees(&child, source, callees);
+            }
+        }
+    }
 }
 
 fn node_text(node: Node, source: &str) -> String {

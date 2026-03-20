@@ -1,3 +1,4 @@
+use crate::cfg::FunctionSignature;
 use crate::gg_compiler::GgTopology;
 use serde::{Deserialize, Serialize};
 /// Complete output from a polyglot scan -- one or more topologies with metadata.
@@ -15,6 +16,9 @@ pub struct PolyglotFunctionResult {
     pub topology: GgTopology,
     /// The .gg source text.
     pub gg_source: String,
+    /// Function signature (parameters, return type, callees).
+    #[serde(default)]
+    pub signature: FunctionSignature,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

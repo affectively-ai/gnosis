@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use tree_sitter::{Node, Parser};
 
-use crate::cfg::{CfgNodeKind, ControlFlowGraph, ResourceKind};
+use crate::cfg::{CfgNodeKind, ControlFlowGraph, FunctionParam, ResourceKind};
 use crate::extractors::LanguageExtractor;
 use crate::source_map::SourceSpan;
 
@@ -72,6 +72,79 @@ fn extract_python_function_cfg(
         "python".to_string(),
         file_path.to_string(),
     );
+
+    // Extract function signature.
+    cfg.signature.is_async = func_node.kind() == "function_definition"
+        && func_node.parent().map_or(false, |p| {
+            node_text(p, source).starts_with("async")
+        })
+        || node_text(*func_node, source).starts_with("async");
+
+    // Extract parameters.
+    if let Some(params_node) = func_node.child_by_field_name("parameters") {
+        for i in 0..params_node.child_count() {
+            if let Some(param) = params_node.child(i) {
+                let kind = param.kind();
+                if kind == "identifier" || kind == "typed_parameter" || kind == "default_parameter"
+                    || kind == "typed_default_parameter" || kind == "list_splat_pattern"
+                    || kind == "dictionary_splat_pattern"
+                {
+                    let param_name = if kind == "typed_parameter" || kind == "default_parameter"
+                        || kind == "typed_default_parameter"
+                    {
+                        param.child_by_field_name("name")
+                            .or_else(|| param.child(0))
+                            .map(|n| node_text(n, source))
+                            .unwrap_or_default()
+                    } else {
+                        node_text(param, source)
+                            .trim_start_matches('*')
+                            .to_string()
+                    };
+
+                    if param_name == "self" || param_name == "cls" {
+                        cfg.signature.receiver_type = Some(param_name.clone());
+                        continue;
+                    }
+
+                    let type_ann = if kind == "typed_parameter" || kind == "typed_default_parameter" {
+                        param.child_by_field_name("type")
+                            .map(|n| node_text(n, source))
+                    } else {
+                        None
+                    };
+
+                    let default_val = if kind == "default_parameter" || kind == "typed_default_parameter" {
+                        param.child_by_field_name("value")
+                            .map(|n| node_text(n, source))
+                    } else {
+                        None
+                    };
+
+                    let is_variadic = kind == "list_splat_pattern"
+                        || kind == "dictionary_splat_pattern"
+                        || node_text(param, source).starts_with('*');
+
+                    cfg.signature.params.push(FunctionParam {
+                        name: param_name,
+                        type_annotation: type_ann,
+                        default_value: default_val,
+                        is_variadic,
+                    });
+                }
+            }
+        }
+    }
+
+    // Extract return type annotation.
+    if let Some(return_type) = func_node.child_by_field_name("return_type") {
+        cfg.signature.return_type = Some(node_text(return_type, source));
+    }
+
+    // Extract callees from function body.
+    if let Some(body) = func_node.child_by_field_name("body") {
+        extract_callees(&body, source, &mut cfg.signature.callees);
+    }
 
     let entry = cfg.add_node(
         CfgNodeKind::Entry {
@@ -474,6 +547,32 @@ fn node_text_truncated(node: &Node, source: &str, max: usize) -> String {
         format!("{}...", &first_line[..end])
     } else {
         first_line.to_string()
+    }
+}
+
+/// Extract function call targets from a tree-sitter subtree.
+fn extract_callees(node: &Node, source: &str, callees: &mut Vec<String>) {
+    if node.kind() == "call" {
+        if let Some(func) = node.child_by_field_name("function") {
+            let callee_text = node_text(func, source);
+            // Skip self.method() → just capture "method", also skip builtins.
+            let callee = callee_text
+                .strip_prefix("self.")
+                .unwrap_or(&callee_text)
+                .to_string();
+            if !callee.is_empty() && !callees.contains(&callee) {
+                callees.push(callee);
+            }
+        }
+    }
+
+    for i in 0..node.child_count() {
+        if let Some(child) = node.child(i) {
+            // Don't recurse into nested function definitions.
+            if child.kind() != "function_definition" && child.kind() != "class_definition" {
+                extract_callees(&child, source, callees);
+            }
+        }
     }
 }
 

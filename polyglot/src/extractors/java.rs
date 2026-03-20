@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use tree_sitter::{Node, Parser};
 
-use crate::cfg::{CfgNodeKind, ControlFlowGraph, ResourceKind};
+use crate::cfg::{CfgNodeKind, ControlFlowGraph, FunctionParam, ResourceKind};
 use crate::extractors::LanguageExtractor;
 use crate::source_map::SourceSpan;
 
@@ -72,6 +72,31 @@ fn extract_java_method_cfg(
         "java".to_string(),
         file_path.to_string(),
     );
+
+    // Extract Java method signature.
+    if let Some(params_node) = method_node.child_by_field_name("parameters") {
+        for i in 0..params_node.child_count() {
+            if let Some(child) = params_node.child(i) {
+                if child.kind() == "formal_parameter" || child.kind() == "spread_parameter" {
+                    let name = child.child_by_field_name("name")
+                        .map(|n| node_text(n, source))
+                        .unwrap_or_default();
+                    let type_ann = child.child_by_field_name("type")
+                        .map(|n| node_text(n, source));
+                    let is_variadic = child.kind() == "spread_parameter";
+                    if !name.is_empty() {
+                        cfg.signature.params.push(FunctionParam {
+                            name, type_annotation: type_ann, default_value: None, is_variadic,
+                        });
+                    }
+                }
+            }
+        }
+    }
+    // Return type.
+    if let Some(ret_type) = method_node.child_by_field_name("type") {
+        cfg.signature.return_type = Some(node_text(ret_type, source));
+    }
 
     let entry = cfg.add_node(
         CfgNodeKind::Entry {

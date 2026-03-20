@@ -69,6 +69,7 @@ pub fn parse_with_extractor(
                     function_name: cfg.function_name.clone(),
                     topology: gg,
                     gg_source,
+                    signature: cfg.signature.clone(),
                 });
             }
             Err(_) => {
@@ -170,6 +171,7 @@ fn parse_with_extractor_orchestration(
                     function_name: cfg.function_name.clone(),
                     topology: gg,
                     gg_source,
+                    signature: cfg.signature.clone(),
                 });
             }
             Err(_) => {

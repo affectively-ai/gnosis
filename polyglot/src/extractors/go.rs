@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use tree_sitter::{Node, Parser};
 
-use crate::cfg::{CfgNodeKind, ControlFlowGraph, ResourceKind};
+use crate::cfg::{CfgNodeKind, ControlFlowGraph, FunctionParam, ResourceKind};
 use crate::extractors::LanguageExtractor;
 use crate::source_map::SourceSpan;
 
@@ -72,6 +72,25 @@ fn extract_go_function_cfg(
         "go".to_string(),
         file_path.to_string(),
     );
+
+    // Extract Go function signature.
+    // Go: func (receiver) name(params) (returns) { body }
+    if let Some(params_node) = func_node.child_by_field_name("parameters") {
+        extract_go_params(&params_node, source, &mut cfg.signature.params);
+    }
+    if let Some(result_node) = func_node.child_by_field_name("result") {
+        cfg.signature.return_type = Some(node_text(result_node, source));
+    }
+    // Method receiver.
+    if func_node.kind() == "method_declaration" {
+        if let Some(receiver) = func_node.child_by_field_name("receiver") {
+            cfg.signature.receiver_type = Some(node_text(receiver, source));
+        }
+    }
+    // Extract callees.
+    if let Some(body_node) = func_node.child_by_field_name("body") {
+        extract_go_callees(&body_node, source, &mut cfg.signature.callees);
+    }
 
     let entry = cfg.add_node(
         CfgNodeKind::Entry {
@@ -398,6 +417,51 @@ fn classify_go_expression(node: &Node, source: &str) -> CfgNodeKind {
     }
 
     CfgNodeKind::Statement
+}
+
+fn extract_go_params(params_node: &Node, source: &str, params: &mut Vec<FunctionParam>) {
+    for i in 0..params_node.child_count() {
+        if let Some(child) = params_node.child(i) {
+            if child.kind() == "parameter_declaration" {
+                let name = child
+                    .child_by_field_name("name")
+                    .map(|n| node_text(n, source))
+                    .unwrap_or_default();
+                let type_ann = child
+                    .child_by_field_name("type")
+                    .map(|n| node_text(n, source));
+                let is_variadic = child.child_count() > 0
+                    && child.child(0).map_or(false, |c| c.kind() == "variadic_parameter_declaration");
+
+                if !name.is_empty() {
+                    params.push(FunctionParam {
+                        name,
+                        type_annotation: type_ann,
+                        default_value: None, // Go has no default params
+                        is_variadic,
+                    });
+                }
+            }
+        }
+    }
+}
+
+fn extract_go_callees(node: &Node, source: &str, callees: &mut Vec<String>) {
+    if node.kind() == "call_expression" {
+        if let Some(func) = node.child_by_field_name("function") {
+            let callee = node_text(func, source);
+            if !callee.is_empty() && !callees.contains(&callee) {
+                callees.push(callee);
+            }
+        }
+    }
+    for i in 0..node.child_count() {
+        if let Some(child) = node.child(i) {
+            if child.kind() != "function_declaration" && child.kind() != "func_literal" {
+                extract_go_callees(&child, source, callees);
+            }
+        }
+    }
 }
 
 fn node_text(node: Node, source: &str) -> String {

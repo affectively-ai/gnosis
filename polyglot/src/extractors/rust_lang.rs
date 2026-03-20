@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use tree_sitter::{Node, Parser};
 
-use crate::cfg::{CfgNodeKind, ControlFlowGraph, ResourceKind};
+use crate::cfg::{CfgNodeKind, ControlFlowGraph, FunctionParam, ResourceKind};
 use crate::extractors::LanguageExtractor;
 use crate::source_map::SourceSpan;
 
@@ -72,6 +72,34 @@ fn extract_rust_function_cfg(
         "rust".to_string(),
         file_path.to_string(),
     );
+
+    // Extract Rust function signature.
+    let func_text = node_text(*func_node, source);
+    cfg.signature.is_async = func_text.contains("async fn");
+
+    if let Some(params_node) = func_node.child_by_field_name("parameters") {
+        for i in 0..params_node.child_count() {
+            if let Some(child) = params_node.child(i) {
+                if child.kind() == "parameter" {
+                    let name = child.child_by_field_name("pattern")
+                        .map(|n| node_text(n, source))
+                        .unwrap_or_default();
+                    let type_ann = child.child_by_field_name("type")
+                        .map(|n| node_text(n, source));
+                    if !name.is_empty() && name != "self" && name != "&self" && name != "&mut self" {
+                        cfg.signature.params.push(FunctionParam {
+                            name, type_annotation: type_ann, default_value: None, is_variadic: false,
+                        });
+                    } else if name.contains("self") {
+                        cfg.signature.receiver_type = Some(name);
+                    }
+                }
+            }
+        }
+    }
+    if let Some(ret_type) = func_node.child_by_field_name("return_type") {
+        cfg.signature.return_type = Some(node_text(ret_type, source).trim_start_matches("->").trim().to_string());
+    }
 
     let entry = cfg.add_node(
         CfgNodeKind::Entry {
