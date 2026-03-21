@@ -13,6 +13,13 @@ import {
   teleportDeficit,
   complementDistribution,
   shannonEntropy,
+  type Walker,
+  createWalker,
+  c0Update,
+  c1Measure,
+  c2c3Adapt,
+  type Measurement,
+  type Gait,
 } from '../void.js';
 
 export interface ExecutionBoundarySnapshot {
@@ -21,11 +28,15 @@ export interface ExecutionBoundarySnapshot {
   deficit: number;
   entropy: number;
   weights: number[];
+  gait: Gait;
+  measurement: Measurement | null;
+  walkerSteps: number;
 }
 
 export class ExecutionBoundary {
   private boundary: VoidBoundary;
   private rounds: number = 0;
+  private walker: Walker | null = null;
 
   constructor(dimensions: number = 0) {
     this.boundary = createVoidBoundary(dimensions);
@@ -87,6 +98,38 @@ export class ExecutionBoundary {
     return teleportDeficit(this.boundary);
   }
 
+  /** Create a walker from the boundary if not yet created */
+  ensureWalker(): void {
+    if (!this.walker) {
+      this.walker = createWalker(this.boundary);
+    }
+  }
+
+  /** Record an execution outcome in the walker's c0 loop */
+  recordExecution(nodeIdx: number, rejected: boolean): void {
+    if (!this.walker) return;
+    const idx = Math.min(nodeIdx, this.walker.boundary.counts.length - 1);
+    if (idx < 0) return;
+    c0Update(this.walker, idx, rejected ? 1 : 0, rejected ? 0 : 1);
+  }
+
+  /** Run c2c3 adaptation on the walker */
+  adapt(): void {
+    if (!this.walker) return;
+    c2c3Adapt(this.walker);
+  }
+
+  /** Take a c1 measurement of the walker */
+  measurement(): Measurement | null {
+    if (!this.walker) return null;
+    return c1Measure(this.walker);
+  }
+
+  /** Get the walker's current gait */
+  gait(): Gait {
+    return this.walker ? this.walker.gait : 'stand';
+  }
+
   /** Take a snapshot of the current state */
   snapshot(): ExecutionBoundarySnapshot {
     const dist = complementDistribution(this.boundary);
@@ -99,6 +142,9 @@ export class ExecutionBoundary {
       deficit: this.deficit,
       entropy: shannonEntropy(dist),
       weights: this.weights,
+      gait: this.gait(),
+      measurement: this.measurement(),
+      walkerSteps: this.walker ? this.walker.steps : 0,
     };
   }
 
@@ -115,6 +161,18 @@ export class ExecutionBoundary {
       totalEntries: this.boundary.totalEntries,
     };
     eb.rounds = this.rounds;
+    if (this.walker) {
+      eb.walker = createWalker(
+        { counts: [...this.walker.boundary.counts], totalEntries: this.walker.boundary.totalEntries },
+        this.walker.eta,
+        this.walker.exploration
+      );
+      eb.walker.gait = this.walker.gait;
+      eb.walker.steps = this.walker.steps;
+      eb.walker.score = this.walker.score;
+      eb.walker.adaptations = this.walker.adaptations;
+      eb.walker.lastAdaptationStep = this.walker.lastAdaptationStep;
+    }
     return eb;
   }
 }

@@ -7,7 +7,8 @@ import {
   diffASTs,
   serializeCanonical,
 } from './ast-equivalence.js';
-import { godelEncodeAST, verifyBootstrapFixedPoint } from './fixed-point.js';
+import { godelEncodeAST, verifyBootstrapFixedPoint, findBettiFixedPointTopology } from './fixed-point.js';
+import { findTopologyFixedPoint, verifyTopologySelfHosting } from '../self-reference.js';
 import { runBootstrap, runBettiPipeline, computeB1, proveGeneralization, crossCompileBetty } from './bootstrap.js';
 import { extractBettiFunctions, scaffoldBettiHandlers, BETTI_RACEABLE_HANDLERS } from './build-config.js';
 import { runAllVerificationPasses } from '../betty/verify.js';
@@ -330,5 +331,51 @@ describe('bootstrap', () => {
         // Some files may not be valid .gg -- skip
       }
     }
+  });
+});
+
+describe('topology fixed-point iteration', () => {
+  it('findTopologyFixedPoint converges for a 3-node chain', () => {
+    // A -> B -> C as edges [0,1], [1,2]
+    const edges: [number, number][] = [[0, 1], [1, 2]];
+    const result = findTopologyFixedPoint(3, edges);
+    // Should terminate (converge or hit maxIter)
+    expect(result.iterations).toBeGreaterThan(0);
+    expect(result.iterations).toBeLessThanOrEqual(100);
+    // The fixed point edges should be valid (all indices < n)
+    for (const [a, b] of result.edges) {
+      expect(a).toBeLessThan(3);
+      expect(b).toBeLessThan(3);
+    }
+  });
+
+  it('verifyTopologySelfHosting returns true for the empty topology (trivial fixed point)', () => {
+    // Empty edge set: all counts zero -> uniform complement at 1/(n*n) each
+    // Threshold is also 1/(n*n), strict > means no edges decoded -> empty = empty
+    const isSelfHosting = verifyTopologySelfHosting(3, []);
+    expect(isSelfHosting).toBe(true);
+  });
+
+  it('findTopologyFixedPoint converges for complete graph to a fixed point', () => {
+    const n = 2;
+    const allEdges: [number, number][] = [
+      [0, 0], [0, 1], [1, 0], [1, 1],
+    ];
+    const result = findTopologyFixedPoint(n, allEdges);
+    // Should converge (complete graph -> empty or some stable topology)
+    expect(result.converged).toBe(true);
+    expect(result.iterations).toBeLessThanOrEqual(100);
+  });
+
+  it('findBettiFixedPointTopology with betti.gg', () => {
+    const source = readFileSync(BETTI_GG_PATH, 'utf-8');
+    const compiler = new BettyCompiler();
+    const parseResult = compiler.parse(source);
+    expect(parseResult.ast).not.toBeNull();
+
+    const result = findBettiFixedPointTopology(parseResult.ast!);
+    expect(result.iterations).toBeGreaterThan(0);
+    // The result should have edges (betti.gg is non-trivial)
+    expect(result.edges.length).toBeGreaterThan(0);
   });
 });

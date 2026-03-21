@@ -143,6 +143,18 @@ function deserializeCrdtValue(serialized: string | undefined): unknown {
   return serialized;
 }
 
+// ── Topology Events ─────────────────────────────────────────────────────────
+
+export type QDocTopologyEventKind = 'fork' | 'observe' | 'fold';
+
+export interface QDocTopologyEvent {
+  kind: QDocTopologyEventKind;
+  path: string;
+  sourceIds: string[];
+  targetIds: string[];
+  timestamp: number;
+}
+
 // ── QDoc ────────────────────────────────────────────────────────────────────
 
 export class QDoc {
@@ -178,6 +190,10 @@ export class QDoc {
 
   private readonly _mapStrategy: GgCollapseStrategy;
   private readonly _sequenceStrategy: GgCollapseStrategy;
+
+  // Topology event handlers
+  private _topologyHandlers: Set<(event: QDocTopologyEvent) => void> =
+    new Set();
 
   constructor(options: QDocOptions = {}) {
     this.guid = options.guid ?? crypto.randomUUID();
@@ -274,6 +290,7 @@ export class QDoc {
     this._updateHandlers.clear();
     this._observeHandlers.clear();
     this._presenceHandlers.clear();
+    this._topologyHandlers.clear();
   }
 
   // ── Topology Mutation (internal — called by typed accessors) ────────────
@@ -305,6 +322,34 @@ export class QDoc {
     }
 
     this._clock++;
+
+    // Emit topology event for observable edge types
+    const path = edge.properties.path ?? '';
+    if (edge.type === 'FORK') {
+      this.emitTopologyEvent({
+        kind: 'fork',
+        path,
+        sourceIds: [...edge.sourceIds],
+        targetIds: [...edge.targetIds],
+        timestamp: Date.now(),
+      });
+    } else if (edge.type === 'OBSERVE' || edge.type === 'RACE') {
+      this.emitTopologyEvent({
+        kind: 'observe',
+        path,
+        sourceIds: [...edge.sourceIds],
+        targetIds: [...edge.targetIds],
+        timestamp: Date.now(),
+      });
+    } else if (edge.type === 'FOLD' || edge.type === 'COLLAPSE') {
+      this.emitTopologyEvent({
+        kind: 'fold',
+        path,
+        sourceIds: [...edge.sourceIds],
+        targetIds: [...edge.targetIds],
+        timestamp: Date.now(),
+      });
+    }
   }
 
   /** @internal Get the current beta1 (superposition count) */
@@ -348,6 +393,23 @@ export class QDoc {
       } catch {
         /* handlers must not break the doc */
       }
+    }
+  }
+
+  // ── Topology Events ──────────────────────────────────────────────────
+
+  /** Subscribe to topology events (fork/observe/fold). Returns unsubscribe function. */
+  public onTopologyEvent(
+    handler: (event: QDocTopologyEvent) => void
+  ): () => void {
+    this._topologyHandlers.add(handler);
+    return () => this._topologyHandlers.delete(handler);
+  }
+
+  /** @internal Emit a topology event to all handlers */
+  private emitTopologyEvent(event: QDocTopologyEvent): void {
+    for (const handler of this._topologyHandlers) {
+      handler(event);
     }
   }
 

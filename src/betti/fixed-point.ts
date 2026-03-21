@@ -13,7 +13,7 @@
 import type { VoidBoundary } from '../void.js';
 import { createVoidBoundary } from '../void.js';
 import type { FixedPoint } from '../self-reference.js';
-import { findFixedPoint, godelEncode } from '../self-reference.js';
+import { findFixedPoint, godelEncode, findTopologyFixedPoint } from '../self-reference.js';
 import type { GraphAST } from '../betty/compiler.js';
 import { areStructurallyEquivalent, serializeCanonical } from './ast-equivalence.js';
 import { BettyCompiler } from '../betty/compiler.js';
@@ -143,4 +143,58 @@ function defaultCompile(source: string): GraphAST | null {
   const compiler = new BettyCompiler();
   const result = compiler.parse(source);
   return result.ast;
+}
+
+// ============================================================================
+// Self-hosting fixed-point topology
+// ============================================================================
+
+/**
+ * Extract numeric edge pairs from a GraphAST using the same index mapping
+ * as godelEncodeAST.
+ */
+function extractEdgesFromAST(ast: GraphAST): { n: number; edges: [number, number][] } {
+  const nodeIds = Array.from(ast.nodes.keys()).sort();
+  const n = nodeIds.length;
+  const nodeIndex = new Map<string, number>();
+  nodeIds.forEach((id, i) => nodeIndex.set(id, i));
+
+  const edges: [number, number][] = [];
+  for (const edge of ast.edges) {
+    for (const src of edge.sourceIds) {
+      for (const tgt of edge.targetIds) {
+        const si = nodeIndex.get(src);
+        const ti = nodeIndex.get(tgt);
+        if (si !== undefined && ti !== undefined) {
+          edges.push([si, ti]);
+        }
+      }
+    }
+  }
+
+  return { n, edges };
+}
+
+/**
+ * Find the self-hosting fixed-point topology for betti.gg's structure.
+ * This is the topology that IS its own complement.
+ *
+ * Extracts edges from the GraphAST, then iterates selfApply until
+ * the topology stabilizes -- producing a topology that generates
+ * itself through its own complement distribution.
+ */
+export function findBettiFixedPointTopology(
+  ast: GraphAST,
+  eta: number = 3.0
+): { edges: [number, number][]; converged: boolean; iterations: number } {
+  const { n, edges } = extractEdgesFromAST(ast);
+  if (n === 0) {
+    return { edges: [], converged: true, iterations: 0 };
+  }
+  const result = findTopologyFixedPoint(n, edges, eta);
+  return {
+    edges: result.edges,
+    converged: result.converged,
+    iterations: result.iterations,
+  };
 }

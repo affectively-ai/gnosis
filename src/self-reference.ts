@@ -248,3 +248,107 @@ export function selfApply(
   }
   return { encoded, complement, decoded };
 }
+
+// ============================================================================
+// Topology fixed-point iteration
+// ============================================================================
+
+/**
+ * Normalize edges to a canonical sorted string for set comparison.
+ */
+function canonicalEdgeSet(edges: [number, number][]): string {
+  return edges
+    .map(([a, b]) => `${a},${b}`)
+    .sort()
+    .join(';');
+}
+
+/**
+ * Iterate selfApply until the topology stabilizes.
+ * The fixed point is the topology that generates itself through complement.
+ * encode(edges) -> complement -> decode -> edges' -> encode(edges') -> ... -> edges* = edges'*
+ */
+export function findTopologyFixedPoint(
+  n: number,
+  initialEdges: [number, number][],
+  eta: number = 3.0,
+  maxIter: number = 100,
+  tolerance: number = 1e-6
+): {
+  fixedPoint: FixedPoint<VoidBoundary>;
+  edges: [number, number][];
+  iterations: number;
+  converged: boolean;
+} {
+  let currentEdges = initialEdges;
+  let lastBoundary = godelEncode(n, currentEdges);
+
+  for (let i = 0; i < maxIter; i++) {
+    const result = selfApply(n, currentEdges, eta);
+    const currentCanonical = canonicalEdgeSet(currentEdges);
+    const decodedCanonical = canonicalEdgeSet(result.decoded);
+
+    // Check edge-set convergence
+    if (currentCanonical === decodedCanonical) {
+      const residual = boundaryDistance(lastBoundary, result.encoded);
+      return {
+        fixedPoint: {
+          value: result.encoded,
+          iterations: i + 1,
+          converged: true,
+          residual,
+        },
+        edges: result.decoded,
+        iterations: i + 1,
+        converged: true,
+      };
+    }
+
+    // Also check boundary distance for near-convergence
+    const dist = boundaryDistance(lastBoundary, result.encoded);
+    if (dist < tolerance && i > 0) {
+      return {
+        fixedPoint: {
+          value: result.encoded,
+          iterations: i + 1,
+          converged: true,
+          residual: dist,
+        },
+        edges: result.decoded,
+        iterations: i + 1,
+        converged: true,
+      };
+    }
+
+    lastBoundary = result.encoded;
+    currentEdges = result.decoded;
+  }
+
+  // Did not converge
+  const finalResult = selfApply(n, currentEdges, eta);
+  const finalResidual = boundaryDistance(lastBoundary, finalResult.encoded);
+  return {
+    fixedPoint: {
+      value: lastBoundary,
+      iterations: maxIter,
+      converged: false,
+      residual: finalResidual,
+    },
+    edges: currentEdges,
+    iterations: maxIter,
+    converged: false,
+  };
+}
+
+/**
+ * Verify that a topology is self-hosting: applying selfApply produces
+ * the same topology (it IS its own complement's threshold).
+ */
+export function verifyTopologySelfHosting(
+  n: number,
+  edges: [number, number][],
+  eta: number = 3.0
+): boolean {
+  const result = selfApply(n, edges, eta);
+  return canonicalEdgeSet(edges) === canonicalEdgeSet(result.decoded);
+}

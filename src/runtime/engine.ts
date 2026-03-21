@@ -308,14 +308,17 @@ export class GnosisEngine {
           });
           this.syncExecutionAuthFromPayload(currentPayload);
           this.tracker.updateStream(sid, 'completed');
+          this.executionBoundary.recordExecution(streamCounter, false);
           cacheMetrics.lastWinnerPath = currentNodeId;
         } else {
           execLogs.push(`  -> Skipping [${currentNodeId}] (No handler)`);
           this.tracker.updateStream(sid, 'vented');
+          this.executionBoundary.recordExecution(streamCounter, true);
         }
       } else {
         execLogs.push(`  -> Error: Node [${currentNodeId}] not found in AST.`);
         this.tracker.updateStream(sid, 'vented');
+        this.executionBoundary.recordExecution(streamCounter, true);
       }
 
       // Find all outgoing edges from this node
@@ -394,6 +397,27 @@ export class GnosisEngine {
         continue;
       }
 
+      if (edge.type === 'METACOG') {
+        // METACOG: Run the c0-c3 feedback loop on the execution boundary
+        execLogs.push(`  [METACOG] Running c0-c3 feedback loop`);
+        this.executionBoundary.ensureWalker();
+        const snapshot = this.executionBoundary.snapshot();
+        execLogs.push(
+          `    Gait: ${snapshot.gait}, Entropy: ${snapshot.entropy.toFixed(3)}`
+        );
+        if (snapshot.measurement) {
+          execLogs.push(
+            `    Kurtosis: ${snapshot.measurement.kurtosis.toFixed(3)}, InverseBule: ${snapshot.measurement.inverseBule.toFixed(6)}`
+          );
+        }
+        this.executionBoundary.adapt();
+        // METACOG allows cycles -- remove the current node from visited set
+        // so the loop can re-enter (the convergence certificate is the inverse Bule)
+        visited.delete(currentNodeId);
+        currentNodeId = edge.targetIds[0]?.trim();
+        continue;
+      }
+
       if (
         edge.type === 'FORK' ||
         edge.type === 'EVOLVE' ||
@@ -413,6 +437,7 @@ export class GnosisEngine {
           edge.type === 'SUPERPOSE'
         ) {
           this.executionBoundary.fork(edge.targetIds.length);
+          this.executionBoundary.ensureWalker();
         }
 
         let activeTargets = [...edge.targetIds];
@@ -630,6 +655,7 @@ export class GnosisEngine {
     }
 
     execLogs.push(`Final System Result: ${JSON.stringify(currentPayload)}`);
+    this.executionBoundary.adapt();
     return {
       logs: execLogs.join('\n'),
       payload: currentPayload,
@@ -1269,6 +1295,7 @@ export class GnosisEngine {
           );
           if (i !== raceResult.winnerIndex) {
             this.executionBoundary.raceLoser(i);
+            this.executionBoundary.recordExecution(i, true);
           }
           outcomes.push({
             path: activeTargets[i],
@@ -1596,6 +1623,7 @@ export class GnosisEngine {
       for (let i = 0; i < resolution.outcomes.length; i++) {
         if (resolution.outcomes[i].path !== resolution.winner.path) {
           this.executionBoundary.raceLoser(i);
+          this.executionBoundary.recordExecution(i, true);
         }
       }
       this.recordCacheMetrics(cacheMetrics, {
