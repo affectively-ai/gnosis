@@ -375,14 +375,13 @@ export default function App({ onReady }: AppProps) {
             </h1>
 
             <p className="hero-subtitle">
-              User-first and future-forward.
+              <em>Proof of Life</em> -- bottling infinity in distributed
+              systems.
               <br />
-              <strong>Surface</strong>. <strong>Sync</strong>.{' '}
-              <strong>Transport</strong>. <strong>Auth</strong>.{' '}
-              <strong>Intelligence</strong>.
+              <strong>504 theorems</strong>. <strong>Zero sorry</strong>.{' '}
+              <strong>27 MCP servers</strong>. <strong>All open-source</strong>.
               <br />
-              Similar Aeon-Flux approach with full presence. Aeon all the way
-              down.
+              Fork, race, fold. From paper to production.
             </p>
 
             <div className="hero-cta">
