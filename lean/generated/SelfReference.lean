@@ -27,11 +27,28 @@ theorem diagonal_differs (n : ℕ) (table : Fin n → Fin n → ℕ)
   rw [h_diag i]
   omega
 
-/-- Gödel encoding is injective: distinct edge sets encode to distinct boundaries. -/
-theorem godel_injective (n : ℕ) (e1 e2 : Fin n × Fin n)
-    (h : e1 ≠ e2) :
-    e1.1 * n + e1.2 ≠ e2.1 * n + e2.2 ∨ True := by
-  right; trivial
+/-- Gödel encoding maps edges to distinct dimensions: (i,j) → i*n+j < n². -/
+theorem godel_dimension_bound (n : ℕ) (i j : Fin n) :
+    i.val * n + j.val < n * n := by
+  have hi := i.isLt
+  have hj := j.isLt
+  calc i.val * n + j.val
+      < i.val * n + n := by omega
+    _ = (i.val + 1) * n := by ring
+    _ ≤ n * n := by nlinarith
+
+/-- Gödel encoding is injective: distinct edges map to distinct dimensions. -/
+theorem godel_injective_strong (n : ℕ) (hn : 0 < n)
+    (i₁ j₁ i₂ j₂ : Fin n)
+    (h : i₁.val * n + j₁.val = i₂.val * n + j₂.val) :
+    i₁ = i₂ ∧ j₁ = j₂ := by
+  have hi₁ := i₁.isLt
+  have hj₁ := j₁.isLt
+  have hi₂ := i₂.isLt
+  have hj₂ := j₂.isLt
+  constructor
+  · ext; omega
+  · ext; omega
 
 /-- Fixed point of a contraction converges.
     Banach fixed-point theorem: if ||f(x) - f(y)|| ≤ k||x-y|| with k < 1,
