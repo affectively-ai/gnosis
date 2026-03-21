@@ -1686,7 +1686,7 @@ export class GnosisEngine {
       };
     }
 
-    const payload = this.mergeFoldOutcomes([...resolution.outcomes], policy);
+    const payload = this.mergeFoldOutcomes([...resolution.outcomes], policy, collapseEdge);
     // FOLD: merge all successful branch boundaries (each contributes a vent for failed branches)
     for (const outcome of resolution.outcomes) {
       if (outcome.status !== 'success') {
@@ -1712,8 +1712,26 @@ export class GnosisEngine {
 
   private mergeFoldOutcomes(
     outcomes: readonly ConcurrentBranchOutcome[],
-    policy: StructuredConcurrencyPolicy
+    policy: StructuredConcurrencyPolicy,
+    collapseEdge?: ASTEdge
   ): unknown {
+    // Check for registered fold strategy (e.g., merge-ast)
+    const strategyName = collapseEdge?.properties?.strategy;
+    if (strategyName) {
+      const strategyHandler = this.registry.getHandler(`fold:${strategyName}`);
+      if (strategyHandler) {
+        // Synchronous dispatch: build keyed results map and call handler
+        const results = new Map<string, unknown>();
+        for (const outcome of outcomes) {
+          if (outcome.status === 'success') {
+            results.set(outcome.path, outcome.value);
+          }
+        }
+        // Return synchronously -- strategy handlers for fold are expected to be sync-compatible
+        return strategyHandler(results, collapseEdge?.properties ?? {});
+      }
+    }
+
     const successfulValues = outcomes
       .filter((outcome) => outcome.status === 'success')
       .map((outcome) => outcome.value);

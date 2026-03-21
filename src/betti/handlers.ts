@@ -321,6 +321,7 @@ export function mergeAstFold(
 
 /**
  * Register all Betti self-hosting handlers into a GnosisRegistry.
+ * Also registers the `fold:merge-ast` strategy for engine fold dispatch.
  */
 export function registerBettiHandlers(registry: GnosisRegistry): void {
   registry.register('IO', handleIO, { override: true });
@@ -329,4 +330,14 @@ export function registerBettiHandlers(registry: GnosisRegistry): void {
   registry.register('Compiler', handleCompiler, { override: true });
   registry.register('Topology', handleTopology, { override: true });
   registry.register('Runtime', handleRuntime, { override: true });
+
+  // Register merge-ast as a fold strategy for the engine's structured concurrency
+  registry.register('fold:merge-ast', async (payload: any) => {
+    // payload is a Map<string, any> from the engine's fold resolution
+    if (payload instanceof Map) {
+      return mergeAstFold(payload);
+    }
+    // Fallback: treat as pre-merged object
+    return payload;
+  }, { override: true });
 }
