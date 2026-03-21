@@ -84,12 +84,35 @@ topology cosmic_bule {
     //   Current age: 13.8 billion years
     //   We are 23% of the way to the eigenvalue.
 
-    current_age = "13.8 billion years"
-    cycles_completed = "~1.6"
-    years_per_cycle = "~8.6 billion years"
-    remaining_to_convergence = "~46 billion years"
-    total_at_convergence = "~60 billion years"
-    progress = "23%"
+    // DEFINITION: 1 Lorenzo (Lo) = one cosmic five-primitive cycle.
+    //
+    // The Lorenzo is the natural unit of cosmic time in the
+    // five-primitive framework: the duration for the universe
+    // to complete one full FORK/RACE/FOLD/VENT/INTERFERE cycle
+    // at the scale of large-scale structure formation.
+    //
+    // Derived from the observed age of the universe (13.8 Gyr)
+    // and the Fibonacci index of the current dark energy fraction:
+    //
+    //   1 Lo = T_universe / n_cycles = 13.8 Gyr / 1.6 ≈ 8.6 Gyr
+    //
+    // The Lorenzo is to cosmic time what the Planck time is to
+    // quantum time: the characteristic scale at which the
+    // framework's primitives operate. Below 1 Lo, individual
+    // forks and folds are in progress. Above 1 Lo, the
+    // eigenvalue has advanced by one Fibonacci step.
+    //
+    // Submultiples:
+    //   1 millilorenzo (mLo) = 8.6 Myr   (~hominid divergence)
+    //   1 microlorenzo (μLo) = 8,600 yr   (~dawn of agriculture)
+    //   1 nanolorenzo  (nLo) = 8.6 yr     (~a childhood)
+    //   1 picolorenzo  (pLo) = 3.14 days  (~a weekend)
+
+    current_age = "1.6 Lo (13.8 Gyr)"
+    years_per_cycle = "1 Lo ≈ 8.6 Gyr"
+    remaining_to_convergence = "5.4 Lo (46 Gyr)"
+    total_at_convergence = "~7 Lo (60 Gyr)"
+    progress = "23% (1.6 / 7.0 Lo)"
 
     // PREDICTION: The universe's dark energy fraction will
     // decrease from 68.3% toward 61.8% over the next 46
