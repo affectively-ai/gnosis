@@ -48,7 +48,7 @@ export const PhilosophySection = memo(function PhilosophySection() {
             <div className="pillar">
               <h3>Low Cost</h3>
               <p>
-                Edge compute. Pay per request. No origin servers. Scale to
+                Edge compute. WASM inference. No origin servers. Scale to
                 millions without scaling headaches.
               </p>
             </div>
