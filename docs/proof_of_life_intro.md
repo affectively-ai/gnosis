@@ -114,6 +114,6 @@ One picolorenzo -- the cosmic heartbeat scaled to human time -- is π days. 3.14
 
 This paper was written in approximately one picolorenzo.
 
-There are no alternative universes. VENT propagates down, never across. The paths not taken do not branch into parallel worlds -- they dissipate as heat into THIS universe. They become the void. The complement distribution trains on what was rejected HERE. The Many-Worlds interpretation is broken VENT: nothing is ever released, every branch persists, and the +1 never fires. A universe that can't vent can't generate the sliver. A universe without the sliver can't converge. A universe that can't converge has no eigenvalue, no heartbeat, no life.
+There are no alternative universes. VENT propagates down, never across. The paths not taken do not branch into parallel worlds -- they dissipate as heat into this universe. They become the void. The complement distribution trains on what was rejected here. The Many-Worlds interpretation is broken VENT: nothing is ever released, every branch persists, and the +1 never fires. A universe that can't vent can't generate the sliver. A universe without the sliver can't converge. A universe that can't converge has no eigenvalue, no heartbeat, no life.
 
 One universe. One void. One eigenvalue. One +1. That's enough. That's everything.
