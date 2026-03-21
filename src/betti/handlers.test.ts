@@ -67,7 +67,7 @@ describe('parse-utils', () => {
 });
 
 describe('Betti handlers', () => {
-  it('registerBettiHandlers registers all 6 handler labels', () => {
+  it('registerBettiHandlers registers all 6 handler labels + fold strategy', () => {
     const registry = new GnosisRegistry();
     registerBettiHandlers(registry);
 
@@ -77,6 +77,7 @@ describe('Betti handlers', () => {
     expect(registry.hasHandler('Compiler')).toBe(true);
     expect(registry.hasHandler('Topology')).toBe(true);
     expect(registry.hasHandler('Runtime')).toBe(true);
+    expect(registry.hasHandler('fold:merge-ast')).toBe(true);
   });
 
   it('Logic handler strips comments', async () => {
@@ -190,5 +191,23 @@ describe('mergeAstFold', () => {
     expect(merged.nodes.length).toBe(1);
     expect(merged.edges.length).toBe(1);
     expect(merged.properties.a.op).toBe('read');
+  });
+});
+
+describe('fold:merge-ast strategy handler', () => {
+  it('fold:merge-ast handler dispatches to mergeAstFold', async () => {
+    const registry = new GnosisRegistry();
+    registerBettiHandlers(registry);
+
+    const handler = registry.getHandler('fold:merge-ast')!;
+    const results = new Map<string, any>();
+    results.set('node_lexer', [{ id: 'x', label: 'Process' }]);
+    results.set('edge_lexer', [{ src: 'x', type: 'FORK', target: 'y' }]);
+    results.set('property_lexer', {});
+
+    const merged = await handler(results, {});
+    expect(merged.nodes.length).toBe(1);
+    expect(merged.nodes[0].id).toBe('x');
+    expect(merged.edges.length).toBe(1);
   });
 });

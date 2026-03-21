@@ -94,6 +94,13 @@ export {
   BettyCompiler,
   generateLeanFromGnosisAst,
 };
+export { registerBettiHandlers } from './betti/handlers.js';
+export { runBootstrap, runBettiPipeline, proveGeneralization, crossCompileBetty } from './betti/bootstrap.js';
+export { areStructurallyEquivalent, diffASTs, serializeCanonical } from './betti/ast-equivalence.js';
+export { godelEncodeAST, verifyBootstrapFixedPoint } from './betti/fixed-point.js';
+export { buildBetti, extractBettiFunctions, scaffoldBettiHandlers } from './betti/build-config.js';
+export { parseNodeDeclarations, parseEdgeDeclarations, parseProperties, stripComments } from './betty/parse-utils.js';
+export { runAllVerificationPasses } from './betty/verify.js';
 export {
   GnosisModuleLoader,
   createFilesystemModuleResolver,

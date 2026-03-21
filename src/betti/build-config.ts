@@ -8,7 +8,19 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { BettyCompiler, type GraphAST } from '../betty/compiler.js';
 import type { PolyglotBuildConfig } from '../polyglot-build.js';
+import { buildWithTopoRace, type PolyglotBuildResult } from '../polyglot-build.js';
+import {
+  scaffoldTopology,
+  type ScaffoldAssignment,
+  type ScaffoldResult,
+} from '../polyglot-scaffold.js';
+import type { ExtractedFunction } from '../polyglot-compose.js';
+
+// ============================================================================
+// Config
+// ============================================================================
 
 /**
  * Default Betti polyglot build config.
@@ -50,3 +62,134 @@ export const BETTI_RACEABLE_HANDLERS = [
 ] as const;
 
 export type BettiHandler = (typeof BETTI_RACEABLE_HANDLERS)[number];
+
+// ============================================================================
+// Scaffold
+// ============================================================================
+
+/**
+ * Generate polyglot skeletons for all betti.gg handler nodes.
+ * Uses scaffoldTopology to create Rust/Go/Python/TypeScript implementations.
+ */
+export function scaffoldBettiHandlers(
+  languages: string[] = ['typescript', 'rust', 'go', 'python'],
+  bettiSourcePath?: string,
+  outputDir?: string
+): ScaffoldResult {
+  const sourcePath =
+    bettiSourcePath ??
+    path.resolve(__dirname, '../../betti.gg');
+  const source = fs.readFileSync(sourcePath, 'utf-8');
+
+  const compiler = new BettyCompiler();
+  const result = compiler.parse(source);
+  if (!result.ast) {
+    throw new Error('Failed to parse betti.gg');
+  }
+
+  // Create scaffold assignments for each handler node in each language
+  const assignments: ScaffoldAssignment[] = [];
+  for (const [nodeId, node] of result.ast.nodes) {
+    // Only scaffold nodes that correspond to betti handlers (have a label)
+    if (node.labels.length === 0) continue;
+    for (const lang of languages) {
+      assignments.push({
+        nodeId,
+        language: lang,
+        functionName: nodeId,
+      });
+    }
+  }
+
+  const scaffolded = scaffoldTopology(result.ast, assignments, source);
+
+  // Write files if outputDir provided
+  if (outputDir) {
+    fs.mkdirSync(outputDir, { recursive: true });
+    for (const file of scaffolded.files) {
+      const filePath = path.join(outputDir, file.fileName);
+      fs.writeFileSync(filePath, file.source, 'utf8');
+    }
+  }
+
+  return scaffolded;
+}
+
+// ============================================================================
+// Build
+// ============================================================================
+
+/**
+ * Convert betti.gg handler nodes into ExtractedFunction[] for the polyglot build system.
+ */
+export function extractBettiFunctions(
+  bettiSourcePath?: string
+): ExtractedFunction[] {
+  const sourcePath =
+    bettiSourcePath ??
+    path.resolve(__dirname, '../../betti.gg');
+  const source = fs.readFileSync(sourcePath, 'utf-8');
+
+  const compiler = new BettyCompiler();
+  const result = compiler.parse(source);
+  if (!result.ast) {
+    throw new Error('Failed to parse betti.gg');
+  }
+
+  const functions: ExtractedFunction[] = [];
+  for (const [nodeId, node] of result.ast.nodes) {
+    if (node.labels.length === 0) continue;
+
+    // Find edges involving this node to determine edge types
+    const edgeTypes = new Set<string>();
+    const callees: string[] = [];
+    for (const edge of result.ast.edges) {
+      if (edge.sourceIds.includes(nodeId)) {
+        edgeTypes.add(edge.type);
+        callees.push(...edge.targetIds);
+      }
+    }
+
+    // Build a mini-topology for this handler
+    const miniNodes = new Map<string, typeof node>();
+    miniNodes.set(nodeId, node);
+    const miniEdges = result.ast.edges.filter(
+      (e) => e.sourceIds.includes(nodeId) || e.targetIds.includes(nodeId)
+    );
+
+    functions.push({
+      filePath: sourcePath,
+      language: 'typescript',
+      name: nodeId,
+      params: ['payload', 'props'],
+      callees,
+      ast: { nodes: miniNodes, edges: miniEdges },
+      ggSource: `(${nodeId}:${node.labels[0]}${
+        Object.keys(node.properties).length > 0
+          ? ` { ${Object.entries(node.properties).map(([k, v]) => `${k}: '${v}'`).join(', ')} }`
+          : ''
+      })`,
+      nodeCount: 1,
+      edgeTypes: [...edgeTypes],
+    });
+  }
+
+  return functions;
+}
+
+/**
+ * Run a polyglot build race for all betti.gg handlers.
+ * Races TypeScript/Rust/Go/Python implementations, records winners in strategy memory.
+ */
+export async function buildBetti(
+  bettiSourcePath?: string,
+  config?: Partial<PolyglotBuildConfig>
+): Promise<PolyglotBuildResult> {
+  const functions = extractBettiFunctions(bettiSourcePath);
+  const buildConfig = createBettiBuildConfig(bettiSourcePath);
+
+  return buildWithTopoRace(functions, {
+    ...buildConfig,
+    ...config,
+  });
+}

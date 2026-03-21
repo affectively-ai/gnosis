@@ -1619,7 +1619,7 @@ async function runBootstrapCommand(parsed: ParsedArgs): Promise<number> {
 
   process.stderr.write('[Betti Bootstrap] Starting self-hosting verification...\n');
 
-  const result = runBootstrap(parsed.filePath, { race, verifyFinalOnly });
+  const result = runBootstrap(parsed.filePath, { race, verifyFinalOnly, generalize: true });
 
   process.stderr.write(`[Betti Bootstrap] Betty nodes: ${result.bettyAst.nodes.size}, edges: ${result.bettyAst.edges.length}\n`);
   process.stderr.write(`[Betti Bootstrap] Betti nodes: ${result.bettiAst.nodes.size}, edges: ${result.bettiAst.edges.length}\n`);
@@ -1634,6 +1634,51 @@ async function runBootstrapCommand(parsed: ParsedArgs): Promise<number> {
     }
     if (result.diffs.length > 20) {
       process.stderr.write(`  ... and ${result.diffs.length - 20} more\n`);
+    }
+  }
+
+  // Stage 3.5: Generalization proof
+  if (result.generalization) {
+    const gen = result.generalization;
+    process.stderr.write(`\n[Betti Bootstrap] Generalization proof:\n`);
+    process.stderr.write(`  Source: ${gen.source.split('\n')[0]?.substring(0, 60)}...\n`);
+    process.stderr.write(`  Betty: ${gen.bettyAst.nodes.size} nodes, ${gen.bettyAst.edges.length} edges\n`);
+    process.stderr.write(`  Betti: ${gen.bettiAst.nodes.size} nodes, ${gen.bettiAst.edges.length} edges\n`);
+    process.stderr.write(`  Equivalent: ${gen.equivalent}\n`);
+    process.stderr.write(`  Beta1 match: ${gen.b1Match}\n`);
+    process.stderr.write(`  Verification errors: ${gen.verification.diagnostics.filter(d => d.severity === 'error').length}\n`);
+    if (!gen.equivalent && gen.diffs.length > 0) {
+      process.stderr.write(`  Diffs: ${gen.diffs.length}\n`);
+      for (const diff of gen.diffs.slice(0, 5)) {
+        process.stderr.write(`    ${diff.kind}: ${diff.id}\n`);
+      }
+    }
+  }
+
+  // Stage 3.5b: Cross-compilation (Betty TS -> .gg -> Betti)
+  if (result.crossCompilation) {
+    const xc = result.crossCompilation;
+    process.stderr.write(`\n[Betti Bootstrap] Cross-compilation (Betty TS -> .gg -> Betti):\n`);
+    process.stderr.write(`  Betty CFG: ${xc.bettyAst.nodes.size} nodes, ${xc.bettyAst.edges.length} edges\n`);
+    process.stderr.write(`  Betti parse: ${xc.bettiAst.nodes.size} nodes, ${xc.bettiAst.edges.length} edges\n`);
+    process.stderr.write(`  Equivalent: ${xc.equivalent}\n`);
+  }
+
+  // Stage 2: Polyglot race
+  if (race) {
+    process.stderr.write('\n[Betti Bootstrap] Running polyglot race...\n');
+    try {
+      const { buildBetti: doBuild } = await import('../src/betti/build-config.js');
+      const buildResult = await doBuild(parsed.filePath);
+      for (const raceResult of buildResult.races) {
+        result.polyglotWinners.set(raceResult.functionName, raceResult.winner);
+        process.stderr.write(`  ${raceResult.functionName}: ${raceResult.winner} (${raceResult.speedup.toFixed(1)}x speedup)\n`);
+      }
+      process.stderr.write(`  Overall speedup: ${buildResult.overallSpeedup.toFixed(1)}x\n`);
+      process.stderr.write(`  Strategy memory: ${buildResult.memorySummary.totalObservations} observations\n`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`  [RACE] Skipped: ${msg}\n`);
     }
   }
 
@@ -1660,13 +1705,37 @@ async function runBootstrapCommand(parsed: ParsedArgs): Promise<number> {
         bettiNodes: result.bettiAst.nodes.size,
         bettiEdges: result.bettiAst.edges.length,
         diffs: result.diffs.length,
+        generalization: result.generalization
+          ? {
+              equivalent: result.generalization.equivalent,
+              b1Match: result.generalization.b1Match,
+              bettyNodes: result.generalization.bettyAst.nodes.size,
+              bettiNodes: result.generalization.bettiAst.nodes.size,
+              diffs: result.generalization.diffs.length,
+              verificationErrors: result.generalization.verification.diagnostics.filter(
+                (d) => d.severity === 'error'
+              ).length,
+            }
+          : null,
+        crossCompilation: result.crossCompilation
+          ? {
+              equivalent: result.crossCompilation.equivalent,
+              bettyNodes: result.crossCompilation.bettyAst.nodes.size,
+              bettiNodes: result.crossCompilation.bettiAst.nodes.size,
+            }
+          : null,
+        polyglotWinners: Object.fromEntries(result.polyglotWinners),
       },
       null,
       2
     )
   );
 
-  return result.equivalent && result.fixedPoint.converged ? 0 : 1;
+  const success =
+    result.equivalent &&
+    result.fixedPoint.converged &&
+    (!result.generalization || result.generalization.equivalent);
+  return success ? 0 : 1;
 }
 
 function isCliEntrypoint(): boolean {
