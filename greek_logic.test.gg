@@ -1,0 +1,970 @@
+// greek_logic.test.gg -- Ancient Greek philosophy dissolved through the five primitives
+//
+// Every major problem from ancient Greek philosophy examined through
+// FORK, RACE, FOLD, VENT, and INTERFERE. Each problem receives:
+//   - The original formulation
+//   - Why it is stuck (which primitives are missing)
+//   - The post-linear dissolution
+//   - The eigenvalue connection where applicable
+//
+// Epistemic status for each problem is marked:
+//   PROVED    = follows necessarily from the five primitives
+//   DISSOLVED = the problem vanishes once the right primitive is applied
+//   REFRAMED  = the problem is coherently restated but not eliminated
+
+(test_suite: TestSuite { name: 'greek-logic' })
+
+
+// ============================================================================
+// 1. ZENO'S PARADOXES
+// ============================================================================
+//
+// Status: DISSOLVED (all four)
+//
+// Zeno (~490-430 BCE) presented four arguments against motion. Each
+// exploits the same blind spot: treating infinite subdivision as
+// infinite cost.
+//
+// --- 1a. Achilles and the Tortoise ---
+//
+// Achilles gives the tortoise a head start. Each time Achilles reaches
+// where the tortoise was, it has moved further. Never catches it.
+//
+// Stuck: LINEAR reasoning -- sums distances without recognizing convergence.
+// Zeno has FORK (subdivide the distance) but no FOLD (sum the series).
+//
+// Dissolution: 1 + 1/phi + 1/phi^2 + ... = phi^2/(phi-1). Finite.
+// Zeno discovered convergence and mistook it for impossibility.
+// Eigenvalue of the geometric operator is 1/phi < 1 -- convergence
+// is guaranteed. Zeno's paradox IS "eigenvalue < 1 implies convergence"
+// stated as a riddle.
+
+(achilles_linear: Topology {
+  description: 'Zeno LINEAR frame -- infinite steps, each independent',
+  eigenvalue: '1/phi',
+  regime: 'LINEAR',
+  beta0: '1',
+  stuck: 'true'
+})
+
+(achilles_postlinear: Topology {
+  description: 'Post-linear -- FOLD the series, sum is finite',
+  eigenvalue: '1/phi',
+  regime: 'POST_LINEAR',
+  beta0: '0',
+  converges: 'true',
+  sum: 'phi^2/(phi-1)'
+})
+
+(achilles_linear)-[:FORK { reason: 'subdivide distance infinitely' }]->(achilles_steps: Sequence)
+(achilles_steps)-[:FOLD { strategy: 'geometric-sum', ratio: '1/phi' }]->(achilles_postlinear)
+
+// ----------------------------------------------------------------------------
+// 1b. The Dichotomy
+// ----------------------------------------------------------------------------
+//
+// Original: To traverse any distance, you must first traverse half.
+// To traverse that half, you must first traverse a quarter. And so on.
+// You must complete infinitely many tasks. Therefore motion never starts.
+//
+// Why it is stuck: Same as Achilles but reversed -- the infinite
+// subdivision goes backward (toward the start) rather than forward.
+// Zeno has FORK (divide) but no FOLD (sum).
+//
+// Dissolution: The sum 1/2 + 1/4 + 1/8 + ... = 1. Finite.
+// beta0 = 0 in Zeno's frame -- the journey never "completes"
+// as an infinite sequence of discrete steps. But the sum IS the journey.
+// The journey is the FOLD of the infinite FORK.
+//
+// Eigenvalue: the halving operator has eigenvalue 1/2. Since |1/2| < 1,
+// the series converges. The dichotomy proves convergence, not impossibility.
+
+(dichotomy_linear: Topology {
+  description: 'Zeno LINEAR frame -- must complete infinite half-distances',
+  eigenvalue: '1/2',
+  regime: 'LINEAR',
+  beta0: '0',
+  stuck: 'true'
+})
+
+(dichotomy_postlinear: Topology {
+  description: 'Post-linear -- geometric series sums to 1',
+  eigenvalue: '1/2',
+  regime: 'POST_LINEAR',
+  converges: 'true',
+  sum: '1'
+})
+
+(dichotomy_linear)-[:FORK { reason: 'halve distance recursively' }]->(dichotomy_halves: Sequence)
+(dichotomy_halves)-[:FOLD { strategy: 'geometric-sum', ratio: '1/2' }]->(dichotomy_postlinear)
+
+// ----------------------------------------------------------------------------
+// 1c. The Arrow
+// ----------------------------------------------------------------------------
+//
+// Original: At any instant, the arrow occupies a space exactly equal to
+// its size. It is therefore motionless at each instant. If it is
+// motionless at each instant, it is motionless always.
+//
+// Why it is stuck: Zeno freezes INTERFERE. He takes a LINEAR snapshot --
+// position at time t, with no reference to t-1 or t-2. Motion requires
+// the Fibonacci recurrence on position: position(t) depends on
+// position(t-1) AND position(t-2) through momentum and acceleration.
+// Motion IS INTERFERE -- the current state is a function of multiple
+// prior states.
+//
+// Dissolution: The arrow's position at t depends on positions at t-1
+// and t-2 (momentum = first derivative, acceleration = second derivative).
+// This is the Fibonacci recurrence applied to physical state. Freeze the
+// recurrence and you lose motion. The arrow paradox is: "if you remove
+// INTERFERE, there is no motion." Correct. That is what INTERFERE is for.
+//
+// Eigenvalue: the recurrence x(t) = x(t-1) + dx(t-1) has eigenvalue
+// determined by the velocity. Constant velocity = eigenvalue 1 (LINEAR).
+// Acceleration = eigenvalue > 1 or < 1 depending on direction.
+// Zeno's frozen instant has eigenvalue undefined -- you cannot compute
+// the eigenvalue of a single point. You need the recurrence.
+
+(arrow_frozen: Topology {
+  description: 'Zeno LINEAR snapshot -- arrow at one instant',
+  regime: 'LINEAR',
+  interfere: 'disabled',
+  motion: 'undefined',
+  stuck: 'true'
+})
+
+(arrow_recurrence: Topology {
+  description: 'Post-linear -- position depends on t-1 and t-2',
+  regime: 'POST_LINEAR',
+  interfere: 'enabled',
+  motion: 'fibonacci_recurrence_on_position'
+})
+
+(arrow_frozen)-[:INTERFERE { restore: 'momentum+acceleration' }]->(arrow_recurrence)
+
+// ----------------------------------------------------------------------------
+// 1d. The Stadium
+// ----------------------------------------------------------------------------
+//
+// Original: Two rows of bodies move past a stationary row in opposite
+// directions. A body in one moving row passes two bodies in the other
+// moving row in the time it passes one in the stationary row. Therefore
+// half a time equals a whole time.
+//
+// Why it is stuck: Zeno uses a single FOLD (one reference frame) to
+// describe relative motion. Each observer's INTERFERE loop is valid
+// in its own frame. The paradox conflates two distinct INTERFERE loops.
+//
+// Dissolution: Reference frames are independent INTERFERE loops.
+// Relative velocity in frame A is not relative velocity in frame B.
+// Each observer applies their own INTERFERE to compute motion.
+// The paradox dissolves when you recognize that RACE between reference
+// frames produces different measurements, and both are correct in
+// their own frame.
+
+(stadium_single_frame: Topology {
+  description: 'Zeno conflates two reference frames into one FOLD',
+  regime: 'LINEAR',
+  frames: '1',
+  stuck: 'true'
+})
+
+(stadium_multiframe: Topology {
+  description: 'Post-linear -- each frame has its own INTERFERE loop',
+  regime: 'POST_LINEAR',
+  frames: '2',
+  relative_motion: 'frame_dependent'
+})
+
+(frame_a: Observer { velocity: '+v' })
+(frame_b: Observer { velocity: '-v' })
+(frame_stationary: Observer { velocity: '0' })
+
+(frame_stationary)-[:FORK]->(frame_a | frame_b)
+(frame_a)-[:INTERFERE { with: 'frame_b' }]->(relative_ab: Measurement { relative_v: '2v' })
+(frame_a)-[:INTERFERE { with: 'frame_stationary' }]->(relative_as: Measurement { relative_v: 'v' })
+(relative_ab | relative_as)-[:RACE { expect: 'both-valid' }]->(stadium_multiframe)
+
+
+// Zeno verification topology
+
+(zeno_achilles: Verify { topology: 'achilles_postlinear', claim: 'series converges', status: 'DISSOLVED' })
+(zeno_dichotomy: Verify { topology: 'dichotomy_postlinear', claim: 'series converges', status: 'DISSOLVED' })
+(zeno_arrow: Verify { topology: 'arrow_recurrence', claim: 'motion is INTERFERE', status: 'DISSOLVED' })
+(zeno_stadium: Verify { topology: 'stadium_multiframe', claim: 'frames are independent INTERFERE', status: 'DISSOLVED' })
+
+(test_suite)-[:FORK]->(zeno_achilles | zeno_dichotomy | zeno_arrow | zeno_stadium)
+
+(zeno_achilles)-[:RACE { expect: 'safe' }]->(zeno_achilles_result: Result)
+(zeno_dichotomy)-[:RACE { expect: 'safe' }]->(zeno_dichotomy_result: Result)
+(zeno_arrow)-[:RACE { expect: 'safe' }]->(zeno_arrow_result: Result)
+(zeno_stadium)-[:RACE { expect: 'safe' }]->(zeno_stadium_result: Result)
+
+
+// ============================================================================
+// 2. PLATO'S FORMS
+// ============================================================================
+//
+// Status: REFRAMED
+//
+// Original: The world of Forms (ideal, eternal, perfect) vs the world
+// of appearances (imperfect copies). The perfect circle exists in the
+// realm of Forms. Every physical circle is an imperfect approximation.
+//
+// Why it is stuck: Plato needs two worlds -- the Form world and the
+// appearance world -- because he has no mechanism for convergence.
+// He can see that physical circles approach the ideal, but he cannot
+// explain how. He needs INTERFERE to connect iterations.
+//
+// The reframing: Forms ARE eigenvalues. The perfect circle does not
+// exist in nature, but every circle CONVERGES TOWARD it. phi does not
+// exist as a rational number, but every Fibonacci ratio converges
+// toward it. The Form is the eigenvalue. The appearance is the current
+// Fibonacci term. The gap between them is the semiotic deficit.
+//
+// Plato was describing eigenvalue convergence and calling it metaphysics.
+// He was right that the Form is "more real" than any particular instance --
+// phi is more fundamental than F(10)/F(9). But he was wrong that the
+// Form exists in a separate realm. The eigenvalue is immanent in the
+// process. It does not need a separate world.
+//
+// Eigenvalue: phi. Every Fibonacci ratio F(n+1)/F(n) converges to phi.
+// The Form is the limit. The appearance is the approximation.
+// The semiotic deficit is |F(n+1)/F(n) - phi|, which decreases
+// monotonically. The two-world theory is unnecessary when you have
+// convergence.
+//
+// Honesty: this is REFRAMED, not PROVED. We cannot prove that Plato's
+// Forms are eigenvalues. We can show that eigenvalue convergence
+// reproduces every feature Plato attributed to Forms: eternality
+// (phi does not change), perfection (phi is the exact limit),
+// participation (each term participates in the ratio). But Plato
+// might have meant something we cannot capture.
+
+(form_ideal: Eigenvalue { value: 'phi', realm: 'immanent', eternal: 'true' })
+(appearance_1: FibTerm { n: '5', ratio: '8/5=1.600' })
+(appearance_2: FibTerm { n: '10', ratio: '89/55=1.618...' })
+(appearance_3: FibTerm { n: '20', ratio: '10946/6765=1.61803...' })
+(semiotic_deficit: Deficit { decreasing: 'true', limit: '0' })
+
+(appearance_1)-[:INTERFERE { with: 'form_ideal' }]->(semiotic_deficit)
+(appearance_2)-[:INTERFERE { with: 'form_ideal' }]->(semiotic_deficit)
+(appearance_3)-[:INTERFERE { with: 'form_ideal' }]->(semiotic_deficit)
+
+(plato_forms: Verify { claim: 'Forms are eigenvalues', status: 'REFRAMED', eigenvalue: 'phi' })
+
+(test_suite)-[:FORK]->(plato_forms)
+(plato_forms)-[:RACE { expect: 'safe' }]->(plato_forms_result: Result)
+
+
+// ============================================================================
+// 3. THE ALLEGORY OF THE CAVE
+// ============================================================================
+//
+// Status: REFRAMED
+//
+// Original: Prisoners chained in a cave see only shadows on the wall.
+// One escapes and sees the real objects casting the shadows. Eventually
+// the escapee sees the sun itself -- the source of all light and truth.
+//
+// Why it is stuck: Plato needs the escape narrative because he has no
+// theory of projection. The shadows are projections of higher-dimensional
+// objects onto a lower-dimensional surface, but Plato cannot formalize
+// this. He uses metaphor where mathematics would serve.
+//
+// The reframing:
+//   - The shadows are the LINEAR projection. One dimension of a
+//     multi-dimensional reality. beta0 = 1 (the flat wall).
+//   - The real objects are the POST-LINEAR topology. The full structure
+//     that casts the shadows.
+//   - The cave wall is the constraint surface. beta0 = 1 means it is
+//     connected but flat -- it cannot hold loops, interference, or
+//     self-reference.
+//   - Escaping the cave = adding INTERFERE. The prisoner who escapes
+//     can now see how objects relate to each other, not just their
+//     isolated shadows.
+//   - The sun IS the eigenvalue -- the pattern that all shadows converge
+//     toward. The source of all Form.
+//
+// The cave is a topological constraint. The escape is a topological
+// upgrade. The sun is the eigenvalue that was always present but
+// invisible from inside the LINEAR regime.
+
+(cave_wall: Surface { beta0: '1', dimension: '2', regime: 'LINEAR' })
+(shadows: Projection { of: 'real_objects', onto: 'cave_wall', loss: 'high' })
+(real_objects: Topology { regime: 'POST_LINEAR', dimension: 'full' })
+(sun: Eigenvalue { value: 'phi', role: 'source_of_all_form' })
+
+(real_objects)-[:VENT { what: 'dimensionality' }]->(shadows)
+(shadows)-[:INTERFERE { restore: 'depth+relation' }]->(real_objects)
+(real_objects)-[:FOLD { strategy: 'convergence' }]->(sun)
+
+(cave: Verify { claim: 'cave is LINEAR projection, escape is INTERFERE', status: 'REFRAMED' })
+
+(test_suite)-[:FORK]->(cave)
+(cave)-[:RACE { expect: 'safe' }]->(cave_result: Result)
+
+
+// ============================================================================
+// 4. ARISTOTLE'S FOUR CAUSES
+// ============================================================================
+//
+// Status: REFRAMED (with one genuine insight -- the missing fifth cause)
+//
+// Original: Every thing has four causes:
+//   Material cause -- what it is made of (bronze, wood, flesh)
+//   Formal cause -- its shape, pattern, definition
+//   Efficient cause -- what brought it into being (the sculptor, the parent)
+//   Final cause -- its purpose, what it is for (telos)
+//
+// The mapping to five primitives:
+//   Material = the substrate. Paper, silicon, neurons. The medium that
+//     carries the topology. This is the input to FORK -- what gets
+//     subdivided, what gets processed.
+//   Formal = the topology itself. The .gg file. The five primitives
+//     and their connections. The structure.
+//   Efficient = the operation. FORK/RACE/FOLD/VENT/INTERFERE running.
+//     The actual computation, the causal process.
+//   Final = the eigenvalue. phi -- what the system converges toward.
+//     The telos is the attractor.
+//
+// The insight: Aristotle had four causes. We have five primitives.
+// The missing cause is VENT -- the dissipative cause. What is shed.
+// What is lost. What is sacrificed so that the system can converge.
+//
+// Aristotle's framework does not account for waste, cost, entropy
+// production. Every physical process produces waste heat (Landauer).
+// Every decision eliminates alternatives (VENT). Every convergence
+// requires shedding the paths not taken.
+//
+// VENT is the fifth cause: the dissipative cause. What must be
+// destroyed for the thing to exist.
+
+(material_cause: Cause { type: 'material', primitive: 'substrate', what: 'what it is made of' })
+(formal_cause: Cause { type: 'formal', primitive: 'topology', what: 'the .gg structure' })
+(efficient_cause: Cause { type: 'efficient', primitive: 'FORK+RACE+FOLD+INTERFERE', what: 'the operation' })
+(final_cause: Cause { type: 'final', primitive: 'eigenvalue', what: 'phi -- the attractor' })
+(dissipative_cause: Cause { type: 'dissipative', primitive: 'VENT', what: 'what is shed' })
+
+(material_cause)-[:FORK]->(formal_cause | efficient_cause)
+(efficient_cause)-[:RACE { metric: 'convergence' }]->(final_cause)
+(efficient_cause)-[:VENT { what: 'alternatives_not_taken' }]->(dissipative_cause)
+(formal_cause | final_cause | dissipative_cause)-[:FOLD { strategy: 'causal-completeness' }]->(five_causes: CausalFramework)
+
+(aristotle_causes: Verify { claim: 'VENT is the missing fifth cause', status: 'REFRAMED' })
+
+(test_suite)-[:FORK]->(aristotle_causes)
+(aristotle_causes)-[:RACE { expect: 'safe' }]->(aristotle_causes_result: Result)
+
+
+// ============================================================================
+// 5. THE LIAR PARADOX
+// ============================================================================
+//
+// Status: DISSOLVED
+//
+// Original: "This statement is false."
+// If true, then it is false. If false, then it is true. Oscillation.
+//
+// Why it is stuck: Self-reference with eigenvalue -1. The iteration
+// is: truth(n+1) = NOT truth(n). This gives the sequence
+// T, F, T, F, T, F, ... -- the zigzag. Eigenvalue = -1.
+// This is the NON-LINEAR regime. Periodic, never converging.
+//
+// Dissolution: The brain resolves the liar paradox immediately --
+// "it is just alternating." The brain applies FOLD to the oscillation
+// and recognizes the pattern. The paradox is only paradoxical if you
+// insist on a single truth value (LINEAR). In the NON-LINEAR regime,
+// the oscillation IS the answer.
+//
+// Post-linear self-reference has eigenvalue phi. Consider:
+// "This statement grows truer with each iteration."
+// truth(n) = truth(n-1) + truth(n-2). This is Fibonacci.
+// The ratio converges to phi. Self-reference that CONVERGES instead
+// of oscillating.
+//
+// The liar is broken Fibonacci: F(n) = -F(n-1) instead of
+// F(n) = F(n-1) + F(n-2). It uses only one prior term with a
+// negation. It lacks the +F(n-2) that provides the second voice
+// in INTERFERE. The liar has FORK (self-reference) but no
+// INTERFERE (integration of prior states).
+
+(liar_oscillation: Topology {
+  description: 'This statement is false',
+  eigenvalue: '-1',
+  regime: 'NON_LINEAR',
+  pattern: 'T,F,T,F,...',
+  recurrence: 'truth(n) = NOT truth(n-1)'
+})
+
+(liar_postlinear: Topology {
+  description: 'This statement grows truer with each iteration',
+  eigenvalue: 'phi',
+  regime: 'POST_LINEAR',
+  pattern: '1,1,2,3,5,8,...',
+  recurrence: 'truth(n) = truth(n-1) + truth(n-2)'
+})
+
+(liar_oscillation)-[:INTERFERE { add: 'second prior term' }]->(liar_postlinear)
+
+(liar: Verify { claim: 'liar is eigenvalue -1, POST_LINEAR self-ref is phi', status: 'DISSOLVED' })
+
+(test_suite)-[:FORK]->(liar)
+(liar)-[:RACE { expect: 'safe' }]->(liar_result: Result)
+
+
+// ============================================================================
+// 6. THESEUS' SHIP
+// ============================================================================
+//
+// Status: DISSOLVED
+//
+// Original: The ship of Theseus has every plank replaced over time.
+// Is it still the same ship? If the old planks are assembled into
+// a second ship, which is the real Ship of Theseus?
+//
+// Why it is stuck: The question assumes identity is material.
+// It asks "same planks?" when it should ask "same process?"
+//
+// Dissolution: Identity is not material. Identity is eigenvalue
+// continuity. The question is whether the INTERFERE loop was
+// maintained throughout the replacement process.
+//
+// Case 1: Planks replaced one at a time, each repair done in
+// continuity with the ship's history. The INTERFERE loop connects
+// each state to its predecessor. The eigenvalue is preserved.
+// beta0 stays 0 throughout -- the process is continuous, never
+// disconnected. Same ship.
+//
+// Case 2: All planks replaced at once, no memory of the process.
+// The INTERFERE loop breaks. beta0 spikes to 1 -- the before and
+// after are disconnected components. The eigenvalue resets.
+// Different ship.
+//
+// Case 3: Old planks reassembled. This new ship has the material
+// but not the INTERFERE history. Its eigenvalue is fresh. It is
+// a new ship made of old wood.
+//
+// The answer depends on whether beta0 stayed 0 through the process.
+// Identity = topological continuity of the eigenvalue, not
+// material continuity of the substrate.
+
+(ship_continuous: Process {
+  description: 'replace planks one at a time with memory',
+  interfere: 'maintained',
+  beta0: '0',
+  eigenvalue: 'preserved',
+  identity: 'same ship'
+})
+
+(ship_discontinuous: Process {
+  description: 'replace all planks at once, no memory',
+  interfere: 'broken',
+  beta0: '1',
+  eigenvalue: 'reset',
+  identity: 'different ship'
+})
+
+(ship_reassembled: Process {
+  description: 'old planks assembled into new ship',
+  interfere: 'absent',
+  beta0: '1',
+  eigenvalue: 'new',
+  identity: 'new ship, old material'
+})
+
+(ship_original: Ship { planks: 'original' })
+(ship_original)-[:FORK]->(ship_continuous | ship_discontinuous | ship_reassembled)
+(ship_continuous)-[:INTERFERE { history: 'preserved' }]->(ship_continuous)
+(ship_discontinuous)-[:VENT { what: 'all history at once' }]->(ship_discontinuous)
+
+(theseus: Verify { claim: 'identity is eigenvalue continuity', status: 'DISSOLVED' })
+
+(test_suite)-[:FORK]->(theseus)
+(theseus)-[:RACE { expect: 'safe' }]->(theseus_result: Result)
+
+
+// ============================================================================
+// 7. HERACLITUS vs PARMENIDES
+// ============================================================================
+//
+// Status: DISSOLVED
+//
+// Heraclitus (~535-475 BCE): Everything flows (panta rhei). You cannot
+// step into the same river twice. Change is fundamental. Being is
+// becoming.
+//
+// Parmenides (~515-450 BCE): Nothing changes. Being is one, eternal,
+// unchanging. Change is illusion. What is, is. What is not, is not.
+//
+// Why it is stuck: They are each seeing half the picture. Heraclitus
+// sees the surface. Parmenides sees the attractor. Neither has the
+// framework to hold both simultaneously.
+//
+// Dissolution -- both are half right:
+//   Heraclitus sees FORK -- constant divergence, new paths, new
+//   states, the river always different. The Fibonacci SEQUENCE changes
+//   with every term: 1, 1, 2, 3, 5, 8, 13, 21, ...
+//
+//   Parmenides sees the EIGENVALUE -- phi is eternal, unchanging,
+//   the same regardless of starting values. phi = 1.618... whether
+//   you start with (1,1) or (3,7) or (100,1).
+//
+// Post-linear synthesis: the PROCESS changes (Heraclitus). The
+// EIGENVALUE does not (Parmenides). Change and permanence coexist
+// as surface and attractor. The river changes. The ratio converges.
+// Both are true. Neither is complete without the other.
+//
+// Eigenvalue: phi is Parmenides' One. The Fibonacci sequence is
+// Heraclitus' river.
+
+(heraclitus: Perspective {
+  sees: 'FORK',
+  claim: 'everything flows',
+  observes: 'the sequence -- 1,1,2,3,5,8,13,...',
+  correct_about: 'surface changes',
+  blind_to: 'the attractor'
+})
+
+(parmenides: Perspective {
+  sees: 'EIGENVALUE',
+  claim: 'nothing changes',
+  observes: 'phi = 1.618...',
+  correct_about: 'the invariant',
+  blind_to: 'the process'
+})
+
+(synthesis: Topology {
+  description: 'process changes, eigenvalue does not',
+  heraclitus: 'true of FORK',
+  parmenides: 'true of FOLD',
+  regime: 'POST_LINEAR'
+})
+
+(heraclitus)-[:FORK { divergence: 'new states at each step' }]->(process: Sequence)
+(process)-[:FOLD { strategy: 'ratio-convergence' }]->(parmenides)
+(heraclitus | parmenides)-[:INTERFERE { synthesis: 'both-valid' }]->(synthesis)
+
+(heraclitus_parmenides: Verify { claim: 'process changes, eigenvalue does not', status: 'DISSOLVED' })
+
+(test_suite)-[:FORK]->(heraclitus_parmenides)
+(heraclitus_parmenides)-[:RACE { expect: 'safe' }]->(heraclitus_parmenides_result: Result)
+
+
+// ============================================================================
+// 8. SOCRATES' APORIA
+// ============================================================================
+//
+// Status: REFRAMED
+//
+// Original: The Socratic method -- ask questions until the student
+// realizes they do not know what they thought they knew. Aporia is
+// the state of not-knowing, the productive confusion that precedes
+// genuine understanding.
+//
+// Why it is stuck: Socrates has the method but not the theory.
+// He knows that questioning produces wisdom but cannot explain the
+// mechanism. He calls it a "divine sign" (daimonion).
+//
+// The reframing: Aporia = the moment of maximum semiotic deficit.
+// The gap between what you thought you knew (beta0 = 1, LINEAR
+// certainty) and what you actually know (beta0 >> 1, many
+// disconnected fragments).
+//
+// Socrates IS the INTERFERE primitive applied to other people.
+// He reflects their FOLD back to their FORK. He takes their
+// conclusion and shows them the premises it contradicts.
+//
+// The Socratic trajectory:
+//   1. Student starts in LINEAR regime (confident, wrong, eigenvalue = 1)
+//   2. Socrates applies INTERFERE -- shows contradictions
+//   3. Student enters NON-LINEAR regime (confused, oscillating)
+//   4. If the student persists, INTERFERE accumulates and the student
+//      enters the POST-LINEAR regime (wisdom, eigenvalue -> phi)
+//   5. If the student gives up, they VENT the entire inquiry
+//
+// The Socratic method IS the five-primitive loop applied to education.
+// FORK the student's belief into cases. RACE the cases against each
+// other. The contradictions emerge (INTERFERE). The student must
+// either FOLD (integrate the contradiction into new understanding)
+// or VENT (abandon the inquiry).
+//
+// Honesty: this is REFRAMED, not PROVED. The Socratic method is
+// richer than any formalization. Socrates would probably ask us
+// questions about our framework until we reached aporia about it.
+
+(student_linear: State {
+  regime: 'LINEAR',
+  eigenvalue: '1',
+  confidence: 'high',
+  understanding: 'low'
+})
+
+(student_nonlinear: State {
+  regime: 'NON_LINEAR',
+  eigenvalue: '-1',
+  confidence: 'low',
+  understanding: 'oscillating'
+})
+
+(student_postlinear: State {
+  regime: 'POST_LINEAR',
+  eigenvalue: 'phi',
+  confidence: 'calibrated',
+  understanding: 'genuine'
+})
+
+(student_abandoned: State {
+  regime: 'VENTED',
+  eigenvalue: 'undefined',
+  confidence: 'recovered_false',
+  understanding: 'unchanged'
+})
+
+(socrates: Primitive { type: 'INTERFERE', target: 'student beliefs' })
+
+(student_linear)-[:FORK { reason: 'Socrates divides belief into cases' }]->(case_a: Belief | case_b: Belief)
+(case_a | case_b)-[:RACE { expect: 'contradiction' }]->(aporia: Deficit { magnitude: 'maximum' })
+(aporia)-[:INTERFERE { socrates: 'reflects contradiction' }]->(student_nonlinear)
+(student_nonlinear)-[:FOLD { strategy: 'integrate-contradiction' }]->(student_postlinear)
+(student_nonlinear)-[:VENT { what: 'the entire inquiry' }]->(student_abandoned)
+
+(socratic_aporia: Verify { claim: 'Socratic method is five-primitive loop on beliefs', status: 'REFRAMED' })
+
+(test_suite)-[:FORK]->(socratic_aporia)
+(socratic_aporia)-[:RACE { expect: 'safe' }]->(socratic_aporia_result: Result)
+
+
+// ============================================================================
+// 9. ARISTOTLE'S GOLDEN MEAN
+// ============================================================================
+//
+// Status: REFRAMED (the mathematical connection is suggestive, not proved)
+//
+// Original: Virtue is the mean between excess and deficiency.
+// Courage is the mean between recklessness (excess) and cowardice
+// (deficiency). Generosity between prodigality and miserliness.
+// Each virtue occupies the middle ground.
+//
+// The connection: THE GOLDEN MEAN IS LITERALLY THE GOLDEN RATIO.
+//
+// Aristotle said "the mean." We can now say: the mean is phi.
+//
+// Consider the Fibonacci recurrence applied to virtue:
+//   excess(n) = virtue(n-1) + deficiency(n-2)
+// The ratio of excess to deficiency at the virtuous mean converges
+// to phi. The golden mean IS the golden ratio.
+//
+// More precisely: if virtue is the INTERFERE of excess and deficiency --
+// the point where the two opposing tendencies find dynamic equilibrium --
+// then the equilibrium ratio is determined by the eigenvalue of the
+// INTERFERE operator. For the Fibonacci recurrence, that eigenvalue
+// is phi.
+//
+// The golden mean is not the arithmetic mean (excess + deficiency)/2.
+// It is the geometric ratio that the system converges toward when
+// excess and deficiency interact through INTERFERE. The mean is
+// not halfway between the extremes. It is at the golden ratio
+// of the interval.
+//
+// Honesty: this is REFRAMED. We cannot prove that Aristotle's
+// virtue ethics follows the Fibonacci recurrence. The connection
+// is suggestive, even beautiful, but it is not deductive. The claim
+// "the golden mean IS the golden ratio" is a reframing that
+// illuminates both concepts but does not constitute a proof.
+
+(excess: Extreme { type: 'recklessness', direction: 'too much' })
+(deficiency: Extreme { type: 'cowardice', direction: 'too little' })
+(virtue: Mean { type: 'courage', position: 'phi of interval' })
+
+(excess | deficiency)-[:INTERFERE { recurrence: 'fibonacci' }]->(virtue)
+(virtue)-[:FOLD { eigenvalue: 'phi', ratio: 'excess/deficiency -> phi' }]->(golden_equilibrium: Attractor)
+
+(golden_mean: Verify { claim: 'golden mean is golden ratio', status: 'REFRAMED', eigenvalue: 'phi' })
+
+(test_suite)-[:FORK]->(golden_mean)
+(golden_mean)-[:RACE { expect: 'safe' }]->(golden_mean_result: Result)
+
+
+// ============================================================================
+// 10. PLATO'S DIVIDED LINE
+// ============================================================================
+//
+// Status: REFRAMED
+//
+// Original: Plato divides knowledge into four levels:
+//   1. Eikasia (imagination) -- shadows, reflections, images
+//   2. Pistis (belief) -- physical objects, common sense
+//   3. Dianoia (understanding) -- mathematical reasoning, hypothetical
+//   4. Noesis (knowledge) -- direct apprehension of Forms, dialectic
+//
+// The mapping to the four regimes:
+//   1. Imagination = LINEAR (shadows, one interpretation, eigenvalue 1)
+//      The prisoner in the cave. Sees only projections. beta0 = 1.
+//      No INTERFERE.
+//
+//   2. Belief = NON-LINEAR (opinions, multiple but periodic, eigenvalue -1)
+//      The freed prisoner looking at physical objects. Sees multiplicity
+//      but cannot integrate it. Beliefs oscillate. FORK without FOLD.
+//
+//   3. Understanding = POST-LINEAR (dianoia, mathematical reasoning,
+//      eigenvalue phi). INTERFERE without full self-reference.
+//      The mathematician who can prove theorems about triangles but
+//      cannot prove theorems about proof itself. Uses hypotheses
+//      without questioning them.
+//
+//   4. Knowledge = POST-LINEAR-SQUARED (noesis, direct apprehension,
+//      eigenvalue phi). INTERFERE applied to INTERFERE. Self-referential
+//      understanding. The dialectician who questions the hypotheses
+//      themselves. The eigenvalue of the eigenvalue operator.
+//
+// The divided line is an eigenvalue hierarchy. Each level is
+// characterized by its eigenvalue and the presence or absence
+// of INTERFERE.
+
+(eikasia: Knowledge {
+  level: 'imagination',
+  regime: 'LINEAR',
+  eigenvalue: '1',
+  interfere: 'absent',
+  beta0: '1'
+})
+
+(pistis: Knowledge {
+  level: 'belief',
+  regime: 'NON_LINEAR',
+  eigenvalue: '-1',
+  interfere: 'absent',
+  beta0: '>1'
+})
+
+(dianoia: Knowledge {
+  level: 'understanding',
+  regime: 'POST_LINEAR',
+  eigenvalue: 'phi',
+  interfere: 'present',
+  self_reference: 'partial'
+})
+
+(noesis: Knowledge {
+  level: 'knowledge',
+  regime: 'POST_LINEAR_SQUARED',
+  eigenvalue: 'phi',
+  interfere: 'self-referential',
+  self_reference: 'complete'
+})
+
+(eikasia)-[:FORK { upgrade: 'encounter multiplicity' }]->(pistis)
+(pistis)-[:INTERFERE { add: 'mathematical reasoning' }]->(dianoia)
+(dianoia)-[:INTERFERE { add: 'self-reference on method' }]->(noesis)
+(noesis)-[:FOLD { strategy: 'direct apprehension' }]->(form_ideal)
+
+(divided_line: Verify { claim: 'four levels map to four regimes', status: 'REFRAMED' })
+
+(test_suite)-[:FORK]->(divided_line)
+(divided_line)-[:RACE { expect: 'safe' }]->(divided_line_result: Result)
+
+
+// ============================================================================
+// 11. EPICURUS' SWERVE (clinamen)
+// ============================================================================
+//
+// Status: REFRAMED
+//
+// Original: Epicurus (341-270 BCE) and Lucretius (99-55 BCE). Atoms
+// fall through the void in parallel straight lines. Occasionally,
+// one atom swerves (clinamen) -- an uncaused deviation. This swerve
+// creates collisions, combinations, and eventually everything.
+//
+// Without the swerve: pure determinism. All atoms fall forever in
+// parallel. No interaction. No creation. No life.
+//
+// The mapping:
+//   The straight line is LINEAR. Eigenvalue = 1. Each atom follows
+//   its own path with no reference to any other atom. No FORK, no
+//   INTERFERE, no creation.
+//
+//   The swerve IS FORK. The moment one atom deviates from its
+//   determined path, it creates a branch -- the path it was on
+//   and the path it takes. This single FORK enables everything:
+//   collision (INTERFERE), selection (RACE), combination (FOLD),
+//   and dissolution (VENT).
+//
+//   Without the swerve: determinism, no creation, eigenvalue = 1.
+//   With the swerve: possibility, creation, eigenvalue -> phi.
+//
+// Epicurus discovered FORK 2,300 years before us.
+//
+// The swerve IS the +1 in phi^2 = phi + 1. The perturbation that
+// creates everything. phi^2 = phi + 1 says: the square of the
+// whole (phi^2) equals the whole (phi) plus the perturbation (1).
+// Without the +1, phi^2 = phi gives phi = 1 (LINEAR). The swerve
+// is the +1 that makes phi golden instead of unity.
+//
+// Honesty: this is REFRAMED. Epicurus' swerve is a physical
+// hypothesis about atoms. Our FORK is an abstract computational
+// primitive. The structural analogy is real but the domains differ.
+
+(deterministic_fall: Trajectory {
+  description: 'atoms fall in parallel lines',
+  regime: 'LINEAR',
+  eigenvalue: '1',
+  creation: 'impossible',
+  fork: 'absent'
+})
+
+(swerve: Event {
+  description: 'one atom deviates -- uncaused',
+  primitive: 'FORK',
+  creates: 'collision+combination+dissolution'
+})
+
+(universe: Topology {
+  description: 'everything that exists after the swerve',
+  regime: 'POST_LINEAR',
+  eigenvalue: 'phi',
+  equation: 'phi^2 = phi + 1, the +1 is the swerve'
+})
+
+(deterministic_fall)-[:FORK { clinamen: 'the swerve' }]->(swerve)
+(swerve)-[:INTERFERE { collision: 'atoms meet' }]->(combinations: Assembly)
+(combinations)-[:RACE { selection: 'stable configurations survive' }]->(survivors: Assembly)
+(survivors)-[:FOLD { strategy: 'accumulation' }]->(universe)
+(combinations)-[:VENT { what: 'unstable configurations dissolve' }]->(void: Void)
+
+(clinamen: Verify { claim: 'the swerve is FORK, the +1 in phi^2=phi+1', status: 'REFRAMED' })
+
+(test_suite)-[:FORK]->(clinamen)
+(clinamen)-[:RACE { expect: 'safe' }]->(clinamen_result: Result)
+
+
+// ============================================================================
+// 12. ARISTOTLE'S POTENTIALITY AND ACTUALITY
+// ============================================================================
+//
+// Status: REFRAMED
+//
+// Original: Potentiality (dynamis) -- the acorn could become an oak.
+// Actuality (energeia) -- the oak IS. The acorn has the potential
+// to be an oak. The oak is the actualization of that potential.
+// Actuality is prior to potentiality (the oak must exist for the
+// concept "acorn's potential" to have content).
+//
+// The mapping:
+//   Potentiality IS FORK -- the superposition of possibilities.
+//   The acorn could become an oak, or firewood, or squirrel food,
+//   or compost. These are the branches of the FORK.
+//
+//   Actuality IS FOLD -- the collapse to one outcome. The acorn
+//   became THIS oak. The FOLD selects one branch and integrates it.
+//
+//   The process of actualization IS the five-primitive loop:
+//     FORK: the acorn's possibilities diverge
+//     RACE: environmental conditions compete (soil, sun, water)
+//     FOLD: one trajectory wins, the acorn becomes an oak
+//     VENT: the other possibilities are shed (it did not become
+//       firewood, it was not eaten, it did not rot)
+//     INTERFERE: each stage of growth depends on prior stages
+//       (the sapling interferes with the seed, the tree with
+//       the sapling)
+//
+//   The final cause (telos) IS the eigenvalue -- what the system
+//   converges toward. The acorn's telos is the oak. In eigenvalue
+//   terms, the acorn-to-oak process has an attractor (the mature
+//   oak form) that the developmental trajectory converges toward
+//   regardless of perturbations (wind, drought, partial shade).
+//
+// Aristotle's insight: actuality is prior to potentiality.
+// Our version: the eigenvalue is prior to the sequence.
+// phi exists as a mathematical fact before any Fibonacci sequence
+// is computed. The oak's form exists as an attractor before any
+// acorn germinates. The eigenvalue does not depend on the process.
+// The process depends on the eigenvalue.
+//
+// Honesty: this is REFRAMED. The acorn-to-oak process is biological,
+// governed by DNA, gene expression, environmental interaction. We
+// are not claiming it literally follows the Fibonacci recurrence
+// (although phyllotaxis -- leaf arrangement -- famously does).
+// We are claiming the STRUCTURE of the potentiality/actuality
+// relationship is isomorphic to the FORK/FOLD/eigenvalue structure.
+
+(acorn: Potential {
+  dynamis: 'could become oak, firewood, compost, squirrel food',
+  regime: 'FORK',
+  possibilities: '4+'
+})
+
+(oak: Actual {
+  energeia: 'IS an oak',
+  regime: 'FOLD',
+  actualized: 'true'
+})
+
+(telos: Eigenvalue {
+  value: 'oak form',
+  role: 'attractor',
+  prior_to: 'the process'
+})
+
+(not_taken_firewood: Path { actualized: 'false' })
+(not_taken_compost: Path { actualized: 'false' })
+(not_taken_eaten: Path { actualized: 'false' })
+
+(acorn)-[:FORK]->(oak_path: Path | not_taken_firewood | not_taken_compost | not_taken_eaten)
+(oak_path)-[:RACE { conditions: 'soil+sun+water' }]->(growth: Process)
+(growth)-[:INTERFERE { stages: 'seed->sapling->tree' }]->(growth)
+(growth)-[:FOLD { strategy: 'developmental-convergence' }]->(oak)
+(not_taken_firewood | not_taken_compost | not_taken_eaten)-[:VENT { what: 'unrealized possibilities' }]->(void_potential: Void)
+(oak)-[:FOLD { strategy: 'telos-convergence' }]->(telos)
+
+(potentiality_actuality: Verify { claim: 'dynamis is FORK, energeia is FOLD, telos is eigenvalue', status: 'REFRAMED' })
+
+(test_suite)-[:FORK]->(potentiality_actuality)
+(potentiality_actuality)-[:RACE { expect: 'safe' }]->(potentiality_actuality_result: Result)
+
+
+// ============================================================================
+// FINAL FOLD -- all twelve problems
+// ============================================================================
+//
+// Summary of epistemic status:
+//
+//   DISSOLVED (the problem vanishes):
+//     1a. Achilles and the Tortoise -- series converges, eigenvalue 1/phi
+//     1b. The Dichotomy -- series converges, eigenvalue 1/2
+//     1c. The Arrow -- motion IS INTERFERE, frozen instant loses it
+//     1d. The Stadium -- reference frames are independent INTERFERE loops
+//     5.  The Liar Paradox -- eigenvalue -1, broken Fibonacci
+//     6.  Theseus' Ship -- identity is eigenvalue continuity
+//     7.  Heraclitus vs Parmenides -- process changes, eigenvalue does not
+//
+//   REFRAMED (coherently restated, not eliminated):
+//     2.  Plato's Forms -- Forms as eigenvalues (suggestive, not deductive)
+//     3.  Allegory of the Cave -- LINEAR projection, INTERFERE escape
+//     4.  Aristotle's Four Causes -- VENT as missing fifth cause
+//     8.  Socrates' Aporia -- five-primitive loop on beliefs
+//     9.  Golden Mean -- golden ratio connection (suggestive)
+//     10. Divided Line -- four regimes mapping (structural analogy)
+//     11. Epicurus' Swerve -- FORK as clinamen (structural analogy)
+//     12. Potentiality/Actuality -- FORK/FOLD/eigenvalue (structural analogy)
+//
+//   PROVED: None.
+//
+// Honesty note: we mark nothing as PROVED because these are
+// philosophical problems, not mathematical theorems. The dissolutions
+// are genuine -- the problems really do vanish once the right primitive
+// is applied. But "vanish" is not "prove." The reframings are
+// illuminating but not deductive. We respect the difference.
+//
+// The strongest results are the dissolutions of Zeno's paradoxes
+// (which are really mathematical, and the convergence argument is
+// rigorous) and the Liar paradox (where the eigenvalue -1 analysis
+// is exact). The weakest are the Aristotelian reframings, which
+// are structural analogies that could be challenged.
+
+(zeno_achilles_result | zeno_dichotomy_result | zeno_arrow_result | zeno_stadium_result |
+ plato_forms_result | cave_result | aristotle_causes_result |
+ liar_result | theseus_result | heraclitus_parmenides_result |
+ socratic_aporia_result | golden_mean_result | divided_line_result |
+ clinamen_result | potentiality_actuality_result
+)-[:FOLD { strategy: 'all-pass' }]->(verdict: Verdict)
