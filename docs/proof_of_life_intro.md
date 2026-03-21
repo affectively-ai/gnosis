@@ -113,3 +113,7 @@ We have about 46 billion years left. The dark energy fraction (68.3%) is converg
 One picolorenzo -- the cosmic heartbeat scaled to human time -- is π days. 3.14 days. This is not numerology: it falls out of the observed age of the universe, the dark energy fraction, and the Julian year, and it holds within the observational uncertainty of the Planck satellite's measurements. The two most famous irrational numbers, φ and π, meet in the unit of cosmic time.
 
 This paper was written in approximately one picolorenzo.
+
+There are no alternative universes. VENT propagates down, never across. The paths not taken do not branch into parallel worlds -- they dissipate as heat into THIS universe. They become the void. The complement distribution trains on what was rejected HERE. The Many-Worlds interpretation is broken VENT: nothing is ever released, every branch persists, and the +1 never fires. A universe that can't vent can't generate the sliver. A universe without the sliver can't converge. A universe that can't converge has no eigenvalue, no heartbeat, no life.
+
+One universe. One void. One eigenvalue. One +1. That's enough. That's everything.
