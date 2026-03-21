@@ -14,6 +14,47 @@ import { GnosisNativeRuntime } from '@a0n/gnosis/runtime/native-runtime';
 import type { RuntimeTarget } from '@a0n/gnosis/capabilities';
 import { lintDocumentCore } from '@affectively/shared-ui/services/aeon-container/streamed-lint-core';
 import type { StreamedLintLanguage } from '@affectively/shared-ui/services/aeon-container/streamed-lint-types';
+import {
+  // Void boundary & distribution
+  voidBoundary,
+  buleyeanDistribution,
+  buleyeanWeights,
+  assertAllAxioms,
+  // Propositions & connectives
+  prop,
+  isProved,
+  reject,
+  rejectMany,
+  not,
+  and,
+  or,
+  implies,
+  xor,
+  forall,
+  exists,
+  // Proof engine
+  goal,
+  step,
+  totalBules,
+  renderProof,
+  // Boolean embedding
+  fromBoolean,
+  toBoolean,
+  // Child's decision
+  childDecides,
+  // Checker integration
+  buleDeficit,
+  isConverged,
+  // Proof topology
+  isProofProgram,
+  parseProofTopology,
+  propagateBules,
+  verifyProofTopology,
+  emitLean4,
+  emitTlaPlus,
+  // GG parser
+  parseGgProgram,
+} from '@a0n/aeon-logic';
 import type {
   Env,
   McpToolDefinition,
@@ -185,6 +226,207 @@ const PUBLIC_TOOL_DEFINITIONS: McpToolDefinition[] = [
         maxDiagnostics: { type: 'number' },
       },
       required: ['documents'],
+    },
+  },
+  // ── Buleyean Distribution ─────────────────────────────────────────────
+  {
+    name: 'buleyean_distribution',
+    description:
+      'Compute the Buleyean complement distribution from rejection counts. Returns weights, probabilities, and axiom verification.',
+    access: 'public',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        counts: {
+          type: 'array',
+          items: { type: 'number' },
+          description: 'Per-dimension rejection counts (the void boundary).',
+        },
+      },
+      required: ['counts'],
+    },
+  },
+  {
+    name: 'buleyean_axioms',
+    description:
+      'Assert the three Buleyean axioms (positivity, normalization, monotonicity) on a void boundary.',
+    access: 'public',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        counts: {
+          type: 'array',
+          items: { type: 'number' },
+          description: 'Per-dimension rejection counts.',
+        },
+      },
+      required: ['counts'],
+    },
+  },
+  {
+    name: 'buleyean_deficit',
+    description:
+      'Compute the Bule deficit for a void boundary. Returns per-dimension deficit and convergence status.',
+    access: 'public',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        counts: {
+          type: 'array',
+          items: { type: 'number' },
+          description: 'Per-dimension rejection counts.',
+        },
+      },
+      required: ['counts'],
+    },
+  },
+  // ── Buleyean Logic ────────────────────────────────────────────────────
+  {
+    name: 'buleyean_proposition',
+    description:
+      'Create a Buleyean proposition and apply rejection steps. Returns the proposition state and proof trace.',
+    access: 'public',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Proposition name.' },
+        bules: { type: 'number', description: 'Initial Bule count.' },
+        rejections: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Rejection reasons to apply in sequence.',
+        },
+      },
+      required: ['name', 'bules'],
+    },
+  },
+  {
+    name: 'buleyean_connective',
+    description:
+      'Apply a Buleyean connective (AND, OR, NOT, IMPLIES, XOR, FORALL, EXISTS) to propositions.',
+    access: 'public',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        operation: {
+          type: 'string',
+          enum: ['and', 'or', 'not', 'implies', 'xor', 'forall', 'exists'],
+          description: 'Which connective to apply.',
+        },
+        propositions: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              bules: { type: 'number' },
+            },
+          },
+          description: 'Input propositions.',
+        },
+        maxBules: {
+          type: 'number',
+          description: 'Max Bules for NOT operation.',
+        },
+      },
+      required: ['operation', 'propositions'],
+    },
+  },
+  {
+    name: 'buleyean_proof',
+    description:
+      'Run a Buleyean proof: create a goal from propositions, apply rejection steps, and render the proof trace.',
+    access: 'public',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        propositions: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              bules: { type: 'number' },
+            },
+          },
+          description: 'Propositions in the proof goal.',
+        },
+        steps: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              target: { type: 'string' },
+              reason: { type: 'string' },
+            },
+          },
+          description: 'Rejection steps to apply.',
+        },
+      },
+      required: ['propositions', 'steps'],
+    },
+  },
+  {
+    name: 'buleyean_boolean_embed',
+    description:
+      'Embed Boolean values into Buleyean logic and apply operations. Proves Boolean is K=2 special case.',
+    access: 'public',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        operation: {
+          type: 'string',
+          enum: ['and', 'or', 'not', 'implies'],
+          description: 'Boolean operation to perform.',
+        },
+        a: { type: 'boolean', description: 'First Boolean operand.' },
+        b: { type: 'boolean', description: 'Second Boolean operand (not needed for NOT).' },
+      },
+      required: ['operation', 'a'],
+    },
+  },
+  // ── Proof Topology ────────────────────────────────────────────────────
+  {
+    name: 'buleyean_verify_proof_topology',
+    description:
+      'Parse a .gg proof topology, propagate Bule counts, verify completeness, and optionally emit Lean 4 or TLA+ artifacts.',
+    access: 'public',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        source: { type: 'string', description: 'Gnosis .gg proof topology source.' },
+        emitLean: { type: 'boolean', description: 'Emit Lean 4 proof artifact.' },
+        emitTla: { type: 'boolean', description: 'Emit TLA+ specification.' },
+      },
+      required: ['source'],
+    },
+  },
+  {
+    name: 'buleyean_child_decides',
+    description:
+      'Simulate a child decision process as a Buleyean proof. The child faces options, rejects alternatives, and the survivor is proved by complement.',
+    access: 'public',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        options: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Available options.',
+        },
+        rejections: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              option: { type: 'string' },
+              reason: { type: 'string' },
+            },
+          },
+          description: 'Rejections applied by the child.',
+        },
+      },
+      required: ['options', 'rejections'],
     },
   },
 ];
@@ -825,6 +1067,203 @@ async function invokePublicTool(
         ok: results.every((result) => result.ok),
         count: results.length,
         results,
+      });
+    }
+
+    // ── Buleyean Distribution ───────────────────────────────────────────
+    case 'buleyean_distribution': {
+      const counts = args.counts;
+      if (!Array.isArray(counts)) throw new Error('counts must be an array of numbers.');
+      const boundary = voidBoundary(counts as number[]);
+      const dist = buleyeanDistribution(boundary);
+      const axioms = assertAllAxioms(boundary);
+      return buildToolPayload({
+        ok: true,
+        weights: [...dist.weights],
+        probabilities: [...dist.probabilities],
+        positive: dist.positive,
+        minimumWeight: dist.minimumWeight,
+        axioms,
+      });
+    }
+
+    case 'buleyean_axioms': {
+      const counts = args.counts;
+      if (!Array.isArray(counts)) throw new Error('counts must be an array of numbers.');
+      const boundary = voidBoundary(counts as number[]);
+      const result = assertAllAxioms(boundary);
+      return buildToolPayload({ ok: result.allHold, ...result });
+    }
+
+    case 'buleyean_deficit': {
+      const counts = args.counts;
+      if (!Array.isArray(counts)) throw new Error('counts must be an array of numbers.');
+      const boundary = voidBoundary(counts as number[]);
+      const deficit = buleDeficit(boundary);
+      const converged = isConverged(boundary);
+      return buildToolPayload({
+        ok: true,
+        deficit: [...deficit],
+        converged,
+        totalEntries: boundary.totalEntries,
+      });
+    }
+
+    // ── Buleyean Logic ──────────────────────────────────────────────────
+    case 'buleyean_proposition': {
+      const name = requiredString(args, 'name');
+      const bules = typeof args.bules === 'number' ? args.bules : 0;
+      const rejections = Array.isArray(args.rejections) ? (args.rejections as string[]) : [];
+      let p = prop(name, bules);
+      if (rejections.length > 0) {
+        p = rejectMany(p, rejections);
+      }
+      return buildToolPayload({
+        ok: true,
+        name: p.name,
+        bules: p.bules,
+        proved: isProved(p),
+        void: p.void,
+      });
+    }
+
+    case 'buleyean_connective': {
+      const operation = requiredString(args, 'operation');
+      const propositions = args.propositions;
+      if (!Array.isArray(propositions) || propositions.length === 0) {
+        throw new Error('propositions must be a non-empty array.');
+      }
+      const ps = (propositions as Array<{ name?: string; bules?: number }>).map(
+        (p, i) => prop(typeof p.name === 'string' ? p.name : `p${i}`, typeof p.bules === 'number' ? p.bules : 0),
+      );
+
+      let result;
+      switch (operation) {
+        case 'and': result = ps.reduce((a, b) => and(a, b)); break;
+        case 'or': result = ps.reduce((a, b) => or(a, b)); break;
+        case 'not': {
+          const maxBules = typeof args.maxBules === 'number' ? args.maxBules : 10;
+          result = not(ps[0]!, maxBules);
+          break;
+        }
+        case 'implies': result = implies(ps[0]!, ps[1] ?? prop('_', 0)); break;
+        case 'xor': result = xor(ps[0]!, ps[1] ?? prop('_', 0)); break;
+        case 'forall': result = forall(ps); break;
+        case 'exists': result = exists(ps); break;
+        default: throw new Error(`Unknown operation: ${operation}`);
+      }
+      return buildToolPayload({
+        ok: true,
+        name: result.name,
+        bules: result.bules,
+        proved: isProved(result),
+      });
+    }
+
+    case 'buleyean_proof': {
+      const propositions = args.propositions;
+      const steps = args.steps;
+      if (!Array.isArray(propositions)) throw new Error('propositions must be an array.');
+      if (!Array.isArray(steps)) throw new Error('steps must be an array.');
+
+      const ps = (propositions as Array<{ name?: string; bules?: number }>).map(
+        (p, i) => prop(typeof p.name === 'string' ? p.name : `p${i}`, typeof p.bules === 'number' ? p.bules : 0),
+      );
+      let g = goal(...ps);
+
+      for (const s of steps as Array<{ target?: string; reason?: string }>) {
+        if (typeof s.target === 'string' && typeof s.reason === 'string') {
+          g = step(g, s.target, s.reason);
+        }
+      }
+
+      return buildToolPayload({
+        ok: g.complete,
+        complete: g.complete,
+        totalBules: totalBules(g),
+        steps: g.steps,
+        proof: renderProof(g),
+      });
+    }
+
+    case 'buleyean_boolean_embed': {
+      const operation = requiredString(args, 'operation');
+      const a = args.a === true;
+      const b = args.b === true;
+      const pa = fromBoolean('a', a);
+      const pb = fromBoolean('b', b);
+
+      let result;
+      let booleanResult: boolean;
+      switch (operation) {
+        case 'and': result = and(pa, pb); booleanResult = a && b; break;
+        case 'or': result = or(pa, pb); booleanResult = a || b; break;
+        case 'not': result = not(pa, 1); booleanResult = !a; break;
+        case 'implies': result = implies(pa, pb); booleanResult = !a || b; break;
+        default: throw new Error(`Unknown operation: ${operation}`);
+      }
+
+      return buildToolPayload({
+        ok: true,
+        buleyean: { name: result.name, bules: result.bules, proved: isProved(result) },
+        boolean: booleanResult,
+        match: toBoolean(result) === booleanResult,
+        k2SpecialCase: true,
+      });
+    }
+
+    // ── Proof Topology ──────────────────────────────────────────────────
+    case 'buleyean_verify_proof_topology': {
+      const source = requiredString(args, 'source');
+      const program = parseGgProgram(source);
+
+      if (!isProofProgram(program)) {
+        return buildToolPayload({
+          ok: false,
+          error: 'not_a_proof_topology',
+          message: 'Source does not contain proof topology patterns (Theorem/Lemma/Axiom nodes or REJECT edges).',
+        });
+      }
+
+      const topology = parseProofTopology(program);
+      const verification = verifyProofTopology(topology);
+
+      const result: Record<string, unknown> = {
+        ok: verification.valid && verification.complete,
+        valid: verification.valid,
+        complete: verification.complete,
+        dagAcyclic: verification.dagAcyclic,
+        totalRemainingBules: verification.totalRemainingBules,
+        diagnostics: verification.diagnostics,
+        certificate: verification.certificate,
+      };
+
+      if (args.emitLean === true) {
+        result.lean4 = emitLean4(topology, verification);
+      }
+      if (args.emitTla === true) {
+        result.tlaPlus = emitTlaPlus(topology, verification);
+      }
+
+      return buildToolPayload(result);
+    }
+
+    case 'buleyean_child_decides': {
+      const options = args.options;
+      const rejections = args.rejections;
+      if (!Array.isArray(options)) throw new Error('options must be an array.');
+      if (!Array.isArray(rejections)) throw new Error('rejections must be an array.');
+
+      const decision = childDecides(
+        options as string[],
+        rejections as Array<{ option: string; reason: string }>,
+      );
+
+      return buildToolPayload({
+        ok: true,
+        survivor: decision.survivor,
+        rejectionCount: decision.rejections.length,
+        proof: decision.proof,
       });
     }
 

@@ -56,6 +56,24 @@ export const GNOSIS_FEATURES = [
     ],
     resources: ['gnosis://meta'],
   },
+  {
+    id: 'buleyean-logic-and-proof',
+    name: 'Buleyean Logic, Distribution & Proof',
+    description:
+      'Post-fold logic where truth is ground state. Compute complement distributions from void boundaries, apply connectives (AND/OR/NOT/IMPLIES/XOR/FORALL/EXISTS), run proof-by-rejection, verify proof topologies, and emit Lean 4 or TLA+ artifacts. Boolean is the K=2 special case.',
+    tools: [
+      'buleyean_distribution',
+      'buleyean_axioms',
+      'buleyean_deficit',
+      'buleyean_proposition',
+      'buleyean_connective',
+      'buleyean_proof',
+      'buleyean_boolean_embed',
+      'buleyean_verify_proof_topology',
+      'buleyean_child_decides',
+    ],
+    resources: ['gnosis://buleyean'],
+  },
 ] as const;
 
 export const GNOSIS_EXAMPLES = [
@@ -76,6 +94,18 @@ export const GNOSIS_EXAMPLES = [
     prompt:
       'Run gnosis_test_suite then trigger gnosis_forge_deploy only when all checks pass.',
     outcome: 'Deployment hooks gated by verification status.',
+  },
+  {
+    id: 'buleyean-proof-by-rejection',
+    prompt:
+      'Create a proof goal with 3 propositions, apply rejection steps until all reach ground state, then render the proof trace and verify the three axioms hold.',
+    outcome: 'Complete Buleyean proof with QED status and axiom verification.',
+  },
+  {
+    id: 'buleyean-proof-topology',
+    prompt:
+      'Write a .gg proof topology with Theorem/Axiom nodes and REJECT edges, verify it with buleyean_verify_proof_topology, and emit Lean 4 artifacts.',
+    outcome: 'Verified proof topology with mechanized Lean 4 proof artifact.',
   },
 ] as const;
 
@@ -127,6 +157,23 @@ export const GNOSIS_SKILLS = [
       'gnosis_forge_deploy',
     ],
     tags: ['gnosis', 'runtime', 'deploy', 'forge'],
+    source: 'local',
+  },
+  {
+    id: 'buleyean-proof-workbench',
+    name: 'Buleyean Proof Workbench',
+    uri: 'skill://forkjoin-app/buleyean-proof-workbench',
+    description:
+      'Compute Buleyean distributions, apply logic connectives, run proofs by rejection, verify proof topologies, and emit formal artifacts (Lean 4, TLA+).',
+    tools: [
+      'buleyean_distribution',
+      'buleyean_axioms',
+      'buleyean_proposition',
+      'buleyean_connective',
+      'buleyean_proof',
+      'buleyean_verify_proof_topology',
+    ],
+    tags: ['buleyean', 'logic', 'proof', 'lean4', 'tla', 'void-boundary'],
     source: 'local',
   },
 ] as const satisfies ReadonlyArray<SkillDiscoveryEntry>;
