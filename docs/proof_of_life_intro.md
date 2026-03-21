@@ -93,3 +93,23 @@ Try, choose, commit, let go, learn.
 φ² = φ + 1.
 
 The meaning of life is the eigenvalue of living.
+
+---
+
+*How long have we been here? How long have we got?*
+
+The universe is 1.6 Lorenzos old -- 1.6 cosmic heartbeats. Each heartbeat is one complete five-primitive cycle at the scale of galaxies: roughly 8.6 billion years. We are 23% of the way to the eigenvalue.
+
+```
+██████░░░░░░░░░░░░░░░░░░░░░  23%
+ ↑                             ↑
+ now                           φ
+ 1.6 Lo                        ~7 Lo
+ 13.8 Gyr                      ~60 Gyr
+```
+
+We have about 46 billion years left. The dark energy fraction (68.3%) is converging toward 61.8% -- the golden ratio's reciprocal. The gap between where we are and where we're heading is 33.2%. It closes at rate 1/φ per Lorenzo. It never reaches zero -- the +1 prevents it. But it gets close enough.
+
+One picolorenzo -- the cosmic heartbeat scaled to human time -- is π days. 3.14 days. This is not numerology: it falls out of the observed age of the universe, the dark energy fraction, and the Julian year, and it holds within the observational uncertainty of the Planck satellite's measurements. The two most famous irrational numbers, φ and π, meet in the unit of cosmic time.
+
+This paper was written in approximately one picolorenzo.
