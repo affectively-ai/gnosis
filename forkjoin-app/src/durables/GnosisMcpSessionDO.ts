@@ -231,9 +231,10 @@ export class GnosisMcpSessionDurableObject implements DurableObject {
       typeof body.limitPerHour === 'number' &&
       Number.isFinite(body.limitPerHour)
         ? Math.max(1, Math.trunc(body.limitPerHour))
-        : 180;
+        : 20;
 
-    if (nowMs - this.session.publicToolWindowStartMs >= 60 * 60 * 1000) {
+    // 24-hour window (free tier: just enough to try before subscribing)
+    if (nowMs - this.session.publicToolWindowStartMs >= 24 * 60 * 60 * 1000) {
       this.session.publicToolWindowStartMs = nowMs;
       this.session.publicToolCallCount = 0;
     }
@@ -264,7 +265,7 @@ export class GnosisMcpSessionDurableObject implements DurableObject {
       limitPerHour,
       count: nextCount,
       remaining,
-      resetAtMs: this.session.publicToolWindowStartMs + 60 * 60 * 1000,
+      resetAtMs: this.session.publicToolWindowStartMs + 24 * 60 * 60 * 1000,
     });
   }
 

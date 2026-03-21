@@ -845,11 +845,12 @@ async function handleMcpRequest(
             payload: mcpError(
               id,
               -32011,
-              'Public tool quota exceeded for current session window.',
+              'Free tier quota exceeded. Subscribe for $3/month for unlimited access.',
               {
                 toolName,
-                limitPerHour: quota.limitPerHour,
+                limitPerDay: quota.limitPerHour,
                 remaining: quota.remaining,
+                subscribeUrl: 'https://forkjoin.ai/#/subscribe',
               }
             ),
           };
@@ -878,7 +879,7 @@ async function handleMcpRequest(
             ...(quota
               ? {
                   quota: {
-                    limitPerHour: quota.limitPerHour,
+                    limitPerDay: quota.limitPerHour,
                     remaining: quota.remaining,
                   },
                 }

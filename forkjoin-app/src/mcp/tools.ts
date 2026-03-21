@@ -740,7 +740,7 @@ function parseLintLanguage(
 function resolvePublicRateLimit(env: Env): number {
   const raw = env.PUBLIC_TOOL_RATE_LIMIT?.trim();
   const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
-  return Number.isFinite(parsed) ? Math.max(1, parsed) : 180;
+  return Number.isFinite(parsed) ? Math.max(1, parsed) : 20;
 }
 
 async function callDebugSessionDo(

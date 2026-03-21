@@ -78,7 +78,7 @@ export function readGnosisResource(
               hasAuthSecret:
                 typeof env.MCP_AUTH_TOKEN === 'string' &&
                 env.MCP_AUTH_TOKEN.trim().length > 0,
-              publicToolRateLimitPerHour: env.PUBLIC_TOOL_RATE_LIMIT ?? '180',
+              publicToolRateLimitPerDay: env.PUBLIC_TOOL_RATE_LIMIT ?? '20',
             },
             null,
             2
