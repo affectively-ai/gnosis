@@ -2,16 +2,11 @@ import { Pipeline } from '@a0n/aeon-pipelines';
 import { QuantumWasmBridge } from './quantum/bridge.js';
 import { injectSensitiveZkEnvelopes } from '../auth/auto-zk.js';
 import { lowerUfcsSource } from '../ufcs.js';
-import { analyzeTopologyStability, type StabilityReport } from './stability.js';
-import { createDefaultOptimizer, type OptimizerResult } from './optimizer.js';
-import {
-  extractFiberPartition,
-  validatePartition,
-  synthesizeCoarsening,
-  type CoarseningSynthesisResult,
-} from './coarsen.js';
-import { analyzeSemanticCompatibility, type SemanticCompatibilityResult } from './semantic-compatibility.js';
-import { generateHopeCertificate, type HopeCertificate } from './semantic-hope.js';
+import type { StabilityReport } from './stability.js';
+import type { OptimizerResult } from './optimizer.js';
+import type { CoarseningSynthesisResult } from './coarsen.js';
+import type { SemanticCompatibilityResult } from './semantic-compatibility.js';
+import type { HopeCertificate } from './semantic-hope.js';
 import {
   parseNodeDeclarations,
   parseEdgeDeclarations,
@@ -19,6 +14,7 @@ import {
   parseNodeRefsFromEdgeGroup,
   IMPERATIVE_KEYWORD_REGEX,
 } from './parse-utils.js';
+import { runAllVerificationPasses } from './verify.js';
 
 export interface ASTNode {
   id: string;
@@ -478,61 +474,23 @@ export class BettyCompiler {
       });
     }
 
-    this.stability = analyzeTopologyStability(this.ast, this.b1);
-    if (this.stability) {
-      this.diagnostics.push(...this.stability.diagnostics);
+    // Run shared verification passes (stability, optimizer, coarsening, semantic, etc.)
+    const verification = runAllVerificationPasses(this.ast, this.b1);
+    this.ast = verification.ast;
+    this.stability = verification.stability;
+    this.optimizerResult = verification.optimizer;
+    this.coarseningSynthesisResult = verification.coarseningSynthesis;
+    this.semanticResult = verification.semanticCompatibility;
+    this.diagnostics.push(...verification.diagnostics);
 
-      // Run theorem-backed optimization passes after stability analysis
-      const optimizer = createDefaultOptimizer();
-      this.optimizerResult = optimizer.apply(this.ast, this.stability);
-      this.ast = this.optimizerResult.ast;
-      this.diagnostics.push(...this.optimizerResult.diagnostics);
-    }
-
-    // Coarsening synthesis pass -- extracts fiber partitions and aggregates drift
-    const partition = extractFiberPartition(this.ast);
-    if (partition && this.stability) {
-      const valDiags = validatePartition(partition, this.stability);
-      this.diagnostics.push(...valDiags);
-      if (!valDiags.some((d) => d.severity === 'error')) {
-        this.coarseningSynthesisResult = synthesizeCoarsening(
-          this.ast,
-          this.stability,
-          partition
-        );
-        this.diagnostics.push(...this.coarseningSynthesisResult.diagnostics);
-      }
-    }
-
-    // Phase 1: Compute void dimensions (sum of FORK branch counts)
-    const voidDimensions = this.computeVoidDimensions();
-
-    // Phase 2: Compute Landauer heat and check first law
-    const landauerHeat = this.computeLandauerHeat();
+    // Betty-specific checks that require compiler instance state
     this.checkFirstLaw();
-
-    // Phase 3: Buleyean positivity checks
     this.checkBuleyeanPositivity();
-
-    // Phase 4: Per-subgraph deficit analysis
-    const deficit = this.computeDeficitAnalysis();
-
-    // Phase 5: Entanglement dimension check
     this.checkEntangleDimensions();
-
-    // Phase 6: Self-verification annotations
     this.checkSelfVerificationAnnotations();
-
-    // Phase 7: Aleph completeness + entropy reversal
     this.checkAlephCompleteness();
     this.checkEntropyReversal();
-
-    // Phase 7.5: Validate semantic predicate annotations on nodes
     this.validateSemanticPredicates();
-
-    // Phase 8: Semantic compatibility analysis (cross-language type checking)
-    this.semanticResult = analyzeSemanticCompatibility(this.ast);
-    this.diagnostics.push(...this.semanticResult.diagnostics);
 
     const buleyMeasure = this.getBuleyMeasurement();
     const spectralSummary =
@@ -563,47 +521,16 @@ export class BettyCompiler {
       stability: this.stability,
       optimizer: this.optimizerResult,
       coarseningSynthesis: this.coarseningSynthesisResult,
-      voidDimensions,
-      landauerHeat,
-      deficit,
+      voidDimensions: verification.voidDimensions,
+      landauerHeat: verification.landauerHeat,
+      deficit: verification.deficit,
       semanticCompatibility: this.semanticResult,
-      hopeCertificate: this.semanticResult
-        ? generateHopeCertificate(this.ast, this.semanticResult)
-        : null,
+      hopeCertificate: verification.hopeCertificate,
     };
   }
 
   private parseProperties(propertiesRaw: string): Record<string, string> {
-    if (!propertiesRaw) {
-      return {};
-    }
-
-    const properties: Record<string, string> = {};
-    const pairs = propertiesRaw.match(
-      /(\w+)\s*:\s*('[^']*'|"[^"]*"|\[[^\]]*\]|[^,]+)/g
-    );
-    if (!pairs) {
-      return properties;
-    }
-
-    for (const pair of pairs) {
-      const separator = pair.indexOf(':');
-      if (separator < 0) {
-        continue;
-      }
-
-      const key = pair.slice(0, separator).trim();
-      const value = pair
-        .slice(separator + 1)
-        .trim()
-        .replace(/^['"]|['"]$/g, '');
-
-      if (key.length > 0 && value.length > 0) {
-        properties[key] = value;
-      }
-    }
-
-    return properties;
+    return parsePropertiesShared(propertiesRaw);
   }
 
   private checkTaggedNodeExhaustiveness(): void {
