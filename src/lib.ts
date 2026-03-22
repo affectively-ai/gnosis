@@ -1,3 +1,25 @@
+// buleyean-math — the mathematical kernel
+export {
+  PRIMITIVES,
+  type Primitive,
+  GNOSTIC,
+  PHI,
+  INV_PHI,
+  SQRT5,
+  fib,
+  triangular,
+  pairwise,
+  BOSONS,
+  type Boson,
+  type BosonFamily,
+  buleyeanWeight,
+  complementDistributionWeights,
+  pipelineEnergy,
+  isConfined,
+  verifyTripleCoincidence,
+  verifyCassini,
+} from './math.js';
+
 // Void primitives — the foundation everything reduces to
 export {
   // Boundary
