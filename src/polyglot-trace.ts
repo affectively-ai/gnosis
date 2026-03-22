@@ -174,7 +174,7 @@ export function buildExecutionTrace(
 
   // Determine if the error is topological or semantic.
   const hasVent = edgeTypes.includes('VENT');
-  const hasInterfere = edgeTypes.includes('INTERFERE');
+  const hasInterfere = edgeTypes.includes('SLIVER');
   const errorKind = hasVent || hasInterfere ? 'topological' : (failedNodeId ? 'semantic' : 'none');
 
   return {

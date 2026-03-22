@@ -328,7 +328,7 @@ describe('BettyCompiler', () => {
     const compiler = new BettyCompiler();
     const { diagnostics, b1 } = compiler.parse(`
             (origin)-[:FORK]->(left|middle|right)
-            (left|middle)-[:INTERFERE { mode: "destructive" }]->(repair)
+            (left|middle)-[:SLIVER { mode: "destructive" }]->(repair)
             (repair|right)-[:RACE { expect: "winner" }]->(winner)
         `);
 

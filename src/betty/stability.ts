@@ -1349,7 +1349,7 @@ function collectBranchReachability(
       const isConvergenceBarrier =
         (COLLAPSE_EDGE_TYPES.has(edgeType) ||
           edgeType === 'RACE' ||
-          edgeType === 'INTERFERE') &&
+          edgeType === 'SLIVER') &&
         edge.sourceIds.length > 1;
       if (isConvergenceBarrier) {
         continue;

@@ -25,7 +25,7 @@ export interface ASTNode {
 export interface ASTEdge {
   sourceIds: string[];
   targetIds: string[];
-  type: string; // FORK, RACE, FOLD, VENT, PROCESS, COLLAPSE, TUNNEL, INTERFERE, OBSERVE, LAMINAR, METACOG
+  type: string; // FORK, RACE, FOLD, VENT, PROCESS, COLLAPSE, TUNNEL, SLIVER, OBSERVE, LAMINAR, METACOG
   properties: Record<string, string>;
 }
 
@@ -114,9 +114,9 @@ const TRACE_SUPPORTING_EDGE_TYPES = new Set([
   'MEASURE',
   'METACOG',
   'RACE',
-  'INTERFERE',
+  'SLIVER',
 ]);
-const IMPLICIT_VENT_EDGE_TYPES = new Set(['RACE', 'INTERFERE']);
+const IMPLICIT_VENT_EDGE_TYPES = new Set(['RACE', 'SLIVER']);
 
 export class BettyCompiler {
   private b1 = 0;
@@ -226,7 +226,7 @@ export class BettyCompiler {
       'PROCESS',
       'COLLAPSE',
       'TUNNEL',
-      'INTERFERE',
+      'SLIVER',
       'LAMINAR',
       'MEASURE',
       'HALT',
@@ -376,7 +376,7 @@ export class BettyCompiler {
           // OBSERVE triggers collapse — reading forces superposition to resolve
           // The topology is append-only (no GC). beta1=0 means converged, not deleted.
           this.b1 = Math.max(0, this.b1 - (sources.length - 1));
-        } else if (edgeType === 'RACE' || edgeType === 'INTERFERE') {
+        } else if (edgeType === 'RACE' || edgeType === 'SLIVER') {
           this.b1 = Math.max(
             0,
             this.b1 - Math.max(0, sources.length - targets.length)
@@ -1587,7 +1587,7 @@ export class BettyCompiler {
         for (const t of edge.targetIds) {
           nodeB1.set(t.trim(), newB1);
         }
-      } else if (edge.type === 'RACE' || edge.type === 'INTERFERE') {
+      } else if (edge.type === 'RACE' || edge.type === 'SLIVER') {
         const newB1 = Math.max(
           0,
           sourceB1 - Math.max(0, edge.sourceIds.length - edge.targetIds.length)
@@ -1892,7 +1892,7 @@ export class BettyCompiler {
         edge.type === 'RACE' ||
         edge.type === 'SUPERPOSE' ||
         edge.type === 'VENT' ||
-        edge.type === 'INTERFERE'
+        edge.type === 'SLIVER'
       ) {
         return true;
       }

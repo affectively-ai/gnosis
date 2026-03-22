@@ -304,7 +304,7 @@ export function topologyActionForEdge(edgeType: string): string {
   if (normalized === 'FOLD' || normalized === 'COLLAPSE') return 'fold';
   if (normalized === 'VENT' || normalized === 'TUNNEL') return 'vent';
   if (normalized === 'OBSERVE') return 'observe';
-  if (normalized === 'INTERFERE') return 'interfere';
+  if (normalized === 'SLIVER' || normalized === 'INTERFERE') return 'sliver';
   if (normalized === 'ENTANGLE') return 'entangle';
   if (normalized === 'SUPERPOSE') return 'superpose';
   if (normalized === 'EVOLVE') return 'evolve';

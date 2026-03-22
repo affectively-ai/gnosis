@@ -56,7 +56,7 @@ export function analyzeDeficit(ast: GraphAST): DeficitReport {
       edge.type === 'OBSERVE'
     ) {
       newB1 = Math.max(0, sourceB1 - (edge.sourceIds.length - 1));
-    } else if (edge.type === 'RACE' || edge.type === 'INTERFERE') {
+    } else if (edge.type === 'RACE' || edge.type === 'SLIVER') {
       newB1 = Math.max(
         0,
         sourceB1 - Math.max(0, edge.sourceIds.length - edge.targetIds.length)

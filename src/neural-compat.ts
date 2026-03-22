@@ -165,7 +165,7 @@ export const TOPIC_DOMAIN_TRANSFORMER_TOPOLOGY = `
 (qkv_projection)-[:FORK]->(head_a | head_b | head_c | head_d)
 
 (head_a | head_b | head_c | head_d)-[:FOLD { strategy: 'concat', weight: '0.25' }]->(attention_mix)
-(attention_mix | topic_embedding)-[:INTERFERE { mode: 'constructive', weight: '0.5' }]->(topic_state)
+(attention_mix | topic_embedding)-[:SLIVER { mode: 'constructive', weight: '0.5' }]->(topic_state)
 (topic_state)-[:PROCESS]->(topic_logits)
 (topic_logits)-[:PROCESS]->(topic_distribution)
 `.trim();
@@ -341,7 +341,7 @@ function inferEdgeWeight(
   if (type === 'RACE') {
     return 0.75;
   }
-  if (type === 'INTERFERE') {
+  if (type === 'SLIVER') {
     return 0.5;
   }
   if (type === 'VENT' || type === 'TUNNEL') {

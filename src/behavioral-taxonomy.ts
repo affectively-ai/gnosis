@@ -172,7 +172,7 @@ export interface BehavioralLoopArtifactManifestEntry {
     structuralBeta1: number;
     forkEdgeCount: number;
     foldEdgeCount: number;
-    interfereEdgeCount: number;
+    sliverEdgeCount: number;
     maxBranchFactor: number;
   };
   tlaStats: GnosisTlaBridgeStats;
@@ -376,7 +376,7 @@ function renderNodeWithProperties(
 
 function renderEdge(
   sources: string[],
-  edgeType: 'PROCESS' | 'FORK' | 'FOLD' | 'INTERFERE',
+  edgeType: 'PROCESS' | 'FORK' | 'FOLD' | 'SLIVER',
   targets: string[],
   properties?: string
 ): string {
@@ -870,7 +870,7 @@ export function buildBehavioralTaxonomyTopology(
       dependency.type === 'prerequisite' ? 'given' : 'when'
     );
     const edgeType =
-      dependency.type === 'prerequisite' ? 'PROCESS' : 'INTERFERE';
+      dependency.type === 'prerequisite' ? 'PROCESS' : 'SLIVER';
     const relation = JSON.stringify(dependency.type);
     edgeLines.push(
       renderEdge(
@@ -1404,7 +1404,7 @@ export function buildBehavioralLoopExecutionTopology(
     edgeLines.push(
       renderEdge(
         [interventionNode.nodeId],
-        'INTERFERE',
+        'SLIVER',
         [targetNodeId],
         `mode: ${JSON.stringify(mode)}`
       )
@@ -1513,7 +1513,7 @@ async function buildBehavioralLoopArtifactManifest(
           structuralBeta1: report.topology.structuralBeta1,
           forkEdgeCount: report.topology.forkEdgeCount,
           foldEdgeCount: report.topology.foldEdgeCount,
-          interfereEdgeCount: report.topology.interfereEdgeCount,
+          sliverEdgeCount: report.topology.sliverEdgeCount,
           maxBranchFactor: report.topology.maxBranchFactor,
         },
         tlaStats: tlaBridge.stats,

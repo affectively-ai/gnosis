@@ -230,7 +230,7 @@ async function handleTopology(
       edge.type === 'OBSERVE'
     ) {
       b1 = Math.max(0, b1 - (edge.sourceIds.length - 1));
-    } else if (edge.type === 'RACE' || edge.type === 'INTERFERE') {
+    } else if (edge.type === 'RACE' || edge.type === 'SLIVER') {
       b1 = Math.max(
         0,
         b1 - Math.max(0, edge.sourceIds.length - edge.targetIds.length)

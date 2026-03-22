@@ -146,7 +146,7 @@ describe('behavioral taxonomy measurement', () => {
       '(loop_1_result)-[:PROCESS { relation: "prerequisite" }]->(loop_2_given)'
     );
     expect(topology).toContain(
-      '(loop_1_result)-[:INTERFERE { relation: "enhances" }]->(loop_2_when)'
+      '(loop_1_result)-[:SLIVER { relation: "enhances" }]->(loop_2_when)'
     );
     expect(topology).toContain(
       '(behavioral_taxonomy_summary: TaxonomySummary)'
@@ -160,7 +160,7 @@ describe('behavioral taxonomy measurement', () => {
     expect(measurement.report.buleyNumber).toBeGreaterThan(0);
     expect(measurement.report.topology.nodeCount).toBeGreaterThan(10);
     expect(measurement.report.topology.forkEdgeCount).toBeGreaterThan(0);
-    expect(measurement.report.topology.interfereEdgeCount).toBeGreaterThan(0);
+    expect(measurement.report.topology.sliverEdgeCount).toBeGreaterThan(0);
   });
 
   test('builds an executable loop topology with intervention pressure', () => {
@@ -176,7 +176,7 @@ describe('behavioral taxonomy measurement', () => {
       '(loop_2_context)-[:FORK { strategy: "behavior-branches" }]->('
     );
     expect(executableTopology).toContain(
-      '(loop_2_intervention_interdict)-[:INTERFERE { mode: "destructive" }]->(loop_2_then_branch)'
+      '(loop_2_intervention_interdict)-[:SLIVER { mode: "destructive" }]->(loop_2_then_branch)'
     );
   });
 

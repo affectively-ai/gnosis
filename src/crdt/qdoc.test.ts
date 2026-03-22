@@ -288,7 +288,7 @@ describe('QDoc sync protocol', () => {
   });
 });
 
-describe('QDoc presence (INTERFERE)', () => {
+describe('QDoc presence (SLIVER)', () => {
   test('set and get presence', () => {
     const doc = new QDoc();
 

@@ -14,7 +14,7 @@ const VALID_PRIMITIVES = [
   'FOLD',
   'VENT',
   'PROCESS',
-  'INTERFERE',
+  'SLIVER',
   'COLLAPSE',
   'LAMINAR',
   'OBSERVE',

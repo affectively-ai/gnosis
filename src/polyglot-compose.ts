@@ -767,7 +767,7 @@ export function computeBetaCost(func: ExtractedFunction): {
       case 'VENT':
         edgeBeta = 1; // Deficit = 1 per vent
         break;
-      case 'INTERFERE':
+      case 'SLIVER':
         edgeBeta = 1; // Lock contention = 1
         break;
       default:

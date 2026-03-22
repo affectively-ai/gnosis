@@ -1845,13 +1845,13 @@ async function main() {
             `  lines: total=${report.line.totalLines} non-empty=${report.line.nonEmptyLines} comments=${report.line.commentLines} topology=${report.line.topologyLines}`
           );
           console.log(
-            `  topology: nodes=${report.topology.nodeCount} functions=${report.topology.functionNodeCount} edges=${report.topology.edgeCount} forks=${report.topology.forkEdgeCount} races=${report.topology.raceEdgeCount} folds=${report.topology.foldEdgeCount} vents=${report.topology.ventEdgeCount} interfere=${report.topology.interfereEdgeCount}`
+            `  topology: nodes=${report.topology.nodeCount} functions=${report.topology.functionNodeCount} edges=${report.topology.edgeCount} forks=${report.topology.forkEdgeCount} races=${report.topology.raceEdgeCount} folds=${report.topology.foldEdgeCount} vents=${report.topology.ventEdgeCount} interfere=${report.topology.sliverEdgeCount}`
           );
           console.log(
             `  complexity: max-branch=${report.topology.maxBranchFactor} avg-branch=${report.topology.avgBranchFactor} cyclomatic≈${report.topology.cyclomaticApprox}`
           );
           console.log(
-            `  quantum: superposition=${report.quantum.superpositionEdgeCount} collapse=${report.quantum.collapseEdgeCount} coverage=${report.quantum.collapseCoverage} deficit=${report.quantum.collapseDeficit} interference-density=${report.quantum.interferenceDensity}`
+            `  quantum: superposition=${report.quantum.superpositionEdgeCount} collapse=${report.quantum.collapseEdgeCount} coverage=${report.quantum.collapseCoverage} deficit=${report.quantum.collapseDeficit} sliver-density=${report.quantum.sliverDensity}`
           );
           console.log(
             `  quantum-index: ${report.quantum.quantumIndex} beta-pressure=${report.quantum.betaPressure} beta-headroom=${report.quantum.betaHeadroom}`

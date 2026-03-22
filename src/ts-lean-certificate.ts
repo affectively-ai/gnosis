@@ -166,7 +166,7 @@ inductive EdgeType where
   | fold : EdgeType
   | race : EdgeType
   | vent : EdgeType
-  | interfere : EdgeType
+  | sliver : EdgeType
   | observe : EdgeType
   deriving DecidableEq, Repr
 

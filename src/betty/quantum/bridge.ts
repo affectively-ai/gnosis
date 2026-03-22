@@ -66,7 +66,7 @@ export class QuantumWasmBridge {
       case 'TUNNEL':
         flags = 0b00001000;
         break;
-      case 'INTERFERE':
+      case 'SLIVER':
         flags = 0b00100000;
         break;
       case 'OBSERVE':

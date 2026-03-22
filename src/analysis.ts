@@ -50,7 +50,7 @@ export interface GnosisTopologyMetrics {
   raceEdgeCount: number;
   foldEdgeCount: number;
   ventEdgeCount: number;
-  interfereEdgeCount: number;
+  sliverEdgeCount: number;
   processEdgeCount: number;
   observeEdgeCount: number;
   maxBranchFactor: number;
@@ -63,7 +63,7 @@ export interface GnosisQuantumMetrics {
   collapseEdgeCount: number;
   collapseCoverage: number;
   collapseDeficit: number;
-  interferenceDensity: number;
+  sliverDensity: number;
   betaPressure: number;
   betaHeadroom: number;
   quantumIndex: number;
@@ -370,8 +370,8 @@ function buildTopologyMetrics(program: ParsedGgProgram): GnosisTopologyMetrics {
   const ventEdgeCount = edgeTypes.filter(
     (type) => type === 'VENT' || type === 'TUNNEL'
   ).length;
-  const interfereEdgeCount = edgeTypes.filter(
-    (type) => type === 'INTERFERE'
+  const sliverEdgeCount = edgeTypes.filter(
+    (type) => type === 'SLIVER'
   ).length;
   const processEdgeCount = edgeTypes.filter(
     (type) => type === 'PROCESS'
@@ -410,7 +410,7 @@ function buildTopologyMetrics(program: ParsedGgProgram): GnosisTopologyMetrics {
     raceEdgeCount,
     foldEdgeCount,
     ventEdgeCount,
-    interfereEdgeCount,
+    sliverEdgeCount,
     processEdgeCount,
     observeEdgeCount,
     maxBranchFactor,
@@ -588,7 +588,7 @@ function buildFailureTrilemmaMetrics(
       case 'TUNNEL':
         stage.ventCost += expandedWeight;
         break;
-      case 'INTERFERE':
+      case 'SLIVER':
         stage.repairDebt += expandedWeight;
         break;
       case 'FOLD':
@@ -609,7 +609,7 @@ function buildFailureTrilemmaMetrics(
     (topology.foldEdgeCount > 0 || topology.raceEdgeCount > 0);
   const singleTerminalObserved = terminalNodeCount <= 1;
   const ventCostEdges = topology.ventEdgeCount;
-  const repairCostEdges = topology.interfereEdgeCount;
+  const repairCostEdges = topology.sliverEdgeCount;
   const totalVentCost = stageCosts.reduce(
     (sum, stage) => sum + stage.ventCost,
     0
@@ -850,7 +850,7 @@ function buildQuantumMetrics(
   correctness: CheckerResult<GgTopologyState>
 ): GnosisQuantumMetrics {
   const superpositionEdgeCount =
-    topology.forkEdgeCount + topology.interfereEdgeCount;
+    topology.forkEdgeCount + topology.sliverEdgeCount;
   // OBSERVE is a collapse operation — reading forces superposition to resolve
   const collapseEdgeCount =
     topology.raceEdgeCount +
@@ -865,13 +865,13 @@ function buildQuantumMetrics(
     0,
     topology.forkEdgeCount - collapseEdgeCount
   );
-  const interferenceDensity =
+  const sliverDensity =
     topology.edgeCount === 0
       ? 0
-      : round2(topology.interfereEdgeCount / topology.edgeCount);
+      : round2(topology.sliverEdgeCount / topology.edgeCount);
   const betaPressure = round2(
     topology.maxBranchFactor * Math.max(1, topology.forkEdgeCount) +
-      topology.interfereEdgeCount * 1.5 +
+      topology.sliverEdgeCount * 1.5 +
       correctness.topology.beta1
   );
   const betaHeadroom = round2(Math.max(0, 10 - correctness.topology.beta1));
@@ -879,7 +879,7 @@ function buildQuantumMetrics(
     betaPressure +
       collapseDeficit * 2 +
       Math.max(0, 1 - collapseCoverage) * 4 +
-      interferenceDensity * 5
+      sliverDensity * 5
   );
 
   return {
@@ -887,7 +887,7 @@ function buildQuantumMetrics(
     collapseEdgeCount,
     collapseCoverage,
     collapseDeficit,
-    interferenceDensity,
+    sliverDensity,
     betaPressure,
     betaHeadroom,
     quantumIndex,
@@ -902,7 +902,7 @@ function computeBuleyNumber(
   const branchComponent =
     topology.forkEdgeCount * 2.3 +
     topology.raceEdgeCount * 1.6 +
-    topology.interfereEdgeCount * 1.4 +
+    topology.sliverEdgeCount * 1.4 +
     topology.maxBranchFactor * 1.1;
   const collapsePenalty =
     Math.max(

@@ -12,7 +12,7 @@
  *   - Topology delta encoding (replaces Y.encodeStateAsUpdate)
  *   - Topology delta application (replaces Y.applyUpdate)
  *   - Observable changes (replaces Y.Doc.on('update'))
- *   - INTERFERE-based presence (replaces Awareness)
+ *   - SLIVER-based presence (replaces Awareness)
  *
  * The internal representation is a GG topology. Every mutation
  * appends a FORK branch. Every read triggers OBSERVE (collapse).
@@ -182,7 +182,7 @@ export class QDoc {
   private _xmlFragments: Map<string, QXmlFragment> = new Map();
   private _counters: Map<string, QCounter> = new Map();
 
-  // Presence (INTERFERE — never collapses)
+  // Presence (SLIVER — never collapses)
   private _presence: Map<string, Record<string, unknown>> = new Map();
   private _presenceHandlers: Set<
     (states: Map<string, Record<string, unknown>>) => void
@@ -794,11 +794,11 @@ export class QDoc {
     this._observeHandlers.get(path)?.delete(handler);
   }
 
-  // ── Presence (INTERFERE — never collapses) ─────────────────────────────
+  // ── Presence (SLIVER — never collapses) ─────────────────────────────
 
   /**
    * Set local presence state (replaces awareness.setLocalState).
-   * Presence uses INTERFERE — it never collapses, cursors coexist.
+   * Presence uses SLIVER — it never collapses, cursors coexist.
    */
   setPresence(state: Record<string, unknown>): void {
     this._presence.set(this._replicaId, state);
@@ -813,7 +813,7 @@ export class QDoc {
   }
 
   /**
-   * Apply remote presence (INTERFERE — append, never merge).
+   * Apply remote presence (SLIVER — append, never merge).
    */
   applyPresence(replicaId: string, state: Record<string, unknown>): void {
     this._presence.set(replicaId, state);

@@ -887,7 +887,7 @@ function shootoutCompiler(
       if (edge.type === 'FORK') b1 += edge.targetIds.length - 1;
       else if (edge.type === 'FOLD' || edge.type === 'COLLAPSE' || edge.type === 'OBSERVE')
         b1 = Math.max(0, b1 - (edge.sourceIds.length - 1));
-      else if (edge.type === 'RACE' || edge.type === 'INTERFERE')
+      else if (edge.type === 'RACE' || edge.type === 'SLIVER')
         b1 = Math.max(0, b1 - Math.max(0, edge.sourceIds.length - edge.targetIds.length));
       else if (edge.type === 'VENT') b1 = Math.max(0, b1 - 1);
     }

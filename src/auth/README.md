@@ -24,7 +24,7 @@ When `executionAuth.enforce=true`, runtime edges require UCAN capabilities:
 - `FOLD` / `COLLAPSE` -> `aeon/fold`
 - `VENT` / `TUNNEL` -> `aeon/vent`
 - `OBSERVE` -> `aeon/observe`
-- `INTERFERE` -> `aeon/interfere`
+- `SLIVER` -> `aeon/interfere`
 - `ENTANGLE` -> `aeon/entangle`
 - `SUPERPOSE` -> `aeon/superpose`
 - `EVOLVE` -> `aeon/evolve`

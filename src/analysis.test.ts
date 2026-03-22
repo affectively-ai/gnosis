@@ -191,7 +191,7 @@ describe('Gnosis analysis steering', () => {
     const repairPaid = await analyzeGnosisSource(
       [
         '(start)-[:FORK]->(left|right)',
-        '(left)-[:INTERFERE]->(repair)',
+        '(left)-[:SLIVER]->(repair)',
         '(repair|right)-[:FOLD]->(finish)',
       ].join('\n')
     );

@@ -5,7 +5,7 @@ const FLOW_FLAG_FORK = 0b00000001;
 const FLOW_FLAG_RACE = 0b00000010;
 const FLOW_FLAG_FOLD = 0b00000100;
 const FLOW_FLAG_VENT = 0b00001000;
-const FLOW_FLAG_INTERFERE = 0b00100000;
+const FLOW_FLAG_SLIVER = 0b00100000;
 
 const FLOW_HEADER_SIZE = 10;
 const FLOW_STREAM_ID = 1;
@@ -224,8 +224,8 @@ export class GnosisNativeRuntime {
       case 'VENT':
       case 'TUNNEL':
         return FLOW_FLAG_VENT;
-      case 'INTERFERE':
-        return FLOW_FLAG_INTERFERE;
+      case 'SLIVER':
+        return FLOW_FLAG_SLIVER;
       default:
         return null;
     }
