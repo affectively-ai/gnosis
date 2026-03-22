@@ -59,9 +59,9 @@ export function parseNodeDeclarations(line: string): ParsedNode[] {
   if (line.includes('-[:')) return [];
 
   const nodes: ParsedNode[] = [];
-  const regex = new RegExp(NODE_REGEX.source, NODE_REGEX.flags);
+  NODE_REGEX.lastIndex = 0;
   let match;
-  while ((match = regex.exec(line)) !== null) {
+  while ((match = NODE_REGEX.exec(line)) !== null) {
     const id = match[1].trim();
     if (!id || id.includes('|')) continue;
     nodes.push({
@@ -78,9 +78,9 @@ export function parseNodeDeclarations(line: string): ParsedNode[] {
  */
 export function parseEdgeDeclarations(line: string): ParsedEdge[] {
   const edges: ParsedEdge[] = [];
-  const regex = new RegExp(EDGE_REGEX.source, EDGE_REGEX.flags);
+  EDGE_REGEX.lastIndex = 0;
   let match;
-  while ((match = regex.exec(line)) !== null) {
+  while ((match = EDGE_REGEX.exec(line)) !== null) {
     edges.push({
       sourceRaw: match[1].trim(),
       edgeType: match[2].trim(),
@@ -127,8 +127,8 @@ export function parseNodeRefsFromEdgeGroup(
   group: string
 ): ParsedNode[] {
   return group.split('|').map((segment) => {
-    const regex = new RegExp(NODE_IN_EDGE_REGEX.source, NODE_IN_EDGE_REGEX.flags);
-    const nm = regex.exec(segment.trim());
+    NODE_IN_EDGE_REGEX.lastIndex = 0;
+    const nm = NODE_IN_EDGE_REGEX.exec(segment.trim());
     if (!nm) return { id: segment.trim(), label: '', propertiesRaw: '' };
     return {
       id: nm[1].trim(),

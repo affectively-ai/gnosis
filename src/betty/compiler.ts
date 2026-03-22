@@ -324,39 +324,44 @@ export class BettyCompiler {
       let lineMatched = parsedEdges.length > 0;
 
       for (const pe of parsedEdges) {
-        const sourceRaw = pe.sourceRaw;
         const edgeType = pe.edgeType;
         const propertiesRaw = pe.propertiesRaw;
-        const targetRaw = pe.targetRaw;
 
-        const sources = sourceRaw.split('|').map((s) => s.split(':')[0].trim());
-        const targets = targetRaw.split('|').map((s) => s.split(':')[0].trim());
+        // Parse node refs once, extract IDs from the same pass (no redundant split)
+        const sourceRefs = parseNodeRefsFromEdgeGroup(pe.sourceRaw);
+        const targetRefs = parseNodeRefsFromEdgeGroup(pe.targetRaw);
+        const sources = sourceRefs.map((ref) => ref.id);
+        const targets = targetRefs.map((ref) => ref.id);
 
-        // Create nodes if they don't exist
-        for (const ref of parseNodeRefsFromEdgeGroup(sourceRaw)) {
-          const properties = this.parseProperties(ref.propertiesRaw);
+        // Create/merge nodes from refs in a single pass
+        for (const ref of sourceRefs) {
           if (!this.ast.nodes.has(ref.id)) {
             this.ast.nodes.set(ref.id, {
               id: ref.id,
               labels: ref.label ? [ref.label] : [],
-              properties,
+              properties: ref.propertiesRaw ? this.parseProperties(ref.propertiesRaw) : {},
             });
-          } else if (Object.keys(properties).length > 0) {
-            const existing = this.ast.nodes.get(ref.id)!;
-            existing.properties = { ...existing.properties, ...properties };
+          } else if (ref.propertiesRaw) {
+            const properties = this.parseProperties(ref.propertiesRaw);
+            if (Object.keys(properties).length > 0) {
+              const existing = this.ast.nodes.get(ref.id)!;
+              existing.properties = { ...existing.properties, ...properties };
+            }
           }
         }
-        for (const ref of parseNodeRefsFromEdgeGroup(targetRaw)) {
-          const properties = this.parseProperties(ref.propertiesRaw);
+        for (const ref of targetRefs) {
           if (!this.ast.nodes.has(ref.id)) {
             this.ast.nodes.set(ref.id, {
               id: ref.id,
               labels: ref.label ? [ref.label] : [],
-              properties,
+              properties: ref.propertiesRaw ? this.parseProperties(ref.propertiesRaw) : {},
             });
-          } else if (Object.keys(properties).length > 0) {
-            const existing = this.ast.nodes.get(ref.id)!;
-            existing.properties = { ...existing.properties, ...properties };
+          } else if (ref.propertiesRaw) {
+            const properties = this.parseProperties(ref.propertiesRaw);
+            if (Object.keys(properties).length > 0) {
+              const existing = this.ast.nodes.get(ref.id)!;
+              existing.properties = { ...existing.properties, ...properties };
+            }
           }
         }
 
@@ -419,14 +424,7 @@ export class BettyCompiler {
           properties: edgeProperties,
         });
 
-        sources.forEach((id) => {
-          if (!this.ast.nodes.has(id))
-            this.ast.nodes.set(id, { id, labels: [], properties: {} });
-        });
-        targets.forEach((id) => {
-          if (!this.ast.nodes.has(id))
-            this.ast.nodes.set(id, { id, labels: [], properties: {} });
-        });
+        // Node creation already handled by sourceRefs/targetRefs above
       }
 
       if (!lineMatched && !line.startsWith('(')) {

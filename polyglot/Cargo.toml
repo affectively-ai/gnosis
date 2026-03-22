@@ -8,6 +8,10 @@ description = "Universal bug detection via topological verification -- tree-sitt
 name = "gnosis-polyglot"
 path = "src/main.rs"
 
+[[bin]]
+name = "becky"
+path = "src/becky_cli.rs"
+
 [lib]
 name = "gnosis_polyglot"
 path = "src/lib.rs"

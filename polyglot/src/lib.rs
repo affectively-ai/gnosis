@@ -1,7 +1,12 @@
+pub mod becky;
 pub mod cfg;
 pub mod diagnostics;
 pub mod extractors;
+pub mod framework_compiler;
+pub mod framework_recognizer;
+pub mod framework_recognizers;
 pub mod gg_compiler;
+pub mod gg_parser;
 pub mod semantic_bridge;
 pub mod serialization;
 pub mod source_map;
@@ -231,3 +236,53 @@ fn parse_with_extractor_orchestration(
         },
     })
 }
+
+/// Parse and extract in framework mode (Ditto).
+///
+/// Detects server frameworks (Express, Flask, Gin, Hono, Sinatra, Spring)
+/// from source code, extracts routes/middleware, and compiles to a server
+/// topology. Falls back to orchestration mode if no framework is detected.
+///
+/// This is the Ditto entry point: assume whatever interface the developer
+/// already knows. The diversity theorem guarantees this is optimal.
+pub fn parse_and_extract_framework(
+    source: &str,
+    file_path: &str,
+) -> Result<FrameworkDetectionResult> {
+    use crate::framework_recognizer::{detect_framework, FrameworkDetectionResult};
+
+    let extractor = extractor_for_file(file_path);
+    let ext = match extractor {
+        Some(ext) => ext,
+        None => bail!(
+            "no extractor for file: {}. Supported: {}",
+            file_path,
+            extractors::supported_languages().join(", ")
+        ),
+    };
+
+    // Extract CFGs first (needed by both framework detection and fallback).
+    let cfgs = ext.extract(source, file_path).unwrap_or_default();
+
+    // Try framework detection.
+    let framework_topology = detect_framework(source, file_path, &cfgs);
+
+    // Build the standard scan result regardless.
+    let scan_result = parse_with_extractor(source, file_path, ext.as_ref())?;
+
+    Ok(FrameworkDetectionResult {
+        topology: framework_topology,
+        scan_result,
+    })
+}
+
+/// Convenience: parse, detect framework, and compile to GG server topology.
+/// Returns the compiled .gg source string if a framework is detected.
+pub fn ditto_compile(source: &str, file_path: &str) -> Result<Option<String>> {
+    let result = parse_and_extract_framework(source, file_path)?;
+    Ok(result.topology.map(|ft| {
+        framework_compiler::compile_framework_to_gg(&ft)
+    }))
+}
+
+use crate::framework_recognizer::FrameworkDetectionResult;

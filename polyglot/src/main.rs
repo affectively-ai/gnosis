@@ -19,6 +19,9 @@ enum ScanMode {
     Analysis,
     /// Orchestration mode: emit topologies with PolyglotBridge* labels + execution manifest.
     Orchestration,
+    /// Framework mode (Ditto): detect server frameworks, extract routes, compile to server topology.
+    /// Assumes the interface of Express, Flask, Gin, Hono, Sinatra, Spring, etc.
+    Framework,
 }
 
 #[derive(Debug, Parser)]
@@ -49,6 +52,23 @@ struct Cli {
     /// Scan mode: analysis (default) or orchestration (for execution).
     #[arg(long, value_enum, default_value_t = ScanMode::Analysis)]
     mode: ScanMode,
+
+    /// Parse a .gg topology file (instead of scanning source code).
+    /// Outputs the parsed AST as JSON with node/edge counts and beta-1.
+    #[arg(long, default_value_t = false)]
+    parse_gg: bool,
+
+    /// When using --parse-gg, only print the beta-1 number.
+    #[arg(long, default_value_t = false)]
+    beta1: bool,
+
+    /// When using --parse-gg, benchmark N iterations and print timing.
+    #[arg(long)]
+    bench: Option<usize>,
+
+    /// Run Becky (full Rust compiler): parse + validate + beta-1 + diagnostics.
+    #[arg(long, default_value_t = false)]
+    compile: bool,
 }
 
 fn main() {
@@ -61,11 +81,112 @@ fn main() {
 fn run() -> Result<()> {
     let cli = Cli::parse();
 
+    if cli.compile {
+        return compile_gg_file(&cli);
+    }
+
+    if cli.parse_gg {
+        return parse_gg_file(&cli);
+    }
+
     if cli.path.is_dir() {
         scan_directory(&cli)
     } else {
         scan_file(&cli, &cli.path)
     }
+}
+
+fn compile_gg_file(cli: &Cli) -> Result<()> {
+    let source = fs::read_to_string(&cli.path)
+        .with_context(|| format!("reading {}", cli.path.display()))?;
+
+    if let Some(iterations) = cli.bench {
+        use std::time::Instant;
+        for _ in 0..10 {
+            let _ = gnosis_polyglot::becky::compile(&source);
+        }
+        let start = Instant::now();
+        for _ in 0..iterations {
+            let _ = gnosis_polyglot::becky::compile(&source);
+        }
+        let elapsed = start.elapsed();
+        let per_iter_ns = elapsed.as_nanos() as f64 / iterations as f64;
+        let result = gnosis_polyglot::becky::compile(&source);
+        println!(
+            "{}ns/iter ({:.3}us) | {} iterations | {} nodes {} edges | beta1={} | {} diagnostics | void_dims={} landauer={:.3} deficit={}",
+            per_iter_ns as u64,
+            per_iter_ns / 1000.0,
+            iterations,
+            result.program.nodes.len(),
+            result.program.edges.len(),
+            result.beta1,
+            result.diagnostics.len(),
+            result.void_dimensions,
+            result.landauer_heat,
+            result.total_deficit,
+        );
+        return Ok(());
+    }
+
+    let result = gnosis_polyglot::becky::compile(&source);
+    println!("{}", serde_json::to_string_pretty(&result)?);
+    Ok(())
+}
+
+fn parse_gg_file(cli: &Cli) -> Result<()> {
+    let source = fs::read_to_string(&cli.path)
+        .with_context(|| format!("reading {}", cli.path.display()))?;
+
+    if let Some(iterations) = cli.bench {
+        use std::time::Instant;
+        // Warmup
+        for _ in 0..10 {
+            let _ = gnosis_polyglot::gg_parser::parse_gg(&source);
+        }
+        let start = Instant::now();
+        for _ in 0..iterations {
+            let _ = gnosis_polyglot::gg_parser::parse_gg(&source);
+        }
+        let elapsed = start.elapsed();
+        let per_iter_ns = elapsed.as_nanos() as f64 / iterations as f64;
+        let program = gnosis_polyglot::gg_parser::parse_gg(&source);
+        println!(
+            "{}ns/iter ({:.3}us) | {} iterations | {} nodes {} edges | beta1={}",
+            per_iter_ns as u64,
+            per_iter_ns / 1000.0,
+            iterations,
+            program.nodes.len(),
+            program.edges.len(),
+            gnosis_polyglot::gg_parser::compute_beta1(&program)
+        );
+        return Ok(());
+    }
+
+    let program = gnosis_polyglot::gg_parser::parse_gg(&source);
+    let beta1 = gnosis_polyglot::gg_parser::compute_beta1(&program);
+
+    if cli.beta1 {
+        println!("{beta1}");
+        return Ok(());
+    }
+
+    #[derive(serde::Serialize)]
+    struct ParseResult {
+        nodes: usize,
+        edges: usize,
+        beta1: i64,
+        program: gnosis_polyglot::gg_parser::GgProgram,
+    }
+
+    let result = ParseResult {
+        nodes: program.nodes.len(),
+        edges: program.edges.len(),
+        beta1,
+        program,
+    };
+
+    println!("{}", serde_json::to_string_pretty(&result)?);
+    Ok(())
 }
 
 fn scan_directory(cli: &Cli) -> Result<()> {
@@ -153,6 +274,11 @@ fn scan_file(cli: &Cli, file_path: &PathBuf) -> Result<()> {
     // Orchestration mode: produce execution-ready output.
     if matches!(cli.mode, ScanMode::Orchestration) {
         return scan_file_orchestration(cli, file_path);
+    }
+
+    // Framework mode (Ditto): detect framework, extract routes, compile to server GG.
+    if matches!(cli.mode, ScanMode::Framework) {
+        return scan_file_framework(cli, file_path);
     }
 
     let result = scan_file_inner(file_path)?;
@@ -261,6 +387,65 @@ fn scan_file_orchestration(cli: &Cli, file_path: &PathBuf) -> Result<()> {
             eprintln!("--- {} ---", topo.function_name);
             eprintln!("{}", topo.gg_source);
         }
+    }
+
+    if !result.scan_result.errors.is_empty() {
+        for err in &result.scan_result.errors {
+            eprintln!("error: {}", err.message);
+        }
+        std::process::exit(1);
+    }
+
+    Ok(())
+}
+
+fn scan_file_framework(cli: &Cli, file_path: &PathBuf) -> Result<()> {
+    let source = fs::read_to_string(file_path)
+        .with_context(|| format!("failed to read {}", file_path.display()))?;
+
+    let path_str = file_path.to_string_lossy();
+    let result = gnosis_polyglot::parse_and_extract_framework(&source, &path_str)?;
+
+    match cli.format {
+        OutputFormat::Json => {
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+        OutputFormat::Gg => {
+            if let Some(ref ft) = result.topology {
+                // Compile framework topology to GG server topology.
+                let gg = gnosis_polyglot::framework_compiler::compile_framework_to_gg(ft);
+                println!("{}", gg);
+            } else {
+                // No framework detected -- fall back to standard GG output.
+                for topo in &result.scan_result.topologies {
+                    if let Some(ref filter_fn) = cli.function {
+                        if &topo.function_name != filter_fn {
+                            continue;
+                        }
+                    }
+                    println!("{}", topo.gg_source);
+                }
+            }
+        }
+        OutputFormat::Sarif => {
+            // Framework mode doesn't support SARIF; fall back to JSON.
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+    }
+
+    if let Some(ref ft) = result.topology {
+        eprintln!(
+            "ditto: detected {} ({}) -- {} routes, {} middleware",
+            ft.framework,
+            ft.language,
+            ft.routes.len(),
+            ft.middleware.len()
+        );
+        if let Some(port) = ft.listen_port {
+            eprintln!("ditto: listen port {}", port);
+        }
+    } else {
+        eprintln!("ditto: no framework detected in {}", file_path.display());
     }
 
     if !result.scan_result.errors.is_empty() {

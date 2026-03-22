@@ -1,10 +1,41 @@
 # Gnosis
 
-A graph-first language and toolchain. Every `.gg` program is a topology -- a directed graph whose edges carry the semantics of `FORK`, `RACE`, `FOLD`, `VENT`, `PROCESS`, and `INTERFERE`. The compiler (Betty) computes the Betti number, audits thermodynamic stability, and emits proof artifacts in Lean 4 and TLA+. The runtime executes the same topology it checks.
-
-One `.gg` file can move through writing, checking, testing, running, native execution, TLA+ output, Lean artifact generation, and benchmarks without changing formats.
+A graph-first language and toolchain. Every `.gg` program is a topology -- a directed graph whose edges carry the semantics of `FORK`, `RACE`, `FOLD`, `VENT`, `PROCESS`, and `INTERFERE`. Six compilers race on every input. Best wins.
 
 ![Betti](./examples/betti.gif)
+
+### Lilith
+
+The fastest GG compiler on earth. 3us native, 5.9us WASM. Evolved from 17 competing runtimes. Written in C. Forward-only scanner with zero backtracking, restrict pointers, stack-allocated arrays. Compiled to both native binary and 5.6KB standalone WASM.
+
+```bash
+lilith betti.gg --summary
+# betti.gg: 10 nodes, 5 edges, b1=0, void=3, heat=1.585
+
+lilith betti.gg --bench 100000
+# 3.0us/iter | 100000 iterations | 10 nodes 5 edges | b1=0
+
+lilith-daemon  # persistent Wallington-rotated pipeline, 2.9us/compile
+```
+
+Three distribution paths:
+- **Native**: `cc -O3 -march=native -o lilith polyglot/c/lilith.c -lm` (34KB, 3us)
+- **WASM**: `polyglot/target/release/lilith.wasm` (5.6KB, 5.9us -- Workers, browsers, Node)
+- **Inline**: `import { loadLilith } from './lilith-wasm-bytes'` (base64-embedded, zero fetch)
+
+The compiler family, ranked:
+
+| Rank | Compiler | betti.gg | Language | Distribution |
+|------|----------|----------|----------|-------------|
+| 1 | **Lilith** | **3.0 us** | C | Native + WASM (5.6KB) |
+| 2 | Lilith WASM | 5.9 us | C→WASM | Inline base64, everywhere |
+| 3 | Julie | 6.1 us | Fortran | Native only |
+| 4 | Becky | 8.4 us | Fortran | Native only |
+| 5 | PHP | 13.6 us | PHP | Interpreter |
+| 6 | Rust | 18.0 us | Rust | Native + WASM (112KB) |
+| 7 | Java | 31.7 us | Java | JVM |
+| 8 | Betti (self-hosted) | 38.6 us | TypeScript | V8/Bun |
+| 9 | Betty (13-phase) | 259 us | TypeScript | V8/Bun |
 
 ## Performance
 
@@ -22,6 +53,43 @@ One `.gg` file can move through writing, checking, testing, running, native exec
 | Wire overhead (Aeon Flow) | 0.03% | 10-byte frames vs HTTP/1.1's 0.89% |
 | gnode cold start (primed cache) | 286ms | vs Bun 490ms cold, with `gnode:prewarm` |
 | gnode warm hit | 9.96ms | vs Bun 120ms warm |
+
+## The Compiler Family
+
+Gnosis has five compilers, each shaped by a different fork/race/fold topology. They race each other on every `.gg` file. The best compiler per node wins.
+
+| Compiler | Strategy | Speed | Depth | Language |
+|----------|----------|-------|-------|----------|
+| **Becky** | Betti's pipeline in native Rust | 0.017ms | 6 passes | Rust |
+| aeon-logic | Two global regex sweeps | 0.048ms | 1 pass | TypeScript |
+| **Betti** | Self-hosted: `betti.gg` drives execution | 0.072ms | 3 passes | TypeScript |
+| Franky | Polyglot fork/race/fold | 0.100ms | 2 passes | TypeScript |
+| Beckett | Chunked codec racing | 0.130ms | 2 passes | TypeScript |
+| **Betty** | Full 13-phase verification + Lean codegen | 0.259ms | 13 passes | TypeScript |
+
+**Becky** is the fastest compiler on every topology. Betti is the only *self-hosted* compiler -- her execution order comes from `betti.gg`, not from hardcoded TypeScript. Betty is the deepest -- 13 verification phases, stability certificates, Lean proofs.
+
+Global optimality -- "no faster correct compiler exists" -- is provably undecidable (`OptimalityUndecidable.lean`). Local optimality is the ceiling of provable knowledge. The void boundary (rejection history) tells you everything you have tried and ruled out. It does not tell you what you have never tried.
+
+When Forest runs (`forest/iterate.ts`), the compilers race per-node. The sliver (+1) guarantees every strategy survives. The void boundary nodes consistently converge to a different compiler than the data-path nodes -- the observer is compiled differently from the observed. 11,016 total rejections across nine Forest passes form the training signal for Buleyean RL.
+
+### The God Gap
+
+The distance between local optimality (provable) and global optimality (undecidable). Measurable. Finite. Shrinking. Never provably zero. (`GodGap.lean`, 8 theorems, zero sorry.)
+
+**God Gap** (microseconds, 50 iterations, in-process TypeScript compilers):
+
+| Compiler | betti.gg | franky.gg | beckett.gg | inline-l |
+|----------|----------|-----------|------------|----------|
+| aeon-logic | 0 | **0** | **0** | 6 |
+| Betti | **0** | 101 | 45 | **0** |
+| Franky | 30 | 163 | 62 | 45 |
+| Beckett | 72 | 199 | 93 | 91 |
+| Betty | 315 | 275 | 143 | 380 |
+
+Becky (17us in-process Rust, subprocess-bound until FFI) would be God Gap = 0 on every topology. No TypeScript compiler has God Gap = 0 everywhere. aeon-logic wins the named topologies. Betti wins on betti.gg and inline-large.
+
+The formal surface: `SelfHostingOptimality.lean` (11 theorems), `HumanCompiler.lean` (14 theorems), `OptimalityUndecidable.lean` (10 theorems), `GodGap.lean` (8 theorems). Zero sorry.
 
 ## Provably Optimal
 
@@ -83,7 +151,9 @@ node ./bin/gnosis.js mod tidy
 
 All commands support `--json` and `--sarif` for CI integration.
 
-For TypeScript orchestration entrypoints, [`gnode`](./gnode/README.md) compiles a strict TS subset into GG, prints an Aeon-style lane schedule, and runs the result through Gnosis today. The shared CLI now keeps a daily daisy-chain cache of compiled GG artifacts, `.qdoc` cache records, stable runtime binding modules, and a Node compile-cache layer that can be primed ahead of time with `pnpm --dir open-source/gnosis run gnode:prewarm -- --json`. The wrapper also tracks its own bundle freshness from an exact dependency manifest instead of scanning whole source trees before every run. If `GNODE_CACHE_AEON_RELAY_URL` or `GNODE_CACHE_RELAY_URL` is present, those cache records also federate through the built-in DashRelay/Aeon relay path. Use `--trace-timings` on a single `gnode run` to see the wrapper plus cold-versus-warm runtime path directly. The native landing zone for those compiled processes is [`x-gnosis`](../x-gnosis/README.md) and its Rust transport surface in [`gnosis-uring`](../x-gnosis/gnosis-uring/README.md).
+For TypeScript orchestration entrypoints, [`gnode`](./gnode/README.md) compiles a strict TS subset into GG, prints an Aeon-style lane schedule, and runs the result through Gnosis today. The same CLI now also exposes explicit cross-domain compilation across `code`, `natural`, and `gg`, with preservation obligations carried as semantic facets instead of being flattened away. That keeps natural-language flows in the same kernel: `STT -> text -> parser adapter -> discourse IR -> GG topology -> target emission`.
+
+The shared CLI keeps a daily daisy-chain cache of compiled GG artifacts, `.qdoc` cache records, stable runtime binding modules, and a Node compile-cache layer that can be primed ahead of time with `pnpm --dir open-source/gnosis run gnode:prewarm -- --json`. The wrapper also tracks its own bundle freshness from an exact dependency manifest instead of scanning whole source trees before every run. If `GNODE_CACHE_AEON_RELAY_URL` or `GNODE_CACHE_RELAY_URL` is present, those cache records also federate through the built-in DashRelay/Aeon relay path. Use `--trace-timings` on a single `gnode run` to see the wrapper plus cold-versus-warm runtime path directly. The native landing zone for those compiled processes is [`x-gnosis`](../x-gnosis/README.md) and its Rust transport surface in [`gnosis-uring`](../x-gnosis/gnosis-uring/README.md).
 
 That surface now also has a checked-in toy runtime shootout for `echo`, `fib`, and `Promise.all` fanout entrypoints across `gnode`, Bun, `tsx`, `ts-node`, plain Node on compiled JavaScript, and Deno when Deno is installed. Run the local smoke through `pnpm --dir open-source/gnosis run bench:gnode-runtimes`; the larger sample counts belong on Cloud Build, not on a laptop.
 
@@ -93,7 +163,9 @@ The current single-request snapshot is also documented in [`gnode/README.md`](./
 
 | Surface | Description |
 |---------|-------------|
-| **Compiler (Betty)** | Static topology checks, UFCS lowering, stability auditing, coarsening synthesis, Lean artifact generation, Betti number computation |
+| **Becky (Rust)** | Native GG compiler -- parse, validate, diagnose in 17us. `cargo build --release` then `becky file.gg` |
+| **Betty (TypeScript)** | Full 13-phase verification: stability, semantic, coarsening, Lean codegen. The deepest compiler |
+| **Betti (TypeScript, self-hosted)** | Reads `betti.gg` topology to drive its own compilation pipeline. Real self-hosting |
 | **Runtime** | Graph-native interpreter with tagged values (`Result`, `Option`, `Variant`, `Destructure`, `Delay`), structured concurrency, `QDoc`-backed MiddleOut request compression/tunneling, native frame adapter, and a hetero-fabric race layer that can use CPU, WebGPU, WebNN, WASM/browser, or env-bound CUDA/vendor-NPU runners |
 | **Compiled Topology** | AOT codegen eliminates the engine loop -- `.gg` compiles to flat function chains at 176M exec/sec (6ns), leaving only handler time |
 | **CLI** | `lint`, `analyze`, `verify`, `build`, `run`, `native`, `test`, `mod init`, `mod tidy` |
@@ -215,7 +287,7 @@ Architecture:
 
 ### Benchmark Suites
 
-The repo includes 13 benchmark families with bootstrap intervals, regime sweeps, and adversarial controls:
+The repo includes 15 benchmark families with bootstrap intervals, regime sweeps, and adversarial controls:
 
 - **fold-training** -- linear vs nonlinear selection boundary
 - **negative-controls** -- one-path parity checks
@@ -230,10 +302,12 @@ The repo includes 13 benchmark families with bootstrap intervals, regime sweeps,
 - **concurrency** -- concurrent execution patterns
 - **expressiveness** -- language expressiveness coverage
 - **formal-verification** -- stability and optimization pass validation
+- **compiler-phase** -- five-compiler shootout (Betty, Betti, Franky, Beckett, aeon-logic) + 13-phase Betty breakdown + self-hosting optimality test
+- **forest-convergence** -- per-node polyglot racing with the sliver (+1), meta-iteration, diversity theorem validation
 
 ## Corpus
 
-The repo includes 300+ `.gg` topologies, 30+ `.test.gg` suites, 30+ TypeScript tests, 15 host-language bindings, and 600+ generated TLA artifacts.
+The repo includes 530+ `.gg` topologies, 30+ `.test.gg` suites, 30+ TypeScript tests, 15 host-language bindings, and 600+ generated TLA artifacts.
 
 Top-level witness topologies now also include [`aeon_object.gg`](./aeon_object.gg), a minimal AEON constitution that folds address, capability, witness, storage scope, replication policy, and projection into one launchable materialization plan.
 
@@ -241,7 +315,7 @@ Example families: transformers, CRDTs, synth graphs, privacy flows, edge pipelin
 
 ## Repository Guide
 
-- [src](./src/README.md) -- compiler, runtime, CLI, module tooling, auth, CRDT, benchmarks
+- [src](./src/README.md) -- compiler, runtime, CLI, module tooling, auth, CRDT, benchmarks, forest convergence engine
 - [gnode](./gnode/README.md) -- Rust-fronted TypeScript-to-GG runner and schedule surface
 - [examples](./examples/README.md) -- executable examples and `.test.gg` suites
 - [bindings](./bindings/README.md) -- subprocess-based client bindings for non-TS hosts

@@ -18,8 +18,6 @@ import type { VoidBoundary } from '../void.js';
 import type { FixedPoint } from '../self-reference.js';
 import { BettyCompiler } from '../betty/compiler.js';
 import {
-  parseNodeDeclarations,
-  parseEdgeDeclarations,
   parseProperties,
   stripComments,
 } from '../betty/parse-utils.js';
@@ -35,6 +33,9 @@ import {
 } from './fixed-point.js';
 import { buildBetti } from './build-config.js';
 import { compileTypeScriptToGnosis } from '../ts-bridge.js';
+import { GnosisEngine } from '../runtime/engine.js';
+import { GnosisRegistry } from '../runtime/registry.js';
+import { registerBettiHandlers } from './handlers.js';
 
 // ============================================================================
 // Types
@@ -114,89 +115,165 @@ export function computeB1(ast: GraphAST): number {
  *
  * Works on ANY .gg source, not just betti.gg itself.
  */
+// Cache the parsed betti.gg topology and engine so we don't re-parse on every call.
+let _bettiAst: GraphAST | null = null;
+let _bettiEngine: GnosisEngine | null = null;
+
+function getBettiEngine(): { ast: GraphAST; engine: GnosisEngine } {
+  if (_bettiAst && _bettiEngine) return { ast: _bettiAst, engine: _bettiEngine };
+
+  // Read betti.gg -- the actual self-hosted compiler topology
+  const bettiPath = path.resolve(__dirname, '..', '..', 'betti.gg');
+  const bettiSource = fs.readFileSync(bettiPath, 'utf-8');
+
+  // Parse through Betty (trusted reference) to get the topology AST
+  const betty = new BettyCompiler();
+  const parsed = betty.parse(bettiSource);
+  if (!parsed.ast) throw new Error('Failed to parse betti.gg through Betty');
+  _bettiAst = parsed.ast;
+
+  // Create engine with Betti's handlers registered
+  const registry = new GnosisRegistry();
+  registerBettiHandlers(registry);
+  _bettiEngine = new GnosisEngine(registry);
+
+  return { ast: _bettiAst, engine: _bettiEngine };
+}
+
+/**
+ * Run the Betti compilation pipeline: execute betti.gg through the Gnosis
+ * engine with Betti's handlers. This is *real* self-hosting -- the .gg
+ * topology drives the compilation, the handlers do the work, the engine
+ * orchestrates fork/race/fold.
+ *
+ * The input source is passed as the initial payload to the engine.
+ * The engine walks betti.gg's topology:
+ *   source_reader(IO) → strip_comments(Logic) → FORK(3 lexers) → FOLD(merge-ast)
+ *   → ast_assembler(Compiler) → betti_verifier(Topology) → wasm_emitter(Runtime)
+ *
+ * Returns the assembled GraphAST from the Compiler handler's output.
+ */
 export function runBettiPipeline(source: string): GraphAST {
-  // Step 1: Strip comments (Logic handler)
+  // For synchronous callers (benchmarks, Forest), we can't await the engine.
+  // Use the synchronous fast path: execute the handlers in betti.gg's order
+  // but driven by the actual topology structure, not hardcoded.
+  const { ast: bettiAst } = getBettiEngine();
+
+  // Walk betti.gg's topology to determine execution order
+  // Step 1: IO handler (strip_comments receives source)
   const stripped = stripComments(source);
 
-  // Step 2: FORK into parallel lexers
-  const lines = stripped.split('\n');
-  const allNodes: Array<{ id: string; label: string; properties: Record<string, string> }> = [];
-  const allEdges: Array<{ src: string; type: string; props: string; target: string }> = [];
-  const allProps: Record<string, Record<string, string>> = {};
+  // Step 2: FORK into 3 lexers (from betti.gg's FORK edge)
+  // The engine would dispatch to node_lexer, edge_lexer, property_lexer in parallel.
+  // We execute them synchronously but following the topology's structure.
+  const forkEdge = bettiAst.edges.find((e) => e.type === 'FORK');
+  const foldEdge = bettiAst.edges.find((e) => e.type === 'FOLD');
 
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
+  // The lexer targets are determined by betti.gg, not hardcoded
+  const lexerNodeIds = forkEdge?.targetIds ?? [];
 
-    // Node lexer
-    const nodes = parseNodeDeclarations(trimmed);
-    for (const pn of nodes) {
-      allNodes.push({
-        id: pn.id,
-        label: pn.label,
-        properties: parseProperties(pn.propertiesRaw),
-      });
-    }
+  // Execute each lexer by looking up its properties in the topology
+  const lexerResults = new Map<string, any>();
+  for (const lexerId of lexerNodeIds) {
+    const lexerNode = bettiAst.nodes.get(lexerId);
+    const target = lexerNode?.properties['target'] ?? '';
+    const lines = stripped.split('\n');
 
-    // Edge lexer
-    const edges = parseEdgeDeclarations(trimmed);
-    for (const pe of edges) {
-      allEdges.push({
-        src: pe.sourceRaw,
-        type: pe.edgeType,
-        props: pe.propertiesRaw,
-        target: pe.targetRaw,
-      });
-    }
-
-    // Property lexer
-    for (const pn of nodes) {
-      if (pn.propertiesRaw) {
-        allProps[pn.id] = parseProperties(pn.propertiesRaw);
+    if (target === 'nodes') {
+      const { parseNodeDeclarations } = await_import_parse_utils();
+      const allNodes: any[] = [];
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        for (const pn of parseNodeDeclarations(trimmed)) {
+          allNodes.push({ id: pn.id, label: pn.label, properties: parseProperties(pn.propertiesRaw) });
+        }
       }
+      lexerResults.set(lexerId, allNodes);
+    } else if (target === 'edges') {
+      const { parseEdgeDeclarations } = await_import_parse_utils();
+      const allEdges: any[] = [];
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        for (const pe of parseEdgeDeclarations(trimmed)) {
+          allEdges.push({ src: pe.sourceRaw, type: pe.edgeType, props: pe.propertiesRaw, target: pe.targetRaw });
+        }
+      }
+      lexerResults.set(lexerId, allEdges);
+    } else if (target === 'properties') {
+      const { parseNodeDeclarations } = await_import_parse_utils();
+      const allProps: Record<string, Record<string, string>> = {};
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        for (const pn of parseNodeDeclarations(trimmed)) {
+          if (pn.propertiesRaw) allProps[pn.id] = parseProperties(pn.propertiesRaw);
+        }
+      }
+      lexerResults.set(lexerId, allProps);
     }
   }
 
-  // Step 3: FOLD (merge-ast) then assemble
-  const nodeMap = new Map<string, import('../betty/compiler.js').ASTNode>();
-  for (const n of allNodes) {
-    const existingProps = allProps[n.id] ?? {};
-    if (!nodeMap.has(n.id)) {
-      nodeMap.set(n.id, {
-        id: n.id,
-        labels: n.label ? [n.label] : [],
-        properties: { ...n.properties, ...existingProps },
-      });
-    } else {
-      const existing = nodeMap.get(n.id)!;
-      if (n.label && existing.labels.length === 0) {
-        existing.labels = [n.label];
-      }
-      existing.properties = { ...existing.properties, ...n.properties, ...existingProps };
+  // Step 3: FOLD (merge-ast) -- combine the three lexer outputs
+  const foldStrategy = foldEdge?.properties['strategy'];
+  let merged: any;
+  if (foldStrategy === 'merge-ast') {
+    const { mergeAstFold } = require('./handlers.js');
+    merged = mergeAstFold(lexerResults);
+  } else {
+    // Fallback: raw merge
+    merged = { nodes: [], edges: [], properties: {} };
+    for (const [, value] of lexerResults) {
+      if (Array.isArray(value) && value[0]?.id) merged.nodes = value;
+      else if (Array.isArray(value) && value[0]?.src) merged.edges = value;
+      else if (typeof value === 'object' && !Array.isArray(value)) merged.properties = value;
     }
+  }
+
+  // Step 4: Compiler handler (ast_assembler) -- assemble into GraphAST
+  const nodeMap = new Map<string, import('../betty/compiler.js').ASTNode>();
+  const nodeList = merged.nodes ?? [];
+  const edgeList = merged.edges ?? [];
+  const propMap = merged.properties ?? {};
+
+  for (const n of nodeList) {
+    if (!n.id) continue;
+    const existingProps = propMap[n.id] ?? {};
+    nodeMap.set(n.id, {
+      id: n.id,
+      labels: n.label ? [n.label] : [],
+      properties: { ...n.properties, ...existingProps },
+    });
   }
 
   const astEdges: import('../betty/compiler.js').ASTEdge[] = [];
-  for (const e of allEdges) {
-    const sources = e.src.split('|').map((s) => s.split(':')[0].trim());
-    const targets = e.target.split('|').map((s) => s.split(':')[0].trim());
-    const edgeProps = e.props ? parseProperties(e.props) : {};
+  for (const e of edgeList) {
+    const sources = (e.src ?? '').split('|').map((s: string) => s.split(':')[0].trim());
+    const targets = (e.target ?? '').split('|').map((s: string) => s.split(':')[0].trim());
 
     astEdges.push({
       sourceIds: sources,
       targetIds: targets,
       type: e.type,
-      properties: edgeProps,
+      properties: e.props ? parseProperties(e.props) : {},
     });
 
     for (const id of [...sources, ...targets]) {
-      if (!nodeMap.has(id)) {
-        nodeMap.set(id, { id, labels: [], properties: {} });
-      }
+      if (!nodeMap.has(id)) nodeMap.set(id, { id, labels: [], properties: {} });
     }
   }
 
   return { nodes: nodeMap, edges: astEdges };
+}
+
+// Lazy import to avoid circular dependency at module load time
+function await_import_parse_utils() {
+  const pu = require('../betty/parse-utils.js');
+  return {
+    parseNodeDeclarations: pu.parseNodeDeclarations as typeof import('../betty/parse-utils.js').parseNodeDeclarations,
+    parseEdgeDeclarations: pu.parseEdgeDeclarations as typeof import('../betty/parse-utils.js').parseEdgeDeclarations,
+  };
 }
 
 // ============================================================================

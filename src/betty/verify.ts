@@ -132,18 +132,33 @@ export function runAllVerificationPasses(
   const diagnostics: Diagnostic[] = [];
   let currentAst = ast;
 
-  // Stability analysis
+  // ── FORK: independent passes that only need the AST ──────────────
+  // These run first because they don't depend on stability/optimizer.
+  // Conceptually forked: semantic on one path, metrics on another.
+
+  // Semantic compatibility (independent of stability chain)
+  const semanticCompatibility = analyzeSemanticCompatibility(currentAst);
+  diagnostics.push(...semanticCompatibility.diagnostics);
+
+  // O(E) metric passes (independent of everything -- just read edges)
+  const voidDimensions = computeVoidDimensions(currentAst);
+  const landauerHeat = computeLandauerHeat(currentAst);
+  const deficit = computeDeficitAnalysis(currentAst);
+
+  // ── SEQUENTIAL CHAIN: stability → optimizer → coarsening ─────────
+  // These form a blocking dependency chain.
+
   const stability = analyzeTopologyStability(currentAst, b1);
   if (stability) {
     diagnostics.push(...stability.diagnostics);
 
-    // Optimizer passes
+    // Optimizer passes (needs stability)
     const optimizer = createDefaultOptimizer();
     const optimizerResult = optimizer.apply(currentAst, stability);
     currentAst = optimizerResult.ast;
     diagnostics.push(...optimizerResult.diagnostics);
 
-    // Coarsening synthesis
+    // Coarsening synthesis (needs stability + optimized AST)
     const partition = extractFiberPartition(currentAst);
     let coarseningSynthesis: CoarseningSynthesisResult | null = null;
     if (partition) {
@@ -159,14 +174,8 @@ export function runAllVerificationPasses(
       }
     }
 
-    const voidDimensions = computeVoidDimensions(currentAst);
-    const landauerHeat = computeLandauerHeat(currentAst);
-    const deficit = computeDeficitAnalysis(currentAst);
-
-    // Semantic compatibility
-    const semanticCompatibility = analyzeSemanticCompatibility(currentAst);
-    diagnostics.push(...semanticCompatibility.diagnostics);
-
+    // ── FOLD: merge independent + sequential results ─────────────
+    // Hope certificate depends on semantic (already done above)
     const hopeCertificate = generateHopeCertificate(
       currentAst,
       semanticCompatibility
@@ -186,16 +195,16 @@ export function runAllVerificationPasses(
     };
   }
 
-  // No stability report -- still compute basic metrics
+  // No stability report -- independent passes already computed above
   return {
     diagnostics,
     stability: null,
     optimizer: null,
     coarseningSynthesis: null,
-    voidDimensions: computeVoidDimensions(currentAst),
-    landauerHeat: computeLandauerHeat(currentAst),
-    deficit: computeDeficitAnalysis(currentAst),
-    semanticCompatibility: analyzeSemanticCompatibility(currentAst),
+    voidDimensions,
+    landauerHeat,
+    deficit,
+    semanticCompatibility,
     hopeCertificate: null,
     ast: currentAst,
   };
