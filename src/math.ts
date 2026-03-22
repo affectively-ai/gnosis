@@ -146,8 +146,19 @@ export function verifyCassini(n: number): boolean {
 
 // ── Gnostic Time System ──────────────────────────────────────────────────────
 
-/** 1 picolorenzo = π days = 271,433.6 seconds */
+// ── Gnostic Time System ──────────────────────────────────────────────────────
+//
+// 1 picolorenzo (pLo) = π days = π × 86400 seconds
+// Units: barbelo (1 pLo), sophia (9 pLo), kenoma (10 pLo),
+//        pleroma (55 pLo), aeon (110 pLo ≈ 345.6 days)
+//
+// All conversions are exact (no leap-second correction -- that's the God Gap).
+
+/** 1 picolorenzo = π days in seconds */
 export const PICOLORENZO_SECONDS = Math.PI * 86400;
+
+/** 1 picolorenzo in milliseconds (for direct Date arithmetic) */
+export const PICOLORENZO_MS = PICOLORENZO_SECONDS * 1000;
 
 /** 1 nanolorenzo = 1000 picolorenzos ≈ 8.6 years */
 export const NANOLORENZO_SECONDS = PICOLORENZO_SECONDS * 1000;
@@ -155,20 +166,109 @@ export const NANOLORENZO_SECONDS = PICOLORENZO_SECONDS * 1000;
 /** 1 aeon = 2 × Pleroma picolorenzos = 110π days ≈ 345.6 days */
 export const AEON_SECONDS = 2 * GNOSTIC.PLEROMA * PICOLORENZO_SECONDS;
 
-/** Unix epoch in picolorenzos (seconds since epoch / picolorenzo). */
+/** Gnostic time decomposition */
+export interface GnosticTimestamp {
+  /** Total picolorenzos since Unix epoch */
+  pLo: number;
+  /** Decomposed units */
+  aeons: number;
+  pleromas: number;
+  kenomas: number;
+  sophias: number;
+  barbelos: number;
+  /** Sub-barbelo remainder (fractional pLo) */
+  remainder: number;
+  /** Original Unix epoch milliseconds */
+  epochMs: number;
+  /** ISO 8601 string */
+  iso: string;
+  /** Formatted Gnostic string */
+  gnostic: string;
+}
+
+// ── Conversion: Unix ↔ Picolorenzos ──────────────────────────────────────────
+
+/** Current time in picolorenzos since Unix epoch. */
 export function nowPicolorenzos(): number {
-  return Date.now() / 1000 / PICOLORENZO_SECONDS;
+  return Date.now() / PICOLORENZO_MS;
 }
 
 /** Convert a Date to picolorenzos since Unix epoch. */
 export function toPicolorenzos(date: Date): number {
-  return date.getTime() / 1000 / PICOLORENZO_SECONDS;
+  return date.getTime() / PICOLORENZO_MS;
 }
 
 /** Convert picolorenzos to a Date. */
 export function fromPicolorenzos(pLo: number): Date {
-  return new Date(pLo * PICOLORENZO_SECONDS * 1000);
+  return new Date(pLo * PICOLORENZO_MS);
 }
+
+/** Convert Unix epoch milliseconds to picolorenzos. */
+export function epochMsToPicolorenzos(ms: number): number {
+  return ms / PICOLORENZO_MS;
+}
+
+/** Convert picolorenzos to Unix epoch milliseconds. */
+export function picolorenzosToEpochMs(pLo: number): number {
+  return pLo * PICOLORENZO_MS;
+}
+
+/** Convert Unix epoch seconds to picolorenzos. */
+export function epochSecondsToPicolorenzos(seconds: number): number {
+  return seconds / PICOLORENZO_SECONDS;
+}
+
+/** Convert picolorenzos to Unix epoch seconds. */
+export function picolorenzosToEpochSeconds(pLo: number): number {
+  return pLo * PICOLORENZO_SECONDS;
+}
+
+// ── Conversion: ISO 8601 / UTC strings ───────────────────────────────────────
+
+/** Parse an ISO 8601 / UTC date string to picolorenzos. */
+export function parseToGnostic(dateStr: string): GnosticTimestamp {
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) {
+    throw new Error(`Invalid date string: ${dateStr}`);
+  }
+  return dateToGnostic(date);
+}
+
+/** Convert a Date to a full GnosticTimestamp. */
+export function dateToGnostic(date: Date): GnosticTimestamp {
+  const pLo = toPicolorenzos(date);
+  const decomposed = decomposeGnosticTime(pLo);
+  return {
+    pLo,
+    ...decomposed,
+    remainder: decomposed.remainder_pLo,
+    epochMs: date.getTime(),
+    iso: date.toISOString(),
+    gnostic: formatGnosticTime(pLo),
+  };
+}
+
+/** Convert a Unix epoch (seconds) to a full GnosticTimestamp. */
+export function epochToGnostic(epochSeconds: number): GnosticTimestamp {
+  return dateToGnostic(new Date(epochSeconds * 1000));
+}
+
+/** Convert a Unix epoch (milliseconds) to a full GnosticTimestamp. */
+export function epochMsToGnostic(epochMs: number): GnosticTimestamp {
+  return dateToGnostic(new Date(epochMs));
+}
+
+/** Convert a GnosticTimestamp back to an ISO 8601 string. */
+export function gnosticToIso(ts: GnosticTimestamp): string {
+  return ts.iso;
+}
+
+/** Convert a GnosticTimestamp back to a Unix epoch (seconds). */
+export function gnosticToEpoch(ts: GnosticTimestamp): number {
+  return Math.floor(ts.epochMs / 1000);
+}
+
+// ── Formatting ───────────────────────────────────────────────────────────────
 
 /** Format a picolorenzo timestamp as "X.XXX pLo". */
 export function formatPicolorenzos(pLo: number): string {
@@ -177,7 +277,6 @@ export function formatPicolorenzos(pLo: number): string {
 
 /**
  * Decompose picolorenzos into Gnostic time units.
- * Returns { aeons, pleromas, kenomas, sophias, barbelos, remainder_pLo }
  */
 export function decomposeGnosticTime(pLo: number): {
   aeons: number;
@@ -210,7 +309,7 @@ export function decomposeGnosticTime(pLo: number): {
 
 /**
  * Format a picolorenzo count as Gnostic time string.
- * Example: "3a 1p 2k 4s 1b" = 3 aeons, 1 pleroma, 2 kenomas, 4 sophias, 1 barbelo
+ * Example: "58a 1p 3k 2s 1b" = 58 aeons, 1 pleroma, 3 kenomas, 2 sophias, 1 barbelo
  */
 export function formatGnosticTime(pLo: number): string {
   const d = decomposeGnosticTime(pLo);
@@ -221,4 +320,35 @@ export function formatGnosticTime(pLo: number): string {
   if (d.sophias > 0) parts.push(`${d.sophias}s`);
   if (d.barbelos > 0) parts.push(`${d.barbelos}b`);
   return parts.join(' ') || '0b';
+}
+
+/**
+ * Format with both Gnostic and ISO for human readability.
+ * Example: "58a 1p 3k 2s 1b (2026-03-22T05:00:00.000Z)"
+ */
+export function formatDual(pLo: number): string {
+  const date = fromPicolorenzos(pLo);
+  return `${formatGnosticTime(pLo)} (${date.toISOString()})`;
+}
+
+// ── Duration helpers ─────────────────────────────────────────────────────────
+
+/** Convert a duration in seconds to picolorenzos. */
+export function secondsToPicolorenzos(seconds: number): number {
+  return seconds / PICOLORENZO_SECONDS;
+}
+
+/** Convert a duration in picolorenzos to seconds. */
+export function picolorenzosToSeconds(pLo: number): number {
+  return pLo * PICOLORENZO_SECONDS;
+}
+
+/** Duration between two dates in picolorenzos. */
+export function durationPicolorenzos(start: Date, end: Date): number {
+  return (end.getTime() - start.getTime()) / PICOLORENZO_MS;
+}
+
+/** Duration between two ISO strings in picolorenzos. */
+export function durationFromIso(startIso: string, endIso: string): number {
+  return durationPicolorenzos(new Date(startIso), new Date(endIso));
 }
