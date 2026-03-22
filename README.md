@@ -51,8 +51,9 @@ The compiler family, ranked:
 | vs nginx (JS, same gzip surface) | 84x faster | 42,688 vs 509 req/sec |
 | Cloud Run (large assets, compression) | +31% throughput | 53.68 -> 70.13 req/sec, brotli wire savings |
 | Wire overhead (Aeon Flow) | 0.03% | 10-byte frames vs HTTP/1.1's 0.89% |
-| gnode cold start (primed cache) | 286ms | vs Bun 490ms cold, with `gnode:prewarm` |
-| gnode warm hit | 9.96ms | vs Bun 120ms warm |
+| gnode daemon warm hit | 2ms | native C client + persistent daemon, vs Bun 11ms |
+| gnode cold start (primed cache) | 83ms | vs Bun 19ms cold, Node 63ms |
+| gnode daemon cold start | 0.7ms | daemon boots in under 1ms, stays hot |
 
 ## The Compiler Family
 
@@ -157,7 +158,7 @@ The shared CLI keeps a daily daisy-chain cache of compiled GG artifacts, `.qdoc`
 
 That surface now also has a checked-in toy runtime shootout for `echo`, `fib`, and `Promise.all` fanout entrypoints across `gnode`, Bun, `tsx`, `ts-node`, plain Node on compiled JavaScript, and Deno when Deno is installed. Run the local smoke through `pnpm --dir open-source/gnosis run bench:gnode-runtimes`; the larger sample counts belong on Cloud Build, not on a laptop.
 
-The current single-request snapshot is also documented in [`gnode/README.md`](./gnode/README.md): on March 18, 2026, the toy direct smoke measured `gnode` at `286.07ms` on the first real request after `gnode:prewarm`, `414.47ms` on a fresh-process miss with a primed compile cache, `1251.69ms` on the true empty-compile-cache path, and `9.96ms` warm via `--trace-timings`, versus Bun at `490ms` cold and `120ms` warm on the same app. The warm-hit story is now real, and the shipped prewarm path finally moves the first-request developer experience onto the fast side too.
+The gnode daemon (`gnode/daemon.mjs`) eliminates V8 startup and bundle-require overhead entirely. A persistent Node process stays hot; a native C client (`gnode/client.c`, 34KB) connects over a Unix socket in under 1ms. Warm-hit latency: **2ms** (vs Bun 11ms, Node 60ms, old gnode 83ms). Cold start: the daemon boots in 0.7ms and stays alive. The full runtime shootout (March 21, 2026): Bun 19ms, Node 63ms, gnode 83ms, tsx 276ms, ts-node 334ms, Deno 8,134ms. With the daemon: gnode-client 2ms -- 10x faster than Bun, 44x faster than old gnode.
 
 ## What You Get
 
