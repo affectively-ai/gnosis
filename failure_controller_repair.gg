@@ -17,5 +17,5 @@
 (frontier)-[:FORK]->(keep_option | vent_option | repair_option)
 (keep_option | vent_option | repair_option)-[:RACE { expect: 'costs-computed' }]->(controller)
 (controller)-[:FOLD { strategy: 'select-minimum-cost' }]->(decision)
-(decision)-[:INTERFERE { mode: 'repair' }]->(repair_debt)
+(decision)-[:SLIVER { mode: 'repair' }]->(repair_debt)
 (repair_debt)-[:PROCESS]->(result)

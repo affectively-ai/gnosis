@@ -41,7 +41,7 @@ impl GgEdgeType {
             GgEdgeType::Fold => "FOLD",
             GgEdgeType::Vent => "VENT",
             GgEdgeType::Process => "PROCESS",
-            GgEdgeType::Interfere => "INTERFERE",
+            GgEdgeType::Interfere => "SLIVER",
         }
     }
 }
@@ -190,7 +190,7 @@ impl GgTopology {
 ///
 /// This is the core language-agnostic translation layer. The CFG encodes
 /// language-specific patterns (try/catch, spawn, locks) as typed nodes, and
-/// this compiler maps them to the universal FORK/RACE/FOLD/VENT/PROCESS/INTERFERE
+/// this compiler maps them to the universal FORK/RACE/FOLD/VENT/PROCESS/SLIVER
 /// topology that Betty can analyze.
 pub fn compile_cfg_to_gg(cfg: &ControlFlowGraph) -> GgTopology {
     compile_cfg_to_gg_with_mode(cfg, &CompilationMode::Analysis)
@@ -557,7 +557,7 @@ impl<'a> GgCompiler<'a> {
                     }
                 }
 
-                // Lock acquire: INTERFERE edge for deadlock detection.
+                // Lock acquire: SLIVER edge for deadlock detection.
                 CfgNodeKind::LockAcquire { lock_id } => {
                     let lid = lock_id
                         .clone()
@@ -575,7 +575,7 @@ impl<'a> GgCompiler<'a> {
                     }
                 }
 
-                // Lock release: close the INTERFERE.
+                // Lock release: close the SLIVER.
                 CfgNodeKind::LockRelease { .. } => {
                     for succ in &successors {
                         self.add_gg_edge(

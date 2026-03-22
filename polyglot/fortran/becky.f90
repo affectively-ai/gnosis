@@ -320,7 +320,7 @@ contains
             select case (trim(etypes(i)))
             case ('FORK'); b1 = b1 + etgt(i) - 1
             case ('FOLD', 'COLLAPSE', 'OBSERVE'); b1 = max(0, b1 - (esrc(i) - 1))
-            case ('RACE', 'INTERFERE'); b1 = max(0, b1 - max(0, esrc(i) - etgt(i)))
+            case ('RACE', 'SLIVER'); b1 = max(0, b1 - max(0, esrc(i) - etgt(i)))
             case ('VENT'); b1 = max(0, b1 - 1)
             end select
         end do

@@ -1,11 +1,11 @@
-// coarsening_preserves_support.gg — THM-INTERFERENCE-COARSENING witness (quotient preserves live support)
+// coarsening_preserves_support.gg — THM-SLIVERNCE-COARSENING witness (quotient preserves live support)
 //
 // The quotient map merges interference classes but preserves the set of
 // live (non-vented) branches. Every live branch in the fine model maps
 // to a live equivalence class in the coarse model.
 // Example: 4 branches, 2 live -> quotient has 2 live classes.
 
-(fine: InterferenceModel { theorem: 'THM-INTERFERENCE-COARSENING', branches: '4', live: '2' })
+(fine: InterferenceModel { theorem: 'THM-SLIVERNCE-COARSENING', branches: '4', live: '2' })
 (branch_a: Branch { id: 'a', live: 'true', class: '1' })
 (branch_b: Branch { id: 'b', live: 'true', class: '2' })
 (branch_c: Branch { id: 'c', live: 'false', class: '1' })

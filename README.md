@@ -1,6 +1,6 @@
 # Gnosis
 
-A graph-first language and toolchain. Every `.gg` program is a topology -- a directed graph whose edges carry the semantics of `FORK`, `RACE`, `FOLD`, `VENT`, `PROCESS`, and `INTERFERE`. Six compilers race on every input. Best wins.
+A graph-first language and toolchain. Every `.gg` program is a topology -- a directed graph whose edges carry the semantics of `FORK`, `RACE`, `FOLD`, `VENT`, `PROCESS`, and `SLIVER`. Six compilers race on every input. Best wins.
 
 ![Betti](./examples/betti.gif)
 
@@ -211,7 +211,7 @@ The gnode daemon (`gnode/daemon.mjs`) eliminates V8 startup and bundle-require o
 | `FOLD` | Wait for all paths, merge via strategy (linear, quorum, consensus, weighted). |
 | `VENT` | Prune a path. Propagates down, never across. |
 | `PROCESS` | Transform data through a function. |
-| `INTERFERE` | Constructive (consensus) or destructive (conflict detection) observation. |
+| `SLIVER` | Constructive (consensus) or destructive (conflict detection) observation. |
 
 ### Structured Primitives
 

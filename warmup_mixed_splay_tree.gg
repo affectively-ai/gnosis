@@ -15,6 +15,6 @@
 (access_request)-[:FORK]->(access_pattern | search_operation)
 
 (access_pattern)-[:PROCESS]->(tree_restructure)-[:PROCESS]->(adapted_tree)
-(adapted_tree)-[:INTERFERE { mode: 'constructive' }]->(search_operation)
+(adapted_tree)-[:SLIVER { mode: 'constructive' }]->(search_operation)
 
 (search_operation)-[:PROCESS]->(result)

@@ -66,7 +66,7 @@ fun computeBeta1(prog: GgProgram): Int {
         when (e.type) {
             "FORK" -> b1 += t - 1
             "FOLD", "COLLAPSE", "OBSERVE" -> b1 = maxOf(0, b1 - (s - 1))
-            "RACE", "INTERFERE" -> b1 = maxOf(0, b1 - maxOf(0, s - t))
+            "RACE", "SLIVER" -> b1 = maxOf(0, b1 - maxOf(0, s - t))
             "VENT" -> b1 = maxOf(0, b1 - 1)
         }
     }

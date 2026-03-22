@@ -22,7 +22,7 @@ The worst case assumes three things:
 2. **Worst-case adversary.** All failures are maximally correlated and strategically timed.
 3. **No learning.** The threshold is fixed forever. The system never adapts.
 
-These assumptions describe a system without INTERFERE. A system that processes but does not observe its own processing. The linear regime.
+These assumptions describe a system without SLIVER. A system that processes but does not observe its own processing. The linear regime.
 
 ---
 
@@ -32,7 +32,7 @@ Real networks are not worst case. Real failures are stochastic -- each node fail
 
 When you model agreement dynamics with memory (the current round depends on the previous two rounds), you get a recurrence: A(t+1) is approximately A(t) + A(t-1). That is a Fibonacci recurrence. Its eigenvalue is phi. The consensus threshold at the golden balance is 1/phi = 0.618...
 
-The two-thirds threshold over-provisions by about five percentage points. Not because Lamport was wrong, but because Lamport assumed no INTERFERE.
+The two-thirds threshold over-provisions by about five percentage points. Not because Lamport was wrong, but because Lamport assumed no SLIVER.
 
 ---
 
@@ -58,7 +58,7 @@ We are not proposing the next convergent. We are proposing the limit.
 
 ---
 
-## How INTERFERE enables adaptive threshold
+## How SLIVER enables adaptive threshold
 
 Golden consensus starts at 2/3 -- the safe Byzantine bunker -- and converges toward 1/phi as the network proves itself healthy.
 
@@ -82,7 +82,7 @@ For a blockchain with 10,000 validators tolerating 3,333 failures:
 
 That is 1,270 fewer machines. Real hardware. Real electricity. Real cost.
 
-The savings come from one place: the protocol *learns*. It has INTERFERE. It observes its own performance and adapts. The 12.7% is the tax of the linear regime applied to a post-linear problem.
+The savings come from one place: the protocol *learns*. It has SLIVER. It observes its own performance and adapts. The 12.7% is the tax of the linear regime applied to a post-linear problem.
 
 ---
 

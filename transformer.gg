@@ -14,6 +14,6 @@
 (input_sequence)-[:PROCESS]->(qkv_projection)
 (qkv_projection)-[:FORK]->(head_1 | head_2 | head_3 | head_4)
 (head_1 | head_2 | head_3 | head_4)-[:FOLD { strategy: 'concat' }]->(multi_head_out)
-(input_sequence | multi_head_out)-[:INTERFERE { mode: 'constructive' }]->(residual_1)
+(input_sequence | multi_head_out)-[:SLIVER { mode: 'constructive' }]->(residual_1)
 (residual_1)-[:PROCESS]->(ffn)
-(residual_1 | ffn)-[:INTERFERE { mode: 'constructive' }]->(transformer_out)
+(residual_1 | ffn)-[:SLIVER { mode: 'constructive' }]->(transformer_out)

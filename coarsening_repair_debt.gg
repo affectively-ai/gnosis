@@ -1,11 +1,11 @@
-// coarsening_repair_debt.gg — THM-INTERFERENCE-COARSENING witness (non-injective -> repair debt)
+// coarsening_repair_debt.gg — THM-SLIVERNCE-COARSENING witness (non-injective -> repair debt)
 //
 // When the quotient map is non-injective (multiple fine branches map to
 // the same coarse class), repair debt is incurred proportional to the
 // collision count. Each collision requires one unit of repair.
 // Example: 4 branches -> 2 classes, 2 collisions -> repair debt = 2.
 
-(fine: InterferenceModel { theorem: 'THM-INTERFERENCE-COARSENING', branches: '4', classes: '2' })
+(fine: InterferenceModel { theorem: 'THM-SLIVERNCE-COARSENING', branches: '4', classes: '2' })
 (class_1: QuotientClass { id: '1', members: '2', collisions: '1' })
 (class_2: QuotientClass { id: '2', members: '2', collisions: '1' })
 (debt: RepairDebt { total_collisions: '2', repair_cost: '2' })

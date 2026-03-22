@@ -13,7 +13,7 @@
 (result: Result)
 
 (input)-[:FORK]->(fast_path | slow_path | poison_event)
-(poison_event)-[:INTERFERE { mode: 'destructive' }]->(slow_path)
+(poison_event)-[:SLIVER { mode: 'destructive' }]->(slow_path)
 (fast_path | slow_path)-[:RACE { expect: 'scheduler-pick' }]->(chosen_path)
 (chosen_path | poison_event)-[:FOLD { strategy: 'remain-degraded' }]->(fallback)
 (fallback)-[:PROCESS]->(result)

@@ -20,4 +20,4 @@
 
 // Collapse once navigation is complete
 (preloader | site_renderer)-[:FOLD { strategy: 'merge-all' }]->(nav_complete)
-(history_manager | nav_complete)-[:INTERFERE { mode: 'constructive' }]->(app_state)
+(history_manager | nav_complete)-[:SLIVER { mode: 'constructive' }]->(app_state)

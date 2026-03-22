@@ -66,7 +66,7 @@ The paper experiment exhibits the same mechanism. The cut ratio is the perturbat
 
 ## The key difference
 
-In fluids, the perturbation comes from *outside* (flow speed). In paper, the perturbation is the *topology itself* (cut positions). In consciousness, the perturbation is *self-generated* (INTERFERE).
+In fluids, the perturbation comes from *outside* (flow speed). In paper, the perturbation is the *topology itself* (cut positions). In consciousness, the perturbation is *self-generated* (SLIVER).
 
 Fluids are perturbed. Paper is cut. Consciousness perturbs itself.
 

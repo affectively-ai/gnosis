@@ -100,7 +100,7 @@ func computeBeta1(_ prog: GgProgram) -> Int {
         switch e.type {
         case "FORK": b1 += t - 1
         case "FOLD", "COLLAPSE", "OBSERVE": b1 = max(0, b1 - (s - 1))
-        case "RACE", "INTERFERE": b1 = max(0, b1 - max(0, s - t))
+        case "RACE", "SLIVER": b1 = max(0, b1 - max(0, s - t))
         case "VENT": b1 = max(0, b1 - 1)
         default: break
         }

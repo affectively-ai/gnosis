@@ -62,7 +62,7 @@ def computeBeta1(prog: GgProgram): Int =
     e.edgeType match
       case "FORK" => b1 + t - 1
       case "FOLD" | "COLLAPSE" | "OBSERVE" => math.max(0, b1 - (s - 1))
-      case "RACE" | "INTERFERE" => math.max(0, b1 - math.max(0, s - t))
+      case "RACE" | "SLIVER" => math.max(0, b1 - math.max(0, s - t))
       case "VENT" => math.max(0, b1 - 1)
       case _ => b1
   }

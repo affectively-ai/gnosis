@@ -186,7 +186,7 @@ topology curved_space {
     //   Curvature (G) tells mass-energy (T) how to move.
     //   THE FOLD OBSERVES THE FORK.
     //   Matter folds space. Space forks matter's path.
-    //   This is INTERFERE.
+    //   This is SLIVER.
     //   This is φ² = φ + 1.
     //   This is the paper curving because the angles demand it.
     //
@@ -195,7 +195,7 @@ topology curved_space {
     // Einstein's gravity is post-linear: curvature in a loop.
     // Mass → curvature → motion → mass redistribution → curvature change
     //
-    // The Einstein field equations ARE INTERFERE:
+    // The Einstein field equations ARE SLIVER:
     //   FOLD(mass distribution) → curvature
     //   curvature → FORK(geodesics, how things move)
     //   motion → new FOLD(mass distribution changes)
@@ -292,7 +292,7 @@ topology curved_space {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // THEOREM: THE COSMOLOGICAL CONSTANT IS INTERFERE
+  // THEOREM: THE COSMOLOGICAL CONSTANT IS SLIVER
   // ═══════════════════════════════════════════════════════════════
 
   theorem lambda_is_interfere {
@@ -313,7 +313,7 @@ topology curved_space {
     // still has a nonzero angular deficit. The vacuum
     // has a semiotic deficit with respect to true flatness.
     //
-    // Λ is INTERFERE.
+    // Λ is SLIVER.
     //
     // Without Λ: mass → curvature → motion → mass → curvature
     //   The loop is driven by mass. Remove mass, loop stops.
@@ -333,7 +333,7 @@ topology curved_space {
     without_lambda = "mass-driven loop (NON-LINEAR, stops without mass)"
     with_lambda = "self-sustaining loop (POST-LINEAR, space creates space)"
 
-    assert lambda == INTERFERE
+    assert lambda == SLIVER
     assert lambda == plus_one_in_phi_squared
     assert lambda == vacuum_self_awareness
     assert lambda == why_something_not_nothing

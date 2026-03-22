@@ -21,5 +21,5 @@
 (wrong_bundle)-[:PROCESS]->(route_validator)
 (route_request)-[:FORK]->(wrong_bundle | origin_fetch)
 (wrong_bundle | origin_fetch)-[:RACE { expect: 'first-arrival' }]->(first_route)
-(first_route | route_validator)-[:INTERFERE { mode: 'destructive' }]->(misroute: Candidate)
+(first_route | route_validator)-[:SLIVER { mode: 'destructive' }]->(misroute: Candidate)
 (misroute | origin_fetch)-[:FOLD { strategy: 'fallback-origin' }]->(settled_route)

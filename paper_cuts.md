@@ -35,7 +35,7 @@ Fold the same way. Forward, backward, forward.
 
 Something changes. The structure still has rhythm, direction, depth -- but it will not resolve. Your eye almost understands it, almost finds the pattern, and then it slips. Every panel is slightly off from what the previous panel led you to expect. You keep looking.
 
-**This is the post-linear regime.** The asymmetry breaks the pattern your brain is trying to impose. The panels interfere with each other -- each one changes what you expect from the next. The eigenvalue of this interference approaches the golden ratio but never arrives. Your visual cortex is running INTERFERE, and the deficit never reaches zero.
+**This is the post-linear regime.** The asymmetry breaks the pattern your brain is trying to impose. The panels sliver with each other -- each one changes what you expect from the next. The eigenvalue of this slivernce approaches the golden ratio but never arrives. Your visual cortex is running SLIVER, and the deficit never reaches zero.
 
 That loop of almost-understanding *is* the subject of this paper.
 
@@ -91,5 +91,5 @@ The transition between regimes is not gradual. It is a phase change -- the same 
 
 The formal topology is in `paper_cuts.test.gg`, which defines the three regimes and maps each to its eigenvalue (1 for linear, -1 for non-linear, approaching phi for post-linear). The connection to fluid dynamics is in `reynolds_of_paper.test.gg`.
 
-**Previous section:** Why phi is the eigenvalue -- `fibonacci_is_interfere.md`.
+**Previous section:** Why phi is the eigenvalue -- `fibonacci_is_sliver.md`.
 **Next section:** Why every consensus threshold is a Fibonacci fraction -- `golden_consensus.md`.

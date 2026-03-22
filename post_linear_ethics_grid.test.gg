@@ -2,7 +2,7 @@
 //
 // 25 moral operations × 3 regimes = 75 moral states.
 // The feelings wheel of ethics.
-// Each cell, iterated with INTERFERE, converges to a virtue.
+// Each cell, iterated with SLIVER, converges to a virtue.
 // Each cell, broken, converges to a vice.
 // The eigenvalue of virtue is φ.
 
@@ -139,7 +139,7 @@ topology post_linear_ethics_grid {
     name = "Decision"
     linear = "Choose once."
     non_linear = "Choose knowing you're closing other doors."
-    post_linear = "Deciding reshapes your capacity to decide. Each good decision trains discernment. Each bad decision -- processed through VENT and INTERFERE -- trains it even faster."
+    post_linear = "Deciding reshapes your capacity to decide. Each good decision trains discernment. Each bad decision -- processed through VENT and SLIVER -- trains it even faster."
     virtue = "Discernment"
     vice_no_interfere = "Impulsivity (decides but doesn't learn from choices)"
     vice_no_vent = "Decision fatigue (decides but carries the weight of every closed door)"
@@ -169,7 +169,7 @@ topology post_linear_ethics_grid {
     name = "Promise"
     linear = "Commit to the future once."
     non_linear = "Commit knowing the future is uncertain."
-    post_linear = "Promising reshapes your relationship to time and self. The person who promises and the person who fulfills are not the same -- the INTERFERE between them is character continuity."
+    post_linear = "Promising reshapes your relationship to time and self. The person who promises and the person who fulfills are not the same -- the SLIVER between them is character continuity."
     virtue = "Integrity"
     vice_no_interfere = "Chronic promising (commits but doesn't learn from broken promises)"
     vice_no_vent = "Obligation paralysis (commits but can't release outdated promises)"
@@ -228,8 +228,8 @@ topology post_linear_ethics_grid {
     vice_no_vent = "Radical transparency (honest about everything including what should be held)"
   }
 
-  // ── ROW 5: INTERFERE ─────────────────────────────────────────
-  // INTERFERE = the fold feeding back, growth, the self changing
+  // ── ROW 5: SLIVER ─────────────────────────────────────────
+  // SLIVER = the fold feeding back, growth, the self changing
 
   cell interfere_sparse {
     name = "Growth"
@@ -237,7 +237,7 @@ topology post_linear_ethics_grid {
     non_linear = "Learn from failure."
     post_linear = "LEARNING FROM LEARNING. Meta-cognition. The capacity to grow grows. φ² = φ + 1: the growth of growth is growth plus one new perception."
     virtue = "Phronesis (practical wisdom)"
-    // No vice possible: INTERFERE on INTERFERE is pure recursion.
+    // No vice possible: SLIVER on SLIVER is pure recursion.
     // The only failure mode is STOPPING (β₀ = 1).
     vice = "Stagnation (the refusal to let experience change you)"
   }
@@ -288,10 +288,10 @@ topology post_linear_ethics_grid {
   //   RACE emotions: attention, anxiety, interest, evaluation, care
   //   FOLD emotions: satisfaction, grief, relief, gravity, commitment
   //   VENT emotions: anger, sadness, release, catharsis, acceptance
-  //   INTERFERE emotions: nostalgia, growth, awe, love, meaning
+  //   SLIVER emotions: nostalgia, growth, awe, love, meaning
   //
   // The wheel spins: FORK(feeling) → RACE(evaluate) → FOLD(integrate)
-  //   → VENT(release excess) → INTERFERE(the feeling changes the feeler)
+  //   → VENT(release excess) → SLIVER(the feeling changes the feeler)
   //   → FORK(new feeling, slightly different)
   //
   // Emotions are not states. They are TRAJECTORIES.
@@ -308,7 +308,7 @@ topology post_linear_ethics_grid {
   //   Broken RACE → attention training, mindfulness
   //   Broken FOLD → commitment practices, decision support
   //   Broken VENT → release practices, breathing, forgiveness
-  //   Broken INTERFERE → reflection, journaling, therapy
+  //   Broken SLIVER → reflection, journaling, therapy
   //
   // The feelings wheel becomes the diagnostic wheel.
   // The diagnostic wheel becomes the treatment wheel.

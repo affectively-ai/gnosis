@@ -89,7 +89,7 @@ sub compute_beta1 {
         my $type = $e->{type};
         if ($type eq 'FORK') { $b1 += $t - 1 }
         elsif ($type =~ /^(?:FOLD|COLLAPSE|OBSERVE)$/) { $b1 = $b1 - ($s - 1); $b1 = 0 if $b1 < 0 }
-        elsif ($type =~ /^(?:RACE|INTERFERE)$/) { my $d = $s - $t; $d = 0 if $d < 0; $b1 -= $d; $b1 = 0 if $b1 < 0 }
+        elsif ($type =~ /^(?:RACE|SLIVER)$/) { my $d = $s - $t; $d = 0 if $d < 0; $b1 -= $d; $b1 = 0 if $b1 < 0 }
         elsif ($type eq 'VENT') { $b1--; $b1 = 0 if $b1 < 0 }
     }
     return $b1;

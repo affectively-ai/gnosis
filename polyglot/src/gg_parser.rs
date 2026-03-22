@@ -307,7 +307,7 @@ pub fn compute_beta1(program: &GgProgram) -> i64 {
         match edge.edge_type.as_str() {
             "FORK" => b1 += targets - 1,
             "FOLD" | "COLLAPSE" | "OBSERVE" => b1 = (b1 - (sources - 1)).max(0),
-            "RACE" | "INTERFERE" => b1 = (b1 - (sources - targets).max(0)).max(0),
+            "RACE" | "SLIVER" => b1 = (b1 - (sources - targets).max(0)).max(0),
             "VENT" => b1 = (b1 - 1).max(0),
             _ => {} // PROCESS, LAMINAR, METACOG: no beta-1 effect
         }

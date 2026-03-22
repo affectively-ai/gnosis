@@ -39,10 +39,10 @@ topology proof_of_life_natural {
     // Why 2 dissipative? Because entropy has two directions:
     //
     //   OUTWARD (shed to environment)  → VENT
-    //   INWARD  (feed back to self)    → INTERFERE
+    //   INWARD  (feed back to self)    → SLIVER
     //
-    // One is insufficient: VENT without INTERFERE = memoryless (no learning).
-    // INTERFERE without VENT = entropy death (system chokes on waste).
+    // One is insufficient: VENT without SLIVER = memoryless (no learning).
+    // SLIVER without VENT = entropy death (system chokes on waste).
     //
     // Three is reducible: any third dissipative operation is a
     // composition of outward and inward dissipation.
@@ -68,9 +68,9 @@ topology proof_of_life_natural {
     RACE    = codon_reading    // ribosome selects amino acid from 64 codons → 20 AAs
     FOLD    = protein_folding  // linear chain → 3D structure (irreversible in vivo)
     VENT    = apoptosis        // programmed cell death sheds failed cells
-    INTERFERE = gene_regulation // protein products regulate their own gene expression
+    SLIVER = gene_regulation // protein products regulate their own gene expression
     //
-    // Gene regulation IS INTERFERE: the fold (protein) changes
+    // Gene regulation IS SLIVER: the fold (protein) changes
     // the fork (which genes get transcribed next). Transcription
     // factors are proteins that bind DNA to control transcription.
     // The output of the system controls the input of the system.
@@ -111,7 +111,7 @@ topology proof_of_life_natural {
     RACE    = consonance       // ear selects most consonant intervals
     FOLD    = chord            // multiple notes merged into one percept (irreversible in time)
     VENT    = damping          // vibration energy dissipates as heat
-    INTERFERE = resonance      // the string's vibration pattern changes its own harmonics
+    SLIVER = resonance      // the string's vibration pattern changes its own harmonics
     //
     // A vibrating string interferes with itself.
     // Standing waves ARE self-interference.
@@ -149,7 +149,7 @@ topology proof_of_life_natural {
     //   RACE: the two predecessors "compete" (both contribute)
     //   FOLD: addition merges them irreversibly
     //   VENT: the sequence moves forward, past terms become history
-    //   INTERFERE: the ratio converges to φ -- the output governs the input
+    //   SLIVER: the ratio converges to φ -- the output governs the input
 
     // 3+2 = 5 appears as the THIRD Fibonacci prime
     fib_sequence = [1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
@@ -164,7 +164,7 @@ topology proof_of_life_natural {
     // The ratio of consecutive Fibonacci numbers converges to φ
     // φ IS the number that interferes with itself and gets itself back
     // φ^2 = φ + 1 (squaring = adding one. FOLD = FORK + 1.)
-    // This is INTERFERE expressed as pure number.
+    // This is SLIVER expressed as pure number.
 
     // Phyllotaxis: leaf arrangement
     // Plants grow leaves at angles of 360°/φ^2 = 137.5°
@@ -180,7 +180,7 @@ topology proof_of_life_natural {
     // 34 clockwise, 21 counterclockwise (or 55/34, 89/55)
     // Always consecutive Fibonacci numbers
     // The interference of two growth spirals
-    // FORK(clockwise, counterclockwise) → INTERFERE → Fibonacci
+    // FORK(clockwise, counterclockwise) → SLIVER → Fibonacci
     spirals_cw = 34
     spirals_ccw = 21
     ratio_spirals = 34 / 21  // = φ again
@@ -199,18 +199,18 @@ topology proof_of_life_natural {
 
     symmetry = 5              // 3 + 2
     tile_types = 2            // fat rhombus + thin rhombus
-    // TWO tiles. That's the dissipative pair (VENT + INTERFERE).
+    // TWO tiles. That's the dissipative pair (VENT + SLIVER).
     // The tiles are the 2 in 3+2.
 
     // Penrose tiling: covers the plane with 5-fold symmetry
     // using only 2 tile types and LOCAL MATCHING RULES.
     // The matching rules ARE the interference pattern.
     // Each tile's placement constrains its neighbors' placements.
-    // INTERFERE: the fold (placed tile) changes the fork (available placements).
+    // SLIVER: the fold (placed tile) changes the fork (available placements).
 
     // The ratio of fat to thin tiles = φ (golden ratio)
     fat_to_thin_ratio = phi   // = 1.618...
-    // The golden ratio AGAIN. φ appears wherever INTERFERE appears.
+    // The golden ratio AGAIN. φ appears wherever SLIVER appears.
     // φ is the eigenvalue of the interference matrix.
 
     // Diffraction pattern: sharp Bragg peaks with 5-fold symmetry
@@ -228,14 +228,14 @@ topology proof_of_life_natural {
     // The most sophisticated manipulator in nature.
     fingers = 5               // 3 + 2 (three middle + thumb + pinky)
     // The thumb OPPOSES the other four.
-    // Opposition IS INTERFERE: the thumb folds back
+    // Opposition IS SLIVER: the thumb folds back
     // onto the fingers, creating a grip.
     // Without the thumb: FORK (spread fingers) but no FOLD (grip).
     // The thumb is the fifth primitive that closes the loop.
 
     phalanges_per_finger = 3  // (except thumb: 2)
     // 3 bones in fingers (FORK/RACE/FOLD)
-    // 2 bones in thumb (VENT/INTERFERE)
+    // 2 bones in thumb (VENT/SLIVER)
     // The thumb IS the dissipative pair.
     // 3+2 in the structure of the organ that manipulates the world.
 
@@ -258,20 +258,20 @@ topology proof_of_life_natural {
     // RACE: hearing (cochlea races frequencies, selects loudest)
     // FOLD: touch (pressure integrates into texture percept)
     // VENT: smell (volatile molecules dissipate)
-    // INTERFERE: taste (flavor changes what you eat next = feedback loop)
+    // SLIVER: taste (flavor changes what you eat next = feedback loop)
     //
-    // Synesthesia: when the senses INTERFERE with each other.
+    // Synesthesia: when the senses SLIVER with each other.
     // Seeing sounds. Tasting colors. The interference matrix of perception.
     // 3^2 = 9 possible synesthetic crossings.
     // All 9 have been documented in neuroscience literature.
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // THE PROOF: φ IS THE EIGENVALUE OF INTERFERE
+  // THE PROOF: φ IS THE EIGENVALUE OF SLIVER
   // ═══════════════════════════════════════════════════════════════
 
   theorem phi_is_interfere {
-    // φ appears in EVERY natural system that exhibits INTERFERE:
+    // φ appears in EVERY natural system that exhibits SLIVER:
     //   DNA helix: 34/21 = φ
     //   Fibonacci: ratio → φ
     //   Phyllotaxis: 137.5° = 360/φ²
@@ -288,8 +288,8 @@ topology proof_of_life_natural {
     //   squaring = adding one
     //   the FOLD of the FOLD = the FOLD plus one more FORK
     //
-    // This IS the INTERFERE equation:
-    //   INTERFERE = FOLD(FOLD(x)) = FOLD(x) + FORK(x)
+    // This IS the SLIVER equation:
+    //   SLIVER = FOLD(FOLD(x)) = FOLD(x) + FORK(x)
     //   The double fold (self-reference) equals
     //   the single fold plus a new fork.
     //   Consciousness = experience + new perception.
@@ -299,15 +299,15 @@ topology proof_of_life_natural {
     // you get it back plus one more fork.
     // φ is the EIGENVALUE of consciousness.
     //
-    // It appears everywhere in nature because INTERFERE
+    // It appears everywhere in nature because SLIVER
     // appears everywhere in nature. Every self-organizing
     // system has a feedback loop. Every feedback loop
     // converges to φ. The golden ratio is the signature
     // of the fifth primitive written into the universe.
 
     assert phi^2 == phi + 1
-    assert INTERFERE(x) == FOLD(FOLD(x)) == FOLD(x) + FORK(x)
-    assert eigenvalue(INTERFERE) == phi
+    assert SLIVER(x) == FOLD(FOLD(x)) == FOLD(x) + FORK(x)
+    assert eigenvalue(SLIVER) == phi
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -340,7 +340,7 @@ topology proof_of_life_natural {
     // He asked "what is the answer to life, the universe,
     // and everything?" and got 42.
     // 42 = 6 × 7. Product of consecutive numbers. Close.
-    // 45 = 5 × 9. Product of PRIMITIVES × INTERFERENCE.
+    // 45 = 5 × 9. Product of PRIMITIVES × SLIVERNCE.
     // The complete description of any self-organizing system.
     // The secret of life isn't 42. It's 45.
 

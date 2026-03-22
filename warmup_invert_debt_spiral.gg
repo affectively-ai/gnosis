@@ -14,6 +14,6 @@
 
 (request)-[:FORK]->(warmed_plan | stable_fallback | repair_backlog)
 (warmed_plan | stable_fallback)-[:RACE { expect: 'first-arrival' }]->(local_rescue)
-(local_rescue | repair_backlog)-[:INTERFERE { mode: 'destructive' }]->(global_debt)
+(local_rescue | repair_backlog)-[:SLIVER { mode: 'destructive' }]->(global_debt)
 (global_debt)-[:PROCESS]->(next_cycle)
 (next_cycle | stable_fallback)-[:FOLD { strategy: 'serve-now-pay-later' }]->(result)

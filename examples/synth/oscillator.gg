@@ -21,4 +21,4 @@
 
 // Interference: waveforms mix according to their amplitudes
 // This is constructive interference — the waves ADD
-(sine | saw | square | triangle)-[:INTERFERE { mode: 'constructive' }]->(osc_out)
+(sine | saw | square | triangle)-[:SLIVER { mode: 'constructive' }]->(osc_out)

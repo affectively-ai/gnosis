@@ -27,33 +27,33 @@
 (observation)-[:FORK]->(eval_informational | eval_reuse_state | eval_exact_artifact | eval_update_policy | eval_probabilistic | eval_physical)
 
 // Informational Branch Evidence
-(eval_informational)-[:INTERFERE { mode: 'constructive' }]->(class_cache)
-(eval_informational)-[:INTERFERE { mode: 'constructive' }]->(class_prefetch)
-(eval_informational)-[:INTERFERE { mode: 'constructive' }]->(class_adaptive)
-(eval_informational)-[:INTERFERE { mode: 'constructive' }]->(class_approximate)
-(eval_informational)-[:INTERFERE { mode: 'constructive' }]->(class_amortized)
-(eval_informational)-[:INTERFERE { mode: 'destructive' }]->(class_physical)
-(eval_informational)-[:INTERFERE { mode: 'destructive' }]->(class_entrainment)
+(eval_informational)-[:SLIVER { mode: 'constructive' }]->(class_cache)
+(eval_informational)-[:SLIVER { mode: 'constructive' }]->(class_prefetch)
+(eval_informational)-[:SLIVER { mode: 'constructive' }]->(class_adaptive)
+(eval_informational)-[:SLIVER { mode: 'constructive' }]->(class_approximate)
+(eval_informational)-[:SLIVER { mode: 'constructive' }]->(class_amortized)
+(eval_informational)-[:SLIVER { mode: 'destructive' }]->(class_physical)
+(eval_informational)-[:SLIVER { mode: 'destructive' }]->(class_entrainment)
 
 // Explicit Reuse Branch
-(eval_reuse_state)-[:INTERFERE { mode: 'constructive' }]->(class_cache)
-(eval_reuse_state)-[:INTERFERE { mode: 'constructive' }]->(class_prefetch)
-(eval_reuse_state)-[:INTERFERE { mode: 'destructive' }]->(class_adaptive)
+(eval_reuse_state)-[:SLIVER { mode: 'constructive' }]->(class_cache)
+(eval_reuse_state)-[:SLIVER { mode: 'constructive' }]->(class_prefetch)
+(eval_reuse_state)-[:SLIVER { mode: 'destructive' }]->(class_adaptive)
 
 // Exact Lookup vs Staged Work
-(eval_exact_artifact)-[:INTERFERE { mode: 'constructive' }]->(class_cache)
-(eval_exact_artifact)-[:INTERFERE { mode: 'destructive' }]->(class_prefetch)
+(eval_exact_artifact)-[:SLIVER { mode: 'constructive' }]->(class_cache)
+(eval_exact_artifact)-[:SLIVER { mode: 'destructive' }]->(class_prefetch)
 
 // Policy Update Branch
-(eval_update_policy)-[:INTERFERE { mode: 'constructive' }]->(class_adaptive)
+(eval_update_policy)-[:SLIVER { mode: 'constructive' }]->(class_adaptive)
 
 // Probabilistic Rejection Branch
-(eval_probabilistic)-[:INTERFERE { mode: 'constructive' }]->(class_approximate)
-(eval_probabilistic)-[:INTERFERE { mode: 'destructive' }]->(class_amortized)
+(eval_probabilistic)-[:SLIVER { mode: 'constructive' }]->(class_approximate)
+(eval_probabilistic)-[:SLIVER { mode: 'destructive' }]->(class_amortized)
 
 // Physical/Biological Branch
-(eval_physical)-[:INTERFERE { mode: 'constructive' }]->(class_physical)
-(eval_physical)-[:INTERFERE { mode: 'destructive' }]->(class_entrainment)
+(eval_physical)-[:SLIVER { mode: 'constructive' }]->(class_physical)
+(eval_physical)-[:SLIVER { mode: 'destructive' }]->(class_entrainment)
 
 // 4. Maximum Likelihood Selection via RACE
 (class_cache | class_prefetch | class_adaptive | class_approximate | class_amortized | class_physical | class_entrainment)-[:RACE { expect: 'max-likelihood' }]->(inferred_mechanism: Classification)

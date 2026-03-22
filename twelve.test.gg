@@ -45,7 +45,7 @@ topology twelve {
     //
     // IN FORK/RACE/FOLD TERMS:
     //   The Circle of Fifths is a 12-node ring.
-    //   Each edge is INTERFERE (harmonic overlay at 3:2).
+    //   Each edge is SLIVER (harmonic overlay at 3:2).
     //   After 12 edges, you expect to fold back to the origin.
     //   You do not. The deficit is 531441/524288.
     //   VENT: equal temperament distributes the comma uniformly --
@@ -165,7 +165,7 @@ topology twelve {
   // Classification: REFRAMED + FOLKLORE
   //
   // Four elements times three modes = twelve signs.
-  // The missing 13th sign (Ophiuchus) maps to INTERFERE.
+  // The missing 13th sign (Ophiuchus) maps to SLIVER.
   // 5 x 3 = 15 would be the complete framework.
   // ═══════════════════════════════════════════════════════════════
 
@@ -189,7 +189,7 @@ topology twelve {
     // it is excluded from the zodiac.
     //
     // In the five-primitive framework:
-    //   Ophiuchus = INTERFERE = the 5th element the ancients omitted.
+    //   Ophiuchus = SLIVER = the 5th element the ancients omitted.
     //   5 elements x 3 modes = 15 signs (the complete framework).
     //   12 = 15 - 3 = one element's worth short.
     //
@@ -205,7 +205,7 @@ topology twelve {
     assert 5 * 3 == 15    // PROVED: arithmetic
     assert 15 - 12 == 3   // PROVED: one element's worth
 
-    classification = "FOLKLORE (element-to-primitive map) + REFRAMED (Ophiuchus as INTERFERE)"
+    classification = "FOLKLORE (element-to-primitive map) + REFRAMED (Ophiuchus as SLIVER)"
     honesty = "the ancients excluded Ophiuchus for practical reasons, not metaphysical ones"
   }
 
@@ -348,7 +348,7 @@ topology twelve {
   // ═══════════════════════════════════════════════════════════════
   // PART VII: WHY NOT 13
   //
-  // Classification: PROVED (number theory) + CONJECTURED (INTERFERE)
+  // Classification: PROVED (number theory) + CONJECTURED (SLIVER)
   //                + FOLKLORE (superstition)
   //
   // 13 = F(7). Ancient systems stopped at 12.
@@ -379,7 +379,7 @@ topology twelve {
   }
 
   theorem thirteen_requires_self_reference {
-    // The claim: systems stopped at 12 because 13 needs INTERFERE.
+    // The claim: systems stopped at 12 because 13 needs SLIVER.
     //
     // Evidence FOR:
     //   12 months, 12 signs, 12 notes, 12 hours,
@@ -394,13 +394,13 @@ topology twelve {
     //
     // HONEST ASSESSMENT:
     //   The pattern is real in Western culture. The explanation via
-    //   "missing INTERFERE" is consistent but not proved.
+    //   "missing SLIVER" is consistent but not proved.
     //   The Maya counterexample is significant: a civilization
     //   that used 13 and thrived.
     //
     //   Correct claim: "Western preference for 12 and aversion to 13
     //   is CONSISTENT WITH a framework missing its fifth primitive."
-    //   Wrong claim: "12 proves the framework needs INTERFERE."
+    //   Wrong claim: "12 proves the framework needs SLIVER."
 
     twelve_systems = [
       "months", "zodiac", "chromatic scale", "clock hours",
@@ -424,7 +424,7 @@ topology twelve {
     //
     // In five-primitive terms:
     //   12 = what the four-primitive world handles
-    //   13 = what requires the fifth primitive (INTERFERE)
+    //   13 = what requires the fifth primitive (SLIVER)
     //   "Unlucky" = the label the linear world puts on
     //   what it cannot accommodate
     //
@@ -458,16 +458,16 @@ topology twelve {
     ]
 
     reframed = [
-      "comma as semiotic deficit of a 12-node INTERFERE ring",
+      "comma as semiotic deficit of a 12-node SLIVER ring",
       "ET as Byzantine trilemma (local/global/zero-deficit: pick two)",
       "leap month as vent of accumulated calendrical deficit",
-      "Ophiuchus as missing INTERFERE in a 4-element zodiac"
+      "Ophiuchus as missing SLIVER in a 4-element zodiac"
     ]
 
     conjectured = [
       "0.368 lunar deficit ≈ 1/e (no known mechanism)",
       "chromatic 5+7 as Fibonacci (7 is not Fibonacci)",
-      "Western 12-preference encodes missing-INTERFERE pattern"
+      "Western 12-preference encodes missing-SLIVER pattern"
     ]
 
     folklore = [

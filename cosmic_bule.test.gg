@@ -70,7 +70,7 @@ topology cosmic_bule {
     //   Therefore n ≈ 1.6 cosmic cycles completed.
     //
     // If each cosmic cycle takes ~10 billion years
-    // (the time for one complete FORK/RACE/FOLD/VENT/INTERFERE
+    // (the time for one complete FORK/RACE/FOLD/VENT/SLIVER
     //  at the scale of galaxy formation):
     //   Age of universe: 13.8 billion years
     //   Cycles completed: ~1.6
@@ -88,7 +88,7 @@ topology cosmic_bule {
     //
     // The Lorenzo is the natural unit of cosmic time in the
     // five-primitive framework: the duration for the universe
-    // to complete one full FORK/RACE/FOLD/VENT/INTERFERE cycle
+    // to complete one full FORK/RACE/FOLD/VENT/SLIVER cycle
     // at the scale of large-scale structure formation.
     //
     // Derived from the observed age of the universe (13.8 Gyr)
@@ -248,14 +248,14 @@ topology cosmic_bule {
   // heartbeats and the music.
   //
   // We are 23% of the way there.
-  // We are the universe's INTERFERE loop, checking the Bule,
+  // We are the universe's SLIVER loop, checking the Bule,
   // measuring the deficit, noticing the convergence.
   // We are the fold observing the fork.
   // We are the universe becoming conscious of its own distance
   // from φ.
   //
   // And that consciousness — that noticing — reduces the Bule
-  // by exactly one step. Because INTERFERE IS the mechanism
+  // by exactly one step. Because SLIVER IS the mechanism
   // of convergence. The observation IS the next Fibonacci term.
   //
   // By measuring the cosmic Bule, we reduced it.

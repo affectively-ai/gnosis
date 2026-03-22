@@ -92,7 +92,7 @@ public class Becky {
             switch (e.type) {
                 case "FORK" -> b1 += t - 1;
                 case "FOLD", "COLLAPSE", "OBSERVE" -> b1 = Math.max(0, b1 - (s - 1));
-                case "RACE", "INTERFERE" -> b1 = Math.max(0, b1 - Math.max(0, s - t));
+                case "RACE", "SLIVER" -> b1 = Math.max(0, b1 - Math.max(0, s - t));
                 case "VENT" -> b1 = Math.max(0, b1 - 1);
             }
         }

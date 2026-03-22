@@ -341,20 +341,20 @@ topology pisano_sixty {
     //   FORK: the recurrence branches into (F(n-1), F(n-2))
     //   FOLD: addition merges them, then mod m collapses further
     //   VENT: information beyond residue class is discarded
-    //   INTERFERE: the ratio F(n)/F(n-1) mod m cycles (not converges)
+    //   SLIVER: the ratio F(n)/F(n-1) mod m cycles (not converges)
     //
     // Key difference from the real Fibonacci:
     //   Over the reals, F(n)/F(n-1) CONVERGES to phi (aperiodic).
     //   Over Z/mZ, F(n)/F(n-1) CYCLES with period pi(m) (periodic).
     //
-    //   Modular reduction turns INTERFERE into periodicity.
+    //   Modular reduction turns SLIVER into periodicity.
     //   The fold forces the eigenvalue to cycle instead of converge.
     //   This is the mod-m version of "the fold remembers."
 
     assert real_fibonacci_ratio_behavior == "converges to phi"
     assert modular_fibonacci_ratio_behavior == "cycles with period pi(m)"
     assert modular_reduction == FOLD + VENT
-    assert periodicity == INTERFERE(modular)
+    assert periodicity == SLIVER(modular)
   }
 
 

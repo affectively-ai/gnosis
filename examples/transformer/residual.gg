@@ -10,4 +10,4 @@
 (skip_input: Tensor)
 (transformed: Tensor)
 
-(skip_input | transformed)-[:INTERFERE { mode: 'constructive' }]->(residual_out)
+(skip_input | transformed)-[:SLIVER { mode: 'constructive' }]->(residual_out)

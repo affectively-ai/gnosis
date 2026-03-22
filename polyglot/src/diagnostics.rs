@@ -18,7 +18,7 @@ pub enum PolyglotDiagnosticCode {
     UnboundedLoop,
     /// Concurrent FORKs without synchronization FOLD.
     RaceNoSync,
-    /// Cyclic INTERFERE edges indicating potential deadlock.
+    /// Cyclic SLIVER edges indicating potential deadlock.
     DeadlockCycle,
     /// Disconnected graph components (unreachable code).
     UnreachableComponent,
@@ -63,7 +63,7 @@ impl PolyglotDiagnosticCode {
             Self::MissingErrorHandler => "Try block without catch handler. Error FORK has no matching error FOLD.",
             Self::UnboundedLoop => "Loop with unbounded beta-1. No termination proof found in the topology cycle.",
             Self::RaceNoSync => "Concurrent FORKs detected without a synchronizing FOLD. Potential race condition.",
-            Self::DeadlockCycle => "Cyclic INTERFERE edges detected. Lock ordering creates potential deadlock.",
+            Self::DeadlockCycle => "Cyclic SLIVER edges detected. Lock ordering creates potential deadlock.",
             Self::UnreachableComponent => "Disconnected topology component detected. Code after this point is unreachable.",
             Self::DeadStore => "Value assigned but never read. Assignment node has no outgoing PROCESS.",
         }

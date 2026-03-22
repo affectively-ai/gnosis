@@ -14,5 +14,5 @@
 (request)-[:FORK]->(poisoned_cache | cold_compute)
 (poisoned_cache)-[:PROCESS]->(validator)
 (poisoned_cache | cold_compute)-[:RACE { expect: 'first-arrival' }]->(first_reply)
-(first_reply | validator)-[:INTERFERE { mode: 'destructive' }]->(unstable_reply)
+(first_reply | validator)-[:SLIVER { mode: 'destructive' }]->(unstable_reply)
 (unstable_reply | cold_compute)-[:FOLD { strategy: 'repair-or-recompute' }]->(final_answer)

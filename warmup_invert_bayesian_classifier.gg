@@ -20,16 +20,16 @@
 (observation)-[:FORK]->(eval_informational | eval_physical | eval_noise)
 
 // The evidence contradicts itself (e.g. both informational and physical traits)
-(eval_informational)-[:INTERFERE { mode: 'constructive' }]->(class_cache)
-(eval_informational)-[:INTERFERE { mode: 'destructive' }]->(class_physical)
+(eval_informational)-[:SLIVER { mode: 'constructive' }]->(class_cache)
+(eval_informational)-[:SLIVER { mode: 'destructive' }]->(class_physical)
 
-(eval_physical)-[:INTERFERE { mode: 'constructive' }]->(class_physical)
-(eval_physical)-[:INTERFERE { mode: 'destructive' }]->(class_cache)
+(eval_physical)-[:SLIVER { mode: 'constructive' }]->(class_physical)
+(eval_physical)-[:SLIVER { mode: 'destructive' }]->(class_cache)
 
 // Noise destroys both standard hypotheses and bolsters the unknown
-(eval_noise)-[:INTERFERE { mode: 'destructive' }]->(class_cache)
-(eval_noise)-[:INTERFERE { mode: 'destructive' }]->(class_physical)
-(eval_noise)-[:INTERFERE { mode: 'constructive' }]->(class_unknown)
+(eval_noise)-[:SLIVER { mode: 'destructive' }]->(class_cache)
+(eval_noise)-[:SLIVER { mode: 'destructive' }]->(class_physical)
+(eval_noise)-[:SLIVER { mode: 'constructive' }]->(class_unknown)
 
 // 4. Failure to collapse into a clean class, folds into anomaly
 (class_cache | class_physical | class_unknown)-[:RACE { expect: 'max-likelihood' }]->(ambiguous_race_result: State)

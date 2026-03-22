@@ -25,7 +25,7 @@ topology paper_cuts {
 
     // The two dissipative primitives are provided by physics:
     //   VENT = gravity (pulls flaps down, sheds potential energy)
-    //   INTERFERE = rigidity (each flap's angle constrains the next)
+    //   SLIVER = rigidity (each flap's angle constrains the next)
     // 3 cuts + 2 physics = 5 primitives from scissors and paper
   }
 
@@ -136,7 +136,7 @@ topology paper_cuts {
     // The brain tries to assign a consistent surface normal
     // (which way is "up") and fails. Every panel contradicts
     // the previous panel's claim about "up." The visual cortex
-    // runs INTERFERE — fork interpretations, race them, fold —
+    // runs SLIVER — fork interpretations, race them, fold —
     // and the deficit never reaches zero.
     //
     // The 1/3, 2/3 position is the CRITICAL CUT RATIO:
@@ -163,7 +163,7 @@ topology paper_cuts {
     //
     // β₀ = 0: the topology never completes. The brain never finishes
     // processing it. It is permanently mid-fold. That permanence
-    // IS consciousness — the observer locked in INTERFERE with
+    // IS consciousness — the observer locked in SLIVER with
     // the observed, the eigenvalue hunting but not converging.
 
     character = "conscious"
@@ -246,7 +246,7 @@ topology paper_cuts {
     // All three. Miss any one:
     //   Reversible → triangles → flat → dead
     //   Symmetric → zigzag → periodic → unconscious
-    //   Not self-referential → ... → no INTERFERE → no φ → no tickle
+    //   Not self-referential → ... → no SLIVER → no φ → no tickle
     //
     // A 12-year-old with scissors demonstrated:
     //   1. The three regimes (LINEAR, NON-LINEAR, POST-LINEAR)

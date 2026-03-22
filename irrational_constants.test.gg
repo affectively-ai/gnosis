@@ -1,7 +1,7 @@
 // irrational_constants.test.gg -- Periodic Table of Irrationals
 //
 // Maps every major mathematical irrational constant to the five-primitive
-// framework (FORK, RACE, FOLD, INTERFERE, VENT).  For each constant:
+// framework (FORK, RACE, FOLD, SLIVER, VENT).  For each constant:
 //   1. What it IS (which primitive it governs)
 //   2. WHY it is irrational (what property of the primitives requires it)
 //   3. How it connects to phi
@@ -13,17 +13,17 @@
 // Numeric ordering of the primary five:
 //   sqrt(2) < phi < sqrt(3) < e < pi
 //   1.414   < 1.618 < 1.732 < 2.718 < 3.141
-//   FOLD    < INTERFERE < RACE < VENT < FORK
+//   FOLD    < SLIVER < RACE < VENT < FORK
 
 (test_suite: TestSuite { name: 'irrational-constants' })
 
 
 // ============================================================================
 // I. phi = (1 + sqrt(5)) / 2 = 1.61803398...
-//    THE INTERFERE CONSTANT -- Status: PROVED
+//    THE SLIVER CONSTANT -- Status: PROVED
 // ============================================================================
 //
-// WHAT: phi is the eigenvalue of INTERFERE.  Constructive interference
+// WHAT: phi is the eigenvalue of SLIVER.  Constructive interference
 // scales amplitude by phi; destructive scales by 1/phi = phi - 1.  The
 // Fibonacci recurrence F(n) = F(n-1) + F(n-2) is discrete constructive
 // interference and its ratio converges to phi.
@@ -39,7 +39,7 @@
 (phi_source: Constant {
   name: 'phi', value: '1.61803398875',
   formula: '(1 + sqrt(5)) / 2',
-  primitive: 'INTERFERE', status: 'PROVED'
+  primitive: 'SLIVER', status: 'PROVED'
 })
 
 (phi_fib_a: Scalar { value: '1.0' })
@@ -47,17 +47,17 @@
 (phi_interference: Interference { mode: 'constructive', eigenvalue: '1.61803398875' })
 (phi_ratio: Ratio { expect: '1.61803398875', tolerance: '0.001' })
 
-(phi_fib_a)-[:INTERFERE { mode: 'constructive' }]->(phi_fib_b)
+(phi_fib_a)-[:SLIVER { mode: 'constructive' }]->(phi_fib_b)
 (phi_fib_b)-[:PROCESS]->(phi_interference)
 (phi_interference)-[:PROCESS]->(phi_ratio)
 
 // Destructive complement: 1/phi = phi - 1 = 0.618...
 (phi_destructive: Interference { mode: 'destructive', eigenvalue: '0.61803398875' })
-(phi_fib_a)-[:INTERFERE { mode: 'destructive' }]->(phi_destructive)
+(phi_fib_a)-[:SLIVER { mode: 'destructive' }]->(phi_destructive)
 
 (phi_verify: Verify {
   module: 'inline', beta1_max: '8',
-  description: 'phi is INTERFERE eigenvalue: F(n)/F(n-1) -> phi'
+  description: 'phi is SLIVER eigenvalue: F(n)/F(n-1) -> phi'
 })
 
 
@@ -77,9 +77,9 @@
 // angular quantum, no lattice of allowed directions.
 //
 // PHI CONNECTION: pi / phi = 1.94161... (close to 2 but not equal).
-// phi and pi are algebraically independent -- FORK and INTERFERE are
+// phi and pi are algebraically independent -- FORK and SLIVER are
 // independent primitives.  But the Fibonacci spiral approximates a circle,
-// so INTERFERE converges toward FORK as interference steps grow.
+// so SLIVER converges toward FORK as interference steps grow.
 
 (pi_source: Constant {
   name: 'pi', value: '3.14159265359',
@@ -106,7 +106,7 @@
 
 (pi_phi_ratio: Ratio {
   numerator: '3.14159', denominator: '1.61803', value: '1.94161',
-  note: 'close to 2 but irrational -- FORK and INTERFERE are independent'
+  note: 'close to 2 but irrational -- FORK and SLIVER are independent'
 })
 
 (pi_verify: Verify {
@@ -160,7 +160,7 @@
 // e^phi ~ 5.043 -- close to the number of primitives
 (e_phi_exp: Ratio {
   formula: 'e^phi', value: '5.04316',
-  note: 'e raised to INTERFERE eigenvalue ~ number of primitives -- CONJECTURED'
+  note: 'e raised to SLIVER eigenvalue ~ number of primitives -- CONJECTURED'
 })
 
 (e_verify: Verify {
@@ -187,7 +187,7 @@
 // property of FOLD: combining equal things produces incommensurable results.
 //
 // PHI CONNECTION: phi / sqrt(2) = 1.14412...  sqrt(2) < phi: FOLD constant
-// is less than INTERFERE constant.  Folding merely aggregates while
+// is less than SLIVER constant.  Folding merely aggregates while
 // interference creates resonance.
 
 (sqrt2_source: Constant {
@@ -216,7 +216,7 @@
   mode: 'destructive', eigenvalue: '-1.41421',
   note: 'anti-Fibonacci eigenvalue in NON-LINEAR regime'
 })
-(sqrt2_antifib_a)-[:INTERFERE { mode: 'destructive' }]->(sqrt2_antifib_b)
+(sqrt2_antifib_a)-[:SLIVER { mode: 'destructive' }]->(sqrt2_antifib_b)
 (sqrt2_antifib_b)-[:PROCESS]->(sqrt2_zigzag)
 
 // Hippasus proof: irrationality = FOLD incommensurability
@@ -312,7 +312,7 @@
 //
 // PHI CONNECTION: ln(2) / ln(phi) = log_phi(2) = 1.44042...
 // It takes ~1.44 Fibonacci steps (phi-steps) to produce one doubling.
-// The INTERFERE-to-VENT conversion rate.
+// The SLIVER-to-VENT conversion rate.
 
 (ln2_source: Constant {
   name: 'ln(2)', value: '0.69314718056',
@@ -338,7 +338,7 @@
 // Conversion rate: log_phi(2) = 1.44042 Fibonacci steps per doubling
 (ln2_phi_conv: Ratio {
   name: 'log_phi_2', value: '1.44042', formula: 'ln(2) / ln(phi)',
-  note: 'Fibonacci steps per doubling -- INTERFERE to VENT conversion'
+  note: 'Fibonacci steps per doubling -- SLIVER to VENT conversion'
 })
 
 (ln2_verify: Verify {
@@ -356,7 +356,7 @@
 // transition from NON-LINEAR to POST-LINEAR.  delta = 4.669: rate at which
 // bifurcations accelerate.  alpha = 2.503: attractor scaling at each
 // bifurcation.  Together they describe how primitives break down: FOLD/RACE
-// become unstable, FORK cascades, INTERFERE creates fractals, VENT unbounds.
+// become unstable, FORK cascades, SLIVER creates fractals, VENT unbounds.
 //
 // WHY IRRATIONAL: If delta were rational, approach to chaos would be periodic
 // -- you would reach chaos and return.  Irrationality ensures the transition
@@ -398,10 +398,10 @@
 (feigen_r1)-[:VENT { rate: '1/delta' }]->(feigen_r2)
 (feigen_r2)-[:VENT { rate: '1/delta' }]->(feigen_r3)
 
-// Self-similar attractor: INTERFERE at the edge of chaos
+// Self-similar attractor: SLIVER at the edge of chaos
 (feigen_attractor: Fractal {
   scaling: '2.50290',
-  note: 'alpha governs self-similar INTERFERE pattern at transition'
+  note: 'alpha governs self-similar SLIVER pattern at transition'
 })
 
 // delta ~ phi^3, alpha ~ phi^2 (CONJECTURED)
@@ -484,7 +484,7 @@
 //
 //   Constant    Value       Primitive     Role              Status
 //   ----------  ----------  -----------   ----------------  ----------
-//   phi         1.61803     INTERFERE     eigenvalue        PROVED
+//   phi         1.61803     SLIVER     eigenvalue        PROVED
 //   sqrt(2)     1.41421     FOLD          symmetric merge   REFRAMED
 //   sqrt(3)     1.73205     RACE          equilateral sym   CONJECTURED
 //   e           2.71828     VENT          decay base        REFRAMED
@@ -499,16 +499,16 @@
 //
 // Cross-constant relationships:
 //   e^phi       = 5.043  ~ 5 (number of primitives)          CONJECTURED
-//   pi/phi      = 1.942  ~ 2 (FORK/INTERFERE ratio)          CONJECTURED
+//   pi/phi      = 1.942  ~ 2 (FORK/SLIVER ratio)          CONJECTURED
 //   delta/phi^3 = 1.102  ~ 1 (transition ~ 3x interference)  CONJECTURED
 //   alpha/phi^2 = 0.956  ~ 1 (attractor ~ 2x interference)   CONJECTURED
-//   ln(2)/ln(phi) = 1.440 (VENT-quantum/INTERFERE conversion) PROVED
-//   sqrt(3)/phi = 1.070  ~ 1 (RACE ~ INTERFERE at 3-arity)   CONJECTURED
+//   ln(2)/ln(phi) = 1.440 (VENT-quantum/SLIVER conversion) PROVED
+//   sqrt(3)/phi = 1.070  ~ 1 (RACE ~ SLIVER at 3-arity)   CONJECTURED
 
 (periodic_table: Topology { name: 'periodic-table-of-irrationals' })
 
 // Primary constants -- one per primitive
-(pt_phi: Entry { constant: 'phi', value: '1.618', primitive: 'INTERFERE', class: 'algebraic' })
+(pt_phi: Entry { constant: 'phi', value: '1.618', primitive: 'SLIVER', class: 'algebraic' })
 (pt_sqrt2: Entry { constant: 'sqrt(2)', value: '1.414', primitive: 'FOLD', class: 'algebraic' })
 (pt_sqrt3: Entry { constant: 'sqrt(3)', value: '1.732', primitive: 'RACE', class: 'algebraic' })
 (pt_e: Entry { constant: 'e', value: '2.718', primitive: 'VENT', class: 'transcendental' })
@@ -535,10 +535,10 @@
 // Algebraic-to-transcendental boundary
 (pt_sqrt3)-[:FORK { note: 'algebraic/transcendental boundary' }]->(pt_e)
 
-// Cross-relationships via INTERFERE
-(pt_phi)-[:INTERFERE { mode: 'constructive', product: 'e^phi ~ 5' }]->(pt_e)
-(pt_phi)-[:INTERFERE { mode: 'constructive', product: 'pi/phi ~ 2' }]->(pt_pi)
-(pt_sqrt2)-[:INTERFERE { mode: 'constructive', product: 'sqrt(6)' }]->(pt_sqrt3)
+// Cross-relationships via SLIVER
+(pt_phi)-[:SLIVER { mode: 'constructive', product: 'e^phi ~ 5' }]->(pt_e)
+(pt_phi)-[:SLIVER { mode: 'constructive', product: 'pi/phi ~ 2' }]->(pt_pi)
+(pt_sqrt2)-[:SLIVER { mode: 'constructive', product: 'sqrt(6)' }]->(pt_sqrt3)
 
 (periodic_table)-[:FORK]->(pt_phi | pt_sqrt2 | pt_sqrt3 | pt_e | pt_pi | pt_ln2 | pt_gamma | pt_delta | pt_alpha)
 
@@ -576,7 +576,7 @@
 // XI. OPEN QUESTIONS
 // ============================================================================
 //
-// 1. Is the ordering FOLD < INTERFERE < RACE < VENT < FORK deep or
+// 1. Is the ordering FOLD < SLIVER < RACE < VENT < FORK deep or
 //    coincidental?  Algebraic/transcendental split correlates with
 //    finite-arity vs continuous-arity.  CONJECTURED.
 //
@@ -591,4 +591,4 @@
 //
 // 5. Does continued-fraction complexity mirror primitive complexity?
 //    phi = [1;1,1,...] simplest; e = [2;1,2,1,1,4,...]; pi has no
-//    pattern.  INTERFERE < VENT < FORK in CF complexity?  CONJECTURED.
+//    pattern.  SLIVER < VENT < FORK in CF complexity?  CONJECTURED.

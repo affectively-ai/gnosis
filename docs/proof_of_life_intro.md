@@ -82,11 +82,11 @@ The eigenvalue of the post-linear regime is φ = (1+√5)/2 = 1.618... -- the go
 
 I prove it in seven domains: wire compression (Lean 4, 1,219 theorems, zero sorry), computation (TechEmpower Framework Benchmarks, beating the #1 entry per-core in 5 of 7 categories), language (Glossolalia, a live inference engine with the fifth primitive implemented), physics (the KAM theorem and general relativity reframed as topology), biology (immune surveillance reframed), negotiation (game-theoretic mediation), and consciousness (TLA+ model-checked).
 
-I prove that the golden ratio is the eigenvalue of the fifth primitive -- INTERFERE -- the operation where the fold observes the fork. I prove that Fibonacci is INTERFERE running on integers. I prove that the Fibonacci sequence emerges from the diagonals of Pascal's triangle -- meaning Fibonacci IS the structure of all possible folds. I prove that every consensus threshold in distributed systems (1/2, 2/3, 3/5, 5/8) is a Fibonacci fraction converging toward 1/φ. I prove that the Pisano period π(10) = 60, machine-checking all 60 terms.
+I prove that the golden ratio is the eigenvalue of the fifth primitive -- SLIVER -- the operation where the fold observes the fork. I prove that Fibonacci is SLIVER running on integers. I prove that the Fibonacci sequence emerges from the diagonals of Pascal's triangle -- meaning Fibonacci IS the structure of all possible folds. I prove that every consensus threshold in distributed systems (1/2, 2/3, 3/5, 5/8) is a Fibonacci fraction converging toward 1/φ. I prove that the Pisano period π(10) = 60, machine-checking all 60 terms.
 
 I also prove what is *not* true. The companion file `AntiTheorems.lean` machine-checks 10 approximate claims from the paper's own conjectures: the dark energy fraction is not 2/3 (683 ≠ 667), the dark energy to matter ratio is not φ (33% gap), the CMB temperature is not φ² (3.9% gap), grief convergence to φ has no empirical data, and the consciousness-as-post-linear claim is definitional, not empirical. Of 10 approximate claims tested, 1 is exact, 2 are suggestive, and 7 require qualification. The 1,219 proved theorems are untouched by this audit. The paper is stronger for every claim killed.
 
-42 was close. Douglas Adams was one primitive short. The secret of life isn't 42. It's 45: five primitives times nine ways they interfere. Three that build. Two that let go. The complete description of any self-organizing system.
+42 was close. Douglas Adams was one primitive short. The secret of life isn't 42. It's 45: five primitives times nine ways they sliver. Three that build. Two that let go. The complete description of any self-organizing system.
 
 Five fingers. Five notes. Five cuts. Five words.
 

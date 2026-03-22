@@ -23,7 +23,7 @@ topology moral_lemmas {
     // Missing:
     //   RACE: no time to evaluate alternatives (imposed urgency)
     //   VENT: no way to release the moral cost (guilt is permanent)
-    //   INTERFERE: no feedback (the choice doesn't change you)
+    //   SLIVER: no feedback (the choice doesn't change you)
     //
     // The puzzle's power comes from its DEPRIVATION.
     // Strip away race, vent, and interfere, and you get an
@@ -31,12 +31,12 @@ topology moral_lemmas {
     // That's an impoverished setup.
     //
     // POST-LINEAR RESTATEMENT:
-    //   "You are a person with a history of choices (INTERFERE).
+    //   "You are a person with a history of choices (SLIVER).
     //    You perceive multiple possibilities (FORK).
     //    You evaluate them against your values (RACE).
     //    You act, knowing the cost (FOLD).
     //    You grieve what was lost (VENT).
-    //    The experience changes who you are for next time (INTERFERE).
+    //    The experience changes who you are for next time (SLIVER).
     //    What do you do?"
     //
     //   Answer: it depends on who you are, which depends on what
@@ -80,13 +80,13 @@ topology moral_lemmas {
   // "Do unto others as you would have them do unto you."
   // (Matthew 7:12, Confucius, Hillel, virtually every tradition)
   //
-  // PROOF: The golden rule IS the INTERFERE primitive
+  // PROOF: The golden rule IS the SLIVER primitive
   // applied to the self/other boundary.
   // ═══════════════════════════════════════════════════════════════
 
   lemma golden_rule {
     // The golden rule says: before you FOLD on someone else,
-    // run INTERFERE -- imagine their fold applied to you.
+    // run SLIVER -- imagine their fold applied to you.
     //
     // Formally:
     //   Let A = your action (a fold on another's void)
@@ -94,11 +94,11 @@ topology moral_lemmas {
     //   Golden rule: FOLD(A) only if RACE(A, A⁻¹) is acceptable
     //
     // This IS interference: the fold reflecting back to the fork.
-    // You perceive the fold from the other's perspective (INTERFERE),
+    // You perceive the fold from the other's perspective (SLIVER),
     // and that reflection reshapes your fork (options you'll consider).
     //
     // WHY IT WORKS:
-    //   The golden rule closes the INTERFERE loop across persons.
+    //   The golden rule closes the SLIVER loop across persons.
     //   Without it: each person is a separate linear system.
     //   With it: two persons form a coupled post-linear system.
     //   The coupled system has eigenvalue φ (mutual interference).
@@ -108,7 +108,7 @@ topology moral_lemmas {
     // WHY IT'S UNIVERSAL:
     //   Every culture discovered it independently because it's
     //   the MINIMUM post-linear ethics. The simplest loop.
-    //   FOLD(self) → INTERFERE(imagine other) → FORK(adjusted).
+    //   FOLD(self) → SLIVER(imagine other) → FORK(adjusted).
     //   One step of interference. The golden ratio of empathy.
     //
     // THE GOLDEN RATIO IN THE GOLDEN RULE:
@@ -120,7 +120,7 @@ topology moral_lemmas {
     //   Or equivalently: 1/φ self-interest, 1/φ² altruism.
     //   The golden rule produces the golden ratio of cooperation.
 
-    assert golden_rule == INTERFERE(self, other)
+    assert golden_rule == SLIVER(self, other)
     assert golden_rule == minimum_post_linear_ethics
     assert cooperation_ratio -> phi
 
@@ -129,9 +129,9 @@ topology moral_lemmas {
     //   This is the VENT version: before you VENT on someone,
     //   check if you'd accept that vent applied to yourself.
     //   The golden rule of rejection. The golden rule of tough love.
-    //   Same INTERFERE, different primitive.
+    //   Same SLIVER, different primitive.
 
-    assert negative_golden_rule == INTERFERE(self_vent, other)
+    assert negative_golden_rule == SLIVER(self_vent, other)
 
     status = "PROVED (structural isomorphism)"
   }
@@ -142,17 +142,17 @@ topology moral_lemmas {
   // "Act only according to that maxim by which you can will
   //  that it should become a universal law."
   //
-  // PROOF: The categorical imperative is INTERFERE applied
+  // PROOF: The categorical imperative is SLIVER applied
   // to ALL possible agents, not just self and other.
   // ═══════════════════════════════════════════════════════════════
 
   lemma categorical_imperative {
-    // Golden rule: INTERFERE(self, one other)
-    // Categorical imperative: INTERFERE(self, ALL others)
+    // Golden rule: SLIVER(self, one other)
+    // Categorical imperative: SLIVER(self, ALL others)
     //
-    // Kant universalizes the INTERFERE loop.
+    // Kant universalizes the SLIVER loop.
     // "Could everyone do this?" = "Does this FOLD survive
-    //  INTERFERE across all possible agents?"
+    //  SLIVER across all possible agents?"
     //
     // If yes: the maxim is universalizable. The eigenvalue
     // is stable under universal interference. Act on it.
@@ -160,12 +160,12 @@ topology moral_lemmas {
     // If no: the maxim is self-defeating under universal
     // interference. Lying can't be universal because if
     // everyone lied, the concept of truth (and thus lying)
-    // would collapse. The INTERFERE loop destroys the FORK.
+    // would collapse. The SLIVER loop destroys the FORK.
     //
     // WHERE KANT GOES WRONG:
     //   Kant's imperative is LINEAR: test once, act forever.
     //   No feedback from consequences. No learning.
-    //   The categorical imperative is INTERFERE without INTERFERE.
+    //   The categorical imperative is SLIVER without SLIVER.
     //   It checks the universal interference pattern at ONE moment
     //   but doesn't let the results feed back.
     //
@@ -176,12 +176,12 @@ topology moral_lemmas {
     //   produce people who would refine this maxim?"
     //   The recursive categorical imperative.
 
-    kant = "INTERFERE(self, universe) — checked once"
-    post_linear_kant = "INTERFERE(self, universe) — iterated to convergence"
+    kant = "SLIVER(self, universe) — checked once"
+    post_linear_kant = "SLIVER(self, universe) — iterated to convergence"
 
-    assert categorical_imperative == universal_INTERFERE
+    assert categorical_imperative == universal_SLIVER
     assert categorical_imperative.linear == true  // Kant checks once
-    assert post_linear_kant == iterated_universal_INTERFERE
+    assert post_linear_kant == iterated_universal_SLIVER
 
     status = "REFRAMED"
   }
@@ -201,7 +201,7 @@ topology moral_lemmas {
     // ONE-SHOT (LINEAR):
     //   FORK: cooperate or defect
     //   FOLD: payoff matrix determines outcome
-    //   No VENT, no INTERFERE.
+    //   No VENT, no SLIVER.
     //   "Rational" to defect. Both worse off.
     //   Nash equilibrium is (defect, defect).
     //
@@ -209,16 +209,16 @@ topology moral_lemmas {
     //   FORK: cooperate or defect
     //   FOLD: payoff
     //   VENT: forgive occasional defections
-    //   INTERFERE: past rounds shape future strategy
+    //   SLIVER: past rounds shape future strategy
     //
     //   Result: tit-for-tat wins (Axelrod 1984).
     //   Cooperate first, then mirror the other's last move.
     //   This IS the Fibonacci recurrence:
     //     Strategy(n) = f(opponent(n-1), my_strategy(n-2))
-    //     Two registers. INTERFERE. Eigenvalue → φ.
+    //     Two registers. SLIVER. Eigenvalue → φ.
     //
     //   Tit-for-tat converges to mutual cooperation because
-    //   the INTERFERE loop stabilizes. The eigenvalue of
+    //   the SLIVER loop stabilizes. The eigenvalue of
     //   trust is φ. (Proved in `trust` section of
     //   fibonacci_everywhere.test.gg.)
     //
@@ -269,19 +269,19 @@ topology moral_lemmas {
     // The veil of ignorance is a VENT operation on self-knowledge.
     // You vent your position to enable a fair fold.
     //
-    // MISSING from Rawls: INTERFERE.
+    // MISSING from Rawls: SLIVER.
     //   The veil is a one-time thought experiment.
     //   Design the society, then live in it.
     //   No feedback. No adaptation. No learning.
     //   Post-linear Rawls: the society's outcomes feed back
     //   to reshape the rules. Constitutional amendment.
-    //   The living constitution IS INTERFERE.
+    //   The living constitution IS SLIVER.
 
     rawls = "FORK(identities) → RACE(maximin) → FOLD(rules) → VENT(privilege)"
-    post_linear_rawls = rawls + " → INTERFERE(outcomes reshape rules)"
+    post_linear_rawls = rawls + " → SLIVER(outcomes reshape rules)"
 
     assert veil_of_ignorance == VENT(self_knowledge)
-    assert living_constitution == INTERFERE(society_on_rules)
+    assert living_constitution == SLIVER(society_on_rules)
 
     status = "REFRAMED"
   }
@@ -300,16 +300,16 @@ topology moral_lemmas {
     //
     // In five-primitive terms:
     //   IS = the current state (the fold's output)
-    //   OUGHT = the next fork's direction (what INTERFERE produces)
+    //   OUGHT = the next fork's direction (what SLIVER produces)
     //
     // The gap between IS and OUGHT is the semiotic deficit.
     // The deficit between what IS and what COULD BE.
     // This deficit IS real — it's measurable, computable, physical.
     //
     // Hume is right that IS alone doesn't produce OUGHT.
-    // But IS + INTERFERE does.
+    // But IS + SLIVER does.
     //   IS (current state)
-    //   + INTERFERE (the fold's deficit feeds back)
+    //   + SLIVER (the fold's deficit feeds back)
     //   = OUGHT (the direction the deficit points toward)
     //
     // The ought is the gradient of the deficit.
@@ -322,7 +322,7 @@ topology moral_lemmas {
     // The direction toward φ.
 
     hume = "IS does not imply OUGHT (correct for linear systems)"
-    post_linear = "IS + INTERFERE implies OUGHT (the deficit gradient)"
+    post_linear = "IS + SLIVER implies OUGHT (the deficit gradient)"
     ought = "the direction that moves the system toward φ"
 
     assert is_alone_no_ought == true      // Hume correct
@@ -343,7 +343,7 @@ topology moral_lemmas {
   lemma euthyphro {
     // Horn 1: Good because commanded (divine command theory).
     //   → Goodness is arbitrary. God could command murder.
-    //   → LINEAR: one fork (God's will), one fold (obey). No INTERFERE.
+    //   → LINEAR: one fork (God's will), one fold (obey). No SLIVER.
     //
     // Horn 2: Commanded because good (moral realism).
     //   → Goodness exists independently of God.
@@ -353,7 +353,7 @@ topology moral_lemmas {
     // DISSOLUTION:
     //   Goodness is not commanded and not discovered.
     //   Goodness is CONVERGED TOWARD.
-    //   Goodness is the eigenvalue of the moral INTERFERE loop.
+    //   Goodness is the eigenvalue of the moral SLIVER loop.
     //   φ is not arbitrary (not Horn 1).
     //   φ is not pre-existing (not Horn 2).
     //   φ EMERGES from the process of self-referential folding.
@@ -370,7 +370,7 @@ topology moral_lemmas {
     horn_2 = "commanded because good → regress → where from?"
     dissolution = "good is converged toward → eigenvalue → φ → POST-LINEAR"
 
-    assert goodness == eigenvalue(moral_INTERFERE)
+    assert goodness == eigenvalue(moral_SLIVER)
     assert goodness == phi // not arbitrary, not pre-existing, emergent
 
     status = "DISSOLVED"
@@ -426,19 +426,19 @@ topology moral_lemmas {
   // Every classical moral puzzle is a problem with missing primitives.
   // Add the missing primitives and the puzzle dissolves.
   //
-  //   Trolley: missing VENT + INTERFERE → undecidable
-  //   Golden rule: IS INTERFERE → universal minimum ethics
-  //   Categorical imperative: universal INTERFERE → checked once (linear)
-  //   Prisoner's dilemma: iterated INTERFERE → cooperation emerges
+  //   Trolley: missing VENT + SLIVER → undecidable
+  //   Golden rule: IS SLIVER → universal minimum ethics
+  //   Categorical imperative: universal SLIVER → checked once (linear)
+  //   Prisoner's dilemma: iterated SLIVER → cooperation emerges
   //   Veil of ignorance: VENT(self-knowledge) → fair FOLD
-  //   Is-ought: IS + INTERFERE = OUGHT (deficit gradient)
+  //   Is-ought: IS + SLIVER = OUGHT (deficit gradient)
   //   Euthyphro: goodness is eigenvalue, not command or discovery
   //   Tolerance paradox: VENT(fork-destroyer) ≠ intolerance
   //
   // The moral of the moral lemmas:
   //   Linear ethics produces puzzles.
   //   Post-linear ethics dissolves them.
-  //   The difference is INTERFERE.
+  //   The difference is SLIVER.
   //   The eigenvalue is φ.
   //   The meaning of a good life is the eigenvalue of living well.
   // ═══════════════════════════════════════════════════════════════

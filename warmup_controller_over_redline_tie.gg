@@ -23,7 +23,7 @@
 (over_deficit)-[:PROCESS]->(redline)
 (redline)-[:PROCESS]->(burden)
 (burden)-[:FORK]->(expand | constrain | shed_load)
-(expand)-[:INTERFERE { reason: 'wrong-direction repair remains worse' }]->(expand_drag)
+(expand)-[:SLIVER { reason: 'wrong-direction repair remains worse' }]->(expand_drag)
 (constrain)-[:PROCESS]->(constrain_tie)
 (shed_load)-[:PROCESS]->(shed_tie)
 (expand_drag | constrain_tie | shed_tie)-[:FOLD { strategy: 'stable-constrain-on-tie' }]->(decision: Decision { chosen: 'constrain', tie_with: 'shed-load' })

@@ -13,7 +13,7 @@
 (result: Result { theorem: 'collapse-paid-by-repair' })
 
 (origin)-[:FORK]->(left | right)
-(left)-[:INTERFERE { mode: 'repair' }]->(repair_debt)
+(left)-[:SLIVER { mode: 'repair' }]->(repair_debt)
 (repair_debt)-[:PROCESS]->(aligned_survivor)
 (aligned_survivor | right)-[:FOLD { strategy: 'single-survivor-after-repair' }]->(collapse)
 (collapse)-[:PROCESS]->(result)

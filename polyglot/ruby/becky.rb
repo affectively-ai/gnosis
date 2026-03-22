@@ -55,7 +55,7 @@ def compute_beta1(prog)
     case e[:type]
     when 'FORK' then b1 += t - 1
     when 'FOLD', 'COLLAPSE', 'OBSERVE' then b1 = [0, b1 - (s - 1)].max
-    when 'RACE', 'INTERFERE' then b1 = [0, b1 - [0, s - t].max].max
+    when 'RACE', 'SLIVER' then b1 = [0, b1 - [0, s - t].max].max
     when 'VENT' then b1 = [0, b1 - 1].max
     end
   end

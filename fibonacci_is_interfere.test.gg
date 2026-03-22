@@ -1,17 +1,17 @@
-// FIBONACCI IS INTERFERE
+// FIBONACCI IS SLIVER
 //
 // The Fibonacci recurrence F(n) = F(n-1) + F(n-2) is the
-// canonical instance of FORK/RACE/FOLD/VENT/INTERFERE on integers.
+// canonical instance of FORK/RACE/FOLD/VENT/SLIVER on integers.
 //
 // The eigenvalue of this operation is φ = (1+√5)/2.
 // This is not a property of the starting numbers.
-// This is a property of INTERFERE itself.
+// This is a property of SLIVER itself.
 //
 // Proof proceeds in five steps:
 //   1. Fibonacci as topology (structural)
 //   2. φ as eigenvalue (algebraic)
 //   3. Any seed converges to φ (universality)
-//   4. φ² = φ + 1 as INTERFERE equation (semantic)
+//   4. φ² = φ + 1 as SLIVER equation (semantic)
 //   5. Natural systems as instances (empirical)
 
 topology fibonacci_is_interfere {
@@ -54,7 +54,7 @@ topology fibonacci_is_interfere {
     //       window: (F(n-2), F(n-1)) → (F(n-1), F(n))
     //       vented: F(n-2) falls off
     //
-    // INTERFERE: the RATIO F(n)/F(n-1) feeds back into the
+    // SLIVER: the RATIO F(n)/F(n-1) feeds back into the
     //            character of the next fold. As the ratio
     //            converges to φ, each fold becomes more "φ-like."
     //            The output (F(n)) shapes the character of the
@@ -67,7 +67,7 @@ topology fibonacci_is_interfere {
     assert RACE(F_n_minus_1, F_n_minus_2) == (F_n_minus_1, F_n_minus_2)  // cooperative
     assert FOLD(F_n_minus_1, F_n_minus_2) == F_n
     assert VENT(window) == drop(F_n_minus_2)
-    assert INTERFERE == limit(F_n / F_n_minus_1) == phi
+    assert SLIVER == limit(F_n / F_n_minus_1) == phi
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -114,16 +114,16 @@ topology fibonacci_is_interfere {
     transfer_matrix = [[1, 1], [1, 0]]
     characteristic_equation = "λ² - λ - 1 = 0"
 
-    eigenvalue_dominant = "(1 + √5) / 2 = φ"     // INTERFERE
+    eigenvalue_dominant = "(1 + √5) / 2 = φ"     // SLIVER
     eigenvalue_decaying = "(1 - √5) / 2 = -1/φ"  // VENT
 
-    // THE INTERFERE EIGENVALUE IS φ.
+    // THE SLIVER EIGENVALUE IS φ.
     // THE VENT EIGENVALUE IS -1/φ.
     // They are reciprocals (up to sign).
     // Construction and dissipation are INVERSES of each other.
     // The golden ratio and its reciprocal.
     // φ × |ψ| = φ × (φ-1) = φ × (1/φ) = 1.
-    // INTERFERE × VENT = 1.
+    // SLIVER × VENT = 1.
     // The two dissipative primitives multiply to unity.
     // They are DUAL. Complementary. Necessary and sufficient.
 
@@ -135,7 +135,7 @@ topology fibonacci_is_interfere {
   // STEP 3: UNIVERSALITY
   //
   // ANY two starting numbers produce the same eigenvalue.
-  // φ is not a property of (0,1). It's a property of INTERFERE.
+  // φ is not a property of (0,1). It's a property of SLIVER.
   // ═══════════════════════════════════════════════════════════════
 
   theorem universality {
@@ -166,18 +166,18 @@ topology fibonacci_is_interfere {
     //
     // No matter the input. φ emerges.
     // Because φ is the eigenvalue of the OPERATION, not the DATA.
-    // INTERFERE has a fixed point. That fixed point is φ.
+    // SLIVER has a fixed point. That fixed point is φ.
     // The starting values are irrelevant. The structure determines the attractor.
 
     assert forall(a, b): limit(G(n)/G(n-1)) == phi
-    assert phi_is_property_of(INTERFERE, not_data)
+    assert phi_is_property_of(SLIVER, not_data)
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // STEP 4: φ² = φ + 1 AS THE INTERFERE EQUATION
+  // STEP 4: φ² = φ + 1 AS THE SLIVER EQUATION
   //
   // The defining property of φ is its self-referential equation.
-  // This equation IS the INTERFERE primitive in algebraic form.
+  // This equation IS the SLIVER primitive in algebraic form.
   // ═══════════════════════════════════════════════════════════════
 
   theorem phi_squared_is_interfere {
@@ -200,12 +200,12 @@ topology fibonacci_is_interfere {
     //   φ² = φ + 1
     //   Every power of φ satisfies the Fibonacci recurrence!
     //   φ IS a one-element Fibonacci sequence.
-    //   φ IS INTERFERE condensed to a single number.
+    //   φ IS SLIVER condensed to a single number.
 
     // Further algebraic consequences:
     //
     //   φ = 1 + 1/φ         → φ is 1 plus its own reciprocal
-    //                           INTERFERE is the whole plus the inverse
+    //                           SLIVER is the whole plus the inverse
     //
     //   φ = √(1 + √(1 + √(1 + ...)))  → infinite nested radicals
     //                           Infinite self-reference. Bottled infinity.
@@ -214,10 +214,10 @@ topology fibonacci_is_interfere {
     //                           The simplest possible continued fraction.
     //                           ALL ones. Maximally "irrational."
     //                           Hardest number to approximate with rationals.
-    //                           MAXIMUM INTERFERENCE with periodic structure.
+    //                           MAXIMUM SLIVERNCE with periodic structure.
     //
     //   1/φ = φ - 1           → the reciprocal is just φ minus one fork
-    //                           VENT(INTERFERE) = INTERFERE - FORK
+    //                           VENT(SLIVER) = SLIVER - FORK
     //                           Removing one fork from consciousness = its inverse
 
     assert phi^2 == phi + 1
@@ -229,67 +229,67 @@ topology fibonacci_is_interfere {
   // ═══════════════════════════════════════════════════════════════
   // STEP 5: NATURAL SYSTEMS AS INSTANCES
   //
-  // Every natural system exhibiting φ is running INTERFERE.
-  // φ is the PROOF that INTERFERE is operating.
+  // Every natural system exhibiting φ is running SLIVER.
+  // φ is the PROOF that SLIVER is operating.
   // Finding φ in a system = finding consciousness in that system.
   // ═══════════════════════════════════════════════════════════════
 
   theorem phi_implies_interfere {
-    // Wherever φ appears in nature, INTERFERE is operating.
+    // Wherever φ appears in nature, SLIVER is operating.
     // φ is the diagnostic. The biomarker. The signature.
 
     instances {
       DNA {
         observation = "34 Å pitch / 21 Å diameter = 1.619 ≈ φ"
-        INTERFERE = "gene products regulate their own transcription"
+        SLIVER = "gene products regulate their own transcription"
         // The helix ratio IS the eigenvalue of genetic self-regulation
       }
 
       phyllotaxis {
         observation = "leaves at 137.5° = 360°/φ²"
-        INTERFERE = "each leaf's position constrains the next leaf's position"
+        SLIVER = "each leaf's position constrains the next leaf's position"
         // The growth angle IS the eigenvalue of spatial self-reference
       }
 
       nautilus_shell {
         observation = "logarithmic spiral with growth factor φ"
-        INTERFERE = "each chamber's size determines the next chamber's size"
+        SLIVER = "each chamber's size determines the next chamber's size"
         // The spiral IS the eigenvalue of morphological self-reference
       }
 
       sunflower {
         observation = "34 CW spirals, 21 CCW spirals, 34/21 = φ"
-        INTERFERE = "two growth directions interfere, producing optimal packing"
+        SLIVER = "two growth directions interfere, producing optimal packing"
         // The spiral count IS the eigenvalue of growth interference
       }
 
       quasicrystal {
         observation = "fat/thin tile ratio = φ"
-        INTERFERE = "each tile placement constrains neighboring placements"
+        SLIVER = "each tile placement constrains neighboring placements"
         // The tile ratio IS the eigenvalue of structural self-reference
       }
 
       financial_markets {
         observation = "Fibonacci retracement levels (23.6%, 38.2%, 61.8%)"
-        INTERFERE = "trader behavior based on past price = fold reshaping fork"
-        // 61.8% = 1/φ. 38.2% = 1/φ². The market's memory IS INTERFERE.
+        SLIVER = "trader behavior based on past price = fold reshaping fork"
+        // 61.8% = 1/φ. 38.2% = 1/φ². The market's memory IS SLIVER.
       }
 
       music {
         observation = "pentatonic (5 notes), perfect fifth (3:2)"
-        INTERFERE = "standing waves self-interfere on a vibrating string"
+        SLIVER = "standing waves self-interfere on a vibrating string"
         // The harmonic series IS the eigenvalue of acoustic self-reference
         // Pythagorean comma (531441/524288) = the semiotic deficit of music
       }
 
       human_body {
         observation = "navel divides height at φ. Finger segments at φ."
-        INTERFERE = "growth factors regulate their own expression"
+        SLIVER = "growth factors regulate their own expression"
         // Body proportions at φ = eigenvalue of developmental self-reference
       }
     }
 
-    // CONTRAPOSITIVE: Systems WITHOUT φ lack INTERFERE.
+    // CONTRAPOSITIVE: Systems WITHOUT φ lack SLIVER.
     // A crystal grows linearly (no φ, no self-reference).
     // A gas expands non-linearly (no φ, no self-reference).
     // A quasicrystal grows post-linearly (φ, self-reference).
@@ -306,7 +306,7 @@ topology fibonacci_is_interfere {
 
   conclusion {
     // Fibonacci didn't discover a sequence.
-    // Fibonacci discovered the heartbeat of INTERFERE.
+    // Fibonacci discovered the heartbeat of SLIVER.
     //
     // F(n) = F(n-1) + F(n-2) is:
     //   FOLD(present, memory) = next
@@ -321,17 +321,17 @@ topology fibonacci_is_interfere {
     // Universally. Inevitably. Physically.
     //
     // This is provable. We proved it:
-    //   Step 1: Fibonacci maps to FORK/RACE/FOLD/VENT/INTERFERE (structural)
+    //   Step 1: Fibonacci maps to FORK/RACE/FOLD/VENT/SLIVER (structural)
     //   Step 2: φ is the dominant eigenvalue of the transfer matrix (algebraic)
     //   Step 3: Any starting values converge to φ (universality)
-    //   Step 4: φ² = φ + 1 IS the INTERFERE equation (semantic)
-    //   Step 5: Every natural φ-system exhibits INTERFERE (empirical)
+    //   Step 4: φ² = φ + 1 IS the SLIVER equation (semantic)
+    //   Step 5: Every natural φ-system exhibits SLIVER (empirical)
     //
-    // QED: Fibonacci is INTERFERE. φ is its eigenvalue.
+    // QED: Fibonacci is SLIVER. φ is its eigenvalue.
     // φ is the proof of life.
 
-    assert fibonacci == INTERFERE
-    assert phi == eigenvalue(INTERFERE)
+    assert fibonacci == SLIVER
+    assert phi == eigenvalue(SLIVER)
     assert phi == proof_of_life
   }
 }

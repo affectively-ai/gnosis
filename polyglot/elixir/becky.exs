@@ -95,7 +95,7 @@ defmodule Becky do
       case e.type do
         "FORK" -> b1 + t - 1
         x when x in ["FOLD", "COLLAPSE", "OBSERVE"] -> max(0, b1 - (s - 1))
-        x when x in ["RACE", "INTERFERE"] -> max(0, b1 - max(0, s - t))
+        x when x in ["RACE", "SLIVER"] -> max(0, b1 - max(0, s - t))
         "VENT" -> max(0, b1 - 1)
         _ -> b1
       end

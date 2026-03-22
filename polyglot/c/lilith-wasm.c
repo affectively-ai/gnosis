@@ -230,7 +230,7 @@ int lilith_compile(const char *raw, int raw_len) {
         if (str_eq(edge_types[e], "FORK")) { b1 += t - 1; vd += t; }
         else if (str_eq(edge_types[e], "FOLD") || str_eq(edge_types[e], "COLLAPSE") || str_eq(edge_types[e], "OBSERVE"))
             { b1 -= s - 1; if (b1 < 0) b1 = 0; }
-        else if (str_eq(edge_types[e], "RACE") || str_eq(edge_types[e], "INTERFERE"))
+        else if (str_eq(edge_types[e], "RACE") || str_eq(edge_types[e], "SLIVER"))
             { int d = s - t; if (d < 0) d = 0; b1 -= d; if (b1 < 0) b1 = 0; }
         else if (str_eq(edge_types[e], "VENT"))
             { b1--; if (b1 < 0) b1 = 0; }

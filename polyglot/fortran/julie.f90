@@ -394,7 +394,7 @@ contains
             case ('FOLD','COLLAPSE','OBSERVE')
                 b1 = max(0, b1 - (s - 1))
                 if (s > 1) h = h + log(dble(s)) / log(2.0d0)
-            case ('RACE','INTERFERE'); b1 = max(0, b1 - max(0, s - t))
+            case ('RACE','SLIVER'); b1 = max(0, b1 - max(0, s - t))
             case ('VENT'); b1 = max(0, b1 - 1)
             end select
         end do

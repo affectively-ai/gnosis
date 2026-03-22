@@ -18,5 +18,5 @@
 (takeoff_burn)-[:PROCESS]->(cruising_altitude)
 (engine_thermal_state)-[:PROCESS]->(engine_optimum)
 
-(cruising_altitude | engine_optimum)-[:INTERFERE { mode: 'constructive' }]->(flight_phase)
+(cruising_altitude | engine_optimum)-[:SLIVER { mode: 'constructive' }]->(flight_phase)
 (flight_phase)-[:PROCESS]->(arrival)

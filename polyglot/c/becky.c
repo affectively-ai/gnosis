@@ -447,7 +447,7 @@ static int compute_beta1(GgProgram* prog) {
         } else if (strcmp(e->edge_type, "FOLD") == 0 || strcmp(e->edge_type, "COLLAPSE") == 0 || strcmp(e->edge_type, "OBSERVE") == 0) {
             b1 -= e->source_count - 1;
             if (b1 < 0) b1 = 0;
-        } else if (strcmp(e->edge_type, "RACE") == 0 || strcmp(e->edge_type, "INTERFERE") == 0) {
+        } else if (strcmp(e->edge_type, "RACE") == 0 || strcmp(e->edge_type, "SLIVER") == 0) {
             int diff = e->source_count - e->target_count;
             if (diff < 0) diff = 0;
             b1 -= diff;

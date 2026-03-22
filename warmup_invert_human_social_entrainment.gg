@@ -12,6 +12,6 @@
 (collaboration: Outcome { quality: 'degraded' })
 
 (team)-[:FORK]->(shared_vocab | rapport | interruptions)
-(rapport | interruptions)-[:INTERFERE { mode: 'destructive' }]->(mistrust)
+(rapport | interruptions)-[:SLIVER { mode: 'destructive' }]->(mistrust)
 (shared_vocab | mistrust)-[:FOLD { strategy: 'fracture' }]->(misalignment)
 (misalignment)-[:PROCESS]->(collaboration)

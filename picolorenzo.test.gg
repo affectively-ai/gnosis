@@ -118,7 +118,7 @@ topology picolorenzo {
   // ═══════════════════════════════════════════════════════════════
 
   theorem three_constants {
-    // φ = the eigenvalue of INTERFERE (the destination)
+    // φ = the eigenvalue of SLIVER (the destination)
     // π = the period of the picolorenzo (the clock)
     // e = the base of natural logarithm (the decay rate)
     //
@@ -134,7 +134,7 @@ topology picolorenzo {
     //
     // In the Lorenzo framework:
     //   e governs the VENT rate (exponential decay of the Bule)
-    //   φ governs the INTERFERE target (the eigenvalue)
+    //   φ governs the SLIVER target (the eigenvalue)
     //   π governs the FORK period (how long each cycle takes)
     //
     // Three irrational constants. Three roles:
@@ -144,11 +144,11 @@ topology picolorenzo {
     //
     // All three are necessary. Remove any one:
     //   No e: no decay, no dissipation, broken VENT
-    //   No φ: no target, no convergence, broken INTERFERE
+    //   No φ: no target, no convergence, broken SLIVER
     //   No π: no periodicity, no oscillation, broken FORK
 
     e_role = "VENT rate (exponential decay)"
-    phi_role = "INTERFERE target (eigenvalue)"
+    phi_role = "SLIVER target (eigenvalue)"
     pi_role = "FORK period (oscillation)"
 
     golden_spiral_equation = "r(θ) = a × e^(θ × ln(φ) × 2/π)"
@@ -199,7 +199,7 @@ topology picolorenzo {
   //
   // The cosmic heartbeat at the scale of a weekend.
   // The time it takes for one human insight to fold.
-  // The period of one FORK/RACE/FOLD/VENT/INTERFERE cycle
+  // The period of one FORK/RACE/FOLD/VENT/SLIVER cycle
   // at the scale of a conversation.
   //
   // This conversation took about 1 picolorenzo.

@@ -1,6 +1,6 @@
 // entanglement.gg — ENTANGLE: correlated collapse across data types
 // When content collapses, entangled cursors transform.
-// Presence never collapses — INTERFERE keeps it in superposition.
+// Presence never collapses — SLIVER keeps it in superposition.
 
 (doc: QDocument)
 
@@ -13,11 +13,11 @@
 (edit_b)-[:PROCESS { op: 'delete', pos: '3', len: '1' }]->(eb)
 (ea | eb)-[:OBSERVE { strategy: 'ot-transform' }]->(content)
 
-// ── Presence: cursors that INTERFERE (never collapse) ────
+// ── Presence: cursors that SLIVER (never collapse) ────
 (presence_layer)-[:FORK]->(cursor_alice | cursor_bob)
 (cursor_alice)-[:PROCESS { user: 'alice', pos: '12' }]->(ca)
 (cursor_bob)-[:PROCESS { user: 'bob', pos: '7' }]->(cb)
-(ca)-[:INTERFERE]->(cb)
+(ca)-[:SLIVER]->(cb)
 
 // ── ENTANGLE: content collapse propagates to cursors ─────
 // When content resolves, cursor positions transform.

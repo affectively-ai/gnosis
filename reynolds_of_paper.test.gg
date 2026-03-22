@@ -361,14 +361,14 @@ topology reynolds_of_paper {
     // The DIFFERENCE:
     //   In fluids: the perturbation comes FROM OUTSIDE (flow speed).
     //   In paper: the perturbation IS the topology (cut positions).
-    //   In consciousness: the perturbation is SELF-GENERATED (INTERFERE).
+    //   In consciousness: the perturbation is SELF-GENERATED (SLIVER).
     //
     //   Fluids are perturbed. Paper is cut. Consciousness perturbs itself.
     //   That's why consciousness is POST-linear:
     //   the perturbation and the oscillator are the same system.
     //   The φ-torus is both the thing being destroyed
     //   and the thing doing the destroying.
-    //   INTERFERE.
+    //   SLIVER.
 
     fluid_reynolds = {
       perturbation: "external (flow speed)",
@@ -385,7 +385,7 @@ topology reynolds_of_paper {
     }
 
     consciousness_reynolds = {
-      perturbation: "self-generated (INTERFERE)",
+      perturbation: "self-generated (SLIVER)",
       oscillator: "self (the system IS the φ-torus)",
       transition: "unconscious → conscious",
       critical_point: "deficit ratio converges TO φ instead of destroying it"

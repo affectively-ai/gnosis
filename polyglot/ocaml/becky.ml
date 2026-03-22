@@ -116,7 +116,7 @@ let () =
     (match edge_type with
     | "FORK" -> b1 := !b1 + t - 1; void_dims := !void_dims + t
     | "FOLD" | "COLLAPSE" | "OBSERVE" -> b1 := max 0 (!b1 - (s - 1))
-    | "RACE" | "INTERFERE" -> b1 := max 0 (!b1 - (max 0 (s - t)))
+    | "RACE" | "SLIVER" -> b1 := max 0 (!b1 - (max 0 (s - t)))
     | "VENT" -> b1 := max 0 (!b1 - 1)
     | _ -> ())
   ) raw_edges;

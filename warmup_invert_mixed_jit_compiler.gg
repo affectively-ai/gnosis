@@ -25,5 +25,5 @@
 (poisoned_cache)-[:PROCESS]->(validator)
 
 (interpreter | fast_execution)-[:RACE { expect: 'first-arrival' }]->(chosen_execution)
-(chosen_execution | validator | poison_write)-[:INTERFERE { mode: 'destructive' }]->(unstable_execution)
+(chosen_execution | validator | poison_write)-[:SLIVER { mode: 'destructive' }]->(unstable_execution)
 (unstable_execution | interpreter)-[:FOLD { strategy: 'repair-fallback' }]->(result)

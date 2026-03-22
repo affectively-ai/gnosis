@@ -138,7 +138,7 @@ computeBeta1 prog = foldl' step 0 (edges prog)
                "COLLAPSE" -> max 0 (b1 - (s - 1))
                "OBSERVE" -> max 0 (b1 - (s - 1))
                "RACE" -> max 0 (b1 - max 0 (s - t))
-               "INTERFERE" -> max 0 (b1 - max 0 (s - t))
+               "SLIVER" -> max 0 (b1 - max 0 (s - t))
                "VENT" -> max 0 (b1 - 1)
                _ -> b1
 

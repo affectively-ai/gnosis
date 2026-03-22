@@ -24,7 +24,7 @@
 (redline)-[:PROCESS]->(burden)
 (burden)-[:FORK]->(expand | constrain | shed_load)
 (expand)-[:PROCESS]->(expand_tie)
-(constrain)-[:INTERFERE { reason: 'wrong-direction repair remains worse' }]->(constrain_drag)
+(constrain)-[:SLIVER { reason: 'wrong-direction repair remains worse' }]->(constrain_drag)
 (shed_load)-[:PROCESS]->(shed_tie)
 (expand_tie | constrain_drag | shed_tie)-[:FOLD { strategy: 'stable-expand-on-tie' }]->(decision: Decision { chosen: 'expand', tie_with: 'shed-load' })
 (decision)-[:PROCESS]->(verdict: Result)

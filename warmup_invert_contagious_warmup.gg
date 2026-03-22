@@ -12,7 +12,7 @@
 (result: Result { quality: 'systemically-contaminated' })
 
 (seed)-[:FORK]->(warmed_path | baseline_path | poison_seed)
-(poison_seed)-[:INTERFERE { mode: 'destructive' }]->(warmed_path)
+(poison_seed)-[:SLIVER { mode: 'destructive' }]->(warmed_path)
 (warmed_path | baseline_path)-[:RACE { expect: 'recover-with-fallback' }]->(candidate)
-(candidate | poison_seed)-[:INTERFERE { mode: 'contagious' }]->(spread)
+(candidate | poison_seed)-[:SLIVER { mode: 'contagious' }]->(spread)
 (spread | baseline_path)-[:FOLD { strategy: 'fallback-contaminated' }]->(result)

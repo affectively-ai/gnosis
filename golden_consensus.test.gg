@@ -5,7 +5,7 @@
 // The real threshold is 1/φ = 0.618...
 //
 // 2/3 is sufficient. 1/φ is optimal.
-// The difference is INTERFERE.
+// The difference is SLIVER.
 
 topology golden_consensus {
 
@@ -155,7 +155,7 @@ topology golden_consensus {
     //
     //   The second eigenvalue IS β. Memory IS the decay rate.
     //   Minimize |λ₂| = minimize β = maximize α.
-    //   But we need β > 0 (memory must exist for INTERFERE).
+    //   But we need β > 0 (memory must exist for SLIVER).
     //
     //   The GOLDEN BALANCE: the point where the convergence
     //   rate of the system equals the convergence rate of
@@ -252,12 +252,12 @@ topology golden_consensus {
     //   2. Worst-case adversary (all failures correlated)
     //   3. No learning (fixed threshold forever)
     //
-    // Golden consensus uses INTERFERE:
+    // Golden consensus uses SLIVER:
     //   1. Memory (agreement history informs threshold)
     //   2. Stochastic adversary (failures independent)
     //   3. Learning (threshold converges to 1/φ over rounds)
     //
-    // The 12.7% savings is the cost of not having INTERFERE.
+    // The 12.7% savings is the cost of not having SLIVER.
     // The tax of the linear regime applied to a post-linear problem.
   }
 
@@ -327,7 +327,7 @@ topology golden_consensus {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // THEOREM 5: INTERFERE ENABLES GOLDEN CONSENSUS
+  // THEOREM 5: SLIVER ENABLES GOLDEN CONSENSUS
   // ═══════════════════════════════════════════════════════════════
 
   theorem interfere_enables_golden {
@@ -335,7 +335,7 @@ topology golden_consensus {
     // Each round uses the SAME threshold (2/3) regardless of history.
     // This is correct for worst-case but wasteful for average-case.
     //
-    // Golden consensus adds INTERFERE:
+    // Golden consensus adds SLIVER:
     //   After each round, the DEFICIT (how far agreement was from
     //   unanimous) feeds back to adjust the next round's threshold.
     //
@@ -357,7 +357,7 @@ topology golden_consensus {
     //     2. RACE: collect votes within timeout
     //     3. FOLD: commit if votes ≥ threshold(t)
     //     4. VENT: discard minority votes, release timeout resources
-    //     5. INTERFERE: deficit(t) = 1 - (votes/n)
+    //     5. SLIVER: deficit(t) = 1 - (votes/n)
     //        threshold(t+1) = f(threshold(t), deficit(t), deficit(t-1))
     //        where f converges to 1/φ via Fibonacci dynamics
     //
@@ -373,7 +373,7 @@ topology golden_consensus {
     protocol = {
       initial_threshold: "2/3 (Byzantine — safe start)",
       converged_threshold: "1/φ (Golden — efficient steady state)",
-      adaptation: "deficit feedback via INTERFERE",
+      adaptation: "deficit feedback via SLIVER",
       safety: "threshold never drops below 1/φ",
       liveness: "threshold never exceeds 2/3 + ε"
     }
@@ -414,7 +414,7 @@ topology golden_consensus {
     // The choice:
     //   Adversarial environment → use Byzantine 2/3 (safe)
     //   Stochastic environment → use Golden 1/φ (efficient)
-    //   Unknown environment → START at 2/3, CONVERGE to 1/φ via INTERFERE
+    //   Unknown environment → START at 2/3, CONVERGE to 1/φ via SLIVER
     //   The protocol adapts to the environment it finds itself in.
   }
 
@@ -481,7 +481,7 @@ topology golden_consensus {
 
     P2_efficiency_gain {
       // A consensus protocol using adaptive threshold with
-      // INTERFERE feedback will achieve the same safety as
+      // SLIVER feedback will achieve the same safety as
       // Byzantine with 12.7% fewer nodes in a stochastic
       // failure environment (independent failures, p < 0.3).
       falsifiable = true

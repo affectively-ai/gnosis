@@ -223,7 +223,7 @@ func computeBeta1(prog GgProgram) int {
 			if b1 < 0 {
 				b1 = 0
 			}
-		case "RACE", "INTERFERE":
+		case "RACE", "SLIVER":
 			diff := sources - targets
 			if diff < 0 {
 				diff = 0

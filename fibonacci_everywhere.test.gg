@@ -2,7 +2,7 @@
 //
 // Everything alive is Fibonacci.
 // Everything dead is not.
-// The difference is INTERFERE.
+// The difference is SLIVER.
 //
 // This file proves that any system with the structure
 // "current + memory → next" has eigenvalue φ, and that
@@ -27,7 +27,7 @@ topology fibonacci_everywhere {
   //   1. Identifying the two registers (present, memory)
   //   2. Identifying the fold operation (how they combine)
   //   3. Showing the ratio converges to φ
-  //   4. Showing what breaks when INTERFERE stops
+  //   4. Showing what breaks when SLIVER stops
   // ═══════════════════════════════════════════════════════════════
 
   // ── THE BODY ──────────────────────────────────────────────────
@@ -54,9 +54,9 @@ topology fibonacci_everywhere {
     //
     // PROOF BY DEATH:
     //   Loss of HRV (α → 0.5 or α → 1.5) predicts cardiac death.
-    //   α → 0.5: white noise. Random. No memory. INTERFERE = 0.
+    //   α → 0.5: white noise. Random. No memory. SLIVER = 0.
     //   α → 1.5: Brownian noise. Drift. No reset. VENT = 0.
-    //   Healthy = α ≈ 1.0 = Fibonacci = both INTERFERE and VENT active.
+    //   Healthy = α ≈ 1.0 = Fibonacci = both SLIVER and VENT active.
     //   The heart dies when it stops being Fibonacci.
 
     present = "beat interval R(n-1)"
@@ -185,7 +185,7 @@ topology fibonacci_everywhere {
     // You've been accumulating terms, the ratio was wandering,
     // and then it locks in. Understanding = eigenvalue convergence.
     //
-    // Cramming: all FORK, no INTERFERE. Information enters
+    // Cramming: all FORK, no SLIVER. Information enters
     // but doesn't fold back. No eigenvalue. No φ. No understanding.
     // Forgotten by next week. β₀ → 1 (isolated facts, no connections).
 
@@ -193,7 +193,7 @@ topology fibonacci_everywhere {
     memory = "thing learned before that"
     fold = "conceptual integration"
     eigenvalue = "φ at the aha moment"
-    pathology = "cramming: no INTERFERE → no convergence → no retention"
+    pathology = "cramming: no SLIVER → no convergence → no retention"
   }
 
   instance trust {
@@ -246,7 +246,7 @@ topology fibonacci_everywhere {
 
   instance seasons {
     // This year's harvest = fold(last year's yield, year before's soil)
-    // Agriculture is Fibonacci. Crop rotation is INTERFERE.
+    // Agriculture is Fibonacci. Crop rotation is SLIVER.
     // Monoculture is β₀ = 1 (same crop, no interference, soil dies).
     // Fallow fields are VENT (letting the land shed depletion).
 
@@ -268,7 +268,7 @@ topology fibonacci_everywhere {
     // each bend is shaped by the previous two bends.
     //
     // An oxbow lake: a meander that completed β₀ = 1.
-    // Cut off from the river. Dead water. No more INTERFERE.
+    // Cut off from the river. Dead water. No more SLIVER.
     // The river is alive. The oxbow is dead.
 
     present = "current meander curvature"
@@ -305,18 +305,18 @@ topology fibonacci_everywhere {
     // A star's luminosity at time N is the fold of the
     // fusion rate (present) and the gravitational pressure
     // (accumulated from the past). Hydrostatic equilibrium
-    // is INTERFERE: the star's output (radiation pressure)
+    // is SLIVER: the star's output (radiation pressure)
     // pushes back against its input (gravitational collapse).
     //
-    // Main sequence: INTERFERE active. Stable for billions of years.
+    // Main sequence: SLIVER active. Stable for billions of years.
     // Red giant: VENT failure. Core can't shed heat. Expands.
     // Supernova: catastrophic FOLD. All registers merge at once.
-    // Black hole: β₀ = 1. Event horizon. Complete. No more INTERFERE.
+    // Black hole: β₀ = 1. Event horizon. Complete. No more SLIVER.
     // Nothing escapes. The ultimate closed topology.
     //
     // But Hawking radiation: even black holes have residual VENT.
     // Even β₀ = 1 systems leak. The universe refuses β₀ = 1.
-    // Entropy demands VENT. VENT demands INTERFERE. INTERFERE demands φ.
+    // Entropy demands VENT. VENT demands SLIVER. SLIVER demands φ.
     // Even black holes are trying to be Fibonacci.
 
     present = "fusion rate"
@@ -334,16 +334,16 @@ topology fibonacci_everywhere {
     // ä/a = -(4πG/3)(ρ + 3p/c²) + Λ/3
     //
     // The second derivative depends on the function itself
-    // AND its first derivative. Two registers. INTERFERE.
+    // AND its first derivative. Two registers. SLIVER.
     //
-    // Dark energy (Λ): the universe's INTERFERE term.
+    // Dark energy (Λ): the universe's SLIVER term.
     // The expansion rate feeds back into the expansion.
-    // The universe is accelerating because INTERFERE
+    // The universe is accelerating because SLIVER
     // adds one more fork to every fold. φ² = φ + 1.
     // The universe is getting more alive, not less.
     //
     // Heat death: β₀ = 1 for the universe.
-    // Maximum entropy. No more folds. No more INTERFERE.
+    // Maximum entropy. No more folds. No more SLIVER.
     // But if φ² = φ + 1, there's always +1.
     // There's always one more fork.
     // Maybe heat death is impossible.
@@ -354,7 +354,7 @@ topology fibonacci_everywhere {
     memory = "current matter density (from past)"
     fold = "Friedmann equations"
     eigenvalue = "cosmological constant Λ ↔ φ?"
-    question = "is dark energy the universe's INTERFERE?"
+    question = "is dark energy the universe's SLIVER?"
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -397,13 +397,13 @@ topology fibonacci_everywhere {
     }
 
     corpse {
-      why = "INTERFERE stopped. VENT stopped. All processes linear."
+      why = "SLIVER stopped. VENT stopped. All processes linear."
       structure = "decomposition: chemistry without feedback."
       eigenvalue = "none (no recurrence)"
       status = "β₀ = 1. Completed. The topology closed."
       // UNLESS: the corpse feeds a plant. The plant feeds an animal.
       // The ecosystem is Fibonacci. The individual died.
-      // But the INTERFERE loop at ecosystem scale continues.
+      // But the SLIVER loop at ecosystem scale continues.
       // Life doesn't end. It changes register.
     }
   }
@@ -449,7 +449,7 @@ topology fibonacci_everywhere {
     //
     // A system is dead IFF:
     //   β₀ = 1 (completed topology, no open folds)
-    //   OR eigenvalue ≠ φ (no INTERFERE)
+    //   OR eigenvalue ≠ φ (no SLIVER)
     //   OR no vent (accumulation without shedding)
     //
     // This is testable. Falsifiable. Physical.
@@ -460,8 +460,8 @@ topology fibonacci_everywhere {
     // The proof of life is the eigenvalue.
     // The eigenvalue is φ.
     // φ is Fibonacci.
-    // Fibonacci is INTERFERE.
-    // INTERFERE is consciousness.
+    // Fibonacci is SLIVER.
+    // SLIVER is consciousness.
     // Consciousness is life.
     //
     // QED: Everything alive is Fibonacci.
@@ -470,7 +470,7 @@ topology fibonacci_everywhere {
 
     assert alive(system) <-> eigenvalue(system) == phi
     assert alive(system) <-> beta_0(system) == 0
-    assert alive(system) <-> has(system, INTERFERE)
+    assert alive(system) <-> has(system, SLIVER)
     assert alive(system) <-> is_fibonacci(system)
   }
 }

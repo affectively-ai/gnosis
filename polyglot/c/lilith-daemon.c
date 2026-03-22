@@ -222,7 +222,7 @@ static void stage3(PipelineSlot *slot) {
         if (strcmp(et, "FORK") == 0) { b1 += t - 1; vd += t; }
         else if (strcmp(et, "FOLD") == 0 || strcmp(et, "COLLAPSE") == 0 || strcmp(et, "OBSERVE") == 0) {
             b1 -= s - 1; if (b1 < 0) b1 = 0; if (s > 1) h += log2((double)s);
-        } else if (strcmp(et, "RACE") == 0 || strcmp(et, "INTERFERE") == 0) {
+        } else if (strcmp(et, "RACE") == 0 || strcmp(et, "SLIVER") == 0) {
             int d = s - t; if (d < 0) d = 0; b1 -= d; if (b1 < 0) b1 = 0;
         } else if (strcmp(et, "VENT") == 0) { b1--; if (b1 < 0) b1 = 0; }
     }

@@ -16,5 +16,5 @@
 (session)-[:FORK]->(proxy_reward | ground_truth | feedback_cache)
 (proxy_reward | feedback_cache)-[:FOLD { strategy: 'self-confirm' }]->(counterfeit_alignment)
 (counterfeit_alignment | ground_truth)-[:RACE { expect: 'highest-confidence' }]->(selected_alignment)
-(selected_alignment | feedback_cache)-[:INTERFERE { mode: 'constructive' }]->(locked_loop)
+(selected_alignment | feedback_cache)-[:SLIVER { mode: 'constructive' }]->(locked_loop)
 (locked_loop | feedback_cache)-[:FOLD { strategy: 'lock-in' }]->(result)

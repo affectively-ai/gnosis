@@ -35,7 +35,7 @@ Fork/race/fold is represented here as a directed acyclic graph (DAG) with merge 
 
 I instantiate the algorithm in **five** domains, presented in stack order – from building blocks to bytes on wire – each layer enabled by the ones below it.
 
-1. In formal verification (the foundation, §10), I implement a temporal logic model checker (`@a0n/aeon-logic`) whose BFS state-space exploration is itself a fork/race/fold computation. Each multi-successor expansion is a fork, each transition to an already-visited state is a fold (interference), each unfair cycle filtered by weak fairness is a vent, and termination is collapse. The checker verifies a `TemporalModel` of its own exploration and generates a TLA+ specification of the same model, validated through a round-trip-stable TLA sandbox. Both verification paths check the same invariants: $\beta_1 = \text{folded}$, $\beta_1 \geq 0$, $\text{vents} \leq \text{folds}$, and eventual termination under weak fairness. In the modeled scope, this yields closure under self-application: a formal system built from these primitives can reason about formal systems built from these primitives [13].
+1. In formal verification (the foundation, §10), I implement a temporal logic model checker (`@a0n/aeon-logic`) whose BFS state-space exploration is itself a fork/race/fold computation. Each multi-successor expansion is a fork, each transition to an already-visited state is a fold (slivernce), each unfair cycle filtered by weak fairness is a vent, and termination is collapse. The checker verifies a `TemporalModel` of its own exploration and generates a TLA+ specification of the same model, validated through a round-trip-stable TLA sandbox. Both verification paths check the same invariants: $\beta_1 = \text{folded}$, $\beta_1 \geq 0$, $\text{vents} \leq \text{folds}$, and eventual termination under weak fairness. In the modeled scope, this yields closure under self-application: a formal system built from these primitives can reason about formal systems built from these primitives [13].
 
 2. In formal language theory (the programming model, §11), I implement Gnosis [15] – a programming language that unifies source code and computation graph and whose compiler is a fork/race/fold pipeline. Programs are Cypher-like graphs with four edge types (FORK, RACE, FOLD, VENT). The compiler statically verifies $\beta_1$ bounds, verified by layer 1. The self-hosted compiler (Betti) is itself a GGL program: `(source) -``[``:FORK``]``-> (parse_nodes  parse_edges) -``[``:FOLD``]``-> (ast)`, establishing closure under construction.
 
@@ -130,7 +130,7 @@ Three natural axioms set the stage.
 
 This paper studies whether the same coordination shape recurs across these settings. It has **three** operations: **fork** work into parallel paths, **race** paths against each other, **fold** results into a single answer. It has one safety mechanism: **vent** – propagate down, never across. It treats failure as first-class to minimize wasted work.
 
-These four operations are sufficient to express finite directed acyclic computation graphs in this paper’s mechanized scope under explicit decomposition assumptions. They have a natural topological characterization in terms of Betti numbers, covering spaces and homotopy equivalence. Within the modeled scope, selected canonical queueing constructions are treated as path-like or `β₁ = 0` boundary cases rather than as a closed identification of all queueing theory with the one-path limit. The quantum-mechanical vocabulary – superposition, tunneling, interference, entanglement, collapse – is used here as structural correspondence language.
+These four operations are sufficient to express finite directed acyclic computation graphs in this paper’s mechanized scope under explicit decomposition assumptions. They have a natural topological characterization in terms of Betti numbers, covering spaces and homotopy equivalence. Within the modeled scope, selected canonical queueing constructions are treated as path-like or `β₁ = 0` boundary cases rather than as a closed identification of all queueing theory with the one-path limit. The quantum-mechanical vocabulary – superposition, tunneling, slivernce, entanglement, collapse – is used here as structural correspondence language.
 
 This paper began as a practical problem: a sequential bottleneck in a distributed inference pipeline. Tokens moved through layer nodes one at a time, and the obvious optimization – standard pipelining – wasn’t good enough. The question was not only “how do I make the pipeline faster?” but “why is there a pipeline at all?” That reframing led to a topology that reduced the measured bottleneck and motivated the broader framework presented here.
 
@@ -138,7 +138,7 @@ The conveyor belt was a dominant 20th-century abstraction: serialize work. Fork/
 
 Three bodies of existing theory provided the language for this correction.
 
-I drew heavily from **quantum physics**, using selected terms as computational correspondences: superposition is fork, measurement is observation, collapse is fold, tunneling is early exit, interference is consensus, entanglement is shared state (§5). These are structural mappings used for description and hypothesis formation, with photosynthetic antenna complexes as the closest literal quantum case discussed here (§1.5).
+I drew heavily from **quantum physics**, using selected terms as computational correspondences: superposition is fork, measurement is observation, collapse is fold, tunneling is early exit, slivernce is consensus, entanglement is shared state (§5). These are structural mappings used for description and hypothesis formation, with photosynthetic antenna complexes as the closest literal quantum case discussed here (§1.5).
 
 The quantum-mechanical vocabulary describes the mapped computational operations with structural precision in this paper’s scope. It is a modeling lens, not an exclusive language claim.
 
@@ -392,7 +392,7 @@ Not all folds are equal. The choice of merger $f$ determines the computational s
 | **Winner-take-all** | Best result by selector | $O(N)$ comparisons | One answer needed, clear criterion |
 | **Quorum** | $K$ of $N$ must agree | $O(N^2)$ pairwise comparisons | Byzantine fault tolerance |
 | **Merge-all** | All results contribute | $O(N) + O(f)$ where $f$ = merger cost | Complementary information |
-| **Consensus** | Constructive/destructive interference | $O(N^2)$ pairwise comparisons | Signal amplification or outlier detection |
+| **Consensus** | Constructive/destructive slivernce | $O(N^2)$ pairwise comparisons | Signal amplification or outlier detection |
 | **Weighted** | Authority-weighted merger | $O(N) + O(f)$ where $f$ = merger cost | Heterogeneous source quality |
 
 Race is not a fold strategy – it is a separate primitive. Race picks the *fastest* result. Winner-take-all picks the *best* result. The distinction matters: race terminates early (venting losers), winner-take-all waits for all branches to complete.
@@ -409,7 +409,7 @@ The framework is most useful when treated as a small ledger over four derived ob
 
 - **Vented loss**: the paths, work, or information discarded when branches are pruned, timed out, or prevented from contributing to the terminal fold.
 
-With these observables in hand, fork/race/fold/vent can be read as a language for reasoning about **optionality**. Optionality here means deferred irreversible commitment while branch mass remains greater than one. Fork creates it, collapse law governs how it is resolved, interference reveals what that resolution preserves or destroys, and venting records what was paid to regain determinism. In that sense, such systems act as **structured ambiguity processors**: they hold multiple live alternatives under explicit accounting and then reconcile them.
+With these observables in hand, fork/race/fold/vent can be read as a language for reasoning about **optionality**. Optionality here means deferred irreversible commitment while branch mass remains greater than one. Fork creates it, collapse law governs how it is resolved, slivernce reveals what that resolution preserves or destroys, and venting records what was paid to regain determinism. In that sense, such systems act as **structured ambiguity processors**: they hold multiple live alternatives under explicit accounting and then reconcile them.
 
 This is a vocabulary layer, not an automatic guarantee. It does not make a race winner correct, make an arbitrary fold information-preserving, or provide free single-winner collapse. Those stronger claims depend on the particular collapse law and the additional witness structure discussed later and in the companion formal package.
 
@@ -435,7 +435,7 @@ The fold phase is the whip snap: all parallel shards converge to a single defini
 
 These whipper-snapper folds are an aggressive expression of parallel shard reconciliation in this framework.
 
-At coarser scales this also gives the cleanest honest reading of “apps as logic chains.” If each Gnosis app or subgraph is first treated as a linear chain, then any cross-app interference only becomes operational once those chains are placed into a coarse fork/fold picture. In that setting, the interference can justify a Worthington-style correction fold over the coarse outputs, but it does not by itself create a Wallington Rotation. The Rotation is a scheduling structure over repeated stage order; the Whip is a paid reconciliation across parallel shards. The companion formal package now supports this at four levels: the general shell `THM-INTERFERE-FRACTAL` says that a support-preserving coarse image cannot make contagious fine-scale interference collapse for free, `THM-RENORMALIZATION-COARSENING` closes the many-to-one aggregate-node surface for a hand-supplied quotient witness, the compiler-side coupled-kernel theorem says that one app’s exported `Q_vent` or `W_fold` can be re-read as downstream arrival pressure without destabilizing the tethered pair as long as that imported pressure remains strictly below the downstream drift margin, and `THM-RECURSIVE-COARSENING-SYNTHESIS` now names the remaining open compiler step: synthesize the quotient and collapsed coarse node automatically rather than by hand. That is still not a general rotation theorem: it is an honest coarsening and tethering boundary showing both that paid interference survives quotienting and that pairwise coupling is safe only while local drift slack remains positive.
+At coarser scales this also gives the cleanest honest reading of “apps as logic chains.” If each Gnosis app or subgraph is first treated as a linear chain, then any cross-app slivernce only becomes operational once those chains are placed into a coarse fork/fold picture. In that setting, the slivernce can justify a Worthington-style correction fold over the coarse outputs, but it does not by itself create a Wallington Rotation. The Rotation is a scheduling structure over repeated stage order; the Whip is a paid reconciliation across parallel shards. The companion formal package now supports this at four levels: the general shell `THM-SLIVER-FRACTAL` says that a support-preserving coarse image cannot make contagious fine-scale slivernce collapse for free, `THM-RENORMALIZATION-COARSENING` closes the many-to-one aggregate-node surface for a hand-supplied quotient witness, the compiler-side coupled-kernel theorem says that one app’s exported `Q_vent` or `W_fold` can be re-read as downstream arrival pressure without destabilizing the tethered pair as long as that imported pressure remains strictly below the downstream drift margin, and `THM-RECURSIVE-COARSENING-SYNTHESIS` now names the remaining open compiler step: synthesize the quotient and collapsed coarse node automatically rather than by hand. That is still not a general rotation theorem: it is an honest coarsening and tethering boundary showing both that paid slivernce survives quotienting and that pairwise coupling is safe only while local drift slack remains positive.
 
 ## 3. The Topology of Fork/Race/Fold
 
@@ -672,13 +672,13 @@ Use case: a diagnostic pipeline forks blood test, MRI and genetic screening. The
 
 ### 5.3 Interference
 
-Constructive interference amplifies signals that agree. Destructive interference cancels signals that disagree. In fork/race/fold, the consensus fold strategy implements both:
+Constructive slivernce amplifies signals that agree. Destructive slivernce cancels signals that disagree. In fork/race/fold, the consensus fold strategy implements both:
 
 - **Constructive**: compute pairwise agreement across all $N$ results. Values where $> N/2$ streams agree are amplified (kept). This is signal extraction from noise.
 
 - **Destructive**: values where $\leq N/2$ streams agree are kept. This is outlier detection – finding the signal that *disagrees* with the majority.
 
-The $O(N^2)$ pairwise comparison is the interference pattern. The resulting fold is the detected signal.
+The $O(N^2)$ pairwise comparison is the slivernce pattern. The resulting fold is the detected signal.
 
 ### 5.4 Entanglement
 
@@ -688,7 +688,7 @@ Use case: vote tallying. Fork $N$ streams to count $N$ ballot boxes. All streams
 
 ### 5.5 Measurement
 
-Measurement in quantum mechanics famously disturbs the system – measuring folds the superposition. In fork/race/fold, measurement is **non-destructive**: you can observe the current state of all forked streams without triggering fold or venting. The distinction is intentional – I want observability without interference.
+Measurement in quantum mechanics famously disturbs the system – measuring folds the superposition. In fork/race/fold, measurement is **non-destructive**: you can observe the current state of all forked streams without triggering fold or venting. The distinction is intentional – I want observability without slivernce.
 
 The `measure()` operation returns a snapshot: stream states, intermediate results, timing. Monitoring dashboards, progress bars, debugging – all measurement, all non-destructive.
 
@@ -795,7 +795,7 @@ The Shannon entropy connection is deeper than a Carnot analogy. Fork/race/fold m
 
 The First Law restated in bits: $H_{\text{fork}} = I_{\text{fold}} + H_{\text{vent}}$. The mutual information $I(X;Y)$ between the forked ensemble $X$ and the folded result $Y$ is the useful work. The conditional entropy $H(X|Y)$ – the uncertainty about the fork given the fold result – is the waste heat. This is Shannon’s source coding theorem applied to computation: you cannot fold to a result that contains more information than the mutual information between the problem and the solution.
 
-This links the thermodynamic framing (§6.1--§6.7) with the quantum framing (§5): amplitude interference can be interpreted as information compression, and vented paths carry the bits discarded at fold.
+This links the thermodynamic framing (§6.1--§6.7) with the quantum framing (§5): amplitude slivernce can be interpreted as information compression, and vented paths carry the bits discarded at fold.
 
 ### 6.8.1 The Void Breathes: Damped Oscillation of the Complement Map
 
@@ -918,13 +918,13 @@ where $S$ is the action along each path. For comparison with the present framewo
 
 2. **Race analogue.** Each path propagates with its own phase accumulation. No path “knows” about the others during propagation (allowing for transport gains). In the comparison used here, this plays the role of race: parallel, independent, timeless (unitary evolution is time-reversible).
 
-3. **Fold analogue.** The amplitudes sum. Constructive interference concentrates amplitude on the classical path (stationary phase). In the comparison used here, this plays the role of fold: many paths $\to$ one probability amplitude. $\beta_1 \to 0$.
+3. **Fold analogue.** The amplitudes sum. Constructive slivernce concentrates amplitude on the classical path (stationary phase). In the comparison used here, this plays the role of fold: many paths $\to$ one probability amplitude. $\beta_1 \to 0$.
 
-4. **Vent analogue.** Destructive interference eliminates non-classical paths. Their amplitudes cancel to zero. In the comparison used here, this plays the role of vent: paths that contribute no useful work are dissipated.
+4. **Vent analogue.** Destructive slivernce eliminates non-classical paths. Their amplitudes cancel to zero. In the comparison used here, this plays the role of vent: paths that contribute no useful work are dissipated.
 
 The classical limit ($\hbar \to 0$) recovers the path of stationary action – the unique classical trajectory. In the comparison used here, that behaves like a $\beta_1 = 0$ boundary case: one path, no fork, no race, no vent. It is analogous to the sequential limit of the Wallington Rotation rather than formally identical to it.
 
-**This is a structural mapping with explicit boundaries.** The path integral can be mapped to a fork/race/fold interpretation: the sum over paths maps to fork, interference maps to fold/vent, and the stationary phase approximation maps to the $\beta_1 \to 0$ projection. Feynman diagrams are computation graphs whose topological properties ($\beta_1$ = loop order) track calculation difficulty, similar to how $\beta_1$ tracks pipeline complexity in §3.
+**This is a structural mapping with explicit boundaries.** The path integral can be mapped to a fork/race/fold interpretation: the sum over paths maps to fork, slivernce maps to fold/vent, and the stationary phase approximation maps to the $\beta_1 \to 0$ projection. Feynman diagrams are computation graphs whose topological properties ($\beta_1$ = loop order) track calculation difficulty, similar to how $\beta_1$ tracks pipeline complexity in §3.
 
 **Validated boundary condition.** The correspondence is operationally exact only in the linear full-aggregation regime. Five companion validations make that boundary explicit. In the finite-kernel unit harness (`companion-tests/src/quantum-correspondence-boundary.test.ts`) [9, 13], linear fold reproduces discrete path-sum evolution exactly (kernel composition equals explicit path enumeration), preserves partition additivity, and remains permutation-invariant on the $\{+1,-1\}$ cancellation witness; winner-take-all and early-stop folds fail those same checks. In the fold-ablation harness (`companion-tests/src/quantum-recombination-ablation.test.ts`) and its reproducible artifact writer (`companion-tests/scripts/quantum-recombination-ablation.ts`, output `companion-tests/artifacts/quantum-recombination-ablation.{json,md}`) [9, 13], the path family is held fixed while only the recombination rule is swapped: the predicted loss matrix is recovered exactly, with linear fold preserving kernel agreement, partition additivity, order invariance and cancellation, while winner-take-all and early-stop each show kernel-agreement distance `0.354`, partition/order distance `2.000`, and cancellation magnitude$^2$ `1.000`. In the Lean theorem package (`companion-tests/formal/lean/Lean/ForkRaceFoldTheorems/Claims.lean`) [12, 13], the algebraic skeleton of the same boundary is mechanized in a minimal integer-valued model: linear fold is globally partition-additive, preserves the cancellation target family `x + (-x) = 0`, and is equivalent to the more general cancellation-difference family `fold(x,-y) = x - y`; any non-additive fold must miss some member of that family, and winner-selection/early-stop miss the concrete `x + (-x)` witness. A Lean-emitted witness catalog (`companion-tests/artifacts/formal-witness-catalog.{json,md}`) now exports `7` concrete cancellation, partition, and order counterexamples, and `quantum-correspondence-boundary.test.ts` consumes those exported witnesses directly rather than hardcoding them. A seeded Gnosis cancellation benchmark (`companion-tests/artifacts/gnosis-fold-training-benchmark.{json,md}`) then keeps topology, parameter count, and data fixed across three `.gg` programs and changes only the fold strategy: linear fold reaches eval MSE `0.000` with 95% seed-bootstrap interval `[``0.000, 0.000``]`, while winner-take-all and early-stop settle at `0.408`/`0.735` with intervals `[``0.396, 0.421``]`/`[``0.732, 0.740``]`; cancellation-line absolute error is `0.000`, `0.834`, and `0.764`. A paired seeded negative-control benchmark (`companion-tests/artifacts/gnosis-negative-controls.{json,md}`) then keeps the same topologies but moves to one-path target families where no cross-path cancellation or dual-expert summation is required; there the separation disappears exactly as predicted, with affine-left-only and positive-x single-expert controls both yielding max inter-strategy eval-MSE gap `0.000` and min exact-within-tolerance rate `1.000`. Finally, a harder seeded Gnosis mini-MoE routing benchmark (`companion-tests/artifacts/gnosis-moe-routing-benchmark.{json,md}`) keeps a four-expert routed topology and fixed 16-parameter budget while swapping only the fold strategy: linear fold reaches eval MSE `0.001`, winner-take-all `0.328`, and early-stop `0.449`, with 95% seed-bootstrap intervals `[``0.001, 0.001``]`, `[``0.267, 0.389``]`, and `[``0.444, 0.457``]`; the dual-active-region absolute error is `0.027`, `0.402`, and `0.474`. The assembled manuscript figures are emitted automatically to `companion-tests/artifacts/ch17-correspondence-boundary-figure.{json,md,svg}` and `companion-tests/artifacts/ch17-boundary-expansion-figure.{json,md,svg}`, and the full evidence bundle is fingerprinted in `companion-tests/artifacts/ch17-replication-pack.{json,md}` with the one-command outside rerun surface `bun run test:ch17-external-replication`, `62` manifest entries, and `25` generated artifacts. So the shared structure is “fork, independent propagation, recombination to one output,” but the recombination mechanics differ: physical path integrals sum linearly; computational winner/race folds select nonlinearly.
 
@@ -936,7 +936,7 @@ The classical limit ($\hbar \to 0$) recovers the path of stationary action – t
 
 In this abstraction, the path integral, the Schrödinger equation, and Newton’s laws can be arranged as an interpretive hierarchy of progressively coarser folds. This is a modeling view, not a claim of full formal equivalence.
 
-**Level 0: The Path Integral (full fork/race/fold).** All paths. All interferences. No approximation. $\beta_1 \to \infty$.
+**Level 0: The Path Integral (full fork/race/fold).** All paths. All slivernces. No approximation. $\beta_1 \to \infty$.
 
 $$
 \mathcal{A}(A \to B) = \int \mathcal{D}[x(t)] \, e^{iS[x(t)]/\hbar}
@@ -958,7 +958,7 @@ In this mapping, the Schrödinger equation is a race-like local dynamics equatio
 
 **Quantum tunneling as incomplete venting.** Classically, a particle encountering a potential barrier higher than its kinetic energy is disallowed from crossing. But the Schrödinger equation shows that $\psi$ decays exponentially through the barrier rather than dropping to zero. If the barrier is thin enough, nonzero amplitude leaks through. In this framework, that is an incomplete-vent analogue. Flash memory, scanning tunneling microscopes, and nuclear fusion in stars exploit this effect.
 
-**Level 2: Stationary Phase Approximation (the vent operator).** In the classical limit ($\hbar \to 0$), the phase $e^{iS/\hbar}$ oscillates infinitely fast. Nearly all paths cancel by destructive interference – they are vented. Only paths near the stationary point of the action survive:
+**Level 2: Stationary Phase Approximation (the vent operator).** In the classical limit ($\hbar \to 0$), the phase $e^{iS/\hbar}$ oscillates infinitely fast. Nearly all paths cancel by destructive slivernce – they are vented. Only paths near the stationary point of the action survive:
 
 $$
 \delta S = 0 \implies \text{Euler-Lagrange equations} \implies F = ma
@@ -1576,7 +1576,7 @@ The `ForkRaceFoldModelChecker` in `@a0n/aeon-logic` [13] explores state spaces v
 | BFS Operation | Fork/Race/Fold Primitive | Topological Effect |
 |---|---|---|
 | Expansion with >1 successor | **Fork** | $\beta_1 += N - 1$ |
-| Transition to already-visited state | **Fold** (interference) | Creates independent cycle |
+| Transition to already-visited state | **Fold** (slivernce) | Creates independent cycle |
 | Unfair cycle filtered by weak fairness | **Vent** | Irreversible path removal |
 | Frontier exhausted, exploration complete | **Collapse** | $\beta_1 \to 0$ |
 
@@ -1627,7 +1627,7 @@ Gnosis [15] is a programming language that dispenses with imperative control flo
 (raw_codec | brotli_codec) -[:RACE]-> (winner)
 ```
 
-The language has exactly four edge types – `FORK`, `RACE`, `FOLD`, `VENT` – plus `PROCESS` for sequential steps and `INTERFERE` for constructive/destructive signal combination. There are no functions, only subgraphs. There are no variables, only nodes with typed properties. There are no loops, only topological cycles detected at compile time by $\beta_1$ analysis.
+The language has exactly four edge types – `FORK`, `RACE`, `FOLD`, `VENT` – plus `PROCESS` for sequential steps and `SLIVER` for constructive/destructive signal combination. There are no functions, only subgraphs. There are no variables, only nodes with typed properties. There are no loops, only topological cycles detected at compile time by $\beta_1$ analysis.
 
 This is the thesis of the paper made literal: **the source code IS the topology**. The AST is the computation graph. The compiler is the $\beta_1$ analyzer. The runtime is the topology engine.
 
@@ -1661,12 +1661,12 @@ A transformer written in Gnosis reveals the fork/race/fold structure claimed in 
 (input_sequence)-[:PROCESS]->(qkv_projection)
 (qkv_projection)-[:FORK]->(head_1 | head_2 | head_3 | head_4)
 (head_1 | head_2 | head_3 | head_4)-[:FOLD { strategy: 'concat' }]->(multi_head_out)
-(input_sequence | multi_head_out)-[:INTERFERE { mode: 'constructive' }]->(residual_1)
+(input_sequence | multi_head_out)-[:SLIVER { mode: 'constructive' }]->(residual_1)
 (residual_1)-[:PROCESS]->(ffn)
-(residual_1 | ffn)-[:INTERFERE { mode: 'constructive' }]->(transformer_out)
+(residual_1 | ffn)-[:SLIVER { mode: 'constructive' }]->(transformer_out)
 ```
 
-Multi-head attention is `FORK` → `FOLD`. Residual connections are `INTERFERE`. The topology is visible in the source code – not buried in matrix operations, not implicit in framework conventions, but *declared* as the program’s structure. The compiler computes $\beta_1 = 3$ at the fork point (four heads) and verifies it returns to zero at the fold.
+Multi-head attention is `FORK` → `FOLD`. Residual connections are `SLIVER`. The topology is visible in the source code – not buried in matrix operations, not implicit in framework conventions, but *declared* as the program’s structure. The compiler computes $\beta_1 = 3$ at the fork point (four heads) and verifies it returns to zero at the fold.
 
 ### 11.4 The Bootstrapping Path: Betty → Betti
 
@@ -1707,7 +1707,7 @@ The algorithm is implemented as **Aeon Pipelines** [2], a zero-dependency comput
 
 - **`Pipeline`**: the engine – capacity, metrics, backpressure, turbulent multiplexing.
 
-- **`Superposition<T>`**: the builder – chainable fork/race/fold/vent/tunnel/interfere/entangle/measure/search operations.
+- **`Superposition<T>`**: the builder – chainable fork/race/fold/vent/tunnel/sliver/entangle/measure/search operations.
 
 ```typescript
 // Kids juggling balls
@@ -1746,7 +1746,7 @@ A stronger statement is mechanized as a conditional formal obligation in `Schedu
 | `fork(10)` | **1.82 µs** | parallel streams created |
 | `fold({ type: 'quorum', threshold: 3 })` | **4.51 µs** | Byzantine agreement across 5 streams |
 | `search(8×20)` | **8.3 µs** | Grover-style search, 8-wide, 20 generations |
-| `interference(100)` | **16.3 µs** | Pairwise consensus across 100 streams |
+| `slivernce(100)` | **16.3 µs** | Pairwise consensus across 100 streams |
 | `vent-tree(13)` | **18.9 µs** | Recursive vent across 13-node tree |
 | `flow-bridge-batch(100)` | **25.7 µs** | frames encoded to wire format |
 | `reassemble-reverse(1000)` | **71.4 µs** | 1,000 frames reassembled from reverse order |
@@ -1772,7 +1772,7 @@ The same API – unchanged – was exercised in executable scenario harnesses ac
 
 7. **Drug discovery**: fork compounds, Grover search to convergence
 
-8. **Manufacturing QC**: fork sensors, consensus (constructive interference)
+8. **Manufacturing QC**: fork sensors, consensus (constructive slivernce)
 
 9. **Journal publishing**: fork reviewers, vent timeout, quorum verdict
 
@@ -1873,7 +1873,7 @@ The innumerable conveyor belts of this world – Ford’s line, TCP’s stream, 
 
 A broad class of computational waste is within scope for measurement and reduction. We can quantify topological mismatch and target it directly.
 
-The framework’s language was not invented from scratch. It was borrowed from physical theories that already describe related path-selection phenomena. Quantum physics provided the lexicon: superposition, tunneling, interference, entanglement, measurement, collapse. In this paper, these are structural correspondences within an explicit computational abstraction, with literal quantum examples in photosynthetic transfer. The Feynman path integral can be mapped to fork/race/fold in that abstraction: paths branch, phases evolve, amplitudes recombine by interference, and non-classical contributions cancel (§6.12). The recombination mechanism differs (linear amplitude summation in physics vs nonlinear selection/merge in computation), and the companion tests make that boundary explicit: exact agreement in a finite linear path-sum model, plus explicit counterexamples for nonlinear winner/early-stop folds [9, 13]. The winner-take-all and early-stop failures are genuine disconfirming evidence for universality of the mapping — the correspondence is operationally exact only for linear full-aggregation folds and breaks for the nonlinear folds that dominate practical computation. This is therefore a structural mapping with an explicit, tested boundary, not an identity claim. Fluid dynamics provides scaling intuition through the pipeline Reynolds number, and thermodynamics provides a conservation accounting lens ($V = W + Q$) for modeled computational work/vent partitioning.
+The framework’s language was not invented from scratch. It was borrowed from physical theories that already describe related path-selection phenomena. Quantum physics provided the lexicon: superposition, tunneling, slivernce, entanglement, measurement, collapse. In this paper, these are structural correspondences within an explicit computational abstraction, with literal quantum examples in photosynthetic transfer. The Feynman path integral can be mapped to fork/race/fold in that abstraction: paths branch, phases evolve, amplitudes recombine by slivernce, and non-classical contributions cancel (§6.12). The recombination mechanism differs (linear amplitude summation in physics vs nonlinear selection/merge in computation), and the companion tests make that boundary explicit: exact agreement in a finite linear path-sum model, plus explicit counterexamples for nonlinear winner/early-stop folds [9, 13]. The winner-take-all and early-stop failures are genuine disconfirming evidence for universality of the mapping — the correspondence is operationally exact only for linear full-aggregation folds and breaks for the nonlinear folds that dominate practical computation. This is therefore a structural mapping with an explicit, tested boundary, not an identity claim. Fluid dynamics provides scaling intuition through the pipeline Reynolds number, and thermodynamics provides a conservation accounting lens ($V = W + Q$) for modeled computational work/vent partitioning.
 
 In selected analyzed examples, the pattern is observed repeatedly. Attention in transformers can be mapped to race-like scoring ($QK^T$), with softmax/selection and value projection as fold-like operations (§6.11). Protein folding can be read as path exploration with energetic selection [11]. Hylomorphism (unfold/fold) aligns naturally with fork/fold structure. These are structural correspondences used to organize reasoning across domains in this manuscript’s modeled class, supported by executable simulations and formal schemas under explicit assumptions.
 

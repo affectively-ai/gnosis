@@ -1,7 +1,7 @@
 // greek_logic.test.gg -- Ancient Greek philosophy dissolved through the five primitives
 //
 // Every major problem from ancient Greek philosophy examined through
-// FORK, RACE, FOLD, VENT, and INTERFERE. Each problem receives:
+// FORK, RACE, FOLD, VENT, and SLIVER. Each problem receives:
 //   - The original formulation
 //   - Why it is stuck (which primitives are missing)
 //   - The post-linear dissolution
@@ -91,12 +91,12 @@
 // At any instant, the arrow occupies exactly its size. Motionless at
 // each instant, therefore motionless always.
 //
-// Stuck: Zeno freezes INTERFERE. LINEAR snapshot -- position at t with
+// Stuck: Zeno freezes SLIVER. LINEAR snapshot -- position at t with
 // no reference to t-1 or t-2. Motion requires the Fibonacci recurrence
 // on position: pos(t) depends on pos(t-1) AND pos(t-2) via momentum
-// and acceleration. Motion IS INTERFERE -- current state is a function
+// and acceleration. Motion IS SLIVER -- current state is a function
 // of multiple prior states. Freeze the recurrence, lose motion.
-// The arrow paradox: "remove INTERFERE, no motion." Correct.
+// The arrow paradox: "remove SLIVER, no motion." Correct.
 
 (arrow_frozen: Topology {
   description: 'Zeno LINEAR snapshot -- arrow at one instant',
@@ -113,7 +113,7 @@
   motion: 'fibonacci_recurrence_on_position'
 })
 
-(arrow_frozen)-[:INTERFERE { restore: 'momentum+acceleration' }]->(arrow_recurrence)
+(arrow_frozen)-[:SLIVER { restore: 'momentum+acceleration' }]->(arrow_recurrence)
 
 // --- 1d. The Stadium ---
 //
@@ -122,7 +122,7 @@
 // Therefore half a time equals a whole time.
 //
 // Stuck: single FOLD (one frame) for relative motion. Each observer's
-// INTERFERE loop is valid in its own frame. RACE between frames
+// SLIVER loop is valid in its own frame. RACE between frames
 // produces different measurements -- both correct in their own frame.
 
 (stadium_single_frame: Topology {
@@ -133,7 +133,7 @@
 })
 
 (stadium_multiframe: Topology {
-  description: 'Post-linear -- each frame has its own INTERFERE loop',
+  description: 'Post-linear -- each frame has its own SLIVER loop',
   regime: 'POST_LINEAR',
   frames: '2',
   relative_motion: 'frame_dependent'
@@ -144,8 +144,8 @@
 (frame_stationary: Observer { velocity: '0' })
 
 (frame_stationary)-[:FORK]->(frame_a | frame_b)
-(frame_a)-[:INTERFERE { with: 'frame_b' }]->(relative_ab: Measurement { relative_v: '2v' })
-(frame_a)-[:INTERFERE { with: 'frame_stationary' }]->(relative_as: Measurement { relative_v: 'v' })
+(frame_a)-[:SLIVER { with: 'frame_b' }]->(relative_ab: Measurement { relative_v: '2v' })
+(frame_a)-[:SLIVER { with: 'frame_stationary' }]->(relative_as: Measurement { relative_v: 'v' })
 (relative_ab | relative_as)-[:RACE { expect: 'both-valid' }]->(stadium_multiframe)
 
 
@@ -153,8 +153,8 @@
 
 (zeno_achilles: Verify { topology: 'achilles_postlinear', claim: 'series converges', status: 'DISSOLVED' })
 (zeno_dichotomy: Verify { topology: 'dichotomy_postlinear', claim: 'series converges', status: 'DISSOLVED' })
-(zeno_arrow: Verify { topology: 'arrow_recurrence', claim: 'motion is INTERFERE', status: 'DISSOLVED' })
-(zeno_stadium: Verify { topology: 'stadium_multiframe', claim: 'frames are independent INTERFERE', status: 'DISSOLVED' })
+(zeno_arrow: Verify { topology: 'arrow_recurrence', claim: 'motion is SLIVER', status: 'DISSOLVED' })
+(zeno_stadium: Verify { topology: 'stadium_multiframe', claim: 'frames are independent SLIVER', status: 'DISSOLVED' })
 
 (test_suite)-[:FORK]->(zeno_achilles | zeno_dichotomy | zeno_arrow | zeno_stadium)
 
@@ -194,9 +194,9 @@
 (appearance_3: FibTerm { n: '20', ratio: '10946/6765=1.61803...' })
 (semiotic_deficit: Deficit { decreasing: 'true', limit: '0' })
 
-(appearance_1)-[:INTERFERE { with: 'form_ideal' }]->(semiotic_deficit)
-(appearance_2)-[:INTERFERE { with: 'form_ideal' }]->(semiotic_deficit)
-(appearance_3)-[:INTERFERE { with: 'form_ideal' }]->(semiotic_deficit)
+(appearance_1)-[:SLIVER { with: 'form_ideal' }]->(semiotic_deficit)
+(appearance_2)-[:SLIVER { with: 'form_ideal' }]->(semiotic_deficit)
+(appearance_3)-[:SLIVER { with: 'form_ideal' }]->(semiotic_deficit)
 
 (plato_forms: Verify { claim: 'Forms are eigenvalues', status: 'REFRAMED', eigenvalue: 'phi' })
 
@@ -219,7 +219,7 @@
 //   Shadows = LINEAR projection. beta0 = 1 (the flat wall).
 //   Real objects = POST-LINEAR topology (the full structure).
 //   Cave wall = constraint surface -- cannot hold loops or self-reference.
-//   Escaping = adding INTERFERE (see how objects relate, not just shadows).
+//   Escaping = adding SLIVER (see how objects relate, not just shadows).
 //   Sun = the eigenvalue. The pattern all shadows converge toward.
 
 (cave_wall: Surface { beta0: '1', dimension: '2', regime: 'LINEAR' })
@@ -228,10 +228,10 @@
 (sun: Eigenvalue { value: 'phi', role: 'source_of_all_form' })
 
 (real_objects)-[:VENT { what: 'dimensionality' }]->(shadows)
-(shadows)-[:INTERFERE { restore: 'depth+relation' }]->(real_objects)
+(shadows)-[:SLIVER { restore: 'depth+relation' }]->(real_objects)
 (real_objects)-[:FOLD { strategy: 'convergence' }]->(sun)
 
-(cave: Verify { claim: 'cave is LINEAR projection, escape is INTERFERE', status: 'REFRAMED' })
+(cave: Verify { claim: 'cave is LINEAR projection, escape is SLIVER', status: 'REFRAMED' })
 
 (test_suite)-[:FORK]->(cave)
 (cave)-[:RACE { expect: 'safe' }]->(cave_result: Result)
@@ -250,7 +250,7 @@
 // Mapping:
 //   Material = substrate (paper, silicon, neurons) -- input to FORK
 //   Formal = topology (the .gg file, the five primitives)
-//   Efficient = operation (FORK/RACE/FOLD/VENT/INTERFERE running)
+//   Efficient = operation (FORK/RACE/FOLD/VENT/SLIVER running)
 //   Final = eigenvalue (phi -- the attractor/telos)
 //
 // Aristotle had four causes. We have five primitives. The missing cause
@@ -261,7 +261,7 @@
 
 (material_cause: Cause { type: 'material', primitive: 'substrate', what: 'what it is made of' })
 (formal_cause: Cause { type: 'formal', primitive: 'topology', what: 'the .gg structure' })
-(efficient_cause: Cause { type: 'efficient', primitive: 'FORK+RACE+FOLD+INTERFERE', what: 'the operation' })
+(efficient_cause: Cause { type: 'efficient', primitive: 'FORK+RACE+FOLD+SLIVER', what: 'the operation' })
 (final_cause: Cause { type: 'final', primitive: 'eigenvalue', what: 'phi -- the attractor' })
 (dissipative_cause: Cause { type: 'dissipative', primitive: 'VENT', what: 'what is shed' })
 
@@ -297,7 +297,7 @@
 //
 // The liar is broken Fibonacci: F(n) = -F(n-1) instead of
 // F(n) = F(n-1) + F(n-2). Missing the +F(n-2) -- the second voice
-// in INTERFERE. FORK (self-reference) without INTERFERE (integration).
+// in SLIVER. FORK (self-reference) without SLIVER (integration).
 
 (liar_oscillation: Topology {
   description: 'This statement is false',
@@ -315,7 +315,7 @@
   recurrence: 'truth(n) = truth(n-1) + truth(n-2)'
 })
 
-(liar_oscillation)-[:INTERFERE { add: 'second prior term' }]->(liar_postlinear)
+(liar_oscillation)-[:SLIVER { add: 'second prior term' }]->(liar_postlinear)
 
 (liar: Verify { claim: 'liar is eigenvalue -1, POST_LINEAR self-ref is phi', status: 'DISSOLVED' })
 
@@ -336,11 +336,11 @@
 //
 // Identity is eigenvalue continuity. Three cases:
 //   Case 1: Planks replaced one at a time, continuity maintained.
-//     INTERFERE loop connects each state to predecessor. beta0 = 0
+//     SLIVER loop connects each state to predecessor. beta0 = 0
 //     throughout. Eigenvalue preserved. Same ship.
-//   Case 2: All planks replaced at once, no memory. INTERFERE breaks.
+//   Case 2: All planks replaced at once, no memory. SLIVER breaks.
 //     beta0 = 1 (disconnected). Eigenvalue resets. Different ship.
-//   Case 3: Old planks reassembled. Material but no INTERFERE history.
+//   Case 3: Old planks reassembled. Material but no SLIVER history.
 //     New ship, old wood.
 //
 // Answer depends on whether beta0 stayed 0 through the process.
@@ -371,7 +371,7 @@
 
 (ship_original: Ship { planks: 'original' })
 (ship_original)-[:FORK]->(ship_continuous | ship_discontinuous | ship_reassembled)
-(ship_continuous)-[:INTERFERE { history: 'preserved' }]->(ship_continuous)
+(ship_continuous)-[:SLIVER { history: 'preserved' }]->(ship_continuous)
 (ship_discontinuous)-[:VENT { what: 'all history at once' }]->(ship_discontinuous)
 
 (theseus: Verify { claim: 'identity is eigenvalue continuity', status: 'DISSOLVED' })
@@ -422,7 +422,7 @@
 
 (heraclitus)-[:FORK { divergence: 'new states at each step' }]->(process: Sequence)
 (process)-[:FOLD { strategy: 'ratio-convergence' }]->(parmenides)
-(heraclitus | parmenides)-[:INTERFERE { synthesis: 'both-valid' }]->(synthesis)
+(heraclitus | parmenides)-[:SLIVER { synthesis: 'both-valid' }]->(synthesis)
 
 (heraclitus_parmenides: Verify { claim: 'process changes, eigenvalue does not', status: 'DISSOLVED' })
 
@@ -443,13 +443,13 @@
 // you knew (beta0 = 1, LINEAR certainty) and what you actually know
 // (beta0 >> 1, disconnected fragments).
 //
-// Socrates IS INTERFERE applied to other people. He reflects their
+// Socrates IS SLIVER applied to other people. He reflects their
 // FOLD back to their FORK -- takes conclusions and shows contradicting
 // premises.
 //
 // The trajectory:
 //   1. Student starts LINEAR (confident, wrong, eigenvalue = 1)
-//   2. Socrates applies INTERFERE -- shows contradictions
+//   2. Socrates applies SLIVER -- shows contradictions
 //   3. Student enters NON-LINEAR (confused, oscillating)
 //   4. Persist: POST-LINEAR (wisdom, eigenvalue -> phi)
 //   5. Quit: VENT the entire inquiry
@@ -486,11 +486,11 @@
   understanding: 'unchanged'
 })
 
-(socrates: Primitive { type: 'INTERFERE', target: 'student beliefs' })
+(socrates: Primitive { type: 'SLIVER', target: 'student beliefs' })
 
 (student_linear)-[:FORK { reason: 'Socrates divides belief into cases' }]->(case_a: Belief | case_b: Belief)
 (case_a | case_b)-[:RACE { expect: 'contradiction' }]->(aporia: Deficit { magnitude: 'maximum' })
-(aporia)-[:INTERFERE { socrates: 'reflects contradiction' }]->(student_nonlinear)
+(aporia)-[:SLIVER { socrates: 'reflects contradiction' }]->(student_nonlinear)
 (student_nonlinear)-[:FOLD { strategy: 'integrate-contradiction' }]->(student_postlinear)
 (student_nonlinear)-[:VENT { what: 'the entire inquiry' }]->(student_abandoned)
 
@@ -513,9 +513,9 @@
 //   excess(n) = virtue(n-1) + deficiency(n-2)
 // Ratio of excess to deficiency converges to phi.
 //
-// Virtue is the INTERFERE of excess and deficiency -- the point where
+// Virtue is the SLIVER of excess and deficiency -- the point where
 // opposing tendencies find dynamic equilibrium. The equilibrium ratio
-// is the eigenvalue of the INTERFERE operator: phi. The mean is not
+// is the eigenvalue of the SLIVER operator: phi. The mean is not
 // the arithmetic midpoint. It is the golden ratio of the interval.
 //
 // Honesty: REFRAMED. We cannot prove Aristotle's virtue ethics follows
@@ -525,7 +525,7 @@
 (deficiency: Extreme { type: 'cowardice', direction: 'too little' })
 (virtue: Mean { type: 'courage', position: 'phi of interval' })
 
-(excess | deficiency)-[:INTERFERE { recurrence: 'fibonacci' }]->(virtue)
+(excess | deficiency)-[:SLIVER { recurrence: 'fibonacci' }]->(virtue)
 (virtue)-[:FOLD { eigenvalue: 'phi', ratio: 'excess/deficiency -> phi' }]->(golden_equilibrium: Attractor)
 
 (golden_mean: Verify { claim: 'golden mean is golden ratio', status: 'REFRAMED', eigenvalue: 'phi' })
@@ -543,16 +543,16 @@
 // Plato divides knowledge into four levels. These ARE the four regimes:
 //
 //   1. Eikasia (imagination) = LINEAR. Shadows, one interpretation,
-//      eigenvalue 1. beta0 = 1. No INTERFERE.
+//      eigenvalue 1. beta0 = 1. No SLIVER.
 //   2. Pistis (belief) = NON-LINEAR. Multiple but periodic, eigenvalue -1.
 //      Sees multiplicity, cannot integrate. FORK without FOLD.
 //   3. Dianoia (understanding) = POST-LINEAR. Mathematical reasoning,
-//      eigenvalue phi. INTERFERE without full self-reference. Can prove
+//      eigenvalue phi. SLIVER without full self-reference. Can prove
 //      theorems about triangles, not about proof itself.
-//   4. Noesis (knowledge) = POST-LINEAR-SQUARED. INTERFERE on INTERFERE.
+//   4. Noesis (knowledge) = POST-LINEAR-SQUARED. SLIVER on SLIVER.
 //      Self-referential understanding. Questions the hypotheses themselves.
 //
-// An eigenvalue hierarchy. Each level = eigenvalue + INTERFERE depth.
+// An eigenvalue hierarchy. Each level = eigenvalue + SLIVER depth.
 
 (eikasia: Knowledge {
   level: 'imagination',
@@ -587,8 +587,8 @@
 })
 
 (eikasia)-[:FORK { upgrade: 'encounter multiplicity' }]->(pistis)
-(pistis)-[:INTERFERE { add: 'mathematical reasoning' }]->(dianoia)
-(dianoia)-[:INTERFERE { add: 'self-reference on method' }]->(noesis)
+(pistis)-[:SLIVER { add: 'mathematical reasoning' }]->(dianoia)
+(dianoia)-[:SLIVER { add: 'self-reference on method' }]->(noesis)
 (noesis)-[:FOLD { strategy: 'direct apprehension' }]->(form_ideal)
 
 (divided_line: Verify { claim: 'four levels map to four regimes', status: 'REFRAMED' })
@@ -609,7 +609,7 @@
 //
 // Straight line = LINEAR. Eigenvalue 1. No FORK, no creation.
 // Swerve IS FORK. One deviation creates a branch, enabling:
-// collision (INTERFERE), selection (RACE), combination (FOLD),
+// collision (SLIVER), selection (RACE), combination (FOLD),
 // dissolution (VENT). Epicurus discovered FORK 2,300 years early.
 //
 // The swerve IS the +1 in phi^2 = phi + 1. Without +1:
@@ -640,7 +640,7 @@
 })
 
 (deterministic_fall)-[:FORK { clinamen: 'the swerve' }]->(swerve)
-(swerve)-[:INTERFERE { collision: 'atoms meet' }]->(combinations: Assembly)
+(swerve)-[:SLIVER { collision: 'atoms meet' }]->(combinations: Assembly)
 (combinations)-[:RACE { selection: 'stable configurations survive' }]->(survivors: Assembly)
 (survivors)-[:FOLD { strategy: 'accumulation' }]->(universe)
 (combinations)-[:VENT { what: 'unstable configurations dissolve' }]->(void: Void)
@@ -667,7 +667,7 @@
 //   RACE: environmental conditions compete
 //   FOLD: one trajectory wins
 //   VENT: other possibilities shed
-//   INTERFERE: each growth stage depends on prior stages
+//   SLIVER: each growth stage depends on prior stages
 //
 // Telos IS the eigenvalue -- the attractor. Aristotle: actuality is
 // prior to potentiality. Our version: the eigenvalue is prior to the
@@ -702,7 +702,7 @@
 
 (acorn)-[:FORK]->(oak_path: Path | not_taken_firewood | not_taken_compost | not_taken_eaten)
 (oak_path)-[:RACE { conditions: 'soil+sun+water' }]->(growth: Process)
-(growth)-[:INTERFERE { stages: 'seed->sapling->tree' }]->(growth)
+(growth)-[:SLIVER { stages: 'seed->sapling->tree' }]->(growth)
 (growth)-[:FOLD { strategy: 'developmental-convergence' }]->(oak)
 (not_taken_firewood | not_taken_compost | not_taken_eaten)-[:VENT { what: 'unrealized possibilities' }]->(void_potential: Void)
 (oak)-[:FOLD { strategy: 'telos-convergence' }]->(telos)

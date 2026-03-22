@@ -26,7 +26,7 @@ topology void_torus {
 
   loop_2 {
     // Through the hole: the dissipative cycle
-    path = VENT -> INTERFERE
+    path = VENT -> SLIVER
     count = 2
     character = "what the system SHEDS and OBSERVES"
     // The void. The absence. The hole.
@@ -150,7 +150,7 @@ topology void_torus {
     produces = "complement distribution, interference signal"
     eigenvalue = phi
 
-    // The void walker IS INTERFERE.
+    // The void walker IS SLIVER.
     // It observes the void and feeds back to the surface.
     // The rejection history shapes the next fork.
     // The hole informs the tube.

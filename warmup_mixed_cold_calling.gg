@@ -18,4 +18,4 @@
 (rejection_feedback)-[:PROCESS]->(pitch_adapter)-[:PROCESS]->(tailored_pitch)
 (script | tailored_pitch)-[:RACE { expect: 'highest-conversion' }]->(conversation)
 
-(conversation | rapport_building)-[:INTERFERE { mode: 'constructive' }]->(outcome)
+(conversation | rapport_building)-[:SLIVER { mode: 'constructive' }]->(outcome)

@@ -77,7 +77,7 @@ function compute_beta1($prog) {
         switch ($e['type']) {
             case 'FORK': $b1 += $t - 1; break;
             case 'FOLD': case 'COLLAPSE': case 'OBSERVE': $b1 = max(0, $b1 - ($s - 1)); break;
-            case 'RACE': case 'INTERFERE': $b1 = max(0, $b1 - max(0, $s - $t)); break;
+            case 'RACE': case 'SLIVER': $b1 = max(0, $b1 - max(0, $s - $t)); break;
             case 'VENT': $b1 = max(0, $b1 - 1); break;
         }
     }

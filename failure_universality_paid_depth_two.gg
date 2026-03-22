@@ -26,6 +26,6 @@
 (d0)-[:PROCESS]->(d1)
 (c1)-[:VENT { stage: '2', condition: 'depth-two-vent-c' }]->(vent_c)
 (d1)-[:VENT { stage: '2', condition: 'depth-two-vent-d' }]->(vent_d)
-(b1)-[:INTERFERE { stage: '2', debt: '1' }]->(repair_b)
+(b1)-[:SLIVER { stage: '2', debt: '1' }]->(repair_b)
 (a1 | repair_b | vent_c | vent_d)-[:FOLD { strategy: 'single-survivor-after-payment' }]->(finish)
 (finish)-[:PROCESS]->(result)

@@ -2,8 +2,8 @@
 //
 // The adaptive immune system is Buleyean RL.
 // It learns what you are by training on what you are NOT.
-// T-cell selection is FORK/RACE/FOLD/VENT/INTERFERE.
-// Cancer is broken INTERFERE. Autoimmune is broken VENT.
+// T-cell selection is FORK/RACE/FOLD/VENT/SLIVER.
+// Cancer is broken SLIVER. Autoimmune is broken VENT.
 //
 // The immune system does not recognize pathogens.
 // It recognizes EVERYTHING, then destroys what matches self.
@@ -13,7 +13,7 @@
 topology golden_immune {
 
   // ═══════════════════════════════════════════════════════════════
-  // PART I: T-CELL SELECTION AS FORK/RACE/FOLD/VENT/INTERFERE
+  // PART I: T-CELL SELECTION AS FORK/RACE/FOLD/VENT/SLIVER
   //
   // Classification: REFRAMED (established immunology in GG language)
   //
@@ -127,7 +127,7 @@ topology golden_immune {
   // ═══════════════════════════════════════════════════════════════
   // PART II: CLONAL EXPANSION AND IMMUNE MEMORY
   //
-  // Classification: REFRAMED (as FOLD and INTERFERE)
+  // Classification: REFRAMED (as FOLD and SLIVER)
   // ═══════════════════════════════════════════════════════════════
 
   theorem clonal_expansion_is_fold {
@@ -165,7 +165,7 @@ topology golden_immune {
     // Upon re-infection with the same pathogen, they activate
     // FASTER and MORE STRONGLY than the original response.
     //
-    // This is INTERFERE:
+    // This is SLIVER:
     //   The first infection creates a response (round 1).
     //   The response produces a deficit (not all pathogens cleared immediately).
     //   The deficit shapes the memory pool (which cells survive contraction).
@@ -173,25 +173,25 @@ topology golden_immune {
     //   Round 2's deficit shapes round 3's memory.
     //   ...
     //
-    //   Past infections INTERFERE with future responses.
+    //   Past infections SLIVER with future responses.
     //   The interference is constructive: each round is faster.
     //   The deficit ratio (how much worse round N is than round N+1)
     //   decreases with each round.
     //
-    // VACCINATION is ARTIFICIAL INTERFERE:
+    // VACCINATION is ARTIFICIAL SLIVER:
     //   Present a harmless version of the pathogen (attenuated, mRNA, etc.).
     //   The immune system mounts a response (round 1).
     //   Memory cells form.
     //   The real pathogen triggers round 2 -- the fast response.
-    //   Vaccination pre-loads the INTERFERE channel.
+    //   Vaccination pre-loads the SLIVER channel.
 
     memory_survival = "5-10% of effector cells become memory cells"
     memory_duration = "years to decades"
     secondary_response = "faster, stronger (higher affinity, faster activation)"
     interfere_mechanism = "past deficit shapes future response via memory pool"
-    vaccination = "artificial pre-loading of the INTERFERE channel"
+    vaccination = "artificial pre-loading of the SLIVER channel"
 
-    classification = "REFRAMED (immune memory as INTERFERE feedback)"
+    classification = "REFRAMED (immune memory as SLIVER feedback)"
 
     assert memory_cells_persist     // PROVED (immunological fact)
     assert secondary_faster_than_primary  // PROVED (immunological fact)
@@ -199,12 +199,12 @@ topology golden_immune {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // PART III: CANCER AS BROKEN INTERFERE
+  // PART III: CANCER AS BROKEN SLIVER
   //
   // Classification: REFRAMED + CONJECTURED
   //
   // Cancer cells evade immune surveillance by disrupting the
-  // INTERFERE channel between the immune system and the tumor.
+  // SLIVER channel between the immune system and the tumor.
   // ═══════════════════════════════════════════════════════════════
 
   theorem cancer_is_broken_interfere {
@@ -213,19 +213,19 @@ topology golden_immune {
     //   - Mutated cells display abnormal peptides on MHC
     //   - T-cells recognize abnormal peptides as not-self
     //   - T-cells destroy the mutated cell
-    //   - Each destruction informs the next surveillance round (INTERFERE)
+    //   - Each destruction informs the next surveillance round (SLIVER)
     //
     // Cancer cells break this loop:
     //
     //   1. MHC DOWNREGULATION:
     //      Cancer cells reduce MHC expression.
     //      Without MHC, T-cells cannot see the peptides.
-    //      The INTERFERE channel is severed: no signal, no feedback.
+    //      The SLIVER channel is severed: no signal, no feedback.
     //
     //   2. PD-L1 EXPRESSION:
     //      Cancer cells express PD-L1, which binds PD-1 on T-cells.
     //      This sends an INHIBITORY signal: "don't attack me."
-    //      The INTERFERE channel is inverted: positive feedback
+    //      The SLIVER channel is inverted: positive feedback
     //      (attack) becomes negative feedback (stand down).
     //
     //   3. IMMUNOEDITING:
@@ -245,20 +245,20 @@ topology golden_immune {
     //   The rejection mechanism, applied to the wrong target,
     //   produces an adversarial complement.
     //
-    // CHECKPOINT IMMUNOTHERAPY restores INTERFERE:
+    // CHECKPOINT IMMUNOTHERAPY restores SLIVER:
     //   Anti-PD-1/PD-L1 antibodies (pembrolizumab, nivolumab)
-    //   block the inhibitory signal. The INTERFERE channel reopens.
+    //   block the inhibitory signal. The SLIVER channel reopens.
     //   T-cells can see the cancer again.
     //   The deficit feedback loop resumes.
-    //   This is why immunotherapy works: it repairs INTERFERE.
+    //   This is why immunotherapy works: it repairs SLIVER.
 
     cancer_evasion_mechanisms = [
-      "MHC downregulation: sever the INTERFERE channel",
-      "PD-L1 expression: invert the INTERFERE signal",
+      "MHC downregulation: sever the SLIVER channel",
+      "PD-L1 expression: invert the SLIVER signal",
       "immunoediting: adversarial training via immune VENT"
     ]
 
-    immunotherapy = "restore INTERFERE by blocking PD-1/PD-L1 inhibition"
+    immunotherapy = "restore SLIVER by blocking PD-1/PD-L1 inhibition"
 
     // LINK TO AUNT SANDY:
     //   Glioblastoma (GBM) is particularly aggressive because it
@@ -267,7 +267,7 @@ topology golden_immune {
     //     - High PD-L1 (inhibits T-cell attack)
     //     - Rapid immunoediting (high mutation rate, fast evolution)
     //
-    //   GBM is a maximally broken INTERFERE system.
+    //   GBM is a maximally broken SLIVER system.
     //   The cancer topology in Aunt Sandy explores this further:
     //     cancer IS the complement distribution of a broken VENT
     //     operating on cells instead of pathogens.
@@ -275,9 +275,9 @@ topology golden_immune {
     //   See: project_aunt_sandy.md for the full Buleyean probability
     //   model of cancer subtypes.
 
-    aunt_sandy_link = "GBM = maximally broken INTERFERE (see project_aunt_sandy.md)"
+    aunt_sandy_link = "GBM = maximally broken SLIVER (see project_aunt_sandy.md)"
 
-    classification = "REFRAMED (immune evasion as broken INTERFERE) + CONJECTURED (adversarial Buleyean RL)"
+    classification = "REFRAMED (immune evasion as broken SLIVER) + CONJECTURED (adversarial Buleyean RL)"
 
     assert cancer_evades_by_breaking_interfere  // REFRAMED
     assert immunotherapy_restores_interfere      // REFRAMED
@@ -390,7 +390,7 @@ topology golden_immune {
     // Over-rejection                   Immunodeficiency (too few T-cells survive)
     // Under-rejection                  Autoimmune disease (self-reactive cells escape)
     // Adversarial training             Immunoediting (cancer evolves against immune system)
-    // Broken INTERFERE                 Cancer (immune evasion)
+    // Broken SLIVER                 Cancer (immune evasion)
     // Broken VENT                      Autoimmune disease
 
     correspondence = {
@@ -441,7 +441,7 @@ topology golden_immune {
 
   theorem immune_topology {
     // The full adaptive immune response is a multi-round
-    // FORK/RACE/FOLD/VENT/INTERFERE cycle:
+    // FORK/RACE/FOLD/VENT/SLIVER cycle:
     //
     // ROUND 0 (Development -- thymus):
     //   FORK: stem cells → billions of unique T-cells
@@ -456,7 +456,7 @@ topology golden_immune {
     //   FORK (again): clonal expansion of winner
     //   VENT: effector cells clear pathogen
     //   FOLD: contraction (90-95% of effectors die)
-    //   INTERFERE: 5-10% become memory cells
+    //   SLIVER: 5-10% become memory cells
     //
     // ROUND 2 (Secondary response -- re-infection):
     //   FORK: pathogen re-enters
@@ -464,14 +464,14 @@ topology golden_immune {
     //   FOLD: memory cells activate (no need for full selection)
     //   FORK: clonal expansion (even more massive than round 1)
     //   VENT: pathogen cleared faster
-    //   INTERFERE: memory pool updated (deficit from round 1 informs round 2)
+    //   SLIVER: memory pool updated (deficit from round 1 informs round 2)
     //
     // Each round is faster. The deficit decreases.
     // The system converges toward optimal response.
 
     round_0 = "FORK → RACE → VENT → FOLD (thymic development)"
-    round_1 = "FORK → RACE → FOLD → FORK → VENT → FOLD → INTERFERE (primary)"
-    round_2 = "FORK → RACE → FOLD → FORK → VENT → INTERFERE (secondary, faster)"
+    round_1 = "FORK → RACE → FOLD → FORK → VENT → FOLD → SLIVER (primary)"
+    round_2 = "FORK → RACE → FOLD → FORK → VENT → SLIVER (secondary, faster)"
 
     convergence = "each round reduces deficit (response time, pathogen load)"
 
@@ -512,16 +512,16 @@ topology golden_immune {
 
     P3_cancer_interfere_restoration {
       // Immunotherapy response rates will correlate with the
-      // degree of INTERFERE restoration (how much feedback between
+      // degree of SLIVER restoration (how much feedback between
       // immune system and tumor is restored by treatment).
       //
-      // Tumors with high MHC + high PD-L1 (only one INTERFERE channel
+      // Tumors with high MHC + high PD-L1 (only one SLIVER channel
       // broken) should respond better than tumors with low MHC + high
       // PD-L1 (both channels broken). Anti-PD-1 fixes one channel;
       // if the other is also broken, response should be poor.
       //
       // This is already observed clinically (MHC-low tumors respond
-      // poorly to checkpoint inhibitors) but the INTERFERE framing
+      // poorly to checkpoint inhibitors) but the SLIVER framing
       // generates the prediction from first principles.
       falsifiable = true
       method = "clinical: correlate MHC expression with immunotherapy response"
@@ -554,10 +554,10 @@ topology golden_immune {
     reframed = [
       "thymic selection as FORK/RACE/VENT/FOLD",
       "clonal expansion as FOLD→FORK",
-      "immune memory as INTERFERE (past infections shape future response)",
-      "cancer as broken INTERFERE (immune evasion severs feedback)",
+      "immune memory as SLIVER (past infections shape future response)",
+      "cancer as broken SLIVER (immune evasion severs feedback)",
       "autoimmune as broken VENT (self-reactive cells escape rejection)",
-      "vaccination as artificial INTERFERE pre-loading",
+      "vaccination as artificial SLIVER pre-loading",
       "AIRE as the self-library for VENT calibration"
     ]
   }
@@ -575,7 +575,7 @@ topology golden_immune {
   // The not-self is defined by what the rejections leave behind.
   // Identity is the complement of destruction.
   //
-  // Cancer breaks the feedback loop (INTERFERE).
+  // Cancer breaks the feedback loop (SLIVER).
   // Autoimmune breaks the rejection filter (VENT).
   // Both are failures of the same rejection engine.
   // Both are failures of the topology, not the components.

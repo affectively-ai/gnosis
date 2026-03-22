@@ -283,7 +283,7 @@ topology golden_physics {
     //     Inside the cone: forks can reach here. Causal contact.
     //       RACE can occur (multiple forks competing).
     //       FOLD can occur (forks merging to a result).
-    //       INTERFERE can occur (folds from different forks meeting).
+    //       SLIVER can occur (folds from different forks meeting).
     //     Outside the cone: no forks can reach here. No causal contact.
     //       No race (nothing to compete with).
     //       No fold (nothing to merge).
@@ -312,7 +312,7 @@ topology golden_physics {
     c = "299,792,458 m/s"
     reframing = "c = maximum rate of FORK propagation"
     light_cone = "FORK cone: the set of events reachable by forking"
-    inside_cone = "RACE, FOLD, and INTERFERE are possible"
+    inside_cone = "RACE, FOLD, and SLIVER are possible"
     outside_cone = "no causal contact, no fork/race/fold/interfere"
 
     entanglement_note = "FORK is local (c-limited). FOLD is nonlocal."

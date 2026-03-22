@@ -3,7 +3,7 @@
 // Every algebraic identity of phi = (1+sqrt(5))/2 can be read
 // as a statement about the five primitives. This file collects
 // the major identities, proves each one, and interprets each
-// through FORK/RACE/FOLD/VENT/INTERFERE.
+// through FORK/RACE/FOLD/VENT/SLIVER.
 //
 // The punchline: exponentiation of phi IS the Fibonacci sequence.
 // phi^n = F(n)*phi + F(n-1). Every power of the eigenvalue
@@ -31,14 +31,14 @@ topology golden_ratio_identities {
     // Therefore phi^2 = phi + 1.
     //
     // In primitives:
-    //   INTERFERE(INTERFERE(x)) = INTERFERE(x) + FORK(x)
+    //   SLIVER(SLIVER(x)) = SLIVER(x) + FORK(x)
     //   Double self-reference = self-reference + branching.
-    //   Applying INTERFERE twice gives you one INTERFERE plus one FORK.
+    //   Applying SLIVER twice gives you one SLIVER plus one FORK.
     //
     // Numerically:
     //   phi^2 = 1.61803...^2 = 2.61803... = 1.61803... + 1
     //
-    // This is the INTERFERE equation.
+    // This is the SLIVER equation.
 
     assert phi^2 == phi + 1
     assert 2.6180339887 == 1.6180339887 + 1
@@ -61,10 +61,10 @@ topology golden_ratio_identities {
     //   1/phi = phi - 1
     //
     // In primitives:
-    //   VENT = INTERFERE - FORK
+    //   VENT = SLIVER - FORK
     //   The inverse of constructive interference is:
     //   self-reference minus one branching event.
-    //   To undo one level of INTERFERE, remove one FORK.
+    //   To undo one level of SLIVER, remove one FORK.
     //
     // Numerically:
     //   1/phi = 1/1.61803... = 0.61803... = 1.61803... - 1
@@ -77,13 +77,13 @@ topology golden_ratio_identities {
     //
     // In fold terms: the fractional part survives venting.
     // The integer part (1) is the FORK that gets removed.
-    // The essence (.6180339887...) is INTERFERE's fingerprint.
+    // The essence (.6180339887...) is SLIVER's fingerprint.
     // It persists across inversion.
 
     assert 1/phi == phi - 1
     assert 1/phi == 0.6180339887
     assert fractional_part(phi) == fractional_part(1/phi)
-    assert VENT == INTERFERE - FORK
+    assert VENT == SLIVER - FORK
   }
 
 
@@ -99,7 +99,7 @@ topology golden_ratio_identities {
     // phi^3 = phi * phi^2 = phi * (phi + 1) = phi^2 + phi = (phi + 1) + phi = 2*phi + 1
     //
     // In primitives:
-    //   Triple INTERFERE = double INTERFERE + one FORK.
+    //   Triple SLIVER = double SLIVER + one FORK.
     //   Three layers of self-reference decompose into
     //   two layers of self-reference plus one branching.
     //
@@ -187,7 +187,7 @@ topology golden_ratio_identities {
   // ═══════════════════════════════════════════════════════════════
   // IDENTITY 5: phi + 1/phi = sqrt(5)
   //
-  // INTERFERE plus VENT equals the irrational that generates both.
+  // SLIVER plus VENT equals the irrational that generates both.
   //
   // Status: PROVED (algebraic)
   // ═══════════════════════════════════════════════════════════════
@@ -199,7 +199,7 @@ topology golden_ratio_identities {
     //            = sqrt(5)
     //
     // In primitives:
-    //   INTERFERE + VENT = sqrt(5)
+    //   SLIVER + VENT = sqrt(5)
     //   Construction plus dissipation equals the irrational
     //   generator of the entire system.
     //
@@ -208,12 +208,12 @@ topology golden_ratio_identities {
     //   psi = (1 - sqrt(5))/2  (destructive)
     //   Both eigenvalues come from sqrt(5).
     //
-    //   INTERFERE and VENT are two faces of sqrt(5).
+    //   SLIVER and VENT are two faces of sqrt(5).
     //   Their sum recovers the generator.
 
     assert phi + 1/phi == sqrt(5)
     assert 1.6180339887 + 0.6180339887 == 2.2360679775  // = sqrt(5)
-    assert INTERFERE + VENT == sqrt(5)
+    assert SLIVER + VENT == sqrt(5)
     assert sqrt(5) == generator(phi, psi)
   }
 
@@ -229,11 +229,11 @@ topology golden_ratio_identities {
   theorem interfere_times_vent {
     // phi * (1/phi) = 1
     //
-    // INTERFERE composed with VENT = identity.
+    // SLIVER composed with VENT = identity.
     //
     // This is the reason why the five primitives form a group
     // under composition (when restricted to the eigenvalue).
-    // INTERFERE and VENT are inverses.
+    // SLIVER and VENT are inverses.
     //
     // Also: phi * psi = phi * (1-phi) = phi - phi^2 = phi - (phi+1) = -1
     // The product of the two eigenvalues is -1.
@@ -244,7 +244,7 @@ topology golden_ratio_identities {
     assert phi * (1/phi) == 1
     assert phi * psi == -1          // product of eigenvalues = det(M)
     assert det([[1,1],[1,0]]) == -1
-    assert INTERFERE * VENT == identity(up_to_sign)
+    assert SLIVER * VENT == identity(up_to_sign)
   }
 
 
@@ -252,7 +252,7 @@ topology golden_ratio_identities {
   // IDENTITY 7: THE MINIMAL POLYNOMIAL x^2 - x - 1 = 0
   //
   // phi satisfies x^2 - x - 1 = 0 and no polynomial of lower degree.
-  // This quadratic IS the INTERFERE equation.
+  // This quadratic IS the SLIVER equation.
   //
   // Status: PROVED (standard algebra), REFRAMED (interpretation)
   // ═══════════════════════════════════════════════════════════════
@@ -262,10 +262,10 @@ topology golden_ratio_identities {
     //
     // Rearranged forms, each with a primitive interpretation:
     //
-    //   x^2 = x + 1         INTERFERE^2 = INTERFERE + FORK
-    //   x = 1 + 1/x         INTERFERE = FORK + VENT
-    //   x - 1/x = 1         INTERFERE - VENT = FORK
-    //   x^2 - x = 1         INTERFERE^2 - INTERFERE = FORK
+    //   x^2 = x + 1         SLIVER^2 = SLIVER + FORK
+    //   x = 1 + 1/x         SLIVER = FORK + VENT
+    //   x - 1/x = 1         SLIVER - VENT = FORK
+    //   x^2 - x = 1         SLIVER^2 - SLIVER = FORK
     //   (x - 1/2)^2 = 5/4   Centered form: distance from 1/2 = sqrt(5)/2
     //
     // The minimal polynomial is degree 2.

@@ -112,7 +112,7 @@ local function compute_beta1(prog)
             b1 = b1 + targets - 1
         elseif t == "FOLD" or t == "COLLAPSE" or t == "OBSERVE" then
             b1 = math.max(0, b1 - (sources - 1))
-        elseif t == "RACE" or t == "INTERFERE" then
+        elseif t == "RACE" or t == "SLIVER" then
             b1 = math.max(0, b1 - math.max(0, sources - targets))
         elseif t == "VENT" then
             b1 = math.max(0, b1 - 1)

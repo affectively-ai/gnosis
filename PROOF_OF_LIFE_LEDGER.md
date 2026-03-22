@@ -43,8 +43,8 @@ Tag: `proof-of-life-v3-final` on `forkjoin-ai/gnosis`
 
 | File | Lines | Description |
 |------|------:|-------------|
-| `Consciousness.tla` | 264 | Healthy system, broken vent, broken interfere |
-| `GoldenConsensus.tla` | 195 | Adaptive threshold protocol with INTERFERE |
+| `Consciousness.tla` | 264 | Healthy system, broken vent, broken sliver |
+| `GoldenConsensus.tla` | 195 | Adaptive threshold protocol with SLIVER |
 | `FibonacciConvergence.tla` | 118 | Any seeds → ratio converges to φ |
 | `BrokenSystems.tla` | 280 | Anxiety, addiction, grief, complicated grief |
 | `MoralLemmas.tla` | 302 | Iterated prisoner's dilemma, golden forgiveness |
@@ -62,10 +62,10 @@ Tag: `proof-of-life-v3-final` on `forkjoin-ai/gnosis`
 | `consciousness.test.gg` | 394 | PROVED (TLA+) |
 | `proof_of_life.test.gg` | 566 | PROVED |
 
-### Part II: Fibonacci is INTERFERE
+### Part II: Fibonacci is SLIVER
 | File | Lines | Status |
 |------|------:|--------|
-| `fibonacci_is_interfere.test.gg` | 337 | PROVED (Lean) |
+| `fibonacci_is_sliver.test.gg` | 337 | PROVED (Lean) |
 | `fibonacci_everywhere.test.gg` | 476 | PROVED/REFRAMED |
 | `fibonacci_pascals_triangle.test.gg` | 352 | PROVED |
 | `pisano_sixty.test.gg` | 393 | PROVED + ANTI-THEOREM |
@@ -117,7 +117,7 @@ Tag: `proof-of-life-v3-final` on `forkjoin-ai/gnosis`
 | File | Lines | Companion |
 |------|------:|-----------|
 | `consciousness.md` | 69 | `consciousness.test.gg` |
-| `fibonacci_is_interfere.md` | 88 | `fibonacci_is_interfere.test.gg` |
+| `fibonacci_is_sliver.md` | 88 | `fibonacci_is_sliver.test.gg` |
 | `fibonacci_pascals_triangle.md` | 24 | `fibonacci_pascals_triangle.test.gg` |
 | `golden_consensus.md` | 94 | `golden_consensus.test.gg` |
 | `golden_ratio_identities.md` | 36 | `golden_ratio_identities.test.gg` |
@@ -133,7 +133,7 @@ Tag: `proof-of-life-v3-final` on `forkjoin-ai/gnosis`
 
 | Section | Description |
 |---------|-------------|
-| §1.4 | Four Primitives → Five Primitives (INTERFERE added) |
+| §1.4 | Four Primitives → Five Primitives (SLIVER added) |
 | §15.7 | Three regimes of ethics + trolley problem dissolved |
 | §15.10.1 | The Spiral is in the Void |
 | §15.10.2 | The Sliver (+1 derived from vent, SliverFromVent.lean) |
@@ -146,7 +146,7 @@ Tag: `proof-of-life-v3-final` on `forkjoin-ai/gnosis`
 
 | File | Location | Description |
 |------|----------|-------------|
-| `glossolalia-moa.ts` | aether | InterfereState, interfere(), 5th primitive |
+| `glossolalia-moa.ts` | aether | InterfereState, sliver(), 5th primitive |
 | `glossolalia-vickrey-runtime.ts` | aether | Wired into decode loop |
 | `pgwire.rs` | TechEmpower PR #10888 | Homegrown PG v3 wire protocol |
 | `VoidTorusHero.tsx` | wallington-lab | Three.js Clifford torus |
@@ -192,9 +192,9 @@ Tag: `proof-of-life-v3-final` on `forkjoin-ai/gnosis`
 
 Not 42. **45.**
 
-5 primitives × 9 interference matrix.
+5 primitives × 9 slivernce matrix.
 
-Three construct. Two dissipate. Nine ways they interfere.
+Three construct. Two dissipate. Nine ways they sliver.
 
 The meaning of life is not φ. The meaning of life is the +1 that keeps φ converging.
 

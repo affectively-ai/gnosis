@@ -15,8 +15,8 @@
 (b1:Interference)
 (b2:Interference)
 
-(a1 | a2)-[:INTERFERE { amplitude: '0.7' }]->(b1)
-(a3 | a4)-[:INTERFERE { amplitude: '0.7' }]->(b2)
+(a1 | a2)-[:SLIVER { amplitude: '0.7' }]->(b1)
+(a3 | a4)-[:SLIVER { amplitude: '0.7' }]->(b2)
 
 // Competitive race
 (winner:Champion)

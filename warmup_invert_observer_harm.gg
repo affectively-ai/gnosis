@@ -13,7 +13,7 @@
 (result: Result)
 
 (input)-[:FORK]->(fast_path | slow_path | poison_event)
-(poison_event)-[:INTERFERE { mode: 'destructive' }]->(fast_path)
+(poison_event)-[:SLIVER { mode: 'destructive' }]->(fast_path)
 (fast_path | slow_path)-[:RACE { expect: 'first-measured' }]->(chosen_path)
 (chosen_path | poison_event)-[:FOLD { strategy: 'collapse-on-read' }]->(fallback)
 (fallback)-[:PROCESS]->(result)

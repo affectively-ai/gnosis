@@ -226,7 +226,7 @@ fn computeBeta1(prog: *const GgProgram) i64 {
             b1 += targets - 1;
         } else if (std.mem.eql(u8, edge.edge_type, "FOLD") or std.mem.eql(u8, edge.edge_type, "COLLAPSE") or std.mem.eql(u8, edge.edge_type, "OBSERVE")) {
             b1 = @max(0, b1 - (sources - 1));
-        } else if (std.mem.eql(u8, edge.edge_type, "RACE") or std.mem.eql(u8, edge.edge_type, "INTERFERE")) {
+        } else if (std.mem.eql(u8, edge.edge_type, "RACE") or std.mem.eql(u8, edge.edge_type, "SLIVER")) {
             b1 = @max(0, b1 - @max(0, sources - targets));
         } else if (std.mem.eql(u8, edge.edge_type, "VENT")) {
             b1 = @max(0, b1 - 1);

@@ -20,7 +20,7 @@ The three constructive primitives (Fold, Interfere, Race) have **algebraic** con
 
 The two dissipative primitives (Vent, Fork) have **transcendental** constants -- numbers that are not the root of any polynomial with integer coefficients. e and π transcend algebra. They cannot be constructed with compass and straightedge. They require infinite processes to define (infinite series, infinite products, limits).
 
-This is not a coincidence we engineered. It fell out of the mapping. The constructive primitives build finite structures (folds, interferences, races are all finite operations). The dissipative primitives involve infinite processes (exponential decay never reaches zero, a circle has infinite symmetry). The algebraic-transcendental boundary in mathematics aligns with the constructive-dissipative boundary in the framework.
+This is not a coincidence we engineered. It fell out of the mapping. The constructive primitives build finite structures (folds, slivernces, races are all finite operations). The dissipative primitives involve infinite processes (exponential decay never reaches zero, a circle has infinite symmetry). The algebraic-transcendental boundary in mathematics aligns with the constructive-dissipative boundary in the framework.
 
 ## The Vent Quantum
 
@@ -35,14 +35,14 @@ The golden spiral equation contains all three major constants in one expression:
 $$r(\theta) = a \cdot e^{\theta \cdot \ln\varphi \cdot 2/\pi}$$
 
 - **e** controls the growth rate (how fast the spiral expands -- the vent rate)
-- **φ** controls the growth target (what ratio the spiral maintains -- the interfere eigenvalue)
+- **φ** controls the growth target (what ratio the spiral maintains -- the sliver eigenvalue)
 - **π** controls the angular period (how much rotation per growth factor -- the fork period)
 
 This is not three separate statements about three separate constants. It is one equation about one spiral. The constants are not independent -- they are three aspects of the same geometric object.
 
 ## The Connection to the Lorenzo
 
-The picolorenzo = π days. The cosmic heartbeat measured in the fork constant. Each Lorenzo, the cosmic Bule decreases by factor 1/φ -- the interfere constant. The decrease follows an exponential governed by e -- the vent constant. Three constants, three roles, one cosmic clock.
+The picolorenzo = π days. The cosmic heartbeat measured in the fork constant. Each Lorenzo, the cosmic Bule decreases by factor 1/φ -- the sliver constant. The decrease follows an exponential governed by e -- the vent constant. Three constants, three roles, one cosmic clock.
 
 ---
 

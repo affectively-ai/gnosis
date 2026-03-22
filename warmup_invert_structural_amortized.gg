@@ -23,4 +23,4 @@
 (run_b)-[:PROCESS]->(probe_b)
 (memtable)-[:PROCESS]->(probe_log)
 (probe_a | probe_b | probe_log)-[:FOLD { strategy: 'merge-fragments' }]->(fragmented_answer)
-(fragmented_answer | compaction_backlog)-[:INTERFERE { mode: 'destructive' }]->(delayed_answer)
+(fragmented_answer | compaction_backlog)-[:SLIVER { mode: 'destructive' }]->(delayed_answer)

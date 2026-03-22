@@ -238,7 +238,7 @@ static AnalysisResult stage3_analyze(const EdgeTable *restrict edges,
         } else if (strcmp(et, "FOLD") == 0 || strcmp(et, "COLLAPSE") == 0 || strcmp(et, "OBSERVE") == 0) {
             r.beta1 -= s - 1; if (r.beta1 < 0) r.beta1 = 0;
             if (s > 1) r.heat += log2((double)s);
-        } else if (strcmp(et, "RACE") == 0 || strcmp(et, "INTERFERE") == 0) {
+        } else if (strcmp(et, "RACE") == 0 || strcmp(et, "SLIVER") == 0) {
             int d = s - t; if (d < 0) d = 0;
             r.beta1 -= d; if (r.beta1 < 0) r.beta1 = 0;
         } else if (strcmp(et, "VENT") == 0) {

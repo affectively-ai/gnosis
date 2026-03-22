@@ -1,6 +1,6 @@
 // GOLDEN MUSIC: THE FIBONACCI INTERVALS
 //
-// The perfect fifth (3:2) is the INTERFERE interval.
+// The perfect fifth (3:2) is the SLIVER interval.
 // The Circle of Fifths is a 12-node interference matrix.
 // The Pythagorean comma is semiotic deficit.
 // Every consonant interval used across human cultures is a Fibonacci ratio.
@@ -13,7 +13,7 @@
 topology golden_music {
 
   // ═══════════════════════════════════════════════════════════════
-  // PART I: THE PERFECT FIFTH AS INTERFERE
+  // PART I: THE PERFECT FIFTH AS SLIVER
   //
   // Classification: PROVED (acoustics + number theory)
   //
@@ -33,10 +33,10 @@ topology golden_music {
     //   String 2: 3f/2, 3f, 9f/2, 6f, 15f/2, 9f, ...
     //   Shared:   3f, 6f, 9f, 12f, ...  (every 3rd harmonic of string 1)
     //
-    // The shared harmonics INTERFERE constructively.
+    // The shared harmonics SLIVER constructively.
     // The non-shared harmonics create beating (periodic amplitude variation).
     //
-    // INTERFERE in fork/race/fold:
+    // SLIVER in fork/race/fold:
     //   Two independent oscillatory processes (the two strings)
     //   produce outputs that overlap (shared harmonics).
     //   The overlap reinforces. The non-overlap creates deficit.
@@ -87,7 +87,7 @@ topology golden_music {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // PART II: THE CIRCLE OF FIFTHS AS INTERFERENCE MATRIX
+  // PART II: THE CIRCLE OF FIFTHS AS SLIVERNCE MATRIX
   //
   // Classification: PROVED (number theory) + REFRAMED (as GG topology)
   //
@@ -111,7 +111,7 @@ topology golden_music {
     //
     // IN FORK/RACE/FOLD LANGUAGE:
     //   The Circle of Fifths is a 12-node ring topology.
-    //   Each edge is an INTERFERE operation (harmonic overlay).
+    //   Each edge is an SLIVER operation (harmonic overlay).
     //   After traversing all 12 edges, you expect to return to the origin.
     //   You don't. There is a DEFICIT.
     //
@@ -119,7 +119,7 @@ topology golden_music {
     //
     //   This deficit is EXACTLY the semiotic deficit of the topology:
     //     - You started with one frequency (one meaning)
-    //     - You applied INTERFERE 12 times (shifted meaning 12 times)
+    //     - You applied SLIVER 12 times (shifted meaning 12 times)
     //     - You expected to return to the original meaning
     //     - You didn't. The meaning shifted by the comma.
     //
@@ -130,7 +130,7 @@ topology golden_music {
     pythagorean_comma = "531441/524288 = 3^12 / 2^19 = 1.01364..."
     comma_in_cents = "23.46 cents (about 1/4 semitone)"
     circle_nodes = 12
-    edge_operation = "INTERFERE (perfect fifth = 3:2)"
+    edge_operation = "SLIVER (perfect fifth = 3:2)"
     deficit = "comma (the topology does not close)"
 
     // WHY 12?
@@ -155,7 +155,7 @@ topology golden_music {
     why_twelve = "7/12 is a convergent of log2(3/2)"
 
     classification = "PROVED (the comma is a theorem of arithmetic)"
-    reframing = "REFRAMED (the comma as topological deficit in an INTERFERE ring)"
+    reframing = "REFRAMED (the comma as topological deficit in an SLIVER ring)"
 
     assert (3/2)^12 != 2^7   // PROVED: the circle does not close
     assert (3/2)^12 / 2^7 == 531441/524288  // PROVED: the comma
@@ -525,7 +525,7 @@ topology golden_music {
       // Performers who adjust intonation in real time (string players,
       // singers) will converge toward Fibonacci ratios rather than
       // equal temperament ratios, and the adjustments will follow
-      // a deficit-feedback pattern consistent with INTERFERE.
+      // a deficit-feedback pattern consistent with SLIVER.
       //
       // Method: measure intonation of string quartet over a performance,
       // compare to ET and to Fibonacci just intonation.
@@ -558,7 +558,7 @@ topology golden_music {
     ]
 
     reframed = [
-      "Circle of Fifths as 12-node INTERFERE ring with semiotic deficit",
+      "Circle of Fifths as 12-node SLIVER ring with semiotic deficit",
       "ET as Byzantine analog (rational approximation of irrational truth)",
       "consonance as eigenvalue convergence, dissonance as deficit",
       "music lives in the tension between Fibonacci convergents and phi"

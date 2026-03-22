@@ -17,7 +17,7 @@
 (origin)-[:FORK]->(left_0 | right_0)
 (left_0)-[:PROCESS]->(left_1)
 (right_0)-[:PROCESS]->(right_1)
-(left_1)-[:INTERFERE { stage: '2', debt: '1' }]->(repair_mesh)
+(left_1)-[:SLIVER { stage: '2', debt: '1' }]->(repair_mesh)
 (right_1)-[:PROCESS]->(repair_stage)
 (repair_mesh | repair_stage)-[:FOLD { strategy: 'single-survivor' }]->(finish)
 (finish)-[:PROCESS]->(result)

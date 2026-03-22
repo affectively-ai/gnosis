@@ -122,7 +122,7 @@ def compute_beta1(prog):
             b1 += targets - 1
         elif t in ('FOLD', 'COLLAPSE', 'OBSERVE'):
             b1 = max(0, b1 - (sources - 1))
-        elif t in ('RACE', 'INTERFERE'):
+        elif t in ('RACE', 'SLIVER'):
             b1 = max(0, b1 - max(0, sources - targets))
         elif t == 'VENT':
             b1 = max(0, b1 - 1)

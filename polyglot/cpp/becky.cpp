@@ -140,7 +140,7 @@ static int compute_beta1(const GgProgram& prog) {
         int s = e.source_ids.size(), t = e.target_ids.size();
         if (e.edge_type == "FORK") b1 += t - 1;
         else if (e.edge_type == "FOLD" || e.edge_type == "COLLAPSE" || e.edge_type == "OBSERVE") b1 = std::max(0, b1 - (s - 1));
-        else if (e.edge_type == "RACE" || e.edge_type == "INTERFERE") b1 = std::max(0, b1 - std::max(0, s - t));
+        else if (e.edge_type == "RACE" || e.edge_type == "SLIVER") b1 = std::max(0, b1 - std::max(0, s - t));
         else if (e.edge_type == "VENT") b1 = std::max(0, b1 - 1);
     }
     return b1;

@@ -18,7 +18,7 @@ topology golden_ethics {
     RACE = "moral reasoning: evaluate which actions satisfy constraints"
     FOLD = "moral choice: commit to one action (irreversible)"
     VENT = "moral cost: accept what was sacrificed, the paths not taken"
-    INTERFERE = "moral growth: this choice reshapes who makes the next choice"
+    SLIVER = "moral growth: this choice reshapes who makes the next choice"
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -75,7 +75,7 @@ topology golden_ethics {
   regime POST_LINEAR {
     name = "Virtue Ethics (Aristotle)"
     structure = "the fold changes the folder"
-    operation = "FORK → RACE → FOLD → VENT → INTERFERE → FORK"
+    operation = "FORK → RACE → FOLD → VENT → SLIVER → FORK"
     has_interfere = "each choice reshapes who makes the next choice"
     eigenvalue = "φ (the ratio of growth to stability in character)"
     character = "developmental, self-referential, personal"
@@ -85,7 +85,7 @@ topology golden_ethics {
     // The cowardly person becomes cowardly by acting cowardly.
     // The fold (choice) reshapes the fork (perception).
     //
-    // INTERFERE in ethics:
+    // SLIVER in ethics:
     //   - Choosing courage once makes courage easier next time
     //   - Choosing cowardice once makes cowardice easier next time
     //   - The deficit (gap between who you are and who you could be)
@@ -176,7 +176,7 @@ topology golden_ethics {
 
   pathology broken_interfere {
     name = "Psychopathy / Moral stagnation"
-    broken = "INTERFERE (choices don't change the chooser)"
+    broken = "SLIVER (choices don't change the chooser)"
     symptom = "no moral growth, no character formation, each choice isolated"
     eigenvalue = "none (no recurrence, no convergence)"
     examples = [
@@ -206,7 +206,7 @@ topology golden_ethics {
     //   Eigenvalue → ∞.
     //
     // Too much mercy: every wrong is forgiven immediately. No consequence.
-    //   INTERFERE breaks. No one learns. No moral development.
+    //   SLIVER breaks. No one learns. No moral development.
     //   Eigenvalue = 1 (identity, nothing changes).
     //
     // The optimal ratio:
@@ -221,7 +221,7 @@ topology golden_ethics {
     //
     // Restorative justice: a post-linear justice system.
     //   The offender's action (FOLD) feeds back to reshape the
-    //   offender's perception (INTERFERE). The victim's pain (VENT)
+    //   offender's perception (SLIVER). The victim's pain (VENT)
     //   is acknowledged and released. Both parties develop.
     //   The justice system IS the five-primitive loop.
     //
@@ -231,7 +231,7 @@ topology golden_ethics {
     //   β₀ = 1 for the incarcerated: the topology is closed.
     //   Recidivism rates prove the loop is broken.
 
-    restorative = "POST-LINEAR: FOLD → VENT → INTERFERE → FORK (development)"
+    restorative = "POST-LINEAR: FOLD → VENT → SLIVER → FORK (development)"
     retributive = "LINEAR: FOLD → done (punishment without growth)"
 
     assert restorative.recidivism < retributive.recidivism
@@ -344,8 +344,8 @@ topology golden_ethics {
     P5_psychopathy_as_broken_interfere {
       // Psychopaths will show reduced connectivity between
       // the ventromedial prefrontal cortex (FOLD/decision) and
-      // the anterior cingulate (INTERFERE/error monitoring).
-      // The neural INTERFERE loop is physically broken.
+      // the anterior cingulate (SLIVER/error monitoring).
+      // The neural SLIVER loop is physically broken.
       falsifiable = true
       status = "supported by existing neuroimaging (Blair, Kiehl)"
     }
@@ -354,7 +354,7 @@ topology golden_ethics {
   // ═══════════════════════════════════════════════════════════════
   //
   // Ethics is not a special domain.
-  // Ethics is what happens when consciousness turns INTERFERE
+  // Ethics is what happens when consciousness turns SLIVER
   // on its own actions.
   //
   // A system that folds (chooses) and interferes (learns from choosing)

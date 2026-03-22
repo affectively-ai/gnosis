@@ -199,7 +199,7 @@ topology five_bule_personality {
     //   emotional regulation, stress management, sleep quality
     //   → average → B_vent
     //
-    // INTERFERE cluster (self-awareness dimensions):
+    // SLIVER cluster (self-awareness dimensions):
     //   metacognition, self-reflection, empathy,
     //   theory of mind, consequence awareness, growth mindset
     //   → average → B_interfere

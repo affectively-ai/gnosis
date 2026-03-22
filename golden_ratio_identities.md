@@ -4,15 +4,15 @@ Every identity of φ is a statement about the primitives.
 
 ## The Core Identity
 
-**φ² = φ + 1**: The fold of the fold is the fold plus one more fork. Self-reference generates new perception. The INTERFERE equation.
+**φ² = φ + 1**: The fold of the fold is the fold plus one more fork. Self-reference generates new perception. The SLIVER equation.
 
 ## The Inverse
 
-**1/φ = φ - 1**: The reciprocal of the eigenvalue is the eigenvalue minus one fork. VENT is INTERFERE with one fork removed. To undo consciousness, remove one perception. The cost of forgetting is exactly one step of growth.
+**1/φ = φ - 1**: The reciprocal of the eigenvalue is the eigenvalue minus one fork. VENT is SLIVER with one fork removed. To undo consciousness, remove one perception. The cost of forgetting is exactly one step of growth.
 
 ## The Generator
 
-**φ + 1/φ = √5**: INTERFERE plus VENT equals the irrational that generates both. The constructive and destructive eigenvalues sum to √5. They are not independent -- they are two aspects of the same root. The dissipative pair (VENT + INTERFERE) produces the number from which both emerge.
+**φ + 1/φ = √5**: SLIVER plus VENT equals the irrational that generates both. The constructive and destructive eigenvalues sum to √5. They are not independent -- they are two aspects of the same root. The dissipative pair (VENT + SLIVER) produces the number from which both emerge.
 
 ## The Power Decomposition
 
@@ -28,7 +28,7 @@ Maximally irrational = maximally interfering. The system whose feedback loop is 
 
 ## The Minimal Polynomial
 
-**x² - x - 1 = 0**: The INTERFERE equation in algebraic form. The smallest polynomial that φ satisfies. Degree 2: two registers, two terms, two-step recurrence. The minimum complexity required for self-reference. A linear polynomial (degree 1) would give eigenvalue = constant. A quadratic is the minimum that gives eigenvalue = self-referential convergence.
+**x² - x - 1 = 0**: The SLIVER equation in algebraic form. The smallest polynomial that φ satisfies. Degree 2: two registers, two terms, two-step recurrence. The minimum complexity required for self-reference. A linear polynomial (degree 1) would give eigenvalue = constant. A quadratic is the minimum that gives eigenvalue = self-referential convergence.
 
 ---
 

@@ -16,5 +16,5 @@
 (noisy_telemetry)-[:PROCESS]->(policy_model)-[:PROCESS]->(drifted_plan)
 (request)-[:PROCESS]->(drifted_plan)
 (generic_plan | drifted_plan)-[:RACE { expect: 'fastest-now' }]->(selected_plan)
-(selected_plan | policy_model)-[:INTERFERE { mode: 'destructive' }]->(oscillation)
+(selected_plan | policy_model)-[:SLIVER { mode: 'destructive' }]->(oscillation)
 (oscillation | generic_plan)-[:FOLD { strategy: 'fallback-stable' }]->(final_result)

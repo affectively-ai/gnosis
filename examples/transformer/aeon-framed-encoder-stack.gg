@@ -20,6 +20,6 @@
 (stage_aligned)-[:PROCESS]->(embed_stage)
 (embed_stage)-[:PROCESS]->(attn_stage)
 (attn_stage)-[:PROCESS]->(attn_out)
-(stage_aligned | attn_out)-[:INTERFERE { mode: 'constructive' }]->(residual_out)
+(stage_aligned | attn_out)-[:SLIVER { mode: 'constructive' }]->(residual_out)
 (residual_out)-[:PROCESS]->(ffn_stage)
 (ffn_stage)-[:PROCESS]->(frame_out)

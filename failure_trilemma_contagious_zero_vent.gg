@@ -13,7 +13,7 @@
 (result: Result { theorem: 'zero-vent-contagion-forces-debt' })
 
 (origin)-[:FORK]->(left | right)
-(left | right)-[:INTERFERE { mode: 'contagious' }]->(global_recovery)
+(left | right)-[:SLIVER { mode: 'contagious' }]->(global_recovery)
 (global_recovery)-[:PROCESS]->(repair_debt)
 (global_recovery)-[:PROCESS]->(branch_mass)
 (repair_debt | branch_mass)-[:FOLD { strategy: 'preserve-branch-mass' }]->(result)

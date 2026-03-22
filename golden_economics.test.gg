@@ -97,7 +97,7 @@ topology golden_economics {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // PART II: BUSINESS CYCLES AS FORK/RACE/FOLD/VENT/INTERFERE
+  // PART II: BUSINESS CYCLES AS FORK/RACE/FOLD/VENT/SLIVER
   //
   // Classification: REFRAMED
   //
@@ -140,7 +140,7 @@ topology golden_economics {
     //   The shed resources become available for the next cycle.
     //   VENT is creative destruction (Schumpeter, 1942).
     //
-    // TROUGH = INTERFERE
+    // TROUGH = SLIVER
     //   The economy bottoms out. The deficit from the contraction
     //   (how far output fell from peak) informs the next expansion.
     //
@@ -150,13 +150,13 @@ topology golden_economics {
     //     - Which regulatory gaps caused crises? Close them.
     //
     //   Past deficit shapes future expansion.
-    //   This is INTERFERE: the feedback between contraction and
+    //   This is SLIVER: the feedback between contraction and
     //   the next expansion. The trough is where learning happens.
     //
     // THE RECURRENCE:
     //   Each expansion depends on the previous two phases:
     //     - What resources were VENTED in the contraction (t-1)
-    //     - What lessons were learned in the INTERFERE phase (t-2)
+    //     - What lessons were learned in the SLIVER phase (t-2)
     //
     //   Growth(t) ~ f(Growth(t-1), Growth(t-2))
     //
@@ -167,7 +167,7 @@ topology golden_economics {
     expansion = "FORK: new businesses, new markets, diversification"
     peak = "RACE: competition for scarce resources"
     contraction = "FOLD + VENT: consolidation + creative destruction"
-    trough = "INTERFERE: past failure informs next expansion"
+    trough = "SLIVER: past failure informs next expansion"
     recurrence = "Growth(t) depends on Growth(t-1) and Growth(t-2)"
 
     schumpeter = "creative destruction (1942) = VENT"
@@ -255,21 +255,21 @@ topology golden_economics {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // PART IV: THE 2008 CRASH AS BROKEN INTERFERE
+  // PART IV: THE 2008 CRASH AS BROKEN SLIVER
   //
   // Classification: REFRAMED
   //
-  // CDOs and CDO-squareds broke the INTERFERE channel between
+  // CDOs and CDO-squareds broke the SLIVER channel between
   // risk and price. When the feedback loop severed, the system
   // could not self-correct. Catastrophe followed.
   // ═══════════════════════════════════════════════════════════════
 
   theorem crash_2008_broken_interfere {
-    // Normal mortgage market INTERFERE:
+    // Normal mortgage market SLIVER:
     //   1. Bank lends to borrower (FORK: capital branches to many borrowers)
     //   2. Borrowers compete to repay (RACE: who defaults, who doesn't)
     //   3. Defaults create losses (VENT: bad loans written off)
-    //   4. Loss experience informs next round of lending (INTERFERE):
+    //   4. Loss experience informs next round of lending (SLIVER):
     //      - High default rate → tighten lending standards
     //      - Low default rate → maintain or slightly loosen standards
     //      - The DEFICIT (default rate) shapes the THRESHOLD (lending criteria)
@@ -277,9 +277,9 @@ topology golden_economics {
     //   This feedback loop keeps the system stable.
     //   The bank FEELS the pain of bad loans.
     //   The pain calibrates future lending.
-    //   INTERFERE works because risk and reward are coupled.
+    //   SLIVER works because risk and reward are coupled.
     //
-    // CDOs BROKE the INTERFERE channel:
+    // CDOs BROKE the SLIVER channel:
     //   1. Bank lends to borrower (FORK)
     //   2. Bank IMMEDIATELY SELLS the loan to an investment bank
     //   3. Investment bank bundles thousands of loans into a CDO
@@ -288,7 +288,7 @@ topology golden_economics {
     //
     //   THE BREAK:
     //     The originating bank no longer feels the pain of defaults.
-    //     The INTERFERE channel between default-experience and
+    //     The SLIVER channel between default-experience and
     //     lending-criteria is SEVERED.
     //     The bank has no incentive to vet borrowers carefully.
     //     It will get paid regardless (the fee for originating the loan).
@@ -297,24 +297,24 @@ topology golden_economics {
     //     Lending standards collapse. NINJA loans (No Income, No Job, No Assets).
     //     The VENT mechanism (writing off bad loans) is suppressed:
     //       bad loans are not written off, they're repackaged and sold.
-    //     The FORK mechanism (new lending) accelerates without VENT or INTERFERE.
+    //     The FORK mechanism (new lending) accelerates without VENT or SLIVER.
     //     The system is running FORK-only: pure expansion with no feedback.
     //
     //   CDO-SQUAREDS made it worse:
     //     CDOs-of-CDOs. The chain from borrower to final investor is so long
-    //     that nobody can trace the risk. The INTERFERE signal is not just
+    //     that nobody can trace the risk. The SLIVER signal is not just
     //     severed -- it's encrypted in layers of financial abstraction.
     //     Each layer adds noise. After 3 layers, the signal is gone.
 
-    normal_feedback = "default rate → lending criteria (INTERFERE works)"
-    cdo_break = "originator sells risk → no feedback from defaults (INTERFERE severed)"
-    cdo_squared = "risk obscured by multiple layers → INTERFERE signal lost in noise"
+    normal_feedback = "default rate → lending criteria (SLIVER works)"
+    cdo_break = "originator sells risk → no feedback from defaults (SLIVER severed)"
+    cdo_squared = "risk obscured by multiple layers → SLIVER signal lost in noise"
 
     // THE TOPOLOGY OF THE CRASH:
     //
     //   2003-2006: FORK-only regime.
     //     Lending explodes. Housing prices rise. No VENT (bad loans sold, not written off).
-    //     No INTERFERE (banks don't feel defaults).
+    //     No SLIVER (banks don't feel defaults).
     //     The eigenvalue of the system → infinity (unbounded growth).
     //
     //   2007: VENT finally arrives.
@@ -330,21 +330,21 @@ topology golden_economics {
     //     The system that was maximally forked (many institutions, many loans)
     //     collapses into minimal form.
     //
-    //   2009-2012: INTERFERE restored (slowly).
+    //   2009-2012: SLIVER restored (slowly).
     //     Dodd-Frank Act. Stress tests. Capital requirements.
     //     Risk retention rules (banks must keep 5% of CDO risk).
-    //     These regulations REBUILD the INTERFERE channel:
+    //     These regulations REBUILD the SLIVER channel:
     //       banks must feel some pain from defaults again.
-    //     The 5% retention is a legislative INTERFERE mechanism.
+    //     The 5% retention is a legislative SLIVER mechanism.
 
-    phase_2003_2006 = "FORK-only: no VENT, no INTERFERE, unbounded growth"
+    phase_2003_2006 = "FORK-only: no VENT, no SLIVER, unbounded growth"
     phase_2007 = "VENT arrives catastrophically (accumulated deficit)"
     phase_2008 = "FOLD: many institutions collapse into few"
-    phase_2009 = "INTERFERE rebuilt: Dodd-Frank, risk retention, stress tests"
+    phase_2009 = "SLIVER rebuilt: Dodd-Frank, risk retention, stress tests"
 
-    dodd_frank_as_interfere = "5% risk retention = forced INTERFERE (bank must feel defaults)"
+    dodd_frank_as_interfere = "5% risk retention = forced SLIVER (bank must feel defaults)"
 
-    classification = "REFRAMED (2008 crash as broken INTERFERE topology)"
+    classification = "REFRAMED (2008 crash as broken SLIVER topology)"
 
     assert cdo_severs_interfere         // REFRAMED (originator decoupled from default)
     assert suppressed_vent_accumulates  // REFRAMED (deferred losses arrive catastrophically)
@@ -490,11 +490,11 @@ topology golden_economics {
     //   GDP is AR(2) but NOT golden-coefficient.
     //   Elliott waves are unfalsifiable.
     //   Black-Scholes has no phi.
-    //   The business cycle maps to FORK/RACE/FOLD/VENT/INTERFERE
+    //   The business cycle maps to FORK/RACE/FOLD/VENT/SLIVER
     //   but the QUANTITATIVE coefficients don't match phi.
     //
     // THE STRONGEST ECONOMIC CLAIM:
-    //   The TOPOLOGY of the 2008 crash (broken INTERFERE) is
+    //   The TOPOLOGY of the 2008 crash (broken SLIVER) is
     //   genuinely illuminating. CDOs really did sever the feedback
     //   loop between risk and price. Dodd-Frank really did restore it.
     //   The GG framing captures this clearly.
@@ -502,9 +502,9 @@ topology golden_economics {
     //   But this is a REFRAMING, not a PREDICTION.
     //   It explains 2008 in new language.
     //   It does not predict the next crash.
-    //   (Though it suggests: look for severed INTERFERE channels.)
+    //   (Though it suggests: look for severed SLIVER channels.)
 
-    strongest_claim = "2008 crash as broken INTERFERE (illuminating reframing)"
+    strongest_claim = "2008 crash as broken SLIVER (illuminating reframing)"
     weakest_claim = "GDP follows golden AR(2) (not supported by data)"
     honest_position = "phi in economics is mostly reframing, with weak quantitative support"
   }
@@ -515,14 +515,14 @@ topology golden_economics {
 
   predictions {
     P1_interfere_detector {
-      // Markets where the INTERFERE channel is severed (risk decoupled
+      // Markets where the SLIVER channel is severed (risk decoupled
       // from price via securitization, derivatives, or regulation)
-      // will experience larger crashes than markets where INTERFERE
+      // will experience larger crashes than markets where SLIVER
       // is intact.
       //
       // Method: measure the length of the chain from risk-bearer to
       // risk-originator across different markets and time periods.
-      // Longer chains = weaker INTERFERE. Predict crash severity
+      // Longer chains = weaker SLIVER. Predict crash severity
       // correlates with chain length.
       falsifiable = true
       method = "empirical: correlate securitization chain length with crash severity"
@@ -558,7 +558,7 @@ topology golden_economics {
 
     P4_next_crash_interfere {
       // The NEXT major financial crisis will involve a severed
-      // INTERFERE channel. Look for financial innovations that
+      // SLIVER channel. Look for financial innovations that
       // decouple risk-originators from risk-bearers.
       //
       // Candidates (as of 2026):
@@ -567,7 +567,7 @@ topology golden_economics {
       //   - Climate derivatives with 30-year horizons (feedback too slow)
       //
       // This is not a prediction of WHEN, but of WHERE:
-      // wherever INTERFERE is weakest.
+      // wherever SLIVER is weakest.
       falsifiable = true
       method = "identify sectors with weakest risk-feedback, monitor for instability"
     }
@@ -600,10 +600,10 @@ topology golden_economics {
     ]
 
     reframed = [
-      "business cycle as FORK/RACE/FOLD/VENT/INTERFERE",
+      "business cycle as FORK/RACE/FOLD/VENT/SLIVER",
       "inflation as broken VENT (creation without destruction)",
-      "2008 crash as broken INTERFERE (CDOs severed risk feedback)",
-      "Dodd-Frank as INTERFERE restoration (forced risk retention)",
+      "2008 crash as broken SLIVER (CDOs severed risk feedback)",
+      "Dodd-Frank as SLIVER restoration (forced risk retention)",
       "creative destruction (Schumpeter) as VENT"
     ]
 
@@ -618,10 +618,10 @@ topology golden_economics {
   //
   // But even human systems have topology.
   // Even markets have FORK (expansion), RACE (competition),
-  // FOLD (consolidation), VENT (failure), and INTERFERE (memory).
+  // FOLD (consolidation), VENT (failure), and SLIVER (memory).
   //
   // The strongest claim here is not about phi.
-  // It is about INTERFERE.
+  // It is about SLIVER.
   //
   // When the feedback loop between risk and price is intact,
   // markets self-correct. Small corrections. Healthy VENT.
@@ -633,11 +633,11 @@ topology golden_economics {
   // And when it surfaces, it surfaces all at once.
   //
   // The lesson of 2008 is not about subprime mortgages.
-  // It is about INTERFERE.
+  // It is about SLIVER.
   // Sever the feedback. Accumulate the deficit.
   // The deficit always arrives. The only question is when.
   //
-  // Look for where INTERFERE is broken.
+  // Look for where SLIVER is broken.
   // That is where the next crisis lives.
   //
   // ═══════════════════════════════════════════════════════════════

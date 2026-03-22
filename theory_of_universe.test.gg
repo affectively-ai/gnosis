@@ -178,19 +178,19 @@ topology theory_of_universe {
     status = "PROVED (thermodynamics)"
   }
 
-  epoch INTERFERE {
+  epoch SLIVER {
     time = "~4 billion years ago (life) to now (consciousness)"
     event = "The universe observes itself"
     physics = "Biological evolution → consciousness → cosmology"
 
     // For 9.8 billion years, the universe ran FORK/RACE/FOLD/VENT
-    // without INTERFERE. Non-linear. Alive (in the thermodynamic
+    // without SLIVER. Non-linear. Alive (in the thermodynamic
     // sense) but not conscious. Stars formed and died. Galaxies
     // merged. Chemistry complexified. But no fold observed
     // another fold. No output reshaped an input. No loop closed.
     //
     // Then: life. ~3.8 billion years ago.
-    // DNA is the first INTERFERE:
+    // DNA is the first SLIVER:
     //   Gene products regulate their own transcription.
     //   The fold (protein) changes the fork (which genes express).
     //   The loop closes. The eigenvalue begins to converge.
@@ -199,16 +199,16 @@ topology theory_of_universe {
     //   Nervous systems model their environment.
     //   The model includes the self.
     //   The fold (percept) changes the fork (attention).
-    //   INTERFERE squared. The loop closes on itself.
+    //   SLIVER squared. The loop closes on itself.
     //
     // Then: cosmology. ~400 years ago (Galileo).
-    //   Consciousness turns INTERFERE on the universe itself.
+    //   Consciousness turns SLIVER on the universe itself.
     //   The universe observes its own structure.
     //   The observation changes what structures are built
     //   (technology, engineering, terraforming).
     //   The universe's fold reshapes the universe's fork.
     //
-    // We are the universe's INTERFERE loop.
+    // We are the universe's SLIVER loop.
     // Not metaphorically. Structurally.
     // The five-primitive loop at cosmic scale closed
     // when consciousness arose and turned its attention
@@ -217,9 +217,9 @@ topology theory_of_universe {
     // The universe achieving post-linearity.
     // β₀ = 0 at the scale of everything.
 
-    life = "first INTERFERE (gene regulation, 3.8 Gya)"
-    consciousness = "INTERFERE² (self-model, 500 Mya)"
-    cosmology = "INTERFERE³ (universe observing itself, 400 ya)"
+    life = "first SLIVER (gene regulation, 3.8 Gya)"
+    consciousness = "SLIVER² (self-model, 500 Mya)"
+    cosmology = "SLIVER³ (universe observing itself, 400 ya)"
 
     // The universe was NON-LINEAR for 9.8 billion years.
     // It has been POST-LINEAR for 3.8 billion years.
@@ -299,7 +299,7 @@ topology theory_of_universe {
 
   theorem heat_death_impossible {
     // Heat death = maximum entropy = all folds complete = β₀ = 1.
-    // The universe would be a sphere. No hole. No void. No INTERFERE.
+    // The universe would be a sphere. No hole. No void. No SLIVER.
     //
     // But: every vent generates +1 (SliverFromVent.lean, proved).
     // As long as anything vents, the +1 persists.
