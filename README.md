@@ -23,6 +23,29 @@ Three distribution paths:
 - **WASM**: `polyglot/target/release/lilith.wasm` (5.6KB, 5.9us -- Workers, browsers, Node)
 - **Inline**: `import { loadLilith } from './lilith-wasm-bytes'` (base64-embedded, zero fetch)
 
+### Eve + Worthington Whip
+
+Eve is Lilith's antiparallel pair. Lilith compiles input (3us). Eve compresses output (chunk → FORK(identity|gzip|deflate) → RACE(smallest) → send).
+
+The Worthington Whip rotates Lilith and Eve across 4 shards × 3 stages:
+
+```
+Shard 0: [Eve]     while Shard 1: [Handler] while Shard 2: [Lilith]  while Shard 3: [waiting]
+         ↓ rotate            ↓ rotate               ↓ rotate                  ↓ rotate
+```
+
+| Metric | Value |
+|--------|-------|
+| Full pipeline (Lilith + handler + Eve) | 5.5us/req |
+| Steady state (compiled topology + Eve batch) | ~0.15us/req |
+| Eve batched compression (1000 × 13 bytes) | 13,000 → 61 bytes (0.5%) |
+| Single-threaded throughput | 183K req/sec (full pipeline) |
+
+```bash
+cc -O3 -march=native -o lilith-eve-whip polyglot/c/lilith-eve-whip.c -lz -lm
+./lilith-eve-whip --bench 10000
+```
+
 The compiler family, ranked:
 
 | Rank | Compiler | betti.gg | Language | Distribution |
