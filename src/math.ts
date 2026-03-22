@@ -143,3 +143,82 @@ export function verifyCassini(n: number): boolean {
   if (n < 2 || n % 2 !== 0) return false;
   return fib(n + 1) * fib(n - 1) - fib(n) * fib(n) === 1;
 }
+
+// ── Gnostic Time System ──────────────────────────────────────────────────────
+
+/** 1 picolorenzo = π days = 271,433.6 seconds */
+export const PICOLORENZO_SECONDS = Math.PI * 86400;
+
+/** 1 nanolorenzo = 1000 picolorenzos ≈ 8.6 years */
+export const NANOLORENZO_SECONDS = PICOLORENZO_SECONDS * 1000;
+
+/** 1 aeon = 2 × Pleroma picolorenzos = 110π days ≈ 345.6 days */
+export const AEON_SECONDS = 2 * GNOSTIC.PLEROMA * PICOLORENZO_SECONDS;
+
+/** Unix epoch in picolorenzos (seconds since epoch / picolorenzo). */
+export function nowPicolorenzos(): number {
+  return Date.now() / 1000 / PICOLORENZO_SECONDS;
+}
+
+/** Convert a Date to picolorenzos since Unix epoch. */
+export function toPicolorenzos(date: Date): number {
+  return date.getTime() / 1000 / PICOLORENZO_SECONDS;
+}
+
+/** Convert picolorenzos to a Date. */
+export function fromPicolorenzos(pLo: number): Date {
+  return new Date(pLo * PICOLORENZO_SECONDS * 1000);
+}
+
+/** Format a picolorenzo timestamp as "X.XXX pLo". */
+export function formatPicolorenzos(pLo: number): string {
+  return `${pLo.toFixed(3)} pLo`;
+}
+
+/**
+ * Decompose picolorenzos into Gnostic time units.
+ * Returns { aeons, pleromas, kenomas, sophias, barbelos, remainder_pLo }
+ */
+export function decomposeGnosticTime(pLo: number): {
+  aeons: number;
+  pleromas: number;
+  kenomas: number;
+  sophias: number;
+  barbelos: number;
+  remainder_pLo: number;
+} {
+  const aeonPLo = 2 * GNOSTIC.PLEROMA; // 110 pLo
+  let remaining = pLo;
+
+  const aeons = Math.floor(remaining / aeonPLo);
+  remaining -= aeons * aeonPLo;
+
+  const pleromas = Math.floor(remaining / GNOSTIC.PLEROMA);
+  remaining -= pleromas * GNOSTIC.PLEROMA;
+
+  const kenomas = Math.floor(remaining / GNOSTIC.KENOMA);
+  remaining -= kenomas * GNOSTIC.KENOMA;
+
+  const sophias = Math.floor(remaining / GNOSTIC.SOPHIA);
+  remaining -= sophias * GNOSTIC.SOPHIA;
+
+  const barbelos = Math.floor(remaining);
+  remaining -= barbelos;
+
+  return { aeons, pleromas, kenomas, sophias, barbelos, remainder_pLo: remaining };
+}
+
+/**
+ * Format a picolorenzo count as Gnostic time string.
+ * Example: "3a 1p 2k 4s 1b" = 3 aeons, 1 pleroma, 2 kenomas, 4 sophias, 1 barbelo
+ */
+export function formatGnosticTime(pLo: number): string {
+  const d = decomposeGnosticTime(pLo);
+  const parts: string[] = [];
+  if (d.aeons > 0) parts.push(`${d.aeons}a`);
+  if (d.pleromas > 0) parts.push(`${d.pleromas}p`);
+  if (d.kenomas > 0) parts.push(`${d.kenomas}k`);
+  if (d.sophias > 0) parts.push(`${d.sophias}s`);
+  if (d.barbelos > 0) parts.push(`${d.barbelos}b`);
+  return parts.join(' ') || '0b';
+}

@@ -18,6 +18,15 @@ export {
   isConfined,
   verifyTripleCoincidence,
   verifyCassini,
+  PICOLORENZO_SECONDS,
+  NANOLORENZO_SECONDS,
+  AEON_SECONDS,
+  nowPicolorenzos,
+  toPicolorenzos,
+  fromPicolorenzos,
+  formatPicolorenzos,
+  decomposeGnosticTime,
+  formatGnosticTime,
 } from './math.js';
 
 // Void primitives — the foundation everything reduces to
