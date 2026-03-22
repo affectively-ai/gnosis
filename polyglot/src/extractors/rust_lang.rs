@@ -88,7 +88,7 @@ fn extract_rust_function_cfg(
                         .map(|n| node_text(n, source));
                     if !name.is_empty() && name != "self" && name != "&self" && name != "&mut self" {
                         cfg.signature.params.push(FunctionParam {
-                            name, type_annotation: type_ann, default_value: None, is_variadic: false,
+                            name, type_annotation: type_ann, default_value: None, is_variadic: false, semantic_type: Default::default(),
                         });
                     } else if name.contains("self") {
                         cfg.signature.receiver_type = Some(name);

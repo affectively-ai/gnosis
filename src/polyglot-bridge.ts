@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import * as path from 'node:path';
 import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import type { ASTEdge, ASTNode, GraphAST, Diagnostic, DiagnosticCode, BettyParseResult } from './betty/compiler.js';
 import { BettyCompiler } from './betty/compiler.js';
 
@@ -40,6 +41,8 @@ interface PolyglotFunctionResult {
       param_types: unknown[];
       return_type: unknown;
       predicates: unknown[];
+      facets?: unknown[];
+      obligations?: unknown[];
     };
   };
   /** Semantic contract for cross-language type compatibility. */
@@ -47,6 +50,8 @@ interface PolyglotFunctionResult {
     param_types: unknown[];
     return_type: unknown;
     predicates: unknown[];
+    facets?: unknown[];
+    obligations?: unknown[];
   };
 }
 
@@ -124,12 +129,21 @@ export interface PolyglotFunctionAnalysis {
  * Resolve the path to the gnosis-polyglot binary.
  * First checks for a pre-built binary, then falls back to cargo run.
  */
+function resolvePolyglotDirectory(): string {
+  const currentDirectory =
+    typeof __dirname === 'string'
+      ? __dirname
+      : path.dirname(fileURLToPath(import.meta.url));
+
+  if (currentDirectory.includes(`${path.sep}dist${path.sep}gnode`)) {
+    return path.resolve(currentDirectory, '..', '..', 'polyglot');
+  }
+
+  return path.resolve(currentDirectory, '..', 'polyglot');
+}
+
 function resolvePolyglotBinary(): string {
-  const polyglotDir = path.resolve(
-    path.dirname(new URL(import.meta.url).pathname),
-    '..',
-    'polyglot'
-  );
+  const polyglotDir = resolvePolyglotDirectory();
   return path.join(polyglotDir, 'target', 'release', 'gnosis-polyglot');
 }
 
@@ -148,11 +162,7 @@ async function runPolyglotBinary(filePath: string): Promise<PolyglotScanResult> 
     return JSON.parse(stdout) as PolyglotScanResult;
   } catch (error: unknown) {
     // Fallback: try cargo run.
-    const polyglotDir = path.resolve(
-      path.dirname(new URL(import.meta.url).pathname),
-      '..',
-      'polyglot'
-    );
+    const polyglotDir = resolvePolyglotDirectory();
 
     try {
       const { stdout } = await execFileAsync(
@@ -303,11 +313,7 @@ async function runPolyglotBinaryOrchestration(filePath: string): Promise<Polyglo
 
     return JSON.parse(stdout) as PolyglotOrchestrationResult;
   } catch (error: unknown) {
-    const polyglotDir = path.resolve(
-      path.dirname(new URL(import.meta.url).pathname),
-      '..',
-      'polyglot'
-    );
+    const polyglotDir = resolvePolyglotDirectory();
 
     try {
       const { stdout } = await execFileAsync(
@@ -346,7 +352,7 @@ export interface PolyglotExecutionManifest {
   node_execution_plans: Array<{
     node_id: string;
     source_range: { start_byte: number; end_byte: number };
-    kind: string;
+    kind: 'entry' | 'call' | 'statement' | 'return';
     callee?: string;
   }>;
 }
@@ -397,6 +403,145 @@ export async function analyzePolyglotSourceForExecution(
   return {
     functions,
     manifest: result.manifest,
+    language: result.scan_result.language,
+    errors,
+  };
+}
+
+// ─── Ditto: Framework Detection ──────────────────────────────────────────────
+// The Ditto layer assumes whatever framework interface the developer already
+// knows. Express, Flask, Gin, Hono, Sinatra, Spring -- all compile to the
+// same fork/race/fold server topology.
+
+/**
+ * Framework topology extracted by the Rust recognizer.
+ */
+export interface FrameworkTopology {
+  framework: string;
+  language: string;
+  file_path: string;
+  routes: Array<{
+    method: string;
+    path: string;
+    handler_name: string;
+    handler_cfg_index: number | null;
+    source_start: number;
+    source_end: number;
+  }>;
+  middleware: Array<{
+    name: string;
+    path_prefix: string | null;
+    handler_cfg_index: number | null;
+    order: number;
+  }>;
+  listen_port: number | null;
+  config: Record<string, string>;
+}
+
+/**
+ * Result of framework detection on a source file.
+ */
+export interface FrameworkDetectionResult {
+  topology: FrameworkTopology | null;
+  scan_result: PolyglotScanResult;
+}
+
+/**
+ * Run the polyglot binary in framework mode (Ditto).
+ * Detects server frameworks and extracts route topologies.
+ */
+async function runPolyglotBinaryFramework(filePath: string): Promise<FrameworkDetectionResult> {
+  const binary = resolvePolyglotBinary();
+
+  try {
+    const { stdout } = await execFileAsync(binary, [filePath, '--format', 'json', '--mode', 'framework'], {
+      maxBuffer: 50 * 1024 * 1024,
+      timeout: 60_000,
+    });
+
+    return JSON.parse(stdout) as FrameworkDetectionResult;
+  } catch (error: unknown) {
+    const polyglotDir = resolvePolyglotDirectory();
+
+    try {
+      const { stdout } = await execFileAsync(
+        'cargo',
+        ['run', '--release', '--', filePath, '--format', 'json', '--mode', 'framework'],
+        {
+          cwd: polyglotDir,
+          maxBuffer: 50 * 1024 * 1024,
+          timeout: 120_000,
+        }
+      );
+
+      return JSON.parse(stdout) as FrameworkDetectionResult;
+    } catch {
+      const msg = error instanceof Error ? error.message : String(error);
+      throw new Error(`failed to run gnosis-polyglot in framework mode: ${msg}`);
+    }
+  }
+}
+
+/**
+ * Analyze a source file for framework detection (Ditto mode).
+ * Returns the framework topology (if detected) and compiled server GG.
+ */
+export async function analyzeFrameworkSource(
+  filePath: string
+): Promise<{
+  framework: FrameworkTopology | null;
+  serverGg: string | null;
+  functions: PolyglotFunctionAnalysis[];
+  language: string;
+  errors: string[];
+}> {
+  const result = await runPolyglotBinaryFramework(filePath);
+
+  const functions: PolyglotFunctionAnalysis[] = [];
+  const errors: string[] = [];
+
+  for (const err of result.scan_result.errors) {
+    errors.push(err.message);
+  }
+
+  for (const funcResult of result.scan_result.topologies) {
+    try {
+      const ast = topologyToGraphAst(funcResult.topology);
+      const sourceMap = buildSourceMap(funcResult.topology.source_map);
+      const betty = new BettyCompiler();
+      const bettyResult = betty.parse(funcResult.gg_source);
+
+      functions.push({
+        functionName: funcResult.function_name,
+        ggSource: funcResult.gg_source,
+        ast,
+        bettyResult,
+        sourceMap,
+        signature: funcResult.signature,
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      errors.push(`framework analysis error in ${funcResult.function_name}: ${msg}`);
+    }
+  }
+
+  // If a framework was detected, the server GG was already compiled
+  // by the Rust side. We could also compile it here from the topology.
+  let serverGg: string | null = null;
+  if (result.topology) {
+    // The GG is compiled by compile_framework_to_gg on the Rust side.
+    // For the TS bridge, we provide the topology for further processing.
+    serverGg = `// Ditto: ${result.topology.framework} (${result.topology.language}) → fork/race/fold\n`;
+    serverGg += `// ${result.topology.routes.length} routes, ${result.topology.middleware.length} middleware\n`;
+    if (result.topology.listen_port) {
+      serverGg += `// port: ${result.topology.listen_port}\n`;
+    }
+  }
+
+  return {
+    framework: result.topology,
+    serverGg,
+    functions,
     language: result.scan_result.language,
     errors,
   };

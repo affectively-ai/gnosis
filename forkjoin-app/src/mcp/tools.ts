@@ -672,7 +672,7 @@ function parseRuntimeTarget(value: unknown): RuntimeTarget {
     normalized === 'node' ||
     normalized === 'bun'
   ) {
-    return normalized;
+    return normalized as RuntimeTarget;
   }
 
   return 'agnostic';

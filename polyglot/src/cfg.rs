@@ -170,6 +170,12 @@ pub struct SemanticContract {
     pub return_type: TopologyType,
     /// Semantic predicates that hold on the output.
     pub predicates: Vec<SemanticPredicate>,
+    /// Cross-domain nuances that the emitter should preserve explicitly.
+    #[serde(default)]
+    pub facets: Vec<SemanticFacet>,
+    /// Explicit preservation gaps or runtime checks required downstream.
+    #[serde(default)]
+    pub obligations: Vec<SemanticObligation>,
 }
 
 /// Semantic predicates that can be attached to topology nodes and propagated through edges.
@@ -188,6 +194,45 @@ pub enum SemanticPredicate {
     Monotone { ordering: String },
     /// The function preserves a user-defined property.
     Custom { name: String, description: String },
+}
+
+/// A generic nuance or discourse/programming trait that should survive translation.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SemanticFacet {
+    pub key: String,
+    pub value: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub domain: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<String>,
+    #[serde(default)]
+    pub required: bool,
+}
+
+/// A concrete preservation obligation emitted when a target cannot fully carry a facet.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SemanticObligation {
+    pub key: String,
+    pub message: String,
+    pub severity: SemanticObligationSeverity,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub facet_key: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolution: Option<String>,
+    #[serde(default)]
+    pub required: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum SemanticObligationSeverity {
+    Info,
+    Warning,
+    Error,
 }
 
 impl Default for TopologyType {

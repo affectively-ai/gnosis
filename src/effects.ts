@@ -229,7 +229,7 @@ export function parseDeclaredEffects(
 // Effect validation -- check declared vs inferred, target compatibility
 // ============================================================================
 
-export type RuntimeTarget = 'agnostic' | 'workers' | 'node' | 'gnode';
+export type RuntimeTarget = 'agnostic' | 'workers' | 'node' | 'bun' | 'gnode';
 
 /** Effects supported per target */
 const TARGET_SUPPORT: Record<RuntimeTarget, Set<EffectKind>> = {
@@ -282,6 +282,27 @@ const TARGET_SUPPORT: Record<RuntimeTarget, Set<EffectKind>> = {
     'crypto.verify',
   ]),
   bun: new Set([
+    'fs.local',
+    'fs.durable',
+    'net.tcp.client',
+    'net.tcp.server',
+    'net.udp',
+    'auth.ucan',
+    'auth.zk',
+    'auth.custodial',
+    'neural.cpu',
+    'neural.gpu',
+    'quantum.sim',
+    'diff.forward',
+    'diff.backward',
+    'time.timeout',
+    'time.deadline',
+    'time.interval',
+    'crypto.random',
+    'crypto.sign',
+    'crypto.verify',
+  ]),
+  gnode: new Set([
     'fs.local',
     'fs.durable',
     'net.tcp.client',

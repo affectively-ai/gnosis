@@ -33,6 +33,12 @@ export const CAPABILITY_PROFILES: Record<
     description:
       'Node.js host with TCP server/client, UDP, and durable local file access.',
   },
+  bun: {
+    target: 'bun',
+    supported: new Set(NODE_CAPABILITIES),
+    description:
+      'Bun host with Node-compatible networking and durable local file access.',
+  },
   gnode: {
     target: 'gnode',
     supported: new Set(NODE_CAPABILITIES),

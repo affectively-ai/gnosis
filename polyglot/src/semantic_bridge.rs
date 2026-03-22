@@ -64,6 +64,8 @@ pub fn build_semantic_contract(signature: &FunctionSignature, language: &str) ->
         param_types,
         return_type,
         predicates,
+        facets: Vec::new(),
+        obligations: Vec::new(),
     }
 }
 

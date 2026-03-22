@@ -73,6 +73,10 @@ const LANGUAGE_EXTENSIONS: Record<string, string> = {
   bash: 'sh',
 };
 
+export const POLYGLOT_SCAFFOLD_LANGUAGES = Object.freeze(
+  Object.keys(LANGUAGE_EXTENSIONS).sort()
+);
+
 /**
  * Generate a function skeleton in the specified language.
  */

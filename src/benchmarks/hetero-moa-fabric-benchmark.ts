@@ -426,7 +426,13 @@ export async function runLiveHeteroMoAFabricBenchmark(
   });
 }
 
-if (import.meta.main) {
+const isDirectExecution =
+  typeof process !== 'undefined' &&
+  Array.isArray(process.argv) &&
+  typeof process.argv[1] === 'string' &&
+  import.meta.url === new URL(process.argv[1], 'file:').href;
+
+if (isDirectExecution) {
   const argv = process.argv.slice(2);
   const report = argv.includes('--live')
     ? await runLiveHeteroMoAFabricBenchmark()

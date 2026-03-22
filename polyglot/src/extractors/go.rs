@@ -439,6 +439,7 @@ fn extract_go_params(params_node: &Node, source: &str, params: &mut Vec<Function
                         type_annotation: type_ann,
                         default_value: None, // Go has no default params
                         is_variadic,
+                        semantic_type: Default::default(),
                     });
                 }
             }

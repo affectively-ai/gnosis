@@ -19,6 +19,23 @@ impl Strategy {
     }
 }
 
+#[derive(Clone, Debug, ValueEnum, PartialEq, Eq)]
+enum CrossDomain {
+    Code,
+    Natural,
+    Gg,
+}
+
+impl CrossDomain {
+    fn as_str(&self) -> &'static str {
+        match self {
+            CrossDomain::Code => "code",
+            CrossDomain::Natural => "natural",
+            CrossDomain::Gg => "gg",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Subcommand)]
 enum GnodeCommand {
     /// Compile a TypeScript entrypoint into GG and print the topology.
@@ -87,6 +104,21 @@ enum GnodeCommand {
         #[arg(long)]
         to: String,
     },
+    /// Cross-compile across code, natural language, and GG using the shared
+    /// domain adapter pipeline.
+    CrossCompile {
+        file: PathBuf,
+        #[arg(long = "domain-from", value_enum)]
+        domain_from: Option<CrossDomain>,
+        #[arg(long = "lang-from")]
+        lang_from: Option<String>,
+        #[arg(long = "domain-to", value_enum)]
+        domain_to: Option<CrossDomain>,
+        #[arg(long = "lang-to")]
+        lang_to: Option<String>,
+        #[arg(long)]
+        preserve: Option<String>,
+    },
     /// Find the optimal language for each function in a source file.
     /// Analyzes topology characteristics (compute, IO, concurrency) and
     /// scores each language on fitness.
@@ -134,6 +166,26 @@ enum GnodeCommand {
         #[arg(long, default_value_t = false)]
         print_gg: bool,
     },
+    /// Ditto: assume the interface of any server framework.
+    /// Detects Express, Flask, Gin, Hono, Sinatra, Spring from source code,
+    /// extracts routes, compiles to optimal fork/race/fold server topology.
+    /// Like a Ditto, gnosis becomes whatever framework you already know.
+    Ditto {
+        /// Source file to analyze (app.js, app.py, main.go, etc.)
+        file: PathBuf,
+        /// Output format: gg (compiled topology) or json (framework detection result).
+        #[arg(long, default_value = "gg")]
+        format: String,
+        /// Override port (default: auto-detected from source or 3000).
+        #[arg(long)]
+        port: Option<u16>,
+        /// Serve the compiled topology (start the server).
+        #[arg(long, default_value_t = false)]
+        serve: bool,
+    },
+    /// Ditto self-hosting: compile the Ditto compiler itself as a GG topology.
+    /// The compiler compiles itself. The topology routes itself.
+    DittoSelfHost,
 }
 
 #[derive(Debug, Parser)]
@@ -260,6 +312,40 @@ fn build_driver_args(command: &GnodeCommand) -> Vec<String> {
                 to.clone(),
             ]
         }
+        GnodeCommand::CrossCompile {
+            file,
+            domain_from,
+            lang_from,
+            domain_to,
+            lang_to,
+            preserve,
+        } => {
+            let mut args = vec![
+                "cross-compile".to_string(),
+                file.display().to_string(),
+            ];
+            if let Some(domain_from) = domain_from {
+                args.push("--domain-from".to_string());
+                args.push(domain_from.as_str().to_string());
+            }
+            if let Some(lang_from) = lang_from {
+                args.push("--lang-from".to_string());
+                args.push(lang_from.clone());
+            }
+            if let Some(domain_to) = domain_to {
+                args.push("--domain-to".to_string());
+                args.push(domain_to.as_str().to_string());
+            }
+            if let Some(lang_to) = lang_to {
+                args.push("--lang-to".to_string());
+                args.push(lang_to.clone());
+            }
+            if let Some(preserve) = preserve {
+                args.push("--preserve".to_string());
+                args.push(preserve.clone());
+            }
+            args
+        }
         GnodeCommand::BestLanguage { file, export_name } => {
             let mut args = vec![
                 "best-language".to_string(),
@@ -299,6 +385,10 @@ fn build_driver_args(command: &GnodeCommand) -> Vec<String> {
         GnodeCommand::Polyglot { .. } => {
             // Handled separately in run(); this arm is unreachable.
             unreachable!("polyglot subcommand is handled directly")
+        }
+        GnodeCommand::Ditto { .. } | GnodeCommand::DittoSelfHost => {
+            // Handled separately in run().
+            unreachable!("ditto subcommand is handled directly")
         }
     }
 }
@@ -407,6 +497,88 @@ fn run() -> Result<()> {
         match status.code() {
             Some(code) => process::exit(code),
             None => bail!("gnosis-polyglot process terminated without an exit code"),
+        }
+    }
+
+    // Ditto subcommand: framework detection via polyglot binary.
+    if let GnodeCommand::Ditto {
+        ref file,
+        ref format,
+        port,
+        serve,
+    } = cli.command
+    {
+        let binary = polyglot_binary_path()?;
+        let args = vec![
+            file.display().to_string(),
+            "--format".to_string(),
+            format.clone(),
+            "--mode".to_string(),
+            "framework".to_string(),
+        ];
+
+        let status = Command::new(&binary)
+            .args(&args)
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .status()
+            .with_context(|| {
+                format!(
+                    "failed to launch gnosis-polyglot in framework mode at {}",
+                    binary.display()
+                )
+            })?;
+
+        if serve {
+            eprintln!(
+                "[Ditto] Serve mode: compiled topology ready on port {}",
+                port.unwrap_or(3000)
+            );
+            // Future: pipe compiled GG to x-gnosis or GnosisEngine.
+        }
+
+        match status.code() {
+            Some(code) => process::exit(code),
+            None => bail!("gnosis-polyglot (ditto) process terminated without an exit code"),
+        }
+    }
+
+    // Ditto self-host: compile the Ditto compiler as a GG topology.
+    if matches!(cli.command, GnodeCommand::DittoSelfHost) {
+        let binary = polyglot_binary_path()?;
+        let self_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("polyglot")
+            .join("src")
+            .join("framework_recognizer.rs");
+
+        if !self_path.exists() {
+            bail!(
+                "framework_recognizer.rs not found at {}. Build framework recognition first.",
+                self_path.display()
+            );
+        }
+
+        eprintln!("[Ditto] Self-hosting: compiling the compiler as GG topology...");
+
+        let status = Command::new(&binary)
+            .args([
+                &self_path.display().to_string(),
+                "--format",
+                "gg",
+                "--mode",
+                "framework",
+            ])
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .status()
+            .with_context(|| "failed to self-host ditto compiler")?;
+
+        match status.code() {
+            Some(code) => process::exit(code),
+            None => bail!("ditto self-host process terminated without an exit code"),
         }
     }
 

@@ -7,6 +7,8 @@ Child: [benchmarks](./benchmarks/README.md)
 
 `gnode` is a Rust-fronted CLI for running TypeScript through Gnosis. It is meant to feel closer to `tsx` or `ts-node` than to an offline code generator: point it at a `.ts` file, compile the supported orchestration subset into `.gg`, expose the resulting laminar schedule, and execute the compiled topology through the Gnosis runtime.
 
+It also now surfaces the generic cross-domain pipeline. That means `gnode` is no longer only "TS in, code out"; it can drive explicit `code`, `natural`, and `gg` artifacts through the same adapter registry and preservation checks.
+
 The current bridge is intentionally honest about scope. It accepts a topology-friendly TypeScript subset:
 
 - top-level function entrypoints
@@ -24,6 +26,7 @@ Broader TypeScript control flow still fails closed with a compile error instead 
 gnode run ./app.ts
 gnode compile ./app.ts
 gnode schedule ./app.ts --lanes 4 --strategy cannon
+gnode cross-compile ./request.txt --domain-from natural --lang-from en --domain-to gg --lang-to gg --preserve meaning,tone,affect
 pnpm --dir open-source/gnosis run gnode:prewarm -- --json
 ```
 

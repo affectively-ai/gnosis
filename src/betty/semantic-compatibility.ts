@@ -45,10 +45,30 @@ export type SemanticPredicate =
   | { kind: 'monotone'; ordering: string }
   | { kind: 'custom'; name: string; description: string };
 
+export interface SemanticFacet {
+  key: string;
+  value: string;
+  domain?: string;
+  detail?: string;
+  provenance?: string;
+  required?: boolean;
+}
+
+export interface SemanticObligation {
+  key: string;
+  message: string;
+  severity: 'info' | 'warning' | 'error';
+  facetKey?: string;
+  resolution?: string;
+  required?: boolean;
+}
+
 export interface SemanticContract {
   paramTypes: TopologyType[];
   returnType: TopologyType;
   predicates: SemanticPredicate[];
+  facets: SemanticFacet[];
+  obligations: SemanticObligation[];
 }
 
 export type TypeCompatibility =
@@ -766,35 +786,67 @@ function extractContractFromNode(node: ASTNode): SemanticContract | null {
   // Check for explicit semantic_type property (set by polyglot scanner).
   const semanticReturn = node.properties['semantic_return_type'];
   const semanticParams = node.properties['semantic_param_types'];
+  const semanticReturnEncoded = node.properties['semantic_return_type_b64'];
+  const semanticParamsEncoded = node.properties['semantic_param_types_b64'];
   const language = node.properties['language'] ?? '';
 
-  if (!semanticReturn && !semanticParams && !node.properties['return_type']) {
+  if (
+    !semanticReturn &&
+    !semanticReturnEncoded &&
+    !semanticParams &&
+    !semanticParamsEncoded &&
+    !node.properties['return_type']
+  ) {
     return null;
   }
 
   let returnType: TopologyType = { kind: 'unknown' };
   const paramTypes: TopologyType[] = [];
   const predicates: SemanticPredicate[] = [];
+  const facets: SemanticFacet[] = [];
+  const obligations: SemanticObligation[] = [];
+
+  const decodeStructuredProperty = <T>(
+    rawValue: string | undefined,
+    encodedValue: string | undefined,
+    fallback: T
+  ): T => {
+    const serialized =
+      typeof encodedValue === 'string'
+        ? Buffer.from(encodedValue, 'base64').toString('utf8')
+        : rawValue;
+
+    if (!serialized) {
+      return fallback;
+    }
+
+    try {
+      return JSON.parse(serialized) as T;
+    } catch {
+      return fallback;
+    }
+  };
 
   // Parse return type.
-  if (semanticReturn) {
-    try {
-      returnType = JSON.parse(semanticReturn) as TopologyType;
-    } catch {
-      returnType = { kind: 'unknown' };
-    }
+  if (semanticReturn || semanticReturnEncoded) {
+    returnType = decodeStructuredProperty(
+      semanticReturn,
+      semanticReturnEncoded,
+      { kind: 'unknown' } satisfies TopologyType
+    );
   } else if (node.properties['return_type'] && language) {
     returnType = denoteType(language, node.properties['return_type']);
   }
 
   // Parse param types.
-  if (semanticParams) {
-    try {
-      const parsed = JSON.parse(semanticParams) as TopologyType[];
-      paramTypes.push(...parsed);
-    } catch {
-      // Ignore parse failures.
-    }
+  if (semanticParams || semanticParamsEncoded) {
+    paramTypes.push(
+      ...decodeStructuredProperty(
+        semanticParams,
+        semanticParamsEncoded,
+        [] as TopologyType[]
+      )
+    );
   }
 
   // Infer predicates.
@@ -804,16 +856,42 @@ function extractContractFromNode(node: ASTNode): SemanticContract | null {
 
   // Check for explicit predicate annotations.
   const predicateStr = node.properties['semantic_predicates'];
-  if (predicateStr) {
-    try {
-      const parsed = JSON.parse(predicateStr) as SemanticPredicate[];
-      predicates.push(...parsed);
-    } catch {
-      // Ignore.
-    }
+  const predicateEncoded = node.properties['semantic_predicates_b64'];
+  if (predicateStr || predicateEncoded) {
+    predicates.push(
+      ...decodeStructuredProperty(
+        predicateStr,
+        predicateEncoded,
+        [] as SemanticPredicate[]
+      )
+    );
   }
 
-  return { paramTypes, returnType, predicates };
+  const facetStr = node.properties['semantic_facets'];
+  const facetEncoded = node.properties['semantic_facets_b64'];
+  if (facetStr || facetEncoded) {
+    facets.push(
+      ...decodeStructuredProperty(
+        facetStr,
+        facetEncoded,
+        [] as SemanticFacet[]
+      )
+    );
+  }
+
+  const obligationStr = node.properties['semantic_obligations'];
+  const obligationEncoded = node.properties['semantic_obligations_b64'];
+  if (obligationStr || obligationEncoded) {
+    obligations.push(
+      ...decodeStructuredProperty(
+        obligationStr,
+        obligationEncoded,
+        [] as SemanticObligation[]
+      )
+    );
+  }
+
+  return { paramTypes, returnType, predicates, facets, obligations };
 }
 
 function propagatePredicates(

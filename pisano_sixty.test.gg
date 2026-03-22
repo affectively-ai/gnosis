@@ -302,15 +302,7 @@ topology pisano_sixty {
     // but it shows Wall-Sun-Sun primes connect to deep arithmetic.
     //
     // As of 2024: no Wall-Sun-Sun prime has been found below 2 * 10^14.
-    // Their existence remains open.
-    //
-    // In fold terms:
-    //   A Wall-Sun-Sun prime would be a modulus where the Fibonacci
-    //   cycle (the fold cycle) divides the prime itself.
-    //   The fold structure would "resonate" with the prime.
-    //   Whether such resonance exists is unknown.
-    //
-    // This is an honest open problem. We do not pretend to have
+    // Their existence remains open. We do not pretend to have
     // insight the number theorists lack.
 
     // Known non-examples:

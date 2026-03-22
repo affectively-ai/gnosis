@@ -306,46 +306,28 @@ topology golden_ratio_identities {
     // The continued fraction is [1; 1, 1, 1, ...].
     // All partial quotients are 1.
     //
-    // Why this means "most irrational":
-    //   The convergents of a continued fraction [a0; a1, a2, ...]
-    //   approximate the number with error roughly 1/(a_{n+1} * q_n^2).
+    // Why "most irrational":
+    //   Convergents approximate with error ~ 1/(a_{n+1} * q_n^2).
     //   Larger partial quotients → faster convergence → "more rational."
-    //   Partial quotients = 1 everywhere → slowest convergence → most irrational.
+    //   All 1s → slowest convergence → most irrational.
     //
-    //   The convergents of phi are: 1/1, 2/1, 3/2, 5/3, 8/5, 13/8, 21/13, ...
-    //   These are ratios of consecutive Fibonacci numbers!
+    //   Convergents: 1/1, 2/1, 3/2, 5/3, 8/5, 13/8, 21/13, ...
+    //   = ratios of consecutive Fibonacci numbers!
     //   F(n+1)/F(n) → phi, but as slowly as possible.
     //
     // In primitives:
     //   "Most irrational" = "maximally interfering."
-    //   phi resists rational approximation because INTERFERE
-    //   maximally avoids periodic lock-in.
     //   Every partial quotient is the minimal FORK (just 1).
-    //   No large jumps. No shortcuts. Maximal sustained interference.
+    //   Maximal sustained interference, no shortcuts.
     //
-    // The Hurwitz inequality:
-    //   For any irrational alpha, there are infinitely many p/q with
-    //   |alpha - p/q| < 1/(sqrt(5) * q^2).
-    //   For phi, this bound is TIGHT. sqrt(5) cannot be improved.
-    //   phi is the worst case of Hurwitz's inequality.
-    //   phi is the hardest number to approximate rationally.
+    // Hurwitz inequality: for any irrational alpha, infinitely many
+    //   p/q satisfy |alpha - p/q| < 1/(sqrt(5) * q^2).
+    //   For phi this bound is TIGHT. phi is the worst case.
 
-    convergents {
-      // c_0 = 1/1 = 1.000       error from phi: 0.618
-      // c_1 = 2/1 = 2.000       error from phi: 0.382
-      // c_2 = 3/2 = 1.500       error from phi: 0.118
-      // c_3 = 5/3 = 1.667       error from phi: 0.049
-      // c_4 = 8/5 = 1.600       error from phi: 0.018
-      // c_5 = 13/8 = 1.625      error from phi: 0.007
-      // c_6 = 21/13 = 1.6154    error from phi: 0.0026
-      // c_7 = 34/21 = 1.6190    error from phi: 0.0010
-      // c_8 = 55/34 = 1.6176    error from phi: 0.0004
-      // c_9 = 89/55 = 1.6182    error from phi: 0.0002
-
-      assert c(n) == F(n+1) / F(n)
-      assert c(n) alternates above and below phi
-      assert error(c(n)) decreases but as slowly as possible
-    }
+    // Convergents: 1/1, 2/1, 3/2, 5/3, 8/5, 13/8, 21/13, 34/21, 55/34, 89/55
+    // Errors:      0.618, 0.382, 0.118, 0.049, 0.018, 0.007, 0.003, 0.001, ...
+    // Alternating above and below phi, decreasing as slowly as possible.
+    assert convergent(n) == F(n+1) / F(n)
 
     assert phi == continued_fraction([1, 1, 1, 1, ...])
     assert all_partial_quotients(phi) == 1
@@ -389,34 +371,20 @@ topology golden_ratio_identities {
   // ═══════════════════════════════════════════════════════════════
 
   conclusion {
-    // Summary of what was PROVED (algebraically, with verification):
+    // PROVED (algebraically, with verification):
+    //   phi^2 = phi + 1, 1/phi = phi - 1, phi^n = F(n)*phi + F(n-1),
+    //   phi + 1/phi = sqrt(5), phi * psi = -1, x^2 - x - 1 = 0,
+    //   phi = [1;1,1,...], negative powers decompose into Fibonacci.
     //
-    //   phi^2 = phi + 1              (INTERFERE equation)
-    //   1/phi = phi - 1              (VENT = INTERFERE - FORK)
-    //   phi^3 = 2*phi + 1            (triple = double + fork)
-    //   phi^n = F(n)*phi + F(n-1)    (every power = Fibonacci decomposition)
-    //   phi + 1/phi = sqrt(5)        (INTERFERE + VENT = generator)
-    //   phi * psi = -1               (eigenvalue product = det(M))
-    //   x^2 - x - 1 = 0             (minimal polynomial = INTERFERE equation)
-    //   phi = [1;1,1,1,...]          (most irrational = maximally interfering)
-    //   phi^(-n) decomposes into Fibonacci  (both directions)
-    //
-    // Summary of what was REFRAMED (standard math, new vocabulary):
-    //   Each identity corresponds to a primitive operation statement.
-    //   This is interpretation, not new mathematics.
+    // REFRAMED (standard math, our vocabulary):
+    //   Each identity maps to a primitive operation statement.
     //   The algebra is centuries old. The vocabulary is ours.
     //
     // The central insight (PROVED, not reframed):
     //   phi^n = F(n)*phi + F(n-1).
-    //   Exponentiation of the eigenvalue IS the Fibonacci sequence.
-    //   Raising phi to the nth power extracts the nth Fibonacci number.
-    //   phi and Fibonacci are not merely related -- they are
-    //   two representations of the same algebraic object:
+    //   phi and Fibonacci are two representations of the same object:
     //   the ring Z[phi] = Z[x]/(x^2 - x - 1).
-    //
-    //   In this ring, multiplication by phi IS the Fibonacci step.
-    //   The ring is the algebra. The sequence is the dynamics.
-    //   They are the same thing.
+    //   Multiplication by phi IS the Fibonacci step.
 
     assert phi^n == F(n)*phi + F(n-1)               // PROVED
     assert exponentiation(phi) == fibonacci          // PROVED

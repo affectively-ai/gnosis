@@ -508,12 +508,12 @@ fn extract_ts_params(params_node: &Node, source: &str, params: &mut Vec<Function
                 let is_variadic = kind == "rest_pattern" || node_text(child, source).starts_with("...");
 
                 if !name.is_empty() {
-                    params.push(FunctionParam { name, type_annotation: type_ann, default_value: default_val, is_variadic });
+                    params.push(FunctionParam { name, type_annotation: type_ann, default_value: default_val, is_variadic, semantic_type: Default::default() });
                 }
             } else if kind == "identifier" {
                 let name = node_text(child, source);
                 if !name.is_empty() && name != "," {
-                    params.push(FunctionParam { name, type_annotation: None, default_value: None, is_variadic: false });
+                    params.push(FunctionParam { name, type_annotation: None, default_value: None, is_variadic: false, semantic_type: Default::default() });
                 }
             }
         }

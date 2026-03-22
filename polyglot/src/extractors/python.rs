@@ -130,6 +130,7 @@ fn extract_python_function_cfg(
                         type_annotation: type_ann,
                         default_value: default_val,
                         is_variadic,
+                        semantic_type: Default::default(),
                     });
                 }
             }

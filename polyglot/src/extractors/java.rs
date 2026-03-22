@@ -86,7 +86,7 @@ fn extract_java_method_cfg(
                     let is_variadic = child.kind() == "spread_parameter";
                     if !name.is_empty() {
                         cfg.signature.params.push(FunctionParam {
-                            name, type_annotation: type_ann, default_value: None, is_variadic,
+                            name, type_annotation: type_ann, default_value: None, is_variadic, semantic_type: Default::default(),
                         });
                     }
                 }

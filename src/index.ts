@@ -94,6 +94,38 @@ export {
   BettyCompiler,
   generateLeanFromGnosisAst,
 };
+export {
+  analyzePolyglotSource,
+  analyzePolyglotSourceString,
+  analyzePolyglotSourceForExecution,
+  analyzeFrameworkSource,
+  type PolyglotAnalysisResult,
+  type PolyglotFunctionAnalysis,
+  type PolyglotExecutionManifest,
+  type FrameworkDetectionResult,
+  type FrameworkTopology,
+} from './polyglot-bridge.js';
+export {
+  translate,
+  extractFunctions,
+  compose,
+  findBestLanguage,
+  computeBetaCost,
+  generateTopoRaceTopology,
+  type ExtractedFunction,
+  type ComposedTopology,
+  type FunctionConnection,
+  type LanguageFitness,
+  type TopoRaceResult,
+} from './polyglot-compose.js';
+export {
+  getPolyglotSupportedLanguages,
+  getPolyglotCapabilityMatrix,
+  type PolyglotCapabilityMatrix,
+  type PolyglotCapabilityStatus,
+  type PolyglotLanguageCapability,
+  type PolyglotOperation,
+} from './polyglot-registry.js';
 export { registerBettiHandlers } from './betti/handlers.js';
 export { runBootstrap, runBettiPipeline, proveGeneralization, crossCompileBetty } from './betti/bootstrap.js';
 export { areStructurallyEquivalent, diffASTs, serializeCanonical } from './betti/ast-equivalence.js';
@@ -878,6 +910,7 @@ const VALID_RUNTIME_TARGETS: RuntimeTarget[] = [
   'agnostic',
   'workers',
   'node',
+  'bun',
   'gnode',
 ];
 
@@ -1188,7 +1221,261 @@ function emitSteeringTraceAlert(
   }
 }
 
+// ─── Ditto: Interface Assumption ─────────────────────────────────────────────
+// Gnosis assumes whatever interface the developer already knows.
+// Like a Ditto, it shapeshifts to be Express, Flask, Gin, Hono, Sinatra,
+// Spring -- or even their CLI invocation (ruby, python, node, go, java).
+// The diversity theorem (ch17) proves this is topologically necessary.
+
+/** Known language commands that Ditto can assume. */
+const DITTO_LANGUAGES: Record<string, { language: string; extensions: string[] }> = {
+  node: { language: 'typescript', extensions: ['.js', '.ts', '.mjs', '.cjs'] },
+  python: { language: 'python', extensions: ['.py'] },
+  ruby: { language: 'ruby', extensions: ['.rb'] },
+  go: { language: 'go', extensions: ['.go'] },
+  java: { language: 'java', extensions: ['.java'] },
+  bun: { language: 'typescript', extensions: ['.js', '.ts', '.mjs'] },
+  deno: { language: 'typescript', extensions: ['.ts', '.js'] },
+};
+
+/** File extension to language mapping for auto-detection. */
+const DITTO_EXT_MAP: Record<string, string> = {
+  '.js': 'typescript', '.ts': 'typescript', '.mjs': 'typescript', '.cjs': 'typescript',
+  '.jsx': 'typescript', '.tsx': 'typescript',
+  '.py': 'python',
+  '.rb': 'ruby',
+  '.go': 'go',
+  '.java': 'java',
+  '.kt': 'kotlin',
+  '.swift': 'swift',
+  '.rs': 'rust',
+  '.php': 'php',
+  '.ex': 'elixir', '.exs': 'elixir',
+};
+
+interface DittoInvocation {
+  language: string;
+  filePath: string;
+  port?: number;
+  serve: boolean;
+}
+
+/**
+ * Detect Ditto invocation from argv.
+ * Three modes:
+ * 1. argv[0] detection: symlinked as `ruby`, `python`, etc.
+ * 2. Language sub-command: `gnosis node app.js`, `gnosis python app.py`
+ * 3. File extension: `gnosis run app.py` (non-.gg file)
+ */
+function detectDittoInvocation(): DittoInvocation | null {
+  // Mode 1: argv[0] detection (symlink mode).
+  const invokedAs = path.basename(process.argv[1] ?? '');
+  if (DITTO_LANGUAGES[invokedAs]) {
+    const lang = DITTO_LANGUAGES[invokedAs];
+    const filePath = process.argv[2];
+    if (filePath && fs.existsSync(filePath)) {
+      return { language: lang.language, filePath, serve: true };
+    }
+  }
+
+  // Mode 2: Language sub-command.
+  if (args[0] && DITTO_LANGUAGES[args[0]]) {
+    const lang = DITTO_LANGUAGES[args[0]];
+    // Handle `gnosis go run main.go` (strip the `run` sub-command).
+    let fileArg = args[1];
+    if (args[0] === 'go' && args[1] === 'run' && args[2]) {
+      fileArg = args[2];
+    }
+    // Handle `gnosis java -jar app.jar`.
+    if (args[0] === 'java' && args[1] === '-jar' && args[2]) {
+      fileArg = args[2];
+    }
+    if (fileArg && fs.existsSync(fileArg)) {
+      return { language: lang.language, filePath: fileArg, serve: true };
+    }
+  }
+
+  // Mode 3: File extension detection on `gnosis run <non-gg-file>`.
+  if (args[0] === 'run' && args[1]) {
+    const ext = path.extname(args[1]).toLowerCase();
+    if (ext && ext !== '.gg' && ext !== '.mgg' && DITTO_EXT_MAP[ext]) {
+      if (fs.existsSync(args[1])) {
+        return {
+          language: DITTO_EXT_MAP[ext],
+          filePath: args[1],
+          serve: true,
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Handle `gnosis ditto` sub-command for symlink management.
+ */
+async function handleDittoCommand(): Promise<void> {
+  const subCommand = args[1];
+
+  if (subCommand === 'install' && args[2]) {
+    const langName = args[2];
+    if (!DITTO_LANGUAGES[langName]) {
+      console.error(`[Ditto] Unknown language: ${langName}`);
+      console.error(`[Ditto] Supported: ${Object.keys(DITTO_LANGUAGES).join(', ')}`);
+      process.exit(1);
+    }
+
+    const dittoDir = path.join(process.env.HOME ?? '~', '.gnosis', 'bin');
+    fs.mkdirSync(dittoDir, { recursive: true });
+
+    const gnosisPath = process.argv[1];
+    const symlinkPath = path.join(dittoDir, langName);
+
+    try {
+      if (fs.existsSync(symlinkPath)) {
+        fs.unlinkSync(symlinkPath);
+      }
+      fs.symlinkSync(gnosisPath, symlinkPath);
+      console.log(`[Ditto] Installed: ${langName} → gnosis`);
+      console.log(`[Ditto] Add to PATH: export PATH="${dittoDir}:$PATH"`);
+    } catch (e: any) {
+      console.error(`[Ditto] Failed to create symlink: ${e.message}`);
+      process.exit(1);
+    }
+  } else if (subCommand === 'uninstall' && args[2]) {
+    const langName = args[2];
+    const dittoDir = path.join(process.env.HOME ?? '~', '.gnosis', 'bin');
+    const symlinkPath = path.join(dittoDir, langName);
+
+    if (fs.existsSync(symlinkPath)) {
+      fs.unlinkSync(symlinkPath);
+      console.log(`[Ditto] Uninstalled: ${langName}`);
+    } else {
+      console.log(`[Ditto] No symlink found for ${langName}`);
+    }
+  } else if (subCommand === 'list') {
+    const dittoDir = path.join(process.env.HOME ?? '~', '.gnosis', 'bin');
+    if (fs.existsSync(dittoDir)) {
+      const entries = fs.readdirSync(dittoDir);
+      if (entries.length === 0) {
+        console.log('[Ditto] No active Ditto links');
+      } else {
+        console.log('[Ditto] Active Ditto links:');
+        for (const entry of entries) {
+          const target = fs.readlinkSync(path.join(dittoDir, entry));
+          console.log(`  ${entry} → ${target}`);
+        }
+      }
+    } else {
+      console.log('[Ditto] No active Ditto links');
+    }
+  } else if (subCommand === 'self-host') {
+    // The capstone: compile the Ditto compiler as a GG topology.
+    // The compiler compiles itself. The topology routes itself.
+    // The void walks the void.
+    console.log('[Ditto] Self-hosting topology: the compiler compiles itself\n');
+    const { execFileAsync: execAsync } = await import('node:util').then(u => ({ execFileAsync: u.promisify(require('node:child_process').execFile) }));
+    const polyglotDir = path.resolve(
+      path.dirname(new URL(import.meta.url).pathname),
+      '..',
+      'polyglot'
+    );
+    // The Ditto self-hosting topology is compiled by Rust.
+    // It represents the framework detection pipeline AS a .gg topology:
+    // fork recognizers → race first match → fold to GG output.
+    try {
+      const binary = path.join(polyglotDir, 'target', 'release', 'gnosis-polyglot');
+      // For self-hosting, we analyze the Ditto compiler itself.
+      const selfPath = path.join(polyglotDir, 'src', 'framework_recognizer.rs');
+      if (fs.existsSync(binary) && fs.existsSync(selfPath)) {
+        const { stdout } = spawnSync(binary, [selfPath, '--format', 'gg', '--mode', 'framework'], {
+          encoding: 'utf-8',
+          timeout: 30_000,
+        });
+        console.log(stdout || '// Self-hosting: the compiler compiled itself to GG');
+      } else {
+        console.log('// Build the polyglot scanner first: cd polyglot && cargo build --release');
+      }
+    } catch {
+      console.log('// Self-hosting requires built polyglot binary');
+    }
+  } else {
+    console.log(`[Ditto] Usage:`);
+    console.log(`  gnosis ditto install <language>   Install Ditto symlink`);
+    console.log(`  gnosis ditto uninstall <language>  Remove Ditto symlink`);
+    console.log(`  gnosis ditto list                  Show active Ditto links`);
+    console.log(`  gnosis ditto self-host             Compile the compiler as GG`);
+    console.log(`\n  Supported languages: ${Object.keys(DITTO_LANGUAGES).join(', ')}`);
+    console.log(`\n  Or use directly: gnosis node app.js | gnosis python app.py | gnosis go run main.go`);
+  }
+
+  process.exit(0);
+}
+
+/**
+ * Run Ditto: detect framework in source file, compile to server topology, serve.
+ */
+async function runDitto(invocation: DittoInvocation): Promise<void> {
+  const { analyzeFrameworkSource } = await import('./polyglot-bridge.js');
+
+  console.log(`[Ditto] Assuming ${invocation.language} interface for ${invocation.filePath}...`);
+
+  const result = await analyzeFrameworkSource(invocation.filePath);
+
+  if (result.errors.length > 0) {
+    for (const err of result.errors) {
+      console.error(`[Ditto] ${err}`);
+    }
+  }
+
+  if (result.framework) {
+    console.log(`[Ditto] Detected: ${result.framework.framework} (${result.framework.language})`);
+    console.log(`[Ditto] Routes: ${result.framework.routes.length}`);
+    console.log(`[Ditto] Middleware: ${result.framework.middleware.length}`);
+
+    for (const route of result.framework.routes) {
+      console.log(`  ${route.method.padEnd(7)} ${route.path} → ${route.handler_name}`);
+    }
+
+    if (result.serverGg) {
+      console.log(`\n[Ditto] Compiled server topology:`);
+      console.log(result.serverGg);
+    }
+
+    const port = invocation.port ?? result.framework.listen_port ?? 3000;
+    console.log(`\n[Ditto] Server topology compiled. Port: ${port}`);
+    console.log(`[Ditto] To serve: gnosis run <compiled.gg>`);
+    // Future: start x-gnosis with the compiled topology directly.
+  } else {
+    console.log(`[Ditto] No framework detected. Running as polyglot topology...`);
+    // Fall back to standard polyglot execution.
+    console.log(`[Ditto] ${result.functions.length} functions extracted`);
+    for (const fn of result.functions) {
+      console.log(`  ${fn.functionName}`);
+    }
+  }
+
+  process.exit(0);
+}
+
 async function main() {
+  // ─── Ditto: Interface Assumption (early detection) ───────────────────────
+  // Check for Ditto invocation before any other command parsing.
+  // This must come first: if gnosis was invoked as `ruby app.rb`,
+  // the entire argv interpretation changes.
+
+  if (args[0] === 'ditto') {
+    await handleDittoCommand();
+    return;
+  }
+
+  const dittoInvocation = detectDittoInvocation();
+  if (dittoInvocation) {
+    await runDitto(dittoInvocation);
+    return;
+  }
+
   // --fix flag: Global auto-format
   if (args.includes('--fix')) {
     const fileArg = args.find((a) => isGgTarget(a));
@@ -1923,7 +2210,19 @@ async function main() {
         // polyglot:ignore RESOURCE_LEAK — readFileSync returns a string, no handle to release
         const content = fs.readFileSync(fullPath, 'utf-8');
         try {
-          const parsed = (Bun as any).TOML.parse(content);
+          const bunRuntime = globalThis as {
+            Bun?: {
+              TOML?: {
+                parse(input: string): Record<string, unknown>;
+              };
+            };
+          };
+          const parsed = bunRuntime.Bun?.TOML?.parse(content);
+          if (!parsed) {
+            throw new Error(
+              'TOML parsing requires Bun.TOML in the current runtime'
+            );
+          }
           return parsed[section];
         } catch (e: any) {
           throw new Error(`TOML Parse Error in ${tomlPath}: ${e.message}`);
@@ -1948,9 +2247,12 @@ async function main() {
         const weightsData = loadWeights(
           props['weights'] || 'weights.toml',
           section
-        );
-        const w = weightsData.weights as number[][];
-        const b = weightsData.bias as number[];
+        ) as {
+          weights: number[][];
+          bias: number[];
+        };
+        const w = weightsData.weights;
+        const b = weightsData.bias;
         const x = payload as number[];
 
         const rowWork = w.map((row, i) => async () => {

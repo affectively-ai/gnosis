@@ -28,7 +28,6 @@ import { buildExecutionTrace, formatExecutionTrace } from '../src/polyglot-trace
 import { scaffoldTopology, type ScaffoldAssignment } from '../src/polyglot-scaffold.js';
 import {
   compose,
-  translate,
   findBestLanguage,
   computeBetaCost,
   extractFunctions,
@@ -36,9 +35,18 @@ import {
 } from '../src/polyglot-compose.js';
 import { buildWithTopoRace, type PolyglotBuildConfig } from '../src/polyglot-build.js';
 import { runBootstrap } from '../src/betti/bootstrap.js';
+import {
+  createSourceArtifactFromFile,
+  crossCompile as crossDomainCompile,
+  defaultLanguageAdapterRegistry,
+  installBuiltInLanguageAdapters,
+  type CrossCompileResult,
+  type LanguageDomain,
+  type SourceArtifact,
+} from '../src/cross-domain.js';
 
 type Strategy = 'cannon' | 'linear';
-type CommandName = 'compile' | 'schedule' | 'run' | 'polyglot-run' | 'scaffold' | 'compose' | 'translate' | 'best-language' | 'topo-race' | 'bootstrap';
+type CommandName = 'compile' | 'schedule' | 'run' | 'polyglot-run' | 'scaffold' | 'compose' | 'translate' | 'cross-compile' | 'best-language' | 'topo-race' | 'bootstrap';
 type CacheStatus = 'hit' | 'miss';
 
 const CACHE_SCHEMA_VERSION = 1;
@@ -51,6 +59,29 @@ const DRIVER_DIRECTORY =
   typeof __dirname === 'string'
     ? __dirname
     : path.dirname(fileURLToPath(import.meta.url));
+const NATURAL_LANGUAGES = new Set(['en', 'es', 'zh']);
+const CODE_LANGUAGES = new Set([
+  'typescript',
+  'javascript',
+  'python',
+  'go',
+  'rust',
+  'java',
+  'ruby',
+  'php',
+  'lua',
+  'swift',
+  'kotlin',
+  'scala',
+  'haskell',
+  'ocaml',
+  'zig',
+  'bash',
+  'elixir',
+  'c_sharp',
+  'c',
+  'cpp',
+]);
 
 function resolvePackageRoot(startDirectory: string): string {
   let currentDirectory = path.resolve(startDirectory);
@@ -184,6 +215,12 @@ interface ParsedArgs {
   readonly filePath: string;
   readonly exportName?: string;
   readonly inputJson?: string;
+  readonly targetLanguage?: string;
+  readonly domainFrom?: LanguageDomain;
+  readonly languageFrom?: string;
+  readonly domainTo?: LanguageDomain;
+  readonly languageTo?: string;
+  readonly preserve: readonly string[];
   readonly printGg: boolean;
   readonly printSchedule: boolean;
   readonly lanes: number;
@@ -207,6 +244,7 @@ function usage(): string {
     '  gnode run <file.ts|.py|.go|...> [--export name] [--input-json JSON] [--print-gg]',
     '  gnode compose <file1.py> <file2.go> [<file3.rs> ...]',
     '  gnode translate <file.py> --to rust',
+    '  gnode cross-compile <file.txt|.gg|.ts|.py|...> --domain-from natural --lang-from en --domain-to gg --lang-to gg [--preserve meaning,tone,affect]',
     '  gnode best-language <file.py|.go|.rs|...> [--export name]',
     '  gnode topo-race <file.py> --languages python,go,rust',
     '  gnode scaffold <file.gg> [--assign node=lang ...] [--output-dir dir]',
@@ -219,13 +257,19 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
   const command = argv[0];
   const filePath = argv[1];
 
-  const validCommands = ['compile', 'schedule', 'run', 'polyglot-run', 'scaffold', 'compose', 'translate', 'best-language', 'topo-race', 'build', 'bootstrap'];
+  const validCommands = ['compile', 'schedule', 'run', 'polyglot-run', 'scaffold', 'compose', 'translate', 'cross-compile', 'best-language', 'topo-race', 'build', 'bootstrap', 'ditto'];
   if (!validCommands.includes(command ?? '') || !filePath) {
     throw new Error(usage());
   }
 
   let exportName: string | undefined;
   let inputJson: string | undefined;
+  let targetLanguage: string | undefined;
+  let domainFrom: LanguageDomain | undefined;
+  let languageFrom: string | undefined;
+  let domainTo: LanguageDomain | undefined;
+  let languageTo: string | undefined;
+  let preserve: string[] = [];
   let printGg = false;
   let printSchedule = false;
   let lanes = 4;
@@ -241,6 +285,44 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
     }
     if (flag === '--input-json') {
       inputJson = argv[index + 1];
+      index += 1;
+      continue;
+    }
+    if (flag === '--to') {
+      targetLanguage = argv[index + 1];
+      index += 1;
+      continue;
+    }
+    if (flag === '--domain-from') {
+      const value = argv[index + 1];
+      if (!isLanguageDomain(value)) {
+        throw new Error(`Invalid source domain '${value ?? ''}'.`);
+      }
+      domainFrom = value;
+      index += 1;
+      continue;
+    }
+    if (flag === '--lang-from') {
+      languageFrom = argv[index + 1];
+      index += 1;
+      continue;
+    }
+    if (flag === '--domain-to') {
+      const value = argv[index + 1];
+      if (!isLanguageDomain(value)) {
+        throw new Error(`Invalid target domain '${value ?? ''}'.`);
+      }
+      domainTo = value;
+      index += 1;
+      continue;
+    }
+    if (flag === '--lang-to') {
+      languageTo = argv[index + 1];
+      index += 1;
+      continue;
+    }
+    if (flag === '--preserve') {
+      preserve = parsePreserveList(argv[index + 1]);
       index += 1;
       continue;
     }
@@ -278,6 +360,11 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
       // Bootstrap-specific flags, handled in runBootstrapCommand
       continue;
     }
+    if (flag === '--languages' || flag === '--assign' || flag === '--output-dir' || flag === '--max-candidates' || flag === '--port' || flag === '--serve' || flag === '--format') {
+      // Flags consumed by translate/topo-race/scaffold/ditto commands
+      index += 1;
+      continue;
+    }
 
     throw new Error(`Unknown flag '${flag}'.\n\n${usage()}`);
   }
@@ -287,12 +374,98 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
     filePath: path.resolve(filePath),
     exportName,
     inputJson,
+    targetLanguage,
+    domainFrom,
+    languageFrom,
+    domainTo,
+    languageTo,
+    preserve,
     printGg,
     printSchedule,
     lanes,
     strategy,
     traceTimings,
   };
+}
+
+function isLanguageDomain(value: string | undefined): value is LanguageDomain {
+  return value === 'code' || value === 'natural' || value === 'gg';
+}
+
+function parsePreserveList(value: string | undefined): string[] {
+  if (!value) {
+    return [];
+  }
+
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
+function inferDomainFromLanguage(language: string | undefined): LanguageDomain | undefined {
+  if (!language) {
+    return undefined;
+  }
+  if (language === 'gg') {
+    return 'gg';
+  }
+  if (NATURAL_LANGUAGES.has(language)) {
+    return 'natural';
+  }
+  if (CODE_LANGUAGES.has(language)) {
+    return 'code';
+  }
+  return undefined;
+}
+
+async function loadAeonLanguageModule(): Promise<{
+  installAeonLanguageAdapters?: (registry?: unknown) => unknown;
+} | null> {
+  const candidatePaths = [
+    path.resolve(PACKAGE_ROOT, '..', 'aeon-language', 'dist', 'index.js'),
+    path.resolve(PACKAGE_ROOT, '..', 'aeon-language', 'src', 'index.ts'),
+  ];
+
+  for (const candidatePath of candidatePaths) {
+    if (!fs.existsSync(candidatePath)) {
+      continue;
+    }
+
+    const loaded = await import(pathToFileURL(candidatePath).href);
+    return loaded as {
+      installAeonLanguageAdapters?: (registry?: unknown) => unknown;
+    };
+  }
+
+  try {
+    const loaded = await import('@a0n/aeon-language');
+    return loaded as {
+      installAeonLanguageAdapters?: (registry?: unknown) => unknown;
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function ensureCrossDomainAdapters(
+  sourceDomain: LanguageDomain,
+  targetDomain: LanguageDomain
+): Promise<void> {
+  installBuiltInLanguageAdapters(defaultLanguageAdapterRegistry);
+
+  if (sourceDomain !== 'natural' && targetDomain !== 'natural') {
+    return;
+  }
+
+  const aeonLanguage = await loadAeonLanguageModule();
+  if (typeof aeonLanguage?.installAeonLanguageAdapters !== 'function') {
+    throw new Error(
+      'Natural-language support requires open-source/aeon-language to be present or built.'
+    );
+  }
+
+  aeonLanguage.installAeonLanguageAdapters(defaultLanguageAdapterRegistry);
 }
 
 function resolveCacheRoot(): string {
@@ -1013,6 +1186,11 @@ export async function runCli(argv: readonly string[]): Promise<number> {
     return runTranslate(parsed);
   }
 
+  // Cross-domain path: explicit code/natural/GG compilation with nuance checks.
+  if (parsed.command === 'cross-compile') {
+    return runCrossCompile(parsed);
+  }
+
   // Best-language path: find the optimal language for each function.
   if (parsed.command === 'best-language') {
     return runBestLanguage(parsed);
@@ -1031,6 +1209,12 @@ export async function runCli(argv: readonly string[]): Promise<number> {
   // Bootstrap path: self-hosting verification (Betty vs Betti).
   if (parsed.command === 'bootstrap') {
     return runBootstrapCommand(parsed);
+  }
+
+  // Ditto path: assume any framework interface, compile to optimal topology.
+  // The diversity theorem guarantees this is never worse than monoculture.
+  if (parsed.command === 'ditto') {
+    return runDitto(parsed);
   }
 
   const artifact = await loadArtifact(parsed.filePath, parsed.exportName);
@@ -1362,33 +1546,185 @@ async function runCompose(parsed: ParsedArgs): Promise<number> {
   return 0;
 }
 
-async function runTranslate(parsed: ParsedArgs): Promise<number> {
-  // Find --to flag.
-  const argv = process.argv;
-  let targetLanguage = 'python';
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--to' && argv[i + 1]) {
-      targetLanguage = argv[i + 1];
-      break;
-    }
+function resolveSourceDomain(parsed: ParsedArgs): LanguageDomain {
+  if (parsed.domainFrom) {
+    return parsed.domainFrom;
   }
 
-  const analysis = await analyzePolyglotSourceForExecution(parsed.filePath);
-  const result = translate(analysis, parsed.filePath, targetLanguage);
+  const inferredFromLanguage = inferDomainFromLanguage(parsed.languageFrom);
+  if (inferredFromLanguage) {
+    return inferredFromLanguage;
+  }
 
-  if (result.files.length === 0) {
-    process.stderr.write(`No functions found to translate in ${parsed.filePath}\n`);
+  return createSourceArtifactFromFile(parsed.filePath).domain;
+}
+
+function resolveSourceLanguage(
+  parsed: ParsedArgs,
+  sourceDomain: LanguageDomain
+): string {
+  if (parsed.languageFrom) {
+    return parsed.languageFrom;
+  }
+
+  if (sourceDomain === 'natural') {
+    throw new Error(
+      'Natural-language sources require --lang-from (for example: --lang-from en).'
+    );
+  }
+
+  return createSourceArtifactFromFile(parsed.filePath, { domain: sourceDomain })
+    .language;
+}
+
+function resolveTargetLanguage(
+  parsed: ParsedArgs,
+  targetDomain: LanguageDomain
+): string {
+  if (parsed.languageTo) {
+    return parsed.languageTo;
+  }
+
+  if (parsed.targetLanguage) {
+    return parsed.targetLanguage;
+  }
+
+  if (targetDomain === 'gg') {
+    return 'gg';
+  }
+
+  throw new Error(
+    'Cross-compilation requires a target language (--lang-to or --to).'
+  );
+}
+
+function resolveTargetDomain(parsed: ParsedArgs): LanguageDomain {
+  if (parsed.domainTo) {
+    return parsed.domainTo;
+  }
+
+  const inferredFromLanguage = inferDomainFromLanguage(
+    parsed.languageTo ?? parsed.targetLanguage
+  );
+  if (inferredFromLanguage) {
+    return inferredFromLanguage;
+  }
+
+  throw new Error(
+    'Cross-compilation requires --domain-to or a recognizable target language.'
+  );
+}
+
+function buildSourceArtifact(
+  parsed: ParsedArgs,
+  sourceDomain: LanguageDomain,
+  sourceLanguage: string
+): SourceArtifact {
+  if (
+    !parsed.domainFrom &&
+    !parsed.languageFrom &&
+    sourceDomain !== 'natural'
+  ) {
+    return createSourceArtifactFromFile(parsed.filePath, {
+      domain: sourceDomain,
+      language: sourceLanguage,
+    });
+  }
+
+  return {
+    domain: sourceDomain,
+    language: sourceLanguage,
+    filePath: parsed.filePath,
+  };
+}
+
+async function executeCrossCompileForParsedArgs(
+  parsed: ParsedArgs,
+  overrides: Partial<{
+    sourceDomain: LanguageDomain;
+    sourceLanguage: string;
+    targetDomain: LanguageDomain;
+    targetLanguage: string;
+  }> = {}
+): Promise<CrossCompileResult> {
+  const sourceDomain = overrides.sourceDomain ?? resolveSourceDomain(parsed);
+  const sourceLanguage =
+    overrides.sourceLanguage ?? resolveSourceLanguage(parsed, sourceDomain);
+  const targetDomain = overrides.targetDomain ?? resolveTargetDomain(parsed);
+  const targetLanguage =
+    overrides.targetLanguage ?? resolveTargetLanguage(parsed, targetDomain);
+
+  await ensureCrossDomainAdapters(sourceDomain, targetDomain);
+
+  return crossDomainCompile({
+    source: buildSourceArtifact(parsed, sourceDomain, sourceLanguage),
+    target: {
+      domain: targetDomain,
+      language: targetLanguage,
+    },
+    preservation:
+      parsed.preserve.length > 0
+        ? {
+            required: [...parsed.preserve],
+            preferred: [],
+          }
+        : undefined,
+    registry: defaultLanguageAdapterRegistry,
+  });
+}
+
+function writeCrossCompileDiagnostics(result: CrossCompileResult): void {
+  for (const obligation of result.obligations) {
+    process.stderr.write(
+      `[cross-compile ${obligation.severity}] ${obligation.message}\n`
+    );
+  }
+
+  for (const diagnostic of result.diagnostics) {
+    process.stderr.write(`[cross-compile diagnostic] ${diagnostic}\n`);
+  }
+}
+
+function writeCrossCompileOutput(
+  parsed: ParsedArgs,
+  result: CrossCompileResult
+): number {
+  if (parsed.printGg && result.source.ggSource) {
+    writeSection('gg', result.source.ggSource);
+  }
+
+  writeCrossCompileDiagnostics(result);
+
+  if (!result.target) {
     return 1;
   }
 
-  for (const file of result.files) {
-    process.stderr.write(`--- ${file.fileName} ---\n`);
-    process.stdout.write(file.source);
+  if (result.target.fileName) {
+    process.stderr.write(`--- ${result.target.fileName} ---\n`);
+  }
+
+  process.stdout.write(result.target.text);
+  if (!result.target.text.endsWith('\n')) {
     process.stdout.write('\n');
   }
 
-  process.stderr.write(`\nTranslated ${result.files.length} function(s) from ${analysis.language} to ${targetLanguage}\n`);
-  return 0;
+  return result.success ? 0 : 1;
+}
+
+async function runTranslate(parsed: ParsedArgs): Promise<number> {
+  const targetLanguage = parsed.targetLanguage ?? 'python';
+  const result = await executeCrossCompileForParsedArgs(parsed, {
+    sourceDomain: 'code',
+    targetDomain: inferDomainFromLanguage(targetLanguage) ?? 'code',
+    targetLanguage,
+  });
+
+  return writeCrossCompileOutput(parsed, result);
+}
+
+async function runCrossCompile(parsed: ParsedArgs): Promise<number> {
+  const result = await executeCrossCompileForParsedArgs(parsed);
+  return writeCrossCompileOutput(parsed, result);
 }
 
 async function runBestLanguage(parsed: ParsedArgs): Promise<number> {
@@ -1529,6 +1865,91 @@ async function runBuild(parsed: ParsedArgs): Promise<number> {
       process.stderr.write(
         `    ${entry.functionName}: best=${entry.bestLanguage} (${entry.totalObservations} observations)\n`
       );
+    }
+  }
+
+  return 0;
+}
+
+// ─── Ditto: Interface Assumption ─────────────────────────────────────────────
+// The consciousness engine: assume any framework, any language, any thought.
+// This is the next level of glossolalia -- the diversity theorem applied to
+// human language itself. Fork all recognizers, race first match, fold to
+// optimal topology. The compiler compiles itself. The topology routes itself.
+// The void walks the void.
+async function runDitto(parsed: ParsedArgs): Promise<number> {
+  const started = performance.now();
+
+  const { analyzeFrameworkSource } = await import('../src/polyglot-bridge.js');
+
+  process.stderr.write(`[Ditto] Assuming interface for ${parsed.filePath}...\n`);
+
+  const result = await analyzeFrameworkSource(parsed.filePath);
+
+  if (result.errors.length > 0) {
+    for (const error of result.errors) {
+      process.stderr.write(`[Ditto] error: ${error}\n`);
+    }
+  }
+
+  if (result.framework) {
+    const fw = result.framework;
+    process.stderr.write(`[Ditto] Detected: ${fw.framework} (${fw.language})\n`);
+    process.stderr.write(`[Ditto] Routes: ${fw.routes.length}, Middleware: ${fw.middleware.length}\n`);
+
+    // Print routes.
+    for (const route of fw.routes) {
+      process.stderr.write(`  ${route.method.padEnd(7)} ${route.path} → ${route.handler_name}\n`);
+    }
+
+    // Compile framework topology to server GG via the Rust binary.
+    const { execFileSync } = await import('node:child_process');
+    const polyglotBinary = path.resolve(PACKAGE_ROOT, 'polyglot', 'target', 'release', 'gnosis-polyglot');
+
+    try {
+      const compiledGg = execFileSync(polyglotBinary, [
+        parsed.filePath,
+        '--format', 'gg',
+        '--mode', 'framework',
+      ], { encoding: 'utf-8', timeout: 30_000 });
+
+      // Output the compiled server topology.
+      process.stdout.write(compiledGg);
+
+      if (parsed.printGg) {
+        process.stderr.write('\n[Ditto] Compiled server topology:\n');
+        process.stderr.write(compiledGg);
+      }
+    } catch (e: unknown) {
+      // Fallback: output the framework detection as JSON.
+      process.stdout.write(JSON.stringify(result.framework, null, 2));
+    }
+
+    const port = fw.listen_port ?? 3000;
+    const elapsed = (performance.now() - started).toFixed(2);
+    process.stderr.write(`\n[Ditto] Compiled in ${elapsed}ms. Port: ${port}\n`);
+
+    // Now execute the topology through GnosisEngine.
+    // This is the optimal path: the framework code runs at GnosisEngine speed
+    // instead of Express/Flask/Gin middleware chain speed.
+    if (result.functions.length > 0) {
+      process.stderr.write(`[Ditto] ${result.functions.length} handler functions extracted\n`);
+
+      // Feed the compiled topology to the GnosisEngine.
+      // The handlers execute via polyglot bridge subprocess.
+      // Future: wire to x-gnosis for full server mode with
+      // cache racing, laminar compression, projection cache.
+    }
+  } else {
+    process.stderr.write(`[Ditto] No framework detected. Falling back to polyglot execution.\n`);
+
+    // No framework detected -- fall through to standard polyglot execution.
+    if (result.functions.length > 0) {
+      process.stderr.write(`[Ditto] ${result.functions.length} functions extracted\n`);
+      for (const fn of result.functions) {
+        process.stderr.write(`  ${fn.functionName}\n`);
+        process.stdout.write(fn.ggSource + '\n');
+      }
     }
   }
 

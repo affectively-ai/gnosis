@@ -357,6 +357,16 @@ impl<'a> GgCompiler<'a> {
                         props.insert("semantic_predicates".to_string(), json);
                     }
                 }
+                if !contract.facets.is_empty() {
+                    if let Ok(json) = serde_json::to_string(&contract.facets) {
+                        props.insert("semantic_facets".to_string(), json);
+                    }
+                }
+                if !contract.obligations.is_empty() {
+                    if let Ok(json) = serde_json::to_string(&contract.obligations) {
+                        props.insert("semantic_obligations".to_string(), json);
+                    }
+                }
                 // Also attach the language for Phase 8 denotation.
                 props.insert("language".to_string(), self.cfg.language.clone());
                 if let Some(ref ret) = self.cfg.signature.return_type {
