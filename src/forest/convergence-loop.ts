@@ -23,6 +23,7 @@ import { BettyCompiler, type GraphAST } from '../betty/compiler.js';
 import { runBettiPipeline } from '../betti/bootstrap.js';
 import { lowerUfcsSource } from '../ufcs.js';
 import { composeWinners } from './compose-winners.js';
+import { buleyeanWeight } from '../math.js';
 import type {
   CompilerName,
   InProcessCompiler,
@@ -219,41 +220,80 @@ export function runGeneration(
 
   const globalTimings = raceCompilers(source, compilers, subprocessConfigs, config);
 
-  // Rank by speed
+  // ── GOD FORMULA: complement distribution over compilers ──────────────
+  // Each compiler that lost the race gets +1 rejection.
+  // w = R - min(v, R) + 1 assigns weight proportional to survival.
+  // The sliver (+1) ensures EVERY compiler retains positive weight.
+  // Nodes are distributed proportionally, not winner-take-all.
+
   const ranked = [...globalTimings.entries()]
     .filter(([, t]) => t < Infinity)
     .sort((a, b) => a[1] - b[1]);
 
+  const winnerName = ranked[0]?.[0] ?? compilers[0];
+
+  // Binary rejection: each loser gets +1. Winner gets 0.
+  const rejectionCounts = new Map<string, number>();
+  for (const c of compilers) {
+    rejectionCounts.set(c, c === winnerName ? 0 : 1);
+  }
+
+  // Complement weights via God Formula: w = totalRejections - rejections_i + 1
+  const totalRejections = compilers.length - 1; // K-1 losers
+  const compilerWeights = new Map<string, number>();
+  let weightSum = 0;
+  for (const c of compilers) {
+    const w = buleyeanWeight(totalRejections, rejectionCounts.get(c) ?? 0);
+    compilerWeights.set(c, w);
+    weightSum += w;
+  }
+
+  // Distribute nodes proportionally to complement weights.
+  // Round down, then distribute remainders to highest-weight compilers.
+  const targetCounts = new Map<string, number>();
+  let distributed = 0;
+  for (const c of compilers) {
+    const w = compilerWeights.get(c) ?? 1;
+    const count = Math.floor((w / weightSum) * functions.length);
+    targetCounts.set(c, count);
+    distributed += count;
+  }
+
+  // Distribute remainders by weight order (highest first)
+  const byWeight = [...compilerWeights.entries()].sort((a, b) => b[1] - a[1]);
+  let remainder = functions.length - distributed;
+  for (const [c] of byWeight) {
+    if (remainder <= 0) break;
+    targetCounts.set(c, (targetCounts.get(c) ?? 0) + 1);
+    remainder--;
+  }
+
+  // THE SLIVER: every compiler with nodes available gets at least 1
+  if (functions.length >= compilers.length) {
+    for (const c of compilers) {
+      if ((targetCounts.get(c) ?? 0) === 0) {
+        // Steal from the compiler with the most nodes
+        const donor = [...targetCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+        if (donor && donor[1] > 1) {
+          targetCounts.set(donor[0], donor[1] - 1);
+          targetCounts.set(c, 1);
+        }
+      }
+    }
+  }
+
+  // Assign nodes to compilers based on computed distribution
   const winners = new Map<string, string>();
   const rejections = new Map<string, string[]>();
   const timings = new Map<string, Map<string, number>>();
+  let fnIdx = 0;
 
-  const overallWinner = ranked[0]?.[0] ?? compilers[0];
-  for (const fn of functions) {
-    winners.set(fn, overallWinner);
-    timings.set(fn, new Map(globalTimings));
-    rejections.set(fn, compilers.filter((c) => c !== overallWinner));
-  }
-
-  // THE SLIVER: every compiler gets at least one node
-  if (functions.length >= compilers.length) {
-    const winCounts = new Map<string, number>();
-    for (const c of compilers) winCounts.set(c, 0);
-    for (const c of winners.values()) winCounts.set(c, (winCounts.get(c) ?? 0) + 1);
-
-    let nodeIndex = functions.length - 1;
-    for (const c of compilers) {
-      if ((winCounts.get(c) ?? 0) > 0) continue;
-      if (nodeIndex < 0) break;
-      const fn = functions[nodeIndex]!;
-      const prevWinner = winners.get(fn)!;
-      winners.set(fn, c);
-      rejections.set(fn, compilers.filter((l) => l !== c));
-      if ((winCounts.get(prevWinner) ?? 0) > 1) {
-        winCounts.set(prevWinner, (winCounts.get(prevWinner) ?? 0) - 1);
-      }
-      winCounts.set(c, 1);
-      nodeIndex--;
+  for (const [compiler, count] of targetCounts) {
+    for (let i = 0; i < count && fnIdx < functions.length; i++, fnIdx++) {
+      const fn = functions[fnIdx]!;
+      winners.set(fn, compiler);
+      timings.set(fn, new Map(globalTimings));
+      rejections.set(fn, compilers.filter((c) => c !== compiler));
     }
   }
 

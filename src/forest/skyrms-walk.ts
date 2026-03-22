@@ -86,11 +86,21 @@ export const DEFAULT_SKYRMS_CONFIG: SkyrmsConfig = {
 /**
  * Convert Forest generation timings into per-node void boundaries.
  *
- * For each node, the void boundary has one dimension per compiler.
- * The rejection count for each dimension is proportional to how much
- * slower that compiler was relative to the winner. A compiler that
- * tied the winner gets rejection count 0. A compiler that was 10x
- * slower gets a proportionally higher rejection count.
+ * GOD FORMULA APPLICATION: Binary rejection counting.
+ *
+ * For each node in each generation, the winning compiler gets 0 rejection.
+ * Every losing compiler gets +1 rejection. This is the correct Buleyean
+ * counting: each race is one observation round, each loser is one rejection.
+ *
+ * Previous approach used continuous slowdown magnitudes (time - minTime) / minTime,
+ * which is unbounded and causes weight clipping. Binary counting preserves
+ * the God Formula's guarantees:
+ *   w = R - min(v, R) + 1, where R = total races, v = losses
+ *
+ * The complement distribution from binary counts naturally gives:
+ * - Winner of all races: weight = R + 1 (maximum)
+ * - Loser of all races: weight = 1 (the sliver)
+ * - Partial winner: weight proportional to win rate
  */
 function buildNodeBoundaries(
   generations: GenerationState[],
@@ -112,21 +122,17 @@ function buildNodeBoundaries(
       for (const [, time] of nodeTimings) {
         if (time < minTime) minTime = time;
       }
-      if (minTime === 0) minTime = 0.001; // Avoid division by zero
 
-      // Rejection magnitude = how much slower than the winner
-      // A compiler that is 2x slower gets rejection 1.0
-      // A compiler that tied gets rejection 0.0
+      // Binary rejection: winner gets 0, every loser gets +1
+      // This is the God Formula's counting: one observation round per race,
+      // one rejection per loss. Bounded, interpretable, theorem-backed.
       for (const compiler of compilers) {
         const idx = compilerIndex.get(compiler);
         if (idx === undefined) continue;
         const time = nodeTimings.get(compiler) ?? Infinity;
-        if (time === Infinity) {
-          // Compiler not available: maximum rejection
-          updateVoidBoundary(boundary, idx, 10.0);
-        } else {
-          const slowdown = (time - minTime) / minTime;
-          updateVoidBoundary(boundary, idx, slowdown);
+        const didLose = time > minTime;
+        if (didLose) {
+          updateVoidBoundary(boundary, idx, 1);
         }
       }
     }
