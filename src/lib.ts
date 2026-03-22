@@ -619,3 +619,21 @@ export type {
   RuntimeTopologyMetrics,
   WallaceDivergence,
 } from './ts-runtime-probe.js';
+
+// Seven Laws & God Formula check system
+export {
+  checkSevenLaws,
+  checkGodFormula,
+  checkControlStatistics,
+  checkReductionChain,
+  fullBuleyeanAudit,
+  auditVoidBoundary,
+  formatAuditReport,
+  type CheckResult,
+  type SevenLawsReport,
+  type GodFormulaReport,
+  type ControlStatisticReport,
+  type ReductionChainReport,
+  type FullAuditReport,
+  type BuleyeanInput,
+} from './seven-laws-checker.js';

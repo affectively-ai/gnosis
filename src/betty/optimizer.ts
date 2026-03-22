@@ -14,6 +14,11 @@ import type {
   GraphAST,
 } from './compiler.js';
 import type { StabilityReport } from './stability.js';
+import {
+  classifyFoldRegime,
+  idleStages,
+  type FoldRegime,
+} from '../reynolds-bft.js';
 
 // ─── Pass result ─────────────────────────────────────────────────────
 
@@ -43,6 +48,387 @@ export interface OptimizationPass {
   readonly kind: 'transform' | 'analyze';
   predicate(ast: GraphAST, stability: StabilityReport): boolean;
   apply(ast: GraphAST, stability: StabilityReport): OptimizationPassResult;
+}
+
+interface FoldSegmentMetrics {
+  stages: number;
+  chunks: number;
+  idle: number;
+  regime: FoldRegime;
+}
+
+function isMultiSourceFold(edge: ASTEdge): boolean {
+  return (
+    (edge.type === 'FOLD' || edge.type === 'COLLAPSE') &&
+    edge.sourceIds.length > 1
+  );
+}
+
+function dedupeIds(ids: string[]): string[] {
+  return [...new Set(ids)];
+}
+
+function buildProcessPredecessors(ast: GraphAST): Map<string, string[]> {
+  const predecessors = new Map<string, string[]>();
+
+  for (const edge of ast.edges) {
+    if (edge.type !== 'PROCESS') {
+      continue;
+    }
+
+    for (const targetId of edge.targetIds) {
+      const current = predecessors.get(targetId) ?? [];
+      current.push(...edge.sourceIds);
+      predecessors.set(targetId, dedupeIds(current));
+    }
+  }
+
+  return predecessors;
+}
+
+function inferFoldSegmentStages(ast: GraphAST, sourceIds: string[]): number {
+  const predecessors = buildProcessPredecessors(ast);
+  let frontier = dedupeIds(sourceIds);
+  const seen = new Set(frontier);
+  let stages = 0;
+
+  while (frontier.length > 0) {
+    stages += 1;
+
+    const nextLayer = new Set<string>();
+    for (const nodeId of frontier) {
+      const nodePredecessors = predecessors.get(nodeId) ?? [];
+      for (const predecessorId of nodePredecessors) {
+        if (seen.has(predecessorId)) {
+          continue;
+        }
+        seen.add(predecessorId);
+        nextLayer.add(predecessorId);
+      }
+    }
+
+    frontier = [...nextLayer];
+  }
+
+  return Math.max(stages, 1);
+}
+
+function inferFoldSegmentMetrics(
+  ast: GraphAST,
+  edge: ASTEdge
+): FoldSegmentMetrics {
+  const stages = inferFoldSegmentStages(ast, edge.sourceIds);
+  const chunks = edge.sourceIds.length;
+  return {
+    stages,
+    chunks,
+    idle: idleStages(stages, chunks),
+    regime: classifyFoldRegime(stages, chunks),
+  };
+}
+
+function theoremNameForFoldRegime(regime: FoldRegime): string {
+  switch (regime) {
+    case 'mergeAll':
+      return 'classifyRegime_eq_mergeAll_iff_quorumSafe';
+    case 'quorumFold':
+      return 'classifyRegime_eq_quorumFold_iff_majoritySafe_not_quorumSafe';
+    case 'syncRequired':
+      return 'classifyRegime_eq_syncRequired_iff_not_majoritySafe';
+  }
+}
+
+function minimumMajorityChunks(stages: number): number {
+  return Math.floor(stages / 2) + 1;
+}
+
+function collectProcessAncestors(ast: GraphAST, nodeIds: string[]): Set<string> {
+  const predecessors = buildProcessPredecessors(ast);
+  const pending = [...nodeIds];
+  const visited = new Set(nodeIds);
+
+  while (pending.length > 0) {
+    const current = pending.pop()!;
+    const currentPredecessors = predecessors.get(current) ?? [];
+    for (const predecessorId of currentPredecessors) {
+      if (visited.has(predecessorId)) {
+        continue;
+      }
+      visited.add(predecessorId);
+      pending.push(predecessorId);
+    }
+  }
+
+  return visited;
+}
+
+function canRemoveProcessLineageNode(
+  ast: GraphAST,
+  nodeId: string,
+  removableNodes: Set<string>,
+  foldEdgeIndex: number
+): boolean {
+  for (let index = 0; index < ast.edges.length; index += 1) {
+    const edge = ast.edges[index];
+    if (!edge.sourceIds.includes(nodeId)) {
+      continue;
+    }
+
+    if (index === foldEdgeIndex) {
+      continue;
+    }
+
+    const liveTargets = edge.targetIds.filter((targetId) => {
+      return !removableNodes.has(targetId);
+    });
+
+    if (liveTargets.length > 0) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function pruneFoldLineage(
+  ast: GraphAST,
+  foldEdgeIndex: number,
+  keptSourceIds: string[]
+): GraphAST {
+  const foldEdge = ast.edges[foldEdgeIndex];
+  const keptSourceSet = new Set(keptSourceIds);
+  const droppedSourceIds = foldEdge.sourceIds.filter((sourceId) => {
+    return !keptSourceSet.has(sourceId);
+  });
+
+  if (droppedSourceIds.length === 0) {
+    return ast;
+  }
+
+  const candidateNodes = collectProcessAncestors(ast, droppedSourceIds);
+  const removableNodes = new Set(candidateNodes);
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+    for (const nodeId of [...removableNodes]) {
+      if (
+        !canRemoveProcessLineageNode(ast, nodeId, removableNodes, foldEdgeIndex)
+      ) {
+        removableNodes.delete(nodeId);
+        changed = true;
+      }
+    }
+  }
+
+  const nextNodes = new Map<string, ASTNode>();
+  for (const [nodeId, node] of ast.nodes) {
+    if (!removableNodes.has(nodeId)) {
+      nextNodes.set(nodeId, node);
+    }
+  }
+
+  const nextEdges: ASTEdge[] = [];
+  for (let index = 0; index < ast.edges.length; index += 1) {
+    const edge = ast.edges[index];
+    const sourceIds =
+      index === foldEdgeIndex
+        ? edge.sourceIds.filter((sourceId) => keptSourceSet.has(sourceId))
+        : edge.sourceIds.filter((sourceId) => !removableNodes.has(sourceId));
+    const targetIds = edge.targetIds.filter((targetId) => {
+      return !removableNodes.has(targetId);
+    });
+
+    if (sourceIds.length === 0 || targetIds.length === 0) {
+      continue;
+    }
+
+    nextEdges.push({ ...edge, sourceIds, targetIds });
+  }
+
+  return { nodes: nextNodes, edges: nextEdges };
+}
+
+export class ReynoldsFoldRegimePass implements OptimizationPass {
+  readonly name = 'reynolds-fold-regime';
+  readonly theoremId = 'THM-REYNOLDS-BFT-REGIME';
+  readonly priority = 5;
+  readonly kind = 'transform' as const;
+
+  predicate(ast: GraphAST): boolean {
+    return ast.edges.some(isMultiSourceFold);
+  }
+
+  apply(ast: GraphAST): OptimizationPassResult {
+    let currentAst = ast;
+    const diagnostics: Diagnostic[] = [];
+    const certificates: OptimizationCertificate[] = [];
+    const candidates = ast.edges
+      .filter(isMultiSourceFold)
+      .map((edge) => ({
+        type: edge.type,
+        targetKey: edge.targetIds.join('|'),
+        sourceIds: [...edge.sourceIds],
+      }));
+
+    for (const candidate of candidates) {
+      const foldEdgeIndex = currentAst.edges.findIndex((edge) => {
+        return (
+          edge.type === candidate.type &&
+          edge.targetIds.join('|') === candidate.targetKey &&
+          candidate.sourceIds.some((sourceId) => edge.sourceIds.includes(sourceId))
+        );
+      });
+      if (foldEdgeIndex === -1) {
+        continue;
+      }
+
+      const edge = currentAst.edges[foldEdgeIndex];
+      if (!isMultiSourceFold(edge)) {
+        continue;
+      }
+
+      const metrics = inferFoldSegmentMetrics(currentAst, edge);
+      const theoremName = theoremNameForFoldRegime(metrics.regime);
+      const baseData = {
+        edgeType: edge.type,
+        sourceIds: [...edge.sourceIds],
+        targetIds: [...edge.targetIds],
+        stages: metrics.stages,
+        chunks: metrics.chunks,
+        idleStages: metrics.idle,
+        regime: metrics.regime,
+      };
+
+      if (metrics.regime === 'quorumFold') {
+        const keptChunkCount = minimumMajorityChunks(metrics.stages);
+        const keptSourceIds = edge.sourceIds.slice(0, keptChunkCount);
+        const droppedSourceIds = edge.sourceIds.slice(keptChunkCount);
+        const prunedAst = pruneFoldLineage(currentAst, foldEdgeIndex, keptSourceIds);
+        const nextFoldIndex = prunedAst.edges.findIndex((candidateEdge) => {
+          return (
+            candidateEdge.targetIds.join('|') === edge.targetIds.join('|') &&
+            candidateEdge.sourceIds.join('|') === keptSourceIds.join('|') &&
+            candidateEdge.type === edge.type
+          );
+        });
+        const nextEdges = [...prunedAst.edges];
+        if (nextFoldIndex !== -1) {
+          const nextEdge = nextEdges[nextFoldIndex]!;
+          nextEdges[nextFoldIndex] = {
+            ...nextEdge,
+            properties: {
+              ...nextEdge.properties,
+              reynoldsRegime: metrics.regime,
+              reynoldsStages: metrics.stages.toString(),
+              reynoldsChunks: metrics.chunks.toString(),
+              reynoldsIdleStages: metrics.idle.toString(),
+              reynoldsKeptChunks: keptSourceIds.length.toString(),
+              reynoldsTheorem: theoremName,
+            },
+          };
+        }
+        currentAst = { nodes: prunedAst.nodes, edges: nextEdges };
+
+        diagnostics.push({
+          line: 1,
+          column: 1,
+          message: `[${this.theoremId}] Fold [${edge.sourceIds.join(
+            ', '
+          )}]→[${edge.targetIds.join(
+            ', '
+          )}] classified quorumFold with stages=${metrics.stages}, chunks=${
+            metrics.chunks
+          }. Pruned to deterministic majority subset [${keptSourceIds.join(
+            ', '
+          )}] by ${theoremName}.`,
+          severity: 'info',
+        });
+        certificates.push({
+          passName: this.name,
+          theoremId: this.theoremId,
+          leanTheoremName: theoremName,
+          summary: `Fold [${edge.sourceIds.join(
+            ', '
+          )}]→[${edge.targetIds.join(
+            ', '
+          )}] classified quorumFold and pruned ${droppedSourceIds.length} branch(es) before coarsening.`,
+          data: {
+            ...baseData,
+            keptSourceIds,
+            droppedSourceIds,
+          },
+        });
+        continue;
+      }
+
+      const nextEdges = [...currentAst.edges];
+      const nextEdge = nextEdges[foldEdgeIndex]!;
+      nextEdges[foldEdgeIndex] = {
+        ...nextEdge,
+        type:
+          metrics.regime === 'syncRequired' && nextEdge.type === 'COLLAPSE'
+            ? 'FOLD'
+            : nextEdge.type,
+        properties: {
+          ...nextEdge.properties,
+          reynoldsRegime: metrics.regime,
+          reynoldsStages: metrics.stages.toString(),
+          reynoldsChunks: metrics.chunks.toString(),
+          reynoldsIdleStages: metrics.idle.toString(),
+          reynoldsTheorem: theoremName,
+        },
+      };
+      currentAst = { nodes: currentAst.nodes, edges: nextEdges };
+
+      diagnostics.push({
+        line: 1,
+        column: 1,
+        message:
+          metrics.regime === 'syncRequired'
+            ? `[${this.theoremId}] Fold [${edge.sourceIds.join(
+                ', '
+              )}]→[${edge.targetIds.join(
+                ', '
+              )}] classified syncRequired with stages=${
+                metrics.stages
+              }, chunks=${metrics.chunks}. Automatic collapse is blocked by ${theoremName}.`
+            : `[${this.theoremId}] Fold [${edge.sourceIds.join(
+                ', '
+              )}]→[${edge.targetIds.join(
+                ', '
+              )}] classified mergeAll with stages=${metrics.stages}, chunks=${
+                metrics.chunks
+              }. Full coarsening remains admissible by ${theoremName}.`,
+        severity: metrics.regime === 'syncRequired' ? 'warning' : 'info',
+      });
+      certificates.push({
+        passName: this.name,
+        theoremId: this.theoremId,
+        leanTheoremName: theoremName,
+        summary:
+          metrics.regime === 'syncRequired'
+            ? `Fold [${edge.sourceIds.join(
+                ', '
+              )}]→[${edge.targetIds.join(
+                ', '
+              )}] classified syncRequired and blocked automatic collapse.`
+            : `Fold [${edge.sourceIds.join(
+                ', '
+              )}]→[${edge.targetIds.join(
+                ', '
+              )}] classified mergeAll and remained fully coarsenable.`,
+        data: baseData,
+      });
+    }
+
+    return {
+      ast: currentAst,
+      diagnostics,
+      certificates,
+      applied: certificates.length > 0,
+    };
+  }
 }
 
 // ─── Coarsening pass (THM-RECURSIVE-COARSENING-SYNTHESIS) ────────────
@@ -634,6 +1020,7 @@ class SelfVerificationPass implements OptimizationPass {
 
 export function createDefaultOptimizer(): OptimizationPassManager {
   const manager = new OptimizationPassManager();
+  manager.register(new ReynoldsFoldRegimePass());
   manager.register(new CoarseningPass());
   manager.register(new CodecRacingPass());
   manager.register(new WarmupEfficiencyPass());

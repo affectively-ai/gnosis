@@ -328,7 +328,7 @@ $$
 Re = N / C
 $$
 
-This is the ratio of stages to chunks – the density of the pipeline. Low $Re$ ($< 0.3$): laminar regime, steady-state, high utilization. Transitional $Re$ ($0.3$–$0.7$): idle-slot recovery is profitable. High $Re$ ($> 0.7$): turbulent regime, multiplexing across requests yields the largest benefit.
+This is the ratio of stages to chunks – the density of the pipeline. The mechanized Reynolds/BFT boundary is exact: low $Re$ ($< 3/2$) is the `mergeAll` regime, where quorum safety already holds (`quorumSafeFold_iff_three_chunks_gt_two_stages`, `classifyRegime_eq_mergeAll_iff_quorumSafe`). Transitional $Re$ ($3/2 \le Re < 2$) is the `quorumFold` band, where majority safety holds but quorum safety does not (`majoritySafeFold_iff_two_chunks_gt_stages`, `classifyRegime_eq_quorumFold_iff_majoritySafe_not_quorumSafe`). High $Re$ ($\ge 2$) is the `syncRequired` regime (`classifyRegime_eq_syncRequired_iff_not_majoritySafe`).
 
 The Reynolds-number mapping is an explicit analogy. In fluid dynamics, $Re = \rho v D / \mu$ predicts transition from laminar to turbulent flow: inertial forces (numerator) versus viscous forces (denominator). In computation, the correspondence used here is: stages $N$ as inertial pressure (more stages = more work in flight), and chunks $C$ as viscous pressure (larger chunks = more resistance to context switching). Low $Re$ (large chunks, few stages) is laminar-like; high $Re$ (small chunks, many stages) is turbulent-like. The transition occurs when ramp-up/ramp-down idle cost exceeds multiplexing recovery benefit.
 
@@ -589,7 +589,7 @@ The pipeline Reynolds number $Re = N/C$ is used here as a complementary topology
 |---|---|
 | $L = \lambda W$ (items in system) | $\beta_1 = N - 1$ (parallel paths in system) |
 | Utilization $\rho = \lambda/\mu$ | $Re = N/C$ (stages / chunks) |
-| $\rho < 1$ for stability | Heuristic bands in this manuscript: $Re < 0.3$ laminar-like; $Re > 0.7$ turbulent-like |
+| $\rho < 1$ for stability | Exact mechanized fold bands: $Re < 3/2$ merge-all safe; $3/2 \le Re < 2$ quorum fold; $Re \ge 2$ synchrony required |
 | M/M/1, M/M/c, M/G/1 variants | Laminar, transitional, turbulent regimes |
 | Arrival rate $\lambda$ | Fork rate |
 | Service rate $\mu$ | Fold rate |
@@ -635,7 +635,7 @@ Queueing theory asks: *given a fixed topology, what is the steady-state behavior
 
 Fork/race/fold asks: *what topology should the system have at each decision point?*
 
-The Reynolds number $Re$ provides a runtime heuristic for this question. In the benchmarked regime bands used here: $Re < 0.3$ suggests sequential sufficiency, $0.3 < Re < 0.7$ suggests multiplexing opportunity, and $Re > 0.7$ suggests widening fork degree. The topology is not fixed; it is adapted from the same measurement that drives scheduling.
+The Reynolds number $Re$ provides a runtime classifier for this question. In the mechanized regime bands used here: $Re < 3/2$ keeps `mergeAll` admissible, $3/2 \le Re < 2$ requires quorum-style folding, and $Re \ge 2$ requires synchrony or external ordering. The topology is not fixed; it is adapted from the same measurement that drives scheduling.
 
 This contrast is used as a heuristic: queueing theory emphasizes steady-state behavior for fixed topologies, while fork/race/fold emphasizes topology-adaptation decisions under the assumptions used here.
 

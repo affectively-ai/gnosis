@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'bun:test';
 import {
+  ReynoldsFoldRegimePass,
   CoarseningPass,
   CodecRacingPass,
   WarmupEfficiencyPass,
@@ -32,6 +33,51 @@ function makeAST(nodes: ASTNode[], edges: ASTEdge[]): GraphAST {
   const nodeMap = new Map<string, ASTNode>();
   for (const node of nodes) nodeMap.set(node.id, node);
   return { nodes: nodeMap, edges };
+}
+
+function makeForkFoldPipeline(options: {
+  stages: number;
+  chunks: number;
+  foldType?: 'FOLD' | 'COLLAPSE';
+}): GraphAST {
+  const { stages, chunks, foldType = 'FOLD' } = options;
+  const nodes: ASTNode[] = [makeNode('fork'), makeNode('sink', ['SINK'])];
+  const edges: ASTEdge[] = [];
+  const firstStageIds: string[] = [];
+  const foldSourceIds: string[] = [];
+
+  for (let chunkIndex = 1; chunkIndex <= chunks; chunkIndex += 1) {
+    let previousNodeId = `b${chunkIndex}_s1`;
+    firstStageIds.push(previousNodeId);
+    nodes.push(makeNode(previousNodeId));
+
+    for (let stageIndex = 2; stageIndex <= stages; stageIndex += 1) {
+      const nodeId = `b${chunkIndex}_s${stageIndex}`;
+      nodes.push(makeNode(nodeId));
+      edges.push(makeEdge([previousNodeId], [nodeId], 'PROCESS'));
+      previousNodeId = nodeId;
+    }
+
+    foldSourceIds.push(previousNodeId);
+  }
+
+  edges.unshift(makeEdge(['fork'], firstStageIds, 'FORK'));
+  edges.push(makeEdge(foldSourceIds, ['sink'], foldType));
+
+  return makeAST(nodes, edges);
+}
+
+function makeStableAssessmentsForAst(ast: GraphAST): StabilityReport['stateAssessments'] {
+  return [...ast.nodes.keys()].map((nodeId) => ({
+    nodeId,
+    potential: '1',
+    arrival: nodeId === 'sink' ? null : '1',
+    service: nodeId === 'sink' ? null : '3',
+    vent: null,
+    gamma: null,
+    driftExpression: nodeId === 'sink' ? '0' : '-2',
+    status: 'stable' as const,
+  }));
 }
 
 function makeStabilityReport(
@@ -93,6 +139,83 @@ function makeStabilityReport(
 }
 
 // ─── CoarseningPass ──────────────────────────────────────────────────
+
+describe('ReynoldsFoldRegimePass', () => {
+  const pass = new ReynoldsFoldRegimePass();
+
+  it('has the Reynolds theorem ID', () => {
+    expect(pass.theoremId).toBe('THM-REYNOLDS-BFT-REGIME');
+  });
+
+  it('annotates mergeAll fold segments without pruning sources', () => {
+    const ast = makeForkFoldPipeline({ stages: 3, chunks: 3 });
+    const stability = makeStabilityReport();
+
+    expect(pass.predicate(ast, stability)).toBe(true);
+
+    const result = pass.apply(ast, stability);
+    expect(result.applied).toBe(true);
+
+    const foldEdge = result.ast.edges.find((edge) => edge.targetIds[0] === 'sink');
+    expect(foldEdge).toBeDefined();
+    expect(foldEdge!.type).toBe('FOLD');
+    expect(foldEdge!.sourceIds).toHaveLength(3);
+    expect(foldEdge!.properties.reynoldsRegime).toBe('mergeAll');
+    expect(foldEdge!.properties.reynoldsStages).toBe('3');
+    expect(foldEdge!.properties.reynoldsChunks).toBe('3');
+    expect(result.certificates[0].leanTheoremName).toBe(
+      'classifyRegime_eq_mergeAll_iff_quorumSafe'
+    );
+  });
+
+  it('prunes quorumFold segments to a deterministic majority subset', () => {
+    const ast = makeForkFoldPipeline({ stages: 11, chunks: 7 });
+    const stability = makeStabilityReport();
+
+    const result = pass.apply(ast, stability);
+    expect(result.applied).toBe(true);
+
+    const foldEdge = result.ast.edges.find((edge) => edge.targetIds[0] === 'sink');
+    expect(foldEdge).toBeDefined();
+    expect(foldEdge!.sourceIds).toEqual([
+      'b1_s11',
+      'b2_s11',
+      'b3_s11',
+      'b4_s11',
+      'b5_s11',
+      'b6_s11',
+    ]);
+    expect(foldEdge!.properties.reynoldsRegime).toBe('quorumFold');
+    expect(result.ast.nodes.has('b7_s11')).toBe(false);
+    expect(result.ast.nodes.has('b7_s1')).toBe(false);
+    expect(result.certificates[0].leanTheoremName).toBe(
+      'classifyRegime_eq_quorumFold_iff_majoritySafe_not_quorumSafe'
+    );
+  });
+
+  it('blocks automatic collapse when syncRequired is inferred', () => {
+    const ast = makeForkFoldPipeline({
+      stages: 5,
+      chunks: 2,
+      foldType: 'COLLAPSE',
+    });
+    const stability = makeStabilityReport();
+
+    const result = pass.apply(ast, stability);
+    expect(result.applied).toBe(true);
+
+    const foldEdge = result.ast.edges.find((edge) => edge.targetIds[0] === 'sink');
+    expect(foldEdge).toBeDefined();
+    expect(foldEdge!.type).toBe('FOLD');
+    expect(foldEdge!.properties.reynoldsRegime).toBe('syncRequired');
+    expect(result.diagnostics.some((diagnostic) => diagnostic.severity === 'warning')).toBe(
+      true
+    );
+    expect(result.certificates[0].leanTheoremName).toBe(
+      'classifyRegime_eq_syncRequired_iff_not_majoritySafe'
+    );
+  });
+});
 
 describe('CoarseningPass', () => {
   const pass = new CoarseningPass();
@@ -594,5 +717,29 @@ describe('OptimizationPassManager', () => {
     // At minimum: codec-racing and warmup-efficiency should fire
     expect(passNames.has('codec-racing')).toBe(true);
     expect(passNames.has('warmup-efficiency')).toBe(true);
+  });
+
+  it('runs the Reynolds fold-regime pass before coarsening in the default optimizer', () => {
+    const manager = createDefaultOptimizer();
+    const ast = makeForkFoldPipeline({
+      stages: 5,
+      chunks: 2,
+      foldType: 'COLLAPSE',
+    });
+    const stability = makeStabilityReport({
+      stateAssessments: makeStableAssessmentsForAst(ast),
+    });
+
+    const result = manager.apply(ast, stability);
+    expect(result.passesApplied[0]).toBe('reynolds-fold-regime');
+    expect(result.passesApplied).toContain('coarsening');
+
+    const foldEdge = result.ast.edges.find((edge) => edge.targetIds[0] === 'sink');
+    expect(foldEdge?.type).toBe('FOLD');
+    expect(
+      result.certificates.some(
+        (certificate) => certificate.passName === 'reynolds-fold-regime'
+      )
+    ).toBe(true);
   });
 });

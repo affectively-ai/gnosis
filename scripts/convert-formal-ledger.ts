@@ -22,11 +22,93 @@ const FORMAL_DIR = join(
 );
 const LEAN_DIR = join(FORMAL_DIR, 'lean/Lean/ForkRaceFoldTheorems');
 const OUTPUT_DIR = join(__dirname, '../examples/proofs');
+const REYNOLDS_BFT_PRIVATE_PUBLIC_THEOREMS = new Set([
+  'quorumSafe_of_chunks_ge_stages',
+  'majoritySafe_of_chunks_ge_stages',
+  'majoritySafe_of_two_chunks_gt_stages',
+  'quorumSafe_of_three_chunks_gt_two_stages',
+  'mergeAll_is_quorumSafe',
+  'quorumFold_is_majoritySafe',
+  'syncRequired_not_majoritySafe',
+]);
 
 function ensureDir(dir: string): void {
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
   }
+}
+
+function sanitizeGgId(raw: string): string {
+  return raw
+    .replace(/[^A-Za-z0-9_]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+/, '')
+    .replace(/_+$/, '')
+    .toLowerCase()
+    || 'unnamed';
+}
+
+function stripReynoldsHelperTheorems(gg: string): string {
+  const removedIds = new Set(
+    [...REYNOLDS_BFT_PRIVATE_PUBLIC_THEOREMS].map((name) => sanitizeGgId(name))
+  );
+  const lines = gg.split('\n');
+  const keptTheoremIds: string[] = [];
+  const keptProvedIds: string[] = [];
+  const filteredLines: string[] = [];
+
+  for (const line of lines) {
+    const theoremDecl = line.match(
+      /^\(([^:]+): Lemma { bules: '1', proposition: '([^']+)' }\)$/
+    );
+    if (theoremDecl) {
+      const theoremId = theoremDecl[1];
+      if (removedIds.has(theoremId)) {
+        continue;
+      }
+      keptTheoremIds.push(theoremId);
+      filteredLines.push(line);
+      continue;
+    }
+
+    const provedDecl = line.match(/^\(([^:]+_proved): Lemma { bules: '0' }\)$/);
+    if (provedDecl) {
+      const theoremId = provedDecl[1].replace(/_proved$/, '');
+      if (removedIds.has(theoremId)) {
+        continue;
+      }
+      keptProvedIds.push(provedDecl[1]);
+      filteredLines.push(line);
+      continue;
+    }
+
+    const rejectEdge = line.match(/^\(([^)]+)\)-\[:REJECT /);
+    if (rejectEdge && removedIds.has(rejectEdge[1])) {
+      continue;
+    }
+
+    filteredLines.push(line);
+  }
+
+  return filteredLines
+    .map((line) => {
+      if (line.startsWith('(theorem: Theorem {')) {
+        return line.replace(/bules: '\d+'/u, `bules: '${keptTheoremIds.length}'`);
+      }
+
+      if (line.startsWith('(theorem)-[:FORK')) {
+        return `(theorem)-[:FORK { reason: 'prove each theorem independently' }]->(${keptTheoremIds.join(' | ')})`;
+      }
+
+      if (line.includes("[:FOLD { reason: 'all theorems proved' }]")) {
+        return `(${keptProvedIds.join(
+          ' | '
+        )})-[:FOLD { reason: 'all theorems proved' }]->(qed: Theorem { bules: '0', proposition: 'ForkRaceFoldTheorems QED' })`;
+      }
+
+      return line;
+    })
+    .join('\n');
 }
 
 function convertTlaFiles(): number {
@@ -65,12 +147,16 @@ function convertLeanFiles(): number {
   for (const file of leanFiles) {
     const name = basename(file, '.lean');
     const source = readFileSync(join(LEAN_DIR, file), 'utf-8');
-    const gg = leanToGg(source);
+    const gg =
+      name === 'ReynoldsBFT'
+        ? stripReynoldsHelperTheorems(leanToGg(source))
+        : leanToGg(source);
     const outPath = join(OUTPUT_DIR, `${name}.gg`);
+    const tlaPath = join(FORMAL_DIR, `${name}.tla`);
 
-    // Don't overwrite TLA+-generated files -- Lean may have more detail
-    // If both exist, append '-lean' suffix
-    const finalPath = existsSync(outPath)
+    // Don't overwrite TLA+-generated files -- Lean may have more detail.
+    // Only append '-lean' when a matching TLA+ source actually exists.
+    const finalPath = existsSync(tlaPath)
       ? join(OUTPUT_DIR, `${name}-lean.gg`)
       : outPath;
 
@@ -82,20 +168,21 @@ function convertLeanFiles(): number {
   return converted;
 }
 
-// Main
-console.log('Converting formal ledger to .gg proof topologies...');
-console.log(`Output: ${OUTPUT_DIR}`);
-console.log('');
+export function main(): void {
+  console.log('Converting formal ledger to .gg proof topologies...');
+  console.log(`Output: ${OUTPUT_DIR}`);
+  console.log('');
 
-ensureDir(OUTPUT_DIR);
+  ensureDir(OUTPUT_DIR);
 
-console.log('=== TLA+ Specifications ===');
-const tlaCount = convertTlaFiles();
-console.log(`\n  ${tlaCount} TLA+ specs converted`);
+  console.log('=== TLA+ Specifications ===');
+  const tlaCount = convertTlaFiles();
+  console.log(`\n  ${tlaCount} TLA+ specs converted`);
 
-console.log('\n=== Lean 4 Theorems ===');
-const leanCount = convertLeanFiles();
-console.log(`\n  ${leanCount} Lean theorems converted`);
+  console.log('\n=== Lean 4 Theorems ===');
+  const leanCount = convertLeanFiles();
+  console.log(`\n  ${leanCount} Lean theorems converted`);
 
-console.log(`\n=== Total: ${tlaCount + leanCount} .gg proof topologies ===`);
-console.log('The entire paper is now topology.');
+  console.log(`\n=== Total: ${tlaCount + leanCount} .gg proof topologies ===`);
+  console.log('The entire paper is now topology.');
+}

@@ -22,6 +22,20 @@ Tag: `proof-of-life-v3-final` on `forkjoin-ai/gnosis`
 
 ---
 
+## Postscript: Aeon Voting
+
+Added on March 22, 2026.
+
+| File | Theorems | Description |
+|------|--------:|-------------|
+| `lean/Lean/ForkRaceFoldTheorems/AeonVoting.lean` | 13 | Governance-deficit voting with zero-deficit optimality, strict dominance over one-stream rule, rejection monotonicity, and deterministic tie-break arithmetic |
+
+| File | Status |
+|------|--------|
+| `aeon_voting.test.gg` | PROVED surface / executable witness |
+
+---
+
 ## Lean 4 Formal Proofs
 
 | File | Theorems | Sorry | Lines | Description |

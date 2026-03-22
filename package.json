@@ -12,6 +12,11 @@
       "types": "./dist/lib.d.ts",
       "default": "./dist/lib.js"
     },
+    "./reynolds-bft": {
+      "import": "./src/reynolds-bft.ts",
+      "types": "./src/reynolds-bft.ts",
+      "default": "./src/reynolds-bft.ts"
+    },
     "./crdt": {
       "import": "./src/crdt/index.ts",
       "types": "./src/crdt/index.ts",
@@ -50,6 +55,8 @@
   "scripts": {
     "build": "tsc && node ./gnode/prewarm-self.mjs",
     "build:toy-tla": "gnode run ./build-toy-tla.ts",
+    "generate:ledger-mcp": "gnode run ./scripts/generate-ledger-mcp-coverage.ts --export main",
+    "validate:ledger-mcp": "pnpm exec tsx ./scripts/validate-ledger-mcp-coverage.ts",
     "dev": "tsc -w",
     "start": "node ./bin/gnosis.js",
     "check:formal": "node ./bin/gnosis.js lint betti.gg && node ./bin/gnosis.js lint transformer.gg && node ./bin/gnosis.js lint ai_hello.gg && node ./bin/gnosis.js lint example.gg && node ./bin/gnosis.js lint topic_domain_transformer.gg && node ./bin/gnosis.js lint warmup_cache_reuse.gg && node ./bin/gnosis.js lint warmup_precompute_prefetch.gg && node ./bin/gnosis.js lint warmup_adaptive_optimization.gg && node ./bin/gnosis.js lint warmup_approximate_probabilistic.gg && node ./bin/gnosis.js lint warmup_structural_amortized.gg && node ./bin/gnosis.js lint warmup_physical_biological.gg && node ./bin/gnosis.js lint warmup_human_social_entrainment.gg && node ./bin/gnosis.js lint warmup_controller_under_below_redline.gg && node ./bin/gnosis.js lint warmup_controller_over_below_redline.gg && node ./bin/gnosis.js lint warmup_controller_under_above_redline.gg && node ./bin/gnosis.js lint warmup_controller_over_above_redline.gg && node ./bin/gnosis.js lint warmup_controller_under_redline_tie.gg && node ./bin/gnosis.js lint warmup_controller_over_redline_tie.gg && node ./bin/gnosis.js lint warmup_invert_cache_reuse.gg && node ./bin/gnosis.js lint warmup_invert_precompute_prefetch.gg && node ./bin/gnosis.js lint warmup_invert_adaptive_optimization.gg && node ./bin/gnosis.js lint warmup_invert_approximate_probabilistic.gg && node ./bin/gnosis.js lint warmup_invert_structural_amortized.gg && node ./bin/gnosis.js lint warmup_invert_physical_biological.gg && node ./bin/gnosis.js lint warmup_invert_human_social_entrainment.gg && node ./bin/gnosis.js lint failure_trilemma_keep_multiplicity.gg && node ./bin/gnosis.js lint failure_trilemma_paid_vent.gg && node ./bin/gnosis.js lint failure_trilemma_paid_repair.gg && node ./bin/gnosis.js lint failure_trilemma_contagious_zero_vent.gg && node ./bin/gnosis.js lint failure_composition_paid_vent_stage.gg && node ./bin/gnosis.js lint failure_composition_paid_repair_stage.gg && node ./bin/gnosis.js lint failure_composition_free_prefix_blocked.gg && node ./bin/gnosis.js lint failure_composition_contagious_paid_stage.gg && node ./bin/gnosis.js lint failure_universality_cost_floor_exact.gg && node ./bin/gnosis.js lint failure_universality_paid_depth_two.gg && node ./bin/gnosis.js lint failure_universality_free_prefix_blocked.gg && node ./bin/gnosis.js lint failure_universality_contagious_depth.gg && node ./bin/gnosis.js lint examples/benchmarks/fold-training-linear.gg && node ./bin/gnosis.js lint examples/benchmarks/fold-training-winner-take-all.gg && node ./bin/gnosis.js lint examples/benchmarks/fold-training-early-stop.gg && node ./bin/gnosis.js lint examples/benchmarks/moe-routing-linear.gg && node ./bin/gnosis.js lint examples/benchmarks/moe-routing-winner-take-all.gg && node ./bin/gnosis.js lint examples/benchmarks/moe-routing-early-stop.gg && node ./bin/gnosis.js test topic_domain_transformer.test.gg && node ./bin/gnosis.js test warmup_taxonomy.test.gg && node ./bin/gnosis.js test warmup_controller.test.gg && node ./bin/gnosis.js test warmup_inversion.test.gg && node ./bin/gnosis.js test failure_trilemma.test.gg && node ./bin/gnosis.js test failure_composition.test.gg && node ./bin/gnosis.js test failure_universality.test.gg && node ./bin/gnosis.js test examples/benchmarks/fold-training.test.gg && node ./bin/gnosis.js test examples/benchmarks/moe-routing.test.gg",

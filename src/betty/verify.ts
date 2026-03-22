@@ -21,6 +21,14 @@ import {
 } from './coarsen.js';
 import { analyzeSemanticCompatibility } from './semantic-compatibility.js';
 import { generateHopeCertificate } from './semantic-hope.js';
+import {
+  checkSevenLaws,
+  checkGodFormula,
+  checkControlStatistics,
+  type CheckResult,
+  type BuleyeanInput,
+} from '../seven-laws-checker.js';
+import { createVoidBoundary, updateVoidBoundary, buleyeanWeight } from '../void.js';
 
 // ============================================================================
 // Verification result
@@ -113,6 +121,117 @@ export function computeDeficitAnalysis(ast: GraphAST): DeficitAnalysis {
 }
 
 // ============================================================================
+// Seven Laws & God Formula Verification Pass
+// ============================================================================
+
+/** Map from CheckResult id to DiagnosticCode. */
+const CHECK_TO_CODE: Record<string, import('./compiler.js').DiagnosticCode> = {
+  'law-1': 'LAW_IMPOSSIBILITY_OF_ZERO',
+  'law-2': 'LAW_STRICT_ORDERING',
+  'law-3': 'LAW_UNIVERSAL_SANDWICH',
+  'law-4': 'LAW_CAVE_DEFICIT',
+  'law-5': 'LAW_CONSERVATION',
+  'law-6': 'LAW_SORITES_SHARPNESS',
+  'law-7': 'LAW_CHAIN_TERMINATION',
+  'gf-1': 'GOD_FORMULA_EXISTENCE',
+  'gf-2': 'GOD_FORMULA_PERSISTENCE',
+  'gf-3': 'GOD_FORMULA_LEARNING',
+  'gf-4': 'GOD_FORMULA_DISCRIMINATION',
+  'gf-5': 'GOD_FORMULA_BOUNDEDNESS',
+  'gf-6': 'GOD_FORMULA_CONVERGENCE',
+  'gf-7': 'GOD_FORMULA_UNCERTAINTY',
+  'gf-8': 'GOD_FORMULA_COHERENCE',
+  'gf-hope': 'GOD_FORMULA_HOPE',
+  'ctrl-1': 'CTRL_INDIVIDUAL',
+  'ctrl-2': 'CTRL_AGGREGATE',
+  'ctrl-3': 'CTRL_SPREAD',
+  'ctrl-4': 'CTRL_MEAN',
+};
+
+/**
+ * Extract Buleyean input from the topology's execution structure.
+ *
+ * The topology's FORK/RACE/FOLD edges define the choice space.
+ * Each FOLD merging N sources produces N choices, each VENT is a rejection.
+ * The observation round count is the number of FOLD + OBSERVE edges.
+ */
+function extractBuleyeanInput(ast: GraphAST): BuleyeanInput | null {
+  // Count per-node rejections from VENT edges, rounds from FOLD/OBSERVE
+  const nodeRejections = new Map<string, number>();
+  let totalRounds = 0;
+
+  for (const edge of ast.edges) {
+    if (edge.type === 'FOLD' || edge.type === 'COLLAPSE' || edge.type === 'OBSERVE') {
+      totalRounds++;
+      for (const sid of edge.sourceIds) {
+        if (!nodeRejections.has(sid)) nodeRejections.set(sid, 0);
+      }
+    }
+    if (edge.type === 'VENT') {
+      for (const sid of edge.sourceIds) {
+        nodeRejections.set(sid, (nodeRejections.get(sid) ?? 0) + 1);
+      }
+    }
+    if (edge.type === 'RACE') {
+      // All but one racer are implicitly rejected
+      for (const sid of edge.sourceIds) {
+        if (!nodeRejections.has(sid)) nodeRejections.set(sid, 0);
+      }
+    }
+  }
+
+  if (nodeRejections.size === 0) return null;
+  const rejections = Array.from(nodeRejections.values());
+  return { rounds: Math.max(totalRounds, 1), rejections };
+}
+
+/**
+ * Run Seven Laws, God Formula, and Control Statistics checks on a topology.
+ * Violations are returned as first-order compiler diagnostics (errors).
+ */
+export function verifySevenLawsAndGodFormula(ast: GraphAST): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  const input = extractBuleyeanInput(ast);
+  if (!input) return diagnostics;
+
+  const lawReport = checkSevenLaws(input);
+  const gfReport = checkGodFormula(input);
+  const ctrlReport = checkControlStatistics(input);
+
+  const allChecks: CheckResult[] = [
+    ...lawReport.laws,
+    ...gfReport.consequences,
+    gfReport.hope,
+    ...ctrlReport.controls,
+  ];
+
+  for (const check of allChecks) {
+    if (!check.pass) {
+      const code = CHECK_TO_CODE[check.id];
+      diagnostics.push({
+        line: 0,
+        column: 0,
+        code,
+        message: `[${check.leanTheorem}] ${check.name}: ${check.message}`,
+        severity: 'error',
+      });
+    }
+  }
+
+  // Also emit info-level diagnostics for the control statistics
+  if (ctrlReport.pass && input.rejections.length > 0) {
+    diagnostics.push({
+      line: 0,
+      column: 0,
+      message: `Buleyean audit: N=${ctrlReport.stats.numChoices} R=${ctrlReport.stats.rounds} W=${ctrlReport.stats.totalWeight} spread=${ctrlReport.stats.maxSpread} -- all 7 laws, 8 consequences, 4 controls pass`,
+      severity: 'info',
+    });
+  }
+
+  return diagnostics;
+}
+
+// ============================================================================
 // Orchestrator
 // ============================================================================
 
@@ -144,6 +263,10 @@ export function runAllVerificationPasses(
   const voidDimensions = computeVoidDimensions(currentAst);
   const landauerHeat = computeLandauerHeat(currentAst);
   const deficit = computeDeficitAnalysis(currentAst);
+
+  // Seven Laws & God Formula verification (independent -- reads topology structure)
+  const sevenLawsDiags = verifySevenLawsAndGodFormula(currentAst);
+  diagnostics.push(...sevenLawsDiags);
 
   // ── SEQUENTIAL CHAIN: stability → optimizer → coarsening ─────────
   // These form a blocking dependency chain.

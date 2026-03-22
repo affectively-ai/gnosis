@@ -55,7 +55,7 @@ interface ProofCandidate {
  * - diversity_exceeds_majority: k=2 → 2*1 ≥ 2 ✓
  * - codec_race_vent_exceeds_bft_threshold: k=2 → 3*1 ≥ 2 ✓
  * - semiotic_fold_exceeds_bft_threshold: k=2 → 3*1 ≥ 2 ✓
- * - quorumSafe_of_chunks_ge_stages: C≥N, idleStages=0, 3*0 < N ✓
+ * - quorumSafeFold_iff_three_chunks_gt_two_stages: C≥N implies 3*C > 2*N, so the fold is quorum-safe ✓
  */
 const VICKREY_TABLE: Map<string, ProofWitness> = new Map();
 
@@ -76,8 +76,8 @@ function buildVickreyTable(): void {
     margin: 0, // 2*1 - 2 = 0 (tight!)
   });
 
-  // ReynoldsBFT.lean: quorumSafe_of_chunks_ge_stages
-  // ∀ N > 0, C ≥ N → 3 * idleStages(N, C) < N
+  // ReynoldsBFT.lean: quorumSafeFold_iff_three_chunks_gt_two_stages
+  // Boundary witness: N=1, C=1 gives 3*C > 2*N and 3*idleStages(N, C) < N
   // Witness: N=1, C=1 → idle=0, 3*0 = 0 < 1
   VICKREY_TABLE.set('3*idle(N,C)<N|N>0,C>=N', {
     assignments: new Map([
@@ -87,7 +87,7 @@ function buildVickreyTable(): void {
     margin: 1, // 1 - 0 = 1
   });
 
-  // ReynoldsBFT.lean: majoritySafe_of_two_chunks_gt_stages
+  // ReynoldsBFT.lean: majoritySafeFold_iff_two_chunks_gt_stages
   // ∀ N, C, 2*C > N → 2 * idleStages(N, C) < N
   // Witness: N=1, C=1 → 2*1=2 > 1, idle=0, 2*0=0 < 1
   VICKREY_TABLE.set('2*idle(N,C)<N|2*C>N', {

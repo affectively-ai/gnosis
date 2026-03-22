@@ -193,6 +193,7 @@ The gnode daemon (`gnode/daemon.mjs`) eliminates V8 startup and bundle-require o
 | **Runtime** | Graph-native interpreter with tagged values (`Result`, `Option`, `Variant`, `Destructure`, `Delay`), structured concurrency, `QDoc`-backed MiddleOut request compression/tunneling, native frame adapter, and a hetero-fabric race layer that can use CPU, WebGPU, WebNN, WASM/browser, or env-bound CUDA/vendor-NPU runners |
 | **Compiled Topology** | AOT codegen eliminates the engine loop -- `.gg` compiles to flat function chains at 176M exec/sec (6ns), leaving only handler time |
 | **CLI** | `lint`, `analyze`, `verify`, `build`, `run`, `native`, `test`, `mod init`, `mod tidy` |
+| **Scripts** | Formal conversion and ledger-to-MCP generation/validation entrypoints in [`scripts/README.md`](./scripts/README.md) |
 | **`gnode` TS runtime** | Rust-fronted runner that compiles orchestration-shaped `.ts` into `.gg`, surfaces cannon/linear schedules, and preserves GG telemetry passthrough |
 | **Module system** | `.gg`/`.mgg` parsing, merged-source loading, cycle rejection, bare-specifier resolution, deterministic lockfiles |
 | **Formal path** | TLA+ module/config generation, Lean proof artifacts, bounded queue certificates, coupled-kernel handoff theorems, recursive coarsening synthesis with fiber-partitioned drift certificates |
@@ -344,7 +345,16 @@ Example families: transformers, CRDTs, synth graphs, privacy flows, edge pipelin
 - [examples](./examples/README.md) -- executable examples and `.test.gg` suites
 - [bindings](./bindings/README.md) -- subprocess-based client bindings for non-TS hosts
 - [content](./content/README.md) -- manuscript and companion publication content
+- [lean](./lean/README.md) -- standalone Lean theorem surface, including the Aeon voting arithmetic proofs
 - [ROADMAP](./ROADMAP.md) -- language roadmap and near-term design edges
+
+## Formal Voting Surface
+
+The repository now also carries a standalone voting proof/kernel pair for ecosystem governance:
+
+- [`aeon_voting.test.gg`](./aeon_voting.test.gg): witness topology for the governance-deficit rule
+- [`lean/README.md`](./lean/README.md): entrypoint into the standalone Lean theorem surface
+- [`AeonVoting.lean`](./lean/Lean/ForkRaceFoldTheorems/AeonVoting.lean): proves zero-deficit optimality, strict dominance over one-stream rule, rejection monotonicity, and deterministic tie-break laws
 
 ## License
 
