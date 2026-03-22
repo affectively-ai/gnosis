@@ -124,6 +124,16 @@ export type {
 export { BettyCompiler } from './betty/compiler.js';
 export { generateLeanFromGnosisAst } from './betty/lean.js';
 export {
+  compileLilith,
+  compileLilithAsync,
+  loadLilith,
+  detectBackend,
+  detectBackendAsync,
+  type LilithResult,
+  type LilithInstance,
+  type LilithBackend,
+} from './lilith.js';
+export {
   GnosisModuleLoader,
   createFilesystemModuleResolver,
   detectModuleFormat,
@@ -405,6 +415,40 @@ export type {
   NeuralHeteroFabricOptions,
 } from './neural-compat.js';
 export * from './runtime/hetero-fabric.js';
+
+export {
+  LanguageAdapterRegistry,
+  buildCodeToNaturalArtifact,
+  createPreservationProfile,
+  createSourceArtifactFromFile,
+  crossCompile,
+  defaultLanguageAdapterRegistry,
+  inferCodeLanguageFromFilePath,
+  inferLanguageDomainFromFilePath,
+  installBuiltInLanguageAdapters,
+} from './cross-domain.js';
+export type {
+  CrossCompileContext,
+  CrossCompileRequest,
+  CrossCompileResult,
+  CrossDomainAnalysis,
+  LanguageAdapter,
+  LanguageDomain,
+  PreservationProfile,
+  SourceArtifact,
+  TargetArtifact,
+  TargetArtifactDescriptor,
+} from './cross-domain.js';
+export type {
+  SemanticFacet,
+  SemanticObligation,
+} from './betty/semantic-compatibility.js';
+export type {
+  JsonSchema,
+  SemanticContract,
+  SemanticPredicate,
+  TopologyType,
+} from './betty/semantic-compatibility.js';
 
 export {
   GnosisTypeScriptBridgeError,
