@@ -3,7 +3,7 @@
 
   The Five-Bule model decomposes personality into five dimensions:
   B_fork (exploration), B_race (competition), B_fold (follow-through),
-  B_interfere (growth), B_vent (release). This file proves what CAN
+  B_sliver (growth), B_vent (release). This file proves what CAN
   be proved about the relationship between Five-Bule and the OCEAN
   (Big Five) personality model, and ruthlessly marks what cannot.
 

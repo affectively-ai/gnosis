@@ -306,19 +306,19 @@ theorem fold_assoc (a b c : Nat) : (a + b) + c = a + (b + c) := by omega
 theorem fold_comm (a b : Nat) : a + b = b + a := by omega
 
 -- ============================================================================
--- S10. INTERFERENCE MATRIX
+-- S10. SLIVERNCE MATRIX
 -- ============================================================================
 
-theorem interference_matrix_size : 3 * 3 = 9 := rfl
-theorem interference_complete : 5 * 9 = 45 := rfl
-theorem interference_triangular : 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 = 45 := rfl
-theorem interference_formula : 9 * 10 / 2 = 45 := rfl
-theorem interference_tri_formula (n : Nat) : 2 * (n * (n + 1) / 2) ≤ n * (n + 1) := by omega
+theorem sliver_matrix_size : 3 * 3 = 9 := rfl
+theorem sliver_complete : 5 * 9 = 45 := rfl
+theorem sliver_triangular : 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 = 45 := rfl
+theorem sliver_formula : 9 * 10 / 2 = 45 := rfl
+theorem sliver_tri_formula (n : Nat) : 2 * (n * (n + 1) / 2) ≤ n * (n + 1) := by omega
 
--- Additional interference matrix properties
-theorem interference_symmetric : 3 * 3 = 3 * 3 := rfl
-theorem interference_trace_3 : 1 + 1 + 1 = 3 := rfl  -- trace of 3x3 identity
-theorem interference_det_identity : 1 * 1 * 1 = 1 := rfl  -- det of 3x3 identity
+-- Additional slivernce matrix properties
+theorem sliver_symmetric : 3 * 3 = 3 * 3 := rfl
+theorem sliver_trace_3 : 1 + 1 + 1 = 3 := rfl  -- trace of 3x3 identity
+theorem sliver_det_identity : 1 * 1 * 1 = 1 := rfl  -- det of 3x3 identity
 
 -- ============================================================================
 -- S11. MONOTONICITY: fib is strictly increasing for n >= 2
@@ -573,7 +573,7 @@ theorem zeckendorf_21 : 21 = fib 8 := by native_decide
   S7.  Lucas-Fibonacci:        22 theorems                          (native_decide)
   S8.  Consensus convergents:  14 theorems                          (rfl/native_decide)
   S9.  Fold theory:            6 theorems                           (omega)
-  S10. Interference matrix:    7 theorems                           (rfl/omega)
+  S10. Sliver matrix:    7 theorems                           (rfl/omega)
   S11. Monotonicity:           19 theorems                          (native_decide)
   S12. Exponential bound:      21 theorems                          (native_decide)
   S13. Linear bound:           16 theorems                          (native_decide)

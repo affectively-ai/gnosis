@@ -175,7 +175,7 @@ theorem aristotle_mean_8 : fib 9 * fib 9 = fib 10 * fib 8 + 1 := by native_decid
 /-
   Aristotle's four causes (material, formal, efficient, final) account for
   everything except release/decay. Adding VENT (the fifth primitive in
-  FORK/RACE/FOLD/INTERFERE/VENT) completes the causal basis.
+  FORK/RACE/FOLD/SLIVER/VENT) completes the causal basis.
 -/
 
 /-- Four causes plus VENT equals five. -/

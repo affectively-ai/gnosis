@@ -1,11 +1,11 @@
 /-
-  Consciousness.lean -- Provable theorems about the Fibonacci/INTERFERE/phi connection
+  Consciousness.lean -- Provable theorems about the Fibonacci/SLIVER/phi connection
 
   The golden ratio phi = (1 + sqrt 5) / 2 is the eigenvalue of the Fibonacci
   transfer matrix [[1,1],[1,0]]. Its conjugate psi = (1 - sqrt 5) / 2 satisfies
-  phi * |psi| = 1. In the FORK/RACE/FOLD framework, phi governs INTERFERE
+  phi * |psi| = 1. In the FORK/RACE/FOLD framework, phi governs SLIVER
   (growth/superposition) and psi governs VENT (decay/decoherence). Their product
-  being unity is the conservation law: what INTERFERE creates, VENT can exactly
+  being unity is the conservation law: what SLIVER creates, VENT can exactly
   annihilate.
 
   Self-contained: builds with `lean Consciousness.lean` (no Mathlib needed).
@@ -74,24 +74,24 @@ axiom phi : R
 axiom phi_squared_eq_phi_plus_one : R_mul phi phi = R_add phi R_one
 
 /-- From phi^2 = phi + 1, we get phi^2 - phi = 1, i.e., phi*(phi-1) = 1.
-    This is the INTERFERE/VENT duality over R.
+    This is the SLIVER/VENT duality over R.
     sorry justification: requires distributivity and subtraction axioms for R
     which we have not fully specified. -/
-axiom interfere_vent_dual_real : R_mul phi (R_sub phi R_one) = R_one
+axiom sliver_vent_dual_real : R_mul phi (R_sub phi R_one) = R_one
 
 -- ============================================================================
--- S3. INTERFERE/VENT duality: x*x = x+1 implies x*(x-1) = 1 (over Int)
+-- S3. SLIVER/VENT duality: x*x = x+1 implies x*(x-1) = 1 (over Int)
 -- ============================================================================
 
 /-- Over the integers, if x*x = x + 1 then x*(x - 1) = 1.
-    This is the algebraic core of INTERFERE/VENT duality:
+    This is the algebraic core of SLIVER/VENT duality:
     phi^2 = phi + 1 implies phi*(phi-1) = 1, so (phi-1) = 1/phi.
 
     Note: over Int the only solutions to x*(x-1)=1 are vacuous (no integer
     satisfies x^2=x+1), but the algebraic implication is valid and demonstrates
     the structural relationship. The real-valued version is axiom
-    interfere_vent_dual_real above. -/
-theorem interfere_vent_dual (x : Int) (h : x * x = x + 1) : x * (x - 1) = 1 := by
+    sliver_vent_dual_real above. -/
+theorem sliver_vent_dual (x : Int) (h : x * x = x + 1) : x * (x - 1) = 1 := by
   -- x*x = x + 1  implies  x*x - x = 1  implies  x*(x-1) = 1
   -- We use the fact that x*(x-1) = x*x - x for integers
   have key : x * (x - 1) = x * x - x * 1 := Int.mul_sub x x 1
@@ -285,10 +285,10 @@ theorem fold_preimage_count (c : Nat) :
 theorem three_plus_two_eq_five : 3 + 2 = 5 := rfl
 
 -- ============================================================================
--- S9. The interference matrix size: 9 = 3^2
+-- S9. The slivernce matrix size: 9 = 3^2
 -- ============================================================================
 
-/-- The interference matrix is 3x3 = 9 entries.
+/-- The slivernce matrix is 3x3 = 9 entries.
     Three dimensions (FORK/RACE/FOLD) form a 3x3 transition matrix. -/
 theorem nine_eq_three_squared : 9 = 3 * 3 := rfl
 
@@ -347,7 +347,7 @@ theorem fork_fold_roundtrip (n : Nat) (parts : List Nat)
     fib_ratio_lower_bound   -- from fib_nondecreasing
     fib_ratio_upper_bound   -- induction + native_decide + monotonicity
     fib_ratio_bounds        -- conjunction of above
-    interfere_vent_dual     -- omega (integer algebra)
+    sliver_vent_dual     -- omega (integer algebra)
     fold_irreversible       -- constructive witness (0,c) vs (1,c-1)
     fold_preimage_count     -- omega
     three_plus_two_eq_five  -- rfl
@@ -362,7 +362,7 @@ theorem fork_fold_roundtrip (n : Nat) (parts : List Nat)
 
   AXIOMATIZED (needs Mathlib's real numbers and sqrt):
     phi_squared_eq_phi_plus_one   -- axiom: (1+sqrt5)/2 satisfies x^2 = x+1
-    interfere_vent_dual_real      -- axiom: phi*(phi-1) = 1 over reals
+    sliver_vent_dual_real      -- axiom: phi*(phi-1) = 1 over reals
 
   SORRY (provable with more machinery, marked with justification):
     cassini_identity_nat     -- alternating sign needs nonlinear Nat arithmetic

@@ -1,7 +1,7 @@
 /-
   Twelve.lean -- Everything provable about the number 12 in five primitives
 
-  The number 12 is the product of the pre-INTERFERE primitive count (4) and
+  The number 12 is the product of the pre-SLIVER primitive count (4) and
   the regime count (3: LINEAR, NON-LINEAR, POST-LINEAR). It governs the
   circle of fifths, the chromatic scale, the clock, the zodiac, and the
   lunar cycle. Each of these structures is proved in integer arithmetic
@@ -101,9 +101,9 @@ theorem zeckendorf_valid_4_2 : 4 - 2 >= 2 := by native_decide
 
 /-
   In the five-primitive framework:
-    - 4 = number of primitives before INTERFERE (FORK, RACE, FOLD, INSPECT)
+    - 4 = number of primitives before SLIVER (FORK, RACE, FOLD, INSPECT)
     - 3 = number of regimes (LINEAR, NON-LINEAR, POST-LINEAR)
-    - 5 = the complete primitive count (adding INTERFERE)
+    - 5 = the complete primitive count (adding SLIVER)
 
   12 = 4 * 3: the incomplete product. The complete product is 15.
 -/
@@ -380,15 +380,15 @@ theorem sixty_also_two_times_thirty : 2 * 30 = 60 := by native_decide
 -- VERDICT: PAREIDOLIA. 60 = 5×4×3 is one of many decompositions.
 
 /-- 13 is prime. That's the mathematical reason it doesn't fit into 12-based
-    systems -- not because it's "unlucky" or because it's INTERFERE.
+    systems -- not because it's "unlucky" or because it's SLIVER.
     The zodiac can't have 13 signs because 13 is indivisible by 2, 3, 4, or 6. -/
 theorem thirteen_is_odd : 13 % 2 = 1 := by native_decide
 theorem thirteen_not_div_three : 13 % 3 = 1 := by native_decide
 theorem thirteen_not_div_four : 13 % 4 = 1 := by native_decide
 theorem thirteen_not_div_six : 13 % 6 = 1 := by native_decide
 -- 13 doesn't divide evenly into the 12-based grid. That's arithmetic, not mysticism.
--- It IS F(7), but being Fibonacci doesn't make it the "INTERFERE sign."
--- VERDICT: FOLKLORE. 13 is Fibonacci (proved). "Unlucky 13 = INTERFERE" is story, not math.
+-- It IS F(7), but being Fibonacci doesn't make it the "SLIVER sign."
+-- VERDICT: FOLKLORE. 13 is Fibonacci (proved). "Unlucky 13 = SLIVER" is story, not math.
 
 /-- The CMB temperature is NOT φ².
     2725 ≠ 2618. The difference is 107, or 3.9%.

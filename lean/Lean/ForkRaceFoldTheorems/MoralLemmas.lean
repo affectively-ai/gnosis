@@ -6,7 +6,7 @@
   Tactics used: rfl, native_decide, omega, simp, decide.
 
   The central claim: ethical systems can be ranked by how many of the
-  five FORK/RACE/FOLD primitives (fork, race, fold, interfere, vent)
+  five FORK/RACE/FOLD primitives (fork, race, fold, sliver, vent)
   they engage. Linear ethics (deontology) uses 3, nonlinear ethics
   (consequentialism) uses 4, and post-linear ethics (virtue ethics)
   uses all 5. The trolley problem has only 2 primitives and therefore
@@ -43,7 +43,7 @@ example : fib 8 = 21 := rfl
 -- ============================================================================
 
 /-- The trolley problem engages only 2 primitives (fork, race) out of
-    the 5 required (fork, race, fold, interfere, vent). With only 2
+    the 5 required (fork, race, fold, sliver, vent). With only 2
     primitives, the system is underdetermined: 2 < 5. -/
 theorem trolley_insufficient_primitives : 2 < 5 := by native_decide
 
@@ -58,7 +58,7 @@ def golden_rule_check (a b : Nat) : Bool := a == b
 
 /-- The golden rule is symmetric: checking a against b gives the same
     result as checking b against a. This is the reciprocity principle. -/
-theorem golden_rule_is_interfere (a b : Nat) :
+theorem golden_rule_is_sliver (a b : Nat) :
     golden_rule_check a b = golden_rule_check b a := by
   simp [golden_rule_check, BEq.beq]
   omega
@@ -178,7 +178,7 @@ theorem tolerance_paradox_general (n : Nat) (hn : 2 ≤ n) : 1 < n := by omega
 
 /-- Deontological ethics engages 3 primitives (fork, race, fold) out of 5.
     It handles branching (fork), selection (race), and aggregation (fold),
-    but lacks interference and venting -- it cannot model emergent moral
+    but lacks slivernce and venting -- it cannot model emergent moral
     properties or the release of moral tension. 3 < 5. -/
 theorem linear_ethics_three_primitives : 3 < 5 := by native_decide
 
@@ -186,8 +186,8 @@ theorem linear_ethics_three_primitives : 3 < 5 := by native_decide
 -- S8. Nonlinear ethics (consequentialism): 4 primitives
 -- ============================================================================
 
-/-- Consequentialist ethics engages 4 primitives (fork, race, fold, interfere)
-    out of 5. It adds interference (outcomes interact nonlinearly) but still
+/-- Consequentialist ethics engages 4 primitives (fork, race, fold, sliver)
+    out of 5. It adds slivernce (outcomes interact nonlinearly) but still
     lacks venting -- it cannot model moral forgiveness or the release of
     accumulated moral weight. 4 < 5. -/
 theorem nonlinear_ethics_four_primitives : 4 < 5 := by native_decide
@@ -198,7 +198,7 @@ theorem nonlinear_ethics_four_primitives : 4 < 5 := by native_decide
 
 /-- Virtue ethics engages all 5 primitives. It is the only ethical framework
     that is structurally complete in the FORK/RACE/FOLD basis: fork (choice),
-    race (competition), fold (integration), interfere (character interaction),
+    race (competition), fold (integration), sliver (character interaction),
     and vent (catharsis/forgiveness). 5 = 5. -/
 theorem post_linear_is_complete : 5 = 5 := rfl
 
@@ -306,7 +306,7 @@ theorem courage_gap_size : 667 - 618 = 49 := rfl
     trolley_insufficient_primitives    -- 2 < 5                    (native_decide)
 
   S2. Golden rule:
-    golden_rule_is_interfere           -- symmetric check          (simp + omega)
+    golden_rule_is_sliver           -- symmetric check          (simp + omega)
 
   S3. Cooperation dominates defection:
     cooperation_dominates_defection_iterated -- 3n > 1n for n >= 1 (omega)
